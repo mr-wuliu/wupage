@@ -1,5 +1,6 @@
 import { sendRuntimeMessage } from "../shared/messaging";
 import { TARGET_LANGUAGES } from "../shared/languages";
+import { DEFAULT_SETTINGS } from "../shared/defaults";
 import type { ExtensionSettings, ProviderConfig } from "../shared/types";
 import "./styles.css";
 
@@ -13,6 +14,7 @@ const providerSelect = query<HTMLSelectElement>("#provider");
 const providerForm = query<HTMLDivElement>("#providerForm");
 const saveButton = query<HTMLButtonElement>("#save");
 const testButton = query<HTMLButtonElement>("#test");
+const restoreButton = query<HTMLButtonElement>("#restore");
 const status = query<HTMLParagraphElement>("#status");
 const LLM_MODEL_OPTIONS = [
   "gpt-4o-mini",
@@ -41,6 +43,7 @@ async function init(): Promise<void> {
     void save();
   });
   testButton.addEventListener("click", testProvider);
+  restoreButton.addEventListener("click", restoreDefaults);
 }
 
 function render(): void {
@@ -128,7 +131,7 @@ function renderProviderForm(): void {
         </label>
       </div>
       <label>系统提示词 <textarea data-field="systemPrompt">${escapeHtml(provider.systemPrompt)}</textarea></label>
-      <p class="hint">使用智谱 GLM Chat Completions。普通 API key 使用 https://open.bigmodel.cn/api/paas/v4，Coding Plan key 使用 https://open.bigmodel.cn/api/coding/paas/v4。</p>
+      <p class="hint">使用智谱 GLM Chat Completions。API 地址默认使用 https://open.bigmodel.cn/api/paas/v4。</p>
     `;
     return;
   }
@@ -172,6 +175,17 @@ async function testProvider(): Promise<void> {
       providerId: settings.activeProviderId
     });
     setStatus(`测试通过：${result.translation}`);
+  } catch (error) {
+    setStatus(error instanceof Error ? error.message : String(error));
+  }
+}
+
+async function restoreDefaults(): Promise<void> {
+  try {
+    settings = cloneSettings(DEFAULT_SETTINGS);
+    await sendRuntimeMessage({ type: "SAVE_SETTINGS", settings });
+    render();
+    setStatus("已恢复默认设置。");
   } catch (error) {
     setStatus(error instanceof Error ? error.message : String(error));
   }
@@ -307,4 +321,8 @@ function renderOptions(values: string[], selected: string): string {
       `<option value="${escapeAttr(value)}" ${value === selected ? "selected" : ""}>${escapeHtml(value)}</option>`
     )
     .join("");
+}
+
+function cloneSettings(value: ExtensionSettings): ExtensionSettings {
+  return JSON.parse(JSON.stringify(value)) as ExtensionSettings;
 }
