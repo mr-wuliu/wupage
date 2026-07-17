@@ -401,6 +401,42 @@ describe("content DOM translation extraction", () => {
     expect(findTranslatableParagraph(navHeading)).toBeNull();
   });
 
+  it("translates rustdoc sidebar navigation as compact inline text", () => {
+    document.body.innerHTML = `
+      <nav class="sidebar">
+        <div class="sidebar-elems">
+          <section id="rustdoc-toc">
+            <h3><a href="#trait-implementations">Trait Implementations</a></h3>
+            <ul>
+              <li><a href="#impl-Debug">Debug</a></li>
+              <li><a href="#impl-Any-for-T">Any</a></li>
+            </ul>
+          </section>
+        </div>
+      </nav>
+    `;
+    stubLayout();
+
+    const segments = collectTextSegments();
+
+    expect(segments.map((segment) => segment.text)).toEqual([
+      "Trait Implementations",
+      "Debug",
+      "Any"
+    ]);
+
+    renderTranslations([
+      { id: segments[0].id, text: "特性实现方式" },
+      { id: segments[1].id, text: "调试" },
+      { id: segments[2].id, text: "任何" }
+    ]);
+
+    const translations = [...document.querySelectorAll<HTMLElement>(".wupage-translation")];
+
+    expect(translations.map((node) => node.dataset.wupageMode)).toEqual(["inline", "inline", "inline"]);
+    expect(document.querySelector("h3 a")?.textContent).toBe("Trait Implementations特性实现方式");
+  });
+
   it("renders and clears target-level translations", () => {
     document.body.innerHTML = `<h3 id="impl">impl&lt;'a&gt; Freeze for WakerRef&lt;'a&gt;</h3>`;
     stubLayout();

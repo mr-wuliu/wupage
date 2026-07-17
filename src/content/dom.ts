@@ -87,6 +87,10 @@ const SKIP_SELECTORS = [
 ];
 const SKIP_SELECTOR = SKIP_SELECTORS.join(",");
 const READABLE_HEADING_SKIP_SELECTOR = SKIP_SELECTORS.filter((selector) => selector !== "summary").join(",");
+const COMPACT_NAV_SKIP_SELECTOR = SKIP_SELECTORS.filter(
+  (selector) => selector !== "nav" && selector !== "aside"
+).join(",");
+const COMPACT_NAV_SELECTOR = "nav.sidebar, #rustdoc-toc, .sidebar-elems";
 const HEADING_SELECTOR = "h1,h2,h3,h4,h5,h6";
 const READABLE_ROOT_SELECTOR = "main,article,[role='main'],.markdown-body,.docblock,#main-content";
 const CODE_SELECTOR = "pre, code, .highlight, .example-wrap, .blob-code, .react-code-text";
@@ -403,6 +407,9 @@ function shouldSkipElement(element: Element): boolean {
   if (isInsideCodeBlock(element)) return false;
   if (SKIP_TAGS.has(element.tagName)) return true;
   if (element.closest(`.${TRANSLATION_CLASS}`)) return true;
+  if (isCompactNavigationText(element)) {
+    return Boolean(element.closest(COMPACT_NAV_SKIP_SELECTOR));
+  }
   if (isInsideReadableHeadingContent(element)) {
     return Boolean(element.closest(READABLE_HEADING_SKIP_SELECTOR));
   }
@@ -546,6 +553,7 @@ function findHeadingAnchor(block: Element): Element | null {
 
 function getRenderMode(element: Element | null): RenderMode {
   if (!element) return "inline";
+  if (isCompactNavigationText(element)) return "inline";
   if (isReadableHeading(element)) return "block";
   if (isCompactUiElement(element)) return "inline";
   return "block";
@@ -568,6 +576,7 @@ function isCompactUiElement(element: Element): boolean {
 
 function isLikelyUiToken(text: string, element: Element | null): boolean {
   if (!element) return false;
+  if (isCompactNavigationText(element)) return false;
   if (text.length > 28) return false;
   if (element.closest("p")) return false;
   if (isReadableHeading(element)) return false;
@@ -595,6 +604,15 @@ function isReadableHeading(element: Element): boolean {
 function isInsideReadableHeadingContent(element: Element): boolean {
   const heading = element.closest(HEADING_SELECTOR);
   return Boolean(heading && isReadableHeading(heading));
+}
+
+function isCompactNavigationText(element: Element): boolean {
+  const container = element.closest(COMPACT_NAV_SELECTOR);
+  if (!container) return false;
+  const target = element.closest("a, h2, h3, li");
+  if (!target || !container.contains(target)) return false;
+  if (target.querySelector("button,input,select,textarea,[role='button']")) return false;
+  return true;
 }
 
 function isInsideReadableRoot(element: Element): boolean {
