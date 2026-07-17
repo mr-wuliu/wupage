@@ -18,6 +18,11 @@ interface TrackedGroup {
 
 type RenderMode = "block" | "inline" | "code-comment";
 
+interface ProtectedToken {
+  marker: string;
+  node: Element;
+}
+
 const TRANSLATION_CLASS = "wupage-translation";
 const PENDING_CLASS = "wupage-translation-pending";
 const TRANSLATED_ATTR = "data-wupage-translated";
@@ -87,6 +92,7 @@ const CODE_COMMENT_TARGET_SELECTOR = ".react-code-text, .blob-code, pre, code, .
 
 let trackedNodes: TrackedNode[] = [];
 let trackedGroups: TrackedGroup[] = [];
+let protectedTokensById = new Map<string, ProtectedToken[]>();
 let targetIdCounter = 0;
 
 const PARAGRAPH_SELECTOR = [
@@ -230,7 +236,7 @@ export function renderTranslations(translations: Array<{ id: string; text: strin
     const element = document.createElement("span");
     element.className = TRANSLATION_CLASS;
     element.dataset.wupageMode = "block";
-    element.textContent = translation;
+    renderProtectedText(element, group.id, translation);
     element.setAttribute("lang", "translated");
     element.setAttribute("aria-hidden", "true");
     element.setAttribute(TRANSLATION_TARGET_ATTR, targetId);
@@ -248,8 +254,7 @@ export function renderTranslations(translations: Array<{ id: string; text: strin
     const element = document.createElement("span");
     element.className = TRANSLATION_CLASS;
     element.dataset.wupageMode = tracked.mode;
-    element.textContent =
-      tracked.mode === "code-comment" ? `${tracked.commentPrefix ?? "//"} ${translation}` : translation;
+    element.textContent = tracked.mode === "code-comment" ? `${tracked.commentPrefix ?? "//"} ${translation}` : translation;
     element.setAttribute("lang", "translated");
     element.setAttribute("aria-hidden", "true");
     parent.setAttribute(TRANSLATED_ATTR, "true");
@@ -326,6 +331,7 @@ export function clearTranslations(): void {
 function clearNodeTracking(): void {
   trackedNodes = [];
   trackedGroups = [];
+  protectedTokensById = new Map();
 }
 
 function findTargetTranslations(targetId: string): Element[] {
@@ -375,11 +381,12 @@ function groupTextSegments(nodes: TrackedNode[], fallback: TextSegment[]): TextS
     const block = groupNodes[0].node.parentElement?.closest(`p, li, blockquote, ${HEADING_SELECTOR}`);
     if (!block) continue;
     const nodeText = normalizeText(groupNodes.map((tracked) => tracked.node.textContent ?? "").join(" "));
-    const text = getReadableBlockText(block);
+    const id = groupNodes[0].id;
+    const { text, tokens } = getReadableBlockText(block);
     if (groupNodes.length < 2 && text === nodeText) continue;
     if (!text) continue;
-    const id = groupNodes[0].id;
     trackedGroups.push({ id, nodes: groupNodes, block });
+    if (tokens.length) protectedTokensById.set(id, tokens);
     groupedSegments.push({ id, text });
     groupNodes.forEach((tracked) => standalone.delete(tracked.id));
   }
@@ -410,7 +417,7 @@ function isInlineCodeInReadableText(element: Element): boolean {
   return Boolean(code.closest("p, li, blockquote"));
 }
 
-function getReadableBlockText(block: Element): string {
+function getReadableBlockText(block: Element): { text: string; tokens: ProtectedToken[] } {
   const clone = block.cloneNode(true) as Element;
   clone
     .querySelectorAll(
@@ -430,7 +437,82 @@ function getReadableBlockText(block: Element): string {
       ].join(",")
     )
     .forEach((node) => node.remove());
-  return normalizeText(clone.textContent ?? "");
+
+  const tokens: ProtectedToken[] = [];
+  clone.querySelectorAll("code,kbd,samp").forEach((node) => {
+    const element = node as Element;
+    if (!isProtectedInlineElement(element)) return;
+    const sourcePath = getElementPath(clone, element);
+    const sourceElement = sourcePath ? getElementByPath(block, sourcePath) : null;
+    if (!sourceElement) return;
+    const protectedElement = getProtectedRenderElement(sourceElement);
+    const marker = `⟪WUPAGE${tokens.length}⟫`;
+    tokens.push({ marker, node: protectedElement.cloneNode(true) as Element });
+    element.replaceWith(document.createTextNode(` ${marker} `));
+  });
+
+  return {
+    text: normalizeText(clone.textContent ?? ""),
+    tokens
+  };
+}
+
+function renderProtectedText(container: Element, id: string, text: string): void {
+  const tokens = protectedTokensById.get(id);
+  if (!tokens?.length) {
+    container.textContent = text;
+    return;
+  }
+
+  const tokenByMarker = new Map(tokens.map((token) => [token.marker, token]));
+  const pattern = new RegExp(tokens.map((token) => escapeRegExp(token.marker)).join("|"), "g");
+  let cursor = 0;
+  for (const match of text.matchAll(pattern)) {
+    const marker = match[0];
+    const index = match.index ?? 0;
+    if (index > cursor) container.append(document.createTextNode(text.slice(cursor, index)));
+    const token = tokenByMarker.get(marker);
+    if (token) container.append(token.node.cloneNode(true));
+    cursor = index + marker.length;
+  }
+  if (cursor < text.length) container.append(document.createTextNode(text.slice(cursor)));
+}
+
+function isProtectedInlineElement(element: Element): boolean {
+  if (element.closest("pre, .highlight, .example-wrap, .blob-code, .react-code-text")) return false;
+  return Boolean(element.closest("p, li, blockquote, h1, h2, h3, h4, h5, h6"));
+}
+
+function getProtectedRenderElement(element: Element): Element {
+  const link = element.closest("a");
+  if (link && link.textContent?.trim() === element.textContent?.trim()) return link;
+  return element;
+}
+
+function getElementPath(root: Element, element: Element): number[] | null {
+  const path: number[] = [];
+  let current: Element | null = element;
+  while (current && current !== root) {
+    const parent: Element | null = current.parentElement;
+    if (!parent) return null;
+    path.unshift(Array.prototype.indexOf.call(parent.children, current));
+    current = parent;
+  }
+  return current === root ? path : null;
+}
+
+function getElementByPath(root: Element, path: number[]): Element | null {
+  let current: Element = root;
+  for (const index of path) {
+    const next = current.children.item(index);
+    if (!next) return null;
+    current = next;
+  }
+  return current;
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 function insertBlockTranslation(block: Element, translation: Element): void {

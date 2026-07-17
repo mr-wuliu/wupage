@@ -196,7 +196,7 @@ class OpenAICompatibleProvider implements TranslatorProvider {
     if (!validation.ok) throw new Error(validation.message);
 
     const endpoint = `${this.config.baseURL.replace(/\/$/, "")}/chat/completions`;
-    const systemPrompt = renderTemplate(this.config.systemPrompt, {
+    const systemPrompt = renderTemplate(withPlaceholderInstruction(this.config.systemPrompt), {
       texts: request.texts,
       sourceLang: request.sourceLang ?? "auto",
       targetLang: request.targetLang
@@ -323,6 +323,10 @@ function parseTranslationArray(content: string, expectedLength: number): string[
 function stripCodeFence(value: string): string {
   const match = value.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
   return match?.[1] ?? value;
+}
+
+function withPlaceholderInstruction(prompt: string): string {
+  return `${prompt}\nPreserve placeholders matching ⟪WUPAGE0⟫, ⟪WUPAGE1⟫, etc. exactly and keep them in the most natural translated position.`;
 }
 
 async function fetchWithLlmRetry(url: string, init: RequestInit): Promise<Response> {

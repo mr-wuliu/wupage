@@ -130,8 +130,38 @@ describe("content DOM translation extraction", () => {
 
     expect(findTranslatableParagraph(code)?.id).toBe("doc");
     expect(segments.map((segment) => segment.text)).toEqual([
-      "Create a new WakerRef from a Waker reference."
+      "Create a new ⟪WUPAGE0⟫ from a ⟪WUPAGE1⟫ reference."
     ]);
+  });
+
+  it("protects inline code terms and restores them in translated text", () => {
+    document.body.innerHTML = `
+      <main>
+        <p id="doc">
+          A <a href="struct.Waker.html"><code>Waker</code></a>
+          that is only valid for a given lifetime.
+        </p>
+      </main>
+    `;
+    stubLayout();
+
+    const segments = collectTextSegments();
+
+    expect(segments.map((segment) => segment.text)).toEqual([
+      "A ⟪WUPAGE0⟫ that is only valid for a given lifetime."
+    ]);
+
+    renderTranslations([
+      { id: segments[0].id, text: "一个仅在给定生命周期内有效的 ⟪WUPAGE0⟫。" }
+    ]);
+
+    const translation = document.querySelector<HTMLElement>(".wupage-translation");
+    const restoredCode = translation?.querySelector("code");
+    const restoredLink = translation?.querySelector("a");
+
+    expect(translation?.textContent).toBe("一个仅在给定生命周期内有效的 Waker。");
+    expect(restoredCode?.textContent).toBe("Waker");
+    expect(restoredLink?.getAttribute("href")).toBe("struct.Waker.html");
   });
 
   it("groups readable headings with inline code into one segment", () => {

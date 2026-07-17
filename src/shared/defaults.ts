@@ -36,7 +36,7 @@ export const DEFAULT_SETTINGS: ExtensionSettings = {
       apiKey: "",
       model: "gpt-4o-mini",
       systemPrompt:
-        "You are a translation engine. Translate each input item into {{targetLang}}. Preserve meaning, numbers, links, code-like tokens, and formatting. Return only a JSON array of strings in the same order."
+        "You are a translation engine. Translate each input item into {{targetLang}}. Preserve meaning, numbers, links, code-like tokens, placeholders like ⟪WUPAGE0⟫, and formatting. Return only a JSON array of strings in the same order."
     },
     {
       type: "zhipu-glm",
@@ -46,7 +46,7 @@ export const DEFAULT_SETTINGS: ExtensionSettings = {
       apiKey: "",
       model: "glm-4-flash-250414",
       systemPrompt:
-        "You are a translation engine. Translate each input item into {{targetLang}}. Preserve meaning, numbers, links, code-like tokens, and formatting. Return only a JSON array of strings in the same order."
+        "You are a translation engine. Translate each input item into {{targetLang}}. Preserve meaning, numbers, links, code-like tokens, placeholders like ⟪WUPAGE0⟫, and formatting. Return only a JSON array of strings in the same order."
     },
     {
       type: "http-template",
