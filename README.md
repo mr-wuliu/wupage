@@ -6,7 +6,7 @@ A Manifest V3 browser extension for one-click page translation. The first versio
 
 - One-click full-page translation from the popup.
 - Bilingual rendering that keeps the original text and inserts translations inline.
-- Built-in no-key web providers: Google Web Translate, 有道翻译, and DeepL Web.
+- Built-in no-key web providers: Google Web Translate and DeepL Web.
 - Built-in Microsoft Translator provider.
 - Built-in Google Cloud Translation Basic provider.
 - Optional OpenAI-compatible LLM provider with configurable `baseURL`, API key, model, and prompt.
@@ -30,7 +30,6 @@ Load the extension from `dist/` in `chrome://extensions` or `edge://extensions` 
 These providers use web translation endpoints similar to the approach used by projects such as PowerTranslator. They do not need an API key, but they are unofficial and can be rate-limited, blocked, or changed by the vendor.
 
 - `Google Web Translate`: `https://translate.googleapis.com/translate_a/single`
-- `有道翻译`: `https://aidemo.youdao.com/trans`
 - `DeepL Web`: `https://www2.deepl.com/jsonrpc?client=chrome-extension,1.33.0`
 
 ## Built-In Providers
