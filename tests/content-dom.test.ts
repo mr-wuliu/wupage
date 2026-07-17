@@ -155,6 +155,53 @@ describe("content DOM translation extraction", () => {
     ]);
   });
 
+  it("does not include heading action buttons in grouped heading text", () => {
+    document.body.innerHTML = `
+      <main>
+        <section id="main-content">
+          <h1 id="title">
+            Struct <span class="struct">WakerRef</span>
+            <button id="copy-path" title="Copy item path to clipboard">Copy item path</button>
+          </h1>
+        </section>
+      </main>
+    `;
+    stubLayout();
+
+    const segments = collectTextSegments();
+
+    expect(segments.map((segment) => segment.text)).toEqual(["Struct WakerRef"]);
+
+    renderTranslations([{ id: segments[0].id, text: "结构体 WakerRef" }]);
+    const translation = document.querySelector(".wupage-translation");
+
+    expect(translation?.textContent).toBe("结构体 WakerRef");
+    expect(translation?.previousElementSibling?.id).toBe("title");
+    expect(document.querySelector("#copy-path")?.textContent).toBe("Copy item path");
+  });
+
+  it("skips rustdoc breadcrumbs during page translation", () => {
+    document.body.innerHTML = `
+      <main>
+        <section id="main-content">
+          <div class="rustdoc-breadcrumbs"><a>futures</a>::<a>task</a></div>
+          <h1>Struct <span>WakerRef</span></h1>
+          <div class="docblock">
+            <p>A Waker that is only valid for a given lifetime.</p>
+          </div>
+        </section>
+      </main>
+    `;
+    stubLayout();
+
+    const segments = collectTextSegments();
+
+    expect(segments.map((segment) => segment.text)).toEqual([
+      "Struct WakerRef",
+      "A Waker that is only valid for a given lifetime."
+    ]);
+  });
+
   it("skips standalone code syntax fragments", () => {
     document.body.innerHTML = `
       <main>

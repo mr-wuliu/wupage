@@ -13,6 +13,7 @@ interface TrackedNode {
 interface TrackedGroup {
   id: string;
   nodes: TrackedNode[];
+  block: Element;
 }
 
 type RenderMode = "block" | "inline" | "code-comment";
@@ -58,6 +59,11 @@ const SKIP_SELECTOR = [
   "details-dialog",
   "modal-dialog",
   ".sr-only",
+  ".rustdoc-breadcrumbs",
+  ".breadcrumbs",
+  ".breadcrumb",
+  "[class*='breadcrumb']",
+  "[class*='Breadcrumb']",
   ".IssueLabel",
   ".Label",
   ".js-issue-labels",
@@ -216,19 +222,20 @@ export function renderTranslations(translations: Array<{ id: string; text: strin
 
   for (const group of trackedGroups) {
     const translation = translationById.get(group.id);
-    const anchor = group.nodes.at(-1);
-    const parent = anchor?.node.parentElement;
-    if (!translation || !anchor || !parent || parent.closest(`.${TRANSLATION_CLASS}`)) continue;
+    const block = group.block;
+    if (!translation || block.closest(`.${TRANSLATION_CLASS}`)) continue;
 
     removePendingForId(group.id);
+    const targetId = ensureTranslationTarget(block);
     const element = document.createElement("span");
     element.className = TRANSLATION_CLASS;
     element.dataset.wupageMode = "block";
     element.textContent = translation;
     element.setAttribute("lang", "translated");
     element.setAttribute("aria-hidden", "true");
-    parent.setAttribute(TRANSLATED_ATTR, "true");
-    anchor.node.after(element);
+    element.setAttribute(TRANSLATION_TARGET_ATTR, targetId);
+    block.setAttribute(TRANSLATED_ATTR, "true");
+    insertBlockTranslation(block, element);
   }
 
   for (const tracked of trackedNodes) {
@@ -270,11 +277,14 @@ export function renderTranslationPlaceholders(segments: TextSegment[]): void {
 
   for (const group of trackedGroups) {
     if (!pendingIds.has(group.id)) continue;
-    const anchor = group.nodes.at(-1);
-    const parent = anchor?.node.parentElement;
-    if (!anchor || !parent || parent.closest(`.${TRANSLATION_CLASS}`)) continue;
-    insertPending(anchor.node, group.id, "block");
-    parent.setAttribute(TRANSLATED_ATTR, "true");
+    const block = group.block;
+    if (block.closest(`.${TRANSLATION_CLASS}`)) continue;
+    const targetId = ensureTranslationTarget(block);
+    const pending = createPendingElement(group.id, "block");
+    pending.setAttribute(TRANSLATION_TARGET_ATTR, targetId);
+    removePendingForId(group.id);
+    insertBlockTranslation(block, pending);
+    block.setAttribute(TRANSLATED_ATTR, "true");
   }
 
   for (const tracked of trackedNodes) {
@@ -369,7 +379,7 @@ function groupTextSegments(nodes: TrackedNode[], fallback: TextSegment[]): TextS
     if (groupNodes.length < 2 && text === nodeText) continue;
     if (!text) continue;
     const id = groupNodes[0].id;
-    trackedGroups.push({ id, nodes: groupNodes });
+    trackedGroups.push({ id, nodes: groupNodes, block });
     groupedSegments.push({ id, text });
     groupNodes.forEach((tracked) => standalone.delete(tracked.id));
   }
@@ -403,9 +413,32 @@ function isInlineCodeInReadableText(element: Element): boolean {
 function getReadableBlockText(block: Element): string {
   const clone = block.cloneNode(true) as Element;
   clone
-    .querySelectorAll(`.${TRANSLATION_CLASS}, script, style, noscript, .anchor, [aria-hidden="true"]`)
+    .querySelectorAll(
+      [
+        `.${TRANSLATION_CLASS}`,
+        "script",
+        "style",
+        "noscript",
+        "button",
+        "rustdoc-toolbar",
+        ".anchor",
+        ".sr-only",
+        "[role='button']",
+        "[aria-hidden='true']",
+        "[title*='Copy item path']",
+        "[aria-label*='Copy item path']"
+      ].join(",")
+    )
     .forEach((node) => node.remove());
   return normalizeText(clone.textContent ?? "");
+}
+
+function insertBlockTranslation(block: Element, translation: Element): void {
+  if (block.matches("li")) {
+    block.append(translation);
+    return;
+  }
+  block.after(translation);
 }
 
 function getRenderMode(element: Element | null): RenderMode {
