@@ -7,20 +7,15 @@ import type {
 } from "../shared/types";
 import { sendRuntimeRequest } from "./runtime";
 import {
-  clearTranslations,
   clearTranslationsIn,
-  clearTranslationPlaceholders,
   collectParagraphTextSegments,
-  collectTextSegments,
   findTranslatableParagraph,
   hasPageTranslations,
   hasTranslationsIn,
   renderTargetPlaceholder,
-  renderTargetTranslation,
-  renderTranslationPlaceholders,
-  renderTranslations
+  renderTargetTranslation
 } from "./dom";
-import type { TextSegment } from "./dom";
+import { clearPageTranslation, startPageTranslation } from "./page-translation";
 
 const FLOATING_ID = "wupage-floating-ball";
 const FLOATING_HITBOX_ID = "wupage-floating-hitbox";
@@ -427,15 +422,10 @@ interface FloatingPosition {
 }
 
 async function translatePageFromFloating(): Promise<void> {
-  clearTranslations();
-  const segments = collectTextSegments();
-  if (!segments.length) return;
-  renderTranslationPlaceholders(segments);
   const settings = await getSettings();
-  try {
-    await translateAndRenderSegments(segments, settings);
-  } catch (error) {
-    throw error;
+  const result = await startPageTranslation(settings);
+  if (result.failed > 0 && result.translated === 0) {
+    throw new Error(result.error ?? "翻译失败。");
   }
 }
 
@@ -454,7 +444,7 @@ async function togglePageTranslationFromFloating(menu: HTMLElement): Promise<voi
 }
 
 function clearPageFromFloating(): void {
-  clearTranslations();
+  clearPageTranslation();
   setActiveParagraph(null);
 }
 
@@ -749,65 +739,4 @@ async function translateSegments(
     targetLang: settings.targetLang,
     providerId: settings.activeProviderId
   } satisfies RuntimeRequest);
-}
-
-async function translateAndRenderSegments(
-  segments: TextSegment[],
-  settings: ExtensionSettings
-): Promise<void> {
-  const groups = groupSegments(segments, getContentChunkSize(settings));
-  const concurrency = Math.min(Math.max(1, settings.concurrency), groups.length);
-  let cursor = 0;
-  let firstError: string | undefined;
-
-  async function worker(): Promise<void> {
-    while (cursor < groups.length) {
-      const group = groups[cursor];
-      cursor += 1;
-      try {
-        const data = await translateSegments(settings, group.map((segment) => segment.text));
-        renderTranslations(
-          group.map((segment, index) => ({
-            id: segment.id,
-            text: data.translations[index]
-          }))
-        );
-      } catch (error) {
-        firstError ??= error instanceof Error ? error.message : String(error);
-        clearTranslationPlaceholders(group);
-      }
-    }
-  }
-
-  await Promise.all(Array.from({ length: concurrency }, () => worker()));
-  if (firstError) throw new Error(firstError);
-}
-
-function groupSegments(segments: TextSegment[], maxChars: number): TextSegment[][] {
-  const groups: TextSegment[][] = [];
-  let current: TextSegment[] = [];
-  let currentLength = 0;
-
-  for (const segment of segments) {
-    const text = segment.text.trim();
-    if (!text) continue;
-    const normalizedSegment = text === segment.text ? segment : { ...segment, text };
-    if (current.length && currentLength + normalizedSegment.text.length > maxChars) {
-      groups.push(current);
-      current = [];
-      currentLength = 0;
-    }
-    current.push(normalizedSegment);
-    currentLength += normalizedSegment.text.length;
-  }
-
-  if (current.length) groups.push(current);
-  return groups;
-}
-
-function getContentChunkSize(settings: ExtensionSettings): number {
-  if (settings.activeProviderId === "openai-compatible" || settings.activeProviderId === "zhipu-glm") {
-    return Math.max(settings.chunkSize, 3200);
-  }
-  return Math.max(200, settings.chunkSize);
 }

@@ -1,6 +1,7 @@
 export interface TextSegment {
   id: string;
   text: string;
+  element: Element;
 }
 
 interface TrackedNode {
@@ -222,7 +223,7 @@ function collectTextSegmentsFromRoot(root: Element, resetTracking: boolean): Tex
     };
     trackedNodes.push(tracked);
     textNodes.push(tracked);
-    segments.push({ id, text: sourceText });
+    segments.push({ id, text: sourceText, element: node.parentElement! });
     index += 1;
   }
 
@@ -364,7 +365,17 @@ function createPendingElement(id: string, mode: RenderMode): HTMLElement {
 
 function removePendingForId(id: string): void {
   document.querySelectorAll<HTMLElement>(`.${PENDING_CLASS}[data-wupage-pending-id="${id}"]`).forEach((node) => {
+    const parent = node.parentElement;
+    const targetId = node.getAttribute(TRANSLATION_TARGET_ATTR);
     node.remove();
+    if (parent && !parent.querySelector(`.${TRANSLATION_CLASS}`)) {
+      parent.removeAttribute(TRANSLATED_ATTR);
+    }
+    if (targetId && !findTargetTranslations(targetId).length) {
+      const target = document.querySelector(`[${TARGET_ATTR}="${targetId}"]`);
+      target?.removeAttribute(TRANSLATED_ATTR);
+      target?.removeAttribute(TARGET_ATTR);
+    }
   });
 }
 
@@ -393,7 +404,7 @@ function groupTextSegments(nodes: TrackedNode[], fallback: TextSegment[]): TextS
     if (!text) continue;
     trackedGroups.push({ id, nodes: groupNodes, block });
     if (tokens.length) protectedTokensById.set(id, tokens);
-    groupedSegments.push({ id, text });
+    groupedSegments.push({ id, text, element: block });
     groupNodes.forEach((tracked) => standalone.delete(tracked.id));
   }
 

@@ -3,10 +3,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   clearTranslationsIn,
+  clearTranslationPlaceholders,
   clearTranslations,
   collectParagraphTextSegments,
   collectTextSegments,
   findTranslatableParagraph,
+  hasPageTranslations,
   hasTranslationsIn,
   renderTargetPlaceholder,
   renderTargetTranslation,
@@ -463,6 +465,18 @@ describe("content DOM translation extraction", () => {
     renderTranslations([{ id: segments[0].id, text: "你好世界" }]);
     expect(document.querySelector(".wupage-translation-pending")).toBeNull();
     expect(document.querySelector(".wupage-translation")?.textContent).toBe("你好世界");
+  });
+
+  it("removes translation state when pending placeholders are cleared", () => {
+    document.body.innerHTML = `<p>Hello <em>world</em></p>`;
+    stubLayout();
+    const segments = collectTextSegments();
+
+    renderTranslationPlaceholders(segments);
+    clearTranslationPlaceholders(segments);
+
+    expect(document.querySelector(".wupage-translation-pending")).toBeNull();
+    expect(hasPageTranslations()).toBe(false);
   });
 
   it("renders target-level pending placeholders", () => {

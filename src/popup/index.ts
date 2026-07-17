@@ -76,6 +76,7 @@ async function togglePageTranslation(): Promise<void> {
       cached?: number;
       failed?: number;
       error?: string;
+      remaining?: number;
       cleared?: boolean;
     }>(
       tab.id,
@@ -92,7 +93,9 @@ async function togglePageTranslation(): Promise<void> {
       setStatus(
         failed > 0
           ? `已翻译 ${result.translated ?? 0} 段，失败 ${failed} 段：${result.error ?? ""}`
-          : `已翻译 ${result.translated ?? 0} 段，缓存命中 ${result.cached ?? 0} 段。`
+          : result.remaining
+            ? `已翻译当前区域 ${result.translated ?? 0} 段，滚动页面将继续翻译。`
+            : `已翻译 ${result.translated ?? 0} 段，缓存命中 ${result.cached ?? 0} 段。`
       );
     }
   } catch (error) {
