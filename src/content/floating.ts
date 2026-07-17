@@ -121,7 +121,7 @@ async function translateActiveParagraph(): Promise<void> {
     const sourceText = segments.map((segment) => segment.text).join("\n");
     try {
       const data = await translateSegments(settings, [sourceText]);
-      renderTargetTranslation(target, data.translations[0]);
+      renderTargetTranslation(target, data.translations[0], sourceText);
       setActiveParagraph(target);
     } catch (error) {
       clearTranslationsIn(target);

@@ -439,6 +439,39 @@ describe("content DOM translation extraction", () => {
     expect(document.querySelector("h3 a")?.textContent).toBe("Trait Implementations特性实现方式");
   });
 
+  it("does not render translations that are identical to their source text", () => {
+    document.body.innerHTML = `
+      <nav class="sidebar">
+        <div class="sidebar-elems">
+          <section id="rustdoc-toc">
+            <ul><li><a href="#impl-Freeze">Freeze</a></li></ul>
+          </section>
+        </div>
+      </nav>
+    `;
+    stubLayout();
+    const segments = collectTextSegments();
+
+    renderTranslationPlaceholders(segments);
+    renderTranslations([{ id: segments[0].id, text: "  Freeze  " }]);
+
+    expect(document.querySelector("a")?.textContent).toBe("Freeze");
+    expect(document.querySelector(".wupage-translation")).toBeNull();
+    expect(hasPageTranslations()).toBe(false);
+  });
+
+  it("does not render identical target-level paragraph translations", () => {
+    document.body.innerHTML = `<p id="target">WakerRef</p>`;
+    stubLayout();
+    const target = document.querySelector("#target")!;
+
+    renderTargetPlaceholder(target);
+    renderTargetTranslation(target, "WakerRef", "WakerRef");
+
+    expect(target.textContent).toBe("WakerRef");
+    expect(hasTranslationsIn(target)).toBe(false);
+  });
+
   it("renders and clears target-level translations", () => {
     document.body.innerHTML = `<h3 id="impl">impl&lt;'a&gt; Freeze for WakerRef&lt;'a&gt;</h3>`;
     stubLayout();

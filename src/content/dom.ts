@@ -100,6 +100,7 @@ const CODE_COMMENT_TARGET_SELECTOR = ".react-code-text, .blob-code, pre, code, .
 let trackedNodes: TrackedNode[] = [];
 let trackedGroups: TrackedGroup[] = [];
 let protectedTokensById = new Map<string, ProtectedToken[]>();
+let sourceTextById = new Map<string, string>();
 let targetIdCounter = 0;
 
 const PARAGRAPH_SELECTOR = [
@@ -227,7 +228,9 @@ function collectTextSegmentsFromRoot(root: Element, resetTracking: boolean): Tex
     index += 1;
   }
 
-  return groupTextSegments(textNodes, segments);
+  const groupedSegments = groupTextSegments(textNodes, segments);
+  groupedSegments.forEach((segment) => sourceTextById.set(segment.id, segment.text));
+  return groupedSegments;
 }
 
 export function renderTranslations(translations: Array<{ id: string; text: string }>): void {
@@ -239,6 +242,7 @@ export function renderTranslations(translations: Array<{ id: string; text: strin
     if (!translation || block.closest(`.${TRANSLATION_CLASS}`)) continue;
 
     removePendingForId(group.id);
+    if (isSameTranslation(group.id, translation)) continue;
     const targetId = ensureTranslationTarget(block);
     const element = document.createElement("span");
     element.className = TRANSLATION_CLASS;
@@ -258,6 +262,7 @@ export function renderTranslations(translations: Array<{ id: string; text: strin
     if (!translation || !parent || parent.closest(`.${TRANSLATION_CLASS}`)) continue;
 
     removePendingForId(tracked.id);
+    if (isSameTranslation(tracked.id, translation)) continue;
     const element = document.createElement("span");
     element.className = TRANSLATION_CLASS;
     element.dataset.wupageMode = tracked.mode;
@@ -269,9 +274,14 @@ export function renderTranslations(translations: Array<{ id: string; text: strin
   }
 }
 
-export function renderTargetTranslation(element: Element, text: string): void {
+export function renderTargetTranslation(element: Element, text: string, sourceText?: string): void {
   const targetId = ensureTranslationTarget(element);
   findTargetTranslations(targetId).forEach((node) => node.remove());
+  if (sourceText !== undefined && normalizeText(sourceText) === normalizeText(text)) {
+    element.removeAttribute(TRANSLATED_ATTR);
+    element.removeAttribute(TARGET_ATTR);
+    return;
+  }
 
   const translation = document.createElement("span");
   translation.className = TRANSLATION_CLASS;
@@ -339,6 +349,12 @@ function clearNodeTracking(): void {
   trackedNodes = [];
   trackedGroups = [];
   protectedTokensById = new Map();
+  sourceTextById = new Map();
+}
+
+function isSameTranslation(id: string, translation: string): boolean {
+  const sourceText = sourceTextById.get(id);
+  return sourceText !== undefined && normalizeText(sourceText) === normalizeText(translation);
 }
 
 function findTargetTranslations(targetId: string): Element[] {
