@@ -518,6 +518,11 @@ function escapeRegExp(value: string): string {
 function insertBlockTranslation(block: Element, translation: Element): void {
   if (block.matches(HEADING_SELECTOR)) {
     translation.setAttribute("data-wupage-container", "heading");
+    const anchor = findHeadingAnchor(block);
+    if (anchor) {
+      anchor.before(translation);
+      return;
+    }
     block.append(translation);
     return;
   }
@@ -526,6 +531,12 @@ function insertBlockTranslation(block: Element, translation: Element): void {
     return;
   }
   block.after(translation);
+}
+
+function findHeadingAnchor(block: Element): Element | null {
+  return Array.from(block.children).find((child) =>
+    child.matches(".anchor, [href^='#']")
+  ) ?? null;
 }
 
 function getRenderMode(element: Element | null): RenderMode {

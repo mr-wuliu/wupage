@@ -341,6 +341,28 @@ describe("content DOM translation extraction", () => {
     expect(segments.map((segment) => segment.text)).toEqual(["Blanket Implementations"]);
   });
 
+  it("inserts heading translations before heading anchor links", () => {
+    document.body.innerHTML = `
+      <main id="main-content">
+        <h2 id="implementations" class="section-header">
+          Implementations<a href="#implementations" class="anchor">§</a>
+        </h2>
+      </main>
+    `;
+    stubLayout();
+
+    const segments = collectTextSegments();
+
+    renderTranslations([{ id: segments[0].id, text: "实现" }]);
+
+    const heading = document.querySelector("#implementations");
+    const translation = heading?.querySelector(".wupage-translation");
+    const anchor = heading?.querySelector(".anchor");
+
+    expect(translation?.nextElementSibling).toBe(anchor);
+    expect(anchor?.textContent).toBe("§");
+  });
+
   it("does not select headings inside navigation chrome", () => {
     document.body.innerHTML = `
       <nav>
