@@ -363,6 +363,28 @@ describe("content DOM translation extraction", () => {
     expect(anchor?.textContent).toBe("§");
   });
 
+  it("translates readable headings inside summary toggles", () => {
+    document.body.innerHTML = `
+      <main id="main-content">
+        <details open>
+          <summary>
+            <h2 id="deref-methods-Waker" class="section-header">
+              <span>Methods from <a class="trait">Deref</a>&lt;Target = <a class="struct">Waker</a>&gt;</span>
+              <a href="#deref-methods-Waker" class="anchor">§</a>
+            </h2>
+          </summary>
+        </details>
+      </main>
+    `;
+    stubLayout();
+
+    const segments = collectTextSegments();
+
+    expect(segments.map((segment) => segment.text)).toEqual([
+      "Methods from Deref<Target = Waker>"
+    ]);
+  });
+
   it("does not select headings inside navigation chrome", () => {
     document.body.innerHTML = `
       <nav>

@@ -43,7 +43,7 @@ const SKIP_TAGS = new Set([
   "SVG",
   "CANVAS"
 ]);
-const SKIP_SELECTOR = [
+const SKIP_SELECTORS = [
   "header",
   "nav",
   "footer",
@@ -84,7 +84,9 @@ const SKIP_SELECTOR = [
   ".js-repo-nav",
   ".Counter",
   ".State"
-].join(",");
+];
+const SKIP_SELECTOR = SKIP_SELECTORS.join(",");
+const READABLE_HEADING_SKIP_SELECTOR = SKIP_SELECTORS.filter((selector) => selector !== "summary").join(",");
 const HEADING_SELECTOR = "h1,h2,h3,h4,h5,h6";
 const READABLE_ROOT_SELECTOR = "main,article,[role='main'],.markdown-body,.docblock,#main-content";
 const CODE_SELECTOR = "pre, code, .highlight, .example-wrap, .blob-code, .react-code-text";
@@ -401,6 +403,9 @@ function shouldSkipElement(element: Element): boolean {
   if (isInsideCodeBlock(element)) return false;
   if (SKIP_TAGS.has(element.tagName)) return true;
   if (element.closest(`.${TRANSLATION_CLASS}`)) return true;
+  if (isInsideReadableHeadingContent(element)) {
+    return Boolean(element.closest(READABLE_HEADING_SKIP_SELECTOR));
+  }
   if (element.closest(SKIP_SELECTOR)) return true;
   return false;
 }
@@ -585,6 +590,11 @@ function isNonTranslatableFragment(text: string): boolean {
 
 function isReadableHeading(element: Element): boolean {
   return element.matches(HEADING_SELECTOR) && isInsideReadableRoot(element);
+}
+
+function isInsideReadableHeadingContent(element: Element): boolean {
+  const heading = element.closest(HEADING_SELECTOR);
+  return Boolean(heading && isReadableHeading(heading));
 }
 
 function isInsideReadableRoot(element: Element): boolean {
