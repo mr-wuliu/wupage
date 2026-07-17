@@ -789,13 +789,16 @@ function groupSegments(segments: TextSegment[], maxChars: number): TextSegment[]
   let currentLength = 0;
 
   for (const segment of segments) {
-    if (current.length && currentLength + segment.text.length > maxChars) {
+    const text = segment.text.trim();
+    if (!text) continue;
+    const normalizedSegment = text === segment.text ? segment : { ...segment, text };
+    if (current.length && currentLength + normalizedSegment.text.length > maxChars) {
       groups.push(current);
       current = [];
       currentLength = 0;
     }
-    current.push(segment);
-    currentLength += segment.text.length;
+    current.push(normalizedSegment);
+    currentLength += normalizedSegment.text.length;
   }
 
   if (current.length) groups.push(current);

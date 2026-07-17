@@ -193,6 +193,7 @@ function collectTextSegmentsFromRoot(root: Element, resetTracking: boolean): Tex
     const text = normalizeText(node.textContent ?? "");
     const sourceText = codeComment?.text ?? text;
     if (!sourceText || sourceText.length < 2) continue;
+    if (!codeComment && isNonTranslatableFragment(sourceText)) continue;
     if (!codeComment && isLikelyUiToken(sourceText, node.parentElement)) continue;
     const id = `seg-${Date.now()}-${index}`;
     const tracked: TrackedNode = {
@@ -351,7 +352,7 @@ function groupTextSegments(nodes: TrackedNode[], fallback: TextSegment[]): TextS
 
   for (const tracked of nodes) {
     if (tracked.mode === "code-comment") continue;
-    const block = tracked.node.parentElement?.closest("p, li, blockquote");
+    const block = tracked.node.parentElement?.closest(`p, li, blockquote, ${HEADING_SELECTOR}`);
     if (!block) continue;
     if (block.querySelector(`.${TRANSLATION_CLASS}`)) continue;
     const group = groups.get(block) ?? [];
@@ -361,7 +362,7 @@ function groupTextSegments(nodes: TrackedNode[], fallback: TextSegment[]): TextS
 
   const groupedSegments: TextSegment[] = [];
   for (const groupNodes of groups.values()) {
-    const block = groupNodes[0].node.parentElement?.closest("p, li, blockquote");
+    const block = groupNodes[0].node.parentElement?.closest(`p, li, blockquote, ${HEADING_SELECTOR}`);
     if (!block) continue;
     const nodeText = normalizeText(groupNodes.map((tracked) => tracked.node.textContent ?? "").join(" "));
     const text = getReadableBlockText(block);
@@ -401,7 +402,9 @@ function isInlineCodeInReadableText(element: Element): boolean {
 
 function getReadableBlockText(block: Element): string {
   const clone = block.cloneNode(true) as Element;
-  clone.querySelectorAll(`.${TRANSLATION_CLASS}, script, style, noscript`).forEach((node) => node.remove());
+  clone
+    .querySelectorAll(`.${TRANSLATION_CLASS}, script, style, noscript, .anchor, [aria-hidden="true"]`)
+    .forEach((node) => node.remove());
   return normalizeText(clone.textContent ?? "");
 }
 
@@ -432,9 +435,20 @@ function isLikelyUiToken(text: string, element: Element | null): boolean {
   if (text.length > 28) return false;
   if (element.closest("p")) return false;
   if (isReadableHeading(element)) return false;
+  const heading = element.closest(HEADING_SELECTOR);
+  if (heading && isReadableHeading(heading)) return false;
   if (element.closest("article, main .markdown-body, .markdown-body")) return false;
   if (/^[A-Z][A-Za-z]+(?:[-_/][A-Za-z0-9]+)+$/.test(text)) return true;
   if (/^[A-Z][A-Za-z\s]{1,24}$/.test(text) && isCompactUiElement(element)) return true;
+  return false;
+}
+
+function isNonTranslatableFragment(text: string): boolean {
+  if (!text.trim()) return true;
+  if (/^[\W_]+$/.test(text)) return true;
+  if (/^<?'?[a-zA-Z]>?$/.test(text)) return true;
+  if (/^(::|->|=>|for|of)$/i.test(text)) return true;
+  if (/^impl(?:<[^>]+>)?$/i.test(text)) return true;
   return false;
 }
 

@@ -134,6 +134,43 @@ describe("content DOM translation extraction", () => {
     ]);
   });
 
+  it("groups readable headings with inline code into one segment", () => {
+    document.body.innerHTML = `
+      <main id="main-content">
+        <h3 id="impl">
+          impl&lt;'a&gt;
+          <a class="trait">Freeze</a>
+          for
+          <a class="struct">WakerRef</a>
+          &lt;'a&gt;
+        </h3>
+      </main>
+    `;
+    stubLayout();
+
+    const segments = collectTextSegments();
+
+    expect(segments.map((segment) => segment.text)).toEqual([
+      "impl<'a> Freeze for WakerRef <'a>"
+    ]);
+  });
+
+  it("skips standalone code syntax fragments", () => {
+    document.body.innerHTML = `
+      <main>
+        <span>::</span>
+        <span>for</span>
+        <span>&lt;'a&gt;</span>
+        <p>Readable sentence.</p>
+      </main>
+    `;
+    stubLayout();
+
+    const segments = collectTextSegments();
+
+    expect(segments.map((segment) => segment.text)).toEqual(["Readable sentence."]);
+  });
+
   it("does not treat plain code blocks as paragraph targets", () => {
     document.body.innerHTML = `
       <main>
