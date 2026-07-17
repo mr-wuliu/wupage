@@ -166,6 +166,31 @@ describe("content DOM translation extraction", () => {
     expect(restoredLink?.getAttribute("href")).toBe("struct.Waker.html");
   });
 
+  it("restores inline code when a model changes placeholder brackets", () => {
+    document.body.innerHTML = `
+      <main>
+        <p id="doc">
+          A <a href="struct.Waker.html"><code>Waker</code></a>
+          that is only valid for a given lifetime.
+        </p>
+      </main>
+    `;
+    stubLayout();
+    const paragraph = document.querySelector("#doc")!;
+    const segments = collectParagraphTextSegments(paragraph);
+
+    renderTranslationPlaceholders(segments);
+    renderTranslations([
+      { id: segments[0].id, text: "一个《WUPAGE0》，它只在给定生命周期内有效。" }
+    ]);
+
+    const translation = document.querySelector<HTMLElement>(".wupage-translation");
+    expect(translation?.textContent).toBe("一个Waker，它只在给定生命周期内有效。");
+    expect(translation?.querySelector("code")?.textContent).toBe("Waker");
+    expect(translation?.querySelector("a")?.getAttribute("href")).toBe("struct.Waker.html");
+    expect(document.body.textContent).not.toContain("WUPAGE0");
+  });
+
   it("groups readable headings with inline code into one segment", () => {
     document.body.innerHTML = `
       <main id="main-content">

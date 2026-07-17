@@ -12,8 +12,8 @@ import {
   findTranslatableParagraph,
   hasPageTranslations,
   hasTranslationsIn,
-  renderTargetPlaceholder,
-  renderTargetTranslation
+  renderTranslationPlaceholders,
+  renderTranslations
 } from "./dom";
 import { clearPageTranslation, startPageTranslation } from "./page-translation";
 
@@ -115,13 +115,17 @@ async function translateActiveParagraph(): Promise<void> {
 
     const segments = collectParagraphTextSegments(target);
     if (!segments.length) return;
-    renderTargetPlaceholder(target);
+    renderTranslationPlaceholders(segments);
 
     const settings = await getSettings();
-    const sourceText = segments.map((segment) => segment.text).join("\n");
     try {
-      const data = await translateSegments(settings, [sourceText]);
-      renderTargetTranslation(target, data.translations[0], sourceText);
+      const data = await translateSegments(settings, segments.map((segment) => segment.text));
+      renderTranslations(
+        segments.map((segment, index) => ({
+          id: segment.id,
+          text: data.translations[index]
+        }))
+      );
       setActiveParagraph(target);
     } catch (error) {
       clearTranslationsIn(target);

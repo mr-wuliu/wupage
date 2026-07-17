@@ -505,16 +505,27 @@ function renderProtectedText(container: Element, id: string, text: string): void
 
   const tokenByMarker = new Map(tokens.map((token) => [token.marker, token]));
   const pattern = new RegExp(tokens.map((token) => escapeRegExp(token.marker)).join("|"), "g");
+  const normalizedText = normalizeProtectedMarkers(text, tokens);
   let cursor = 0;
-  for (const match of text.matchAll(pattern)) {
+  for (const match of normalizedText.matchAll(pattern)) {
     const marker = match[0];
     const index = match.index ?? 0;
-    if (index > cursor) container.append(document.createTextNode(text.slice(cursor, index)));
+    if (index > cursor) container.append(document.createTextNode(normalizedText.slice(cursor, index)));
     const token = tokenByMarker.get(marker);
     if (token) container.append(token.node.cloneNode(true));
     cursor = index + marker.length;
   }
-  if (cursor < text.length) container.append(document.createTextNode(text.slice(cursor)));
+  if (cursor < normalizedText.length) container.append(document.createTextNode(normalizedText.slice(cursor)));
+}
+
+function normalizeProtectedMarkers(text: string, tokens: ProtectedToken[]): string {
+  const markerByIndex = new Map(
+    tokens.map((token) => [Number(token.marker.match(/\d+/)?.[0]), token.marker])
+  );
+  return text.replace(
+    /[⟪《〈<【\[\{«「『]\s*WUPAGE\s*(\d+)\s*[⟫》〉>】\]\}»」』]/gi,
+    (match, index: string) => markerByIndex.get(Number(index)) ?? match
+  );
 }
 
 function isProtectedInlineElement(element: Element): boolean {
