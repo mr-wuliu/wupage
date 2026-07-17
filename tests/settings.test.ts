@@ -44,20 +44,4 @@ describe("normalizeSettings", () => {
       "http-template"
     ]);
   });
-
-  it("removes older saved Youdao provider settings", () => {
-    const settings = normalizeSettings({
-      activeProviderId: "youdao-demo",
-      providers: [
-        {
-          type: "youdao-demo",
-          id: "youdao-demo",
-          label: "Youdao Demo"
-        }
-      ]
-    });
-
-    expect(settings.activeProviderId).toBe("google-web-translate");
-    expect(settings.providers.some((provider) => provider.id === "youdao-demo")).toBe(false);
-  });
 });

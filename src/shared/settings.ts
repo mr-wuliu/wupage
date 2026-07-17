@@ -43,7 +43,6 @@ export function normalizeSettings(value: unknown): ExtensionSettings {
 function mergeProviders(storedProviders: ProviderConfig[]): ProviderConfig[] {
   const byId = new Map(DEFAULT_SETTINGS.providers.map((provider) => [provider.id, provider]));
   for (const provider of storedProviders) {
-    if (provider.id === "youdao-demo") continue;
     byId.set(provider.id, provider);
   }
   return Array.from(byId.values());
