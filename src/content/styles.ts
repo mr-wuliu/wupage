@@ -22,7 +22,8 @@ export function injectContentStyles(): void {
     }
 
     .wupage-translation[data-wupage-mode="block"][data-wupage-container="heading"] {
-      margin: 0.2em 0 0;
+      display: inline;
+      margin: 0 0 0 0.35em;
       font-size: 1rem;
       font-weight: 400;
       line-height: 1.45;
