@@ -434,6 +434,11 @@ function getReadableBlockText(block: Element): string {
 }
 
 function insertBlockTranslation(block: Element, translation: Element): void {
+  if (block.matches(HEADING_SELECTOR)) {
+    translation.setAttribute("data-wupage-container", "heading");
+    block.append(translation);
+    return;
+  }
   if (block.matches("li")) {
     block.append(translation);
     return;

@@ -176,7 +176,8 @@ describe("content DOM translation extraction", () => {
     const translation = document.querySelector(".wupage-translation");
 
     expect(translation?.textContent).toBe("结构体 WakerRef");
-    expect(translation?.previousElementSibling?.id).toBe("title");
+    expect(translation?.parentElement?.id).toBe("title");
+    expect(translation?.getAttribute("data-wupage-container")).toBe("heading");
     expect(document.querySelector("#copy-path")?.textContent).toBe("Copy item path");
   });
 
