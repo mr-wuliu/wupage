@@ -67,6 +67,30 @@ button.secondary,
   background: #dfe8e5;
 }
 
+.footer-link {
+  min-height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-self: center;
+  gap: 6px;
+  padding: 0 4px;
+  color: #526068;
+  background: transparent;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.footer-link:hover {
+  color: #172026;
+  background: transparent;
+}
+
+.footer-link svg {
+  width: 15px;
+  height: 15px;
+  fill: currentColor;
+}
+
 .switch-row {
   display: flex;
   align-items: center;

@@ -109,7 +109,6 @@ function setBusy(value: boolean): void {
   floatingBallButton.disabled = value;
   debugButton.disabled = value;
   clearCacheButton.disabled = value;
-  githubButton.disabled = value;
 }
 
 function setStatus(value: string): void {
