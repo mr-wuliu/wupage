@@ -65,7 +65,7 @@ async function savePopupSettings(): Promise<void> {
 
 async function togglePageTranslation(): Promise<void> {
   const request = { type: pageTranslated ? "CLEAR_TRANSLATION" : "TRANSLATE_PAGE" } as const;
-  setBusy(true);
+  setPageToggleBusy(true);
   setStatus(request.type === "TRANSLATE_PAGE" ? "正在翻译..." : "正在显示原文...");
   try {
     await savePopupSettings();
@@ -98,7 +98,7 @@ async function togglePageTranslation(): Promise<void> {
   } catch (error) {
     setStatus(error instanceof Error ? error.message : String(error));
   } finally {
-    setBusy(false);
+    setPageToggleBusy(false);
   }
 }
 
@@ -109,6 +109,11 @@ function setBusy(value: boolean): void {
   floatingBallButton.disabled = value;
   debugButton.disabled = value;
   clearCacheButton.disabled = value;
+}
+
+function setPageToggleBusy(value: boolean): void {
+  pageToggleButton.disabled = value;
+  pageToggleButton.classList.toggle("is-loading", value);
 }
 
 function setStatus(value: string): void {

@@ -25,6 +25,30 @@ header,
   width: 100%;
 }
 
+#pageToggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+#pageToggle.is-loading::after {
+  content: "";
+  width: 13px;
+  height: 13px;
+  box-sizing: border-box;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  border-top-color: #ffffff;
+  border-radius: 999px;
+  animation: popup-spin 780ms linear infinite;
+}
+
+@keyframes popup-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 h1 {
   margin: 0;
   font-size: 18px;
