@@ -36,7 +36,6 @@ describe("normalizeSettings", () => {
     expect(settings.activeProviderId).toBe("openai-compatible");
     expect(settings.providers.map((provider) => provider.id)).toEqual([
       "google-web-translate",
-      "deepl-web",
       "microsoft-translator",
       "google-cloud-translation",
       "openai-compatible",

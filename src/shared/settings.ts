@@ -50,10 +50,7 @@ function mergeProviders(storedProviders: ProviderConfig[]): ProviderConfig[] {
 
 function isProviderConfig(value: unknown): value is ProviderConfig {
   if (!isRecord(value)) return false;
-  if (
-    value.type === "google-web-translate" ||
-    value.type === "deepl-web"
-  ) {
+  if (value.type === "google-web-translate") {
     return ["id", "label"].every((key) => typeof value[key] === "string");
   }
 

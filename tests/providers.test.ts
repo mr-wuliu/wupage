@@ -83,61 +83,6 @@ describe("GoogleWebTranslateProvider", () => {
   });
 });
 
-describe("DeepLWebProvider", () => {
-  afterEach(() => {
-    vi.unstubAllGlobals();
-  });
-
-  it("calls the DeepL web jsonrpc endpoint without an API key", async () => {
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        result: {
-          translations: [
-            {
-              beams: [
-                {
-                  sentences: [{ text: "Hallo" }]
-                }
-              ]
-            }
-          ]
-        }
-      })
-    });
-    vi.stubGlobal("fetch", fetchMock);
-
-    const provider = createProvider({
-      type: "deepl-web",
-      id: "deepl-web",
-      label: "DeepL Web"
-    });
-
-    await expect(
-      provider.translateBatch({
-        texts: ["hello"],
-        sourceLang: "en",
-        targetLang: "de"
-      })
-    ).resolves.toEqual(["Hallo"]);
-
-    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
-    expect(url).toContain("https://www2.deepl.com/jsonrpc");
-    expect(url).toContain("client=chrome-extension");
-    expect(init.method).toBe("POST");
-    expect(JSON.parse(String(init.body))).toMatchObject({
-      jsonrpc: "2.0",
-      method: "LMT_handle_jobs",
-      params: {
-        lang: {
-          target_lang: "DE",
-          source_lang_computed: "EN"
-        }
-      }
-    });
-  });
-});
-
 describe("GoogleCloudTranslationProvider", () => {
   afterEach(() => {
     vi.unstubAllGlobals();

@@ -1,5 +1,4 @@
 import type {
-  DeepLWebConfig,
   GoogleCloudTranslationConfig,
   GoogleWebTranslateConfig,
   HttpTemplateConfig,
@@ -15,7 +14,6 @@ import { readPath, renderTemplate } from "./template";
 
 export function createProvider(config: ProviderConfig): TranslatorProvider {
   if (config.type === "google-web-translate") return new GoogleWebTranslateProvider(config);
-  if (config.type === "deepl-web") return new DeepLWebProvider(config);
   if (config.type === "microsoft-translator") return new MicrosoftTranslatorProvider(config);
   if (config.type === "google-cloud-translation") {
     return new GoogleCloudTranslationProvider(config);
@@ -54,46 +52,6 @@ class GoogleWebTranslateProvider implements TranslatorProvider {
         if (!response.ok) throw new Error(`Google Web Translate request failed: ${response.status}`);
         const payload = (await response.json()) as GoogleWebTranslateResponse;
         return parseGoogleWebResponse(payload);
-      })
-    );
-  }
-}
-
-class DeepLWebProvider implements TranslatorProvider {
-  get id(): string {
-    return this.config.id;
-  }
-
-  get label(): string {
-    return this.config.label;
-  }
-
-  constructor(private readonly config: DeepLWebConfig) {}
-
-  validateConfig(): ValidationResult {
-    return { ok: true };
-  }
-
-  async translateBatch(request: TranslateBatchRequest, signal?: AbortSignal): Promise<string[]> {
-    return Promise.all(
-      request.texts.map(async (text) => {
-        const body = createDeepLWebBody(text, request.targetLang, request.sourceLang ?? "auto");
-        const response = await fetch(
-          "https://www2.deepl.com/jsonrpc?client=chrome-extension,1.33.0",
-          {
-            method: "POST",
-            signal,
-            headers: {
-              "Content-Type": "application/json",
-              Accept: "*/*"
-            },
-            body: JSON.stringify(body)
-          }
-        );
-
-        if (!response.ok) throw new Error(`DeepL Web request failed: ${response.status}`);
-        const payload = (await response.json()) as DeepLWebResponse;
-        return parseDeepLWebResponse(payload);
       })
     );
   }
@@ -425,18 +383,6 @@ interface OpenAIChatResponse {
 
 type GoogleWebTranslateResponse = unknown[];
 
-interface DeepLWebResponse {
-  result?: {
-    translations?: Array<{
-      beams?: Array<{
-        sentences?: Array<{
-          text?: string;
-        }>;
-      }>;
-    }>;
-  };
-}
-
 interface MicrosoftTranslateResponse extends Array<{
   translations?: Array<{
     text?: string;
@@ -461,22 +407,6 @@ function normalizeGoogleLang(value: string): string {
   return value === "zh-CN" ? "zh-CN" : value;
 }
 
-function normalizeDeepLLang(value: string): string {
-  const map: Record<string, string> = {
-    "zh-CN": "ZH",
-    "zh-TW": "ZH",
-    en: "EN",
-    ja: "JA",
-    ko: "KO",
-    fr: "FR",
-    ru: "RU",
-    de: "DE",
-    es: "ES",
-    auto: "auto"
-  };
-  return map[value] ?? value.toUpperCase();
-}
-
 function parseGoogleWebResponse(payload: GoogleWebTranslateResponse): string {
   const segments = payload[0];
   if (!Array.isArray(segments)) {
@@ -487,44 +417,6 @@ function parseGoogleWebResponse(payload: GoogleWebTranslateResponse): string {
     .join("");
   if (!text) throw new Error("Google Web Translate response did not include translated text.");
   return text;
-}
-
-function createDeepLWebBody(text: string, targetLang: string, sourceLang: string): unknown {
-  const timestamp = Math.floor(Date.now() / 1000);
-  return {
-    jsonrpc: "2.0",
-    method: "LMT_handle_jobs",
-    id: timestamp % 100000000,
-    params: {
-      jobs: [
-        {
-          kind: "default",
-          sentences: [{ id: 1, prefix: "", text }],
-          preferred_num_beams: 4
-        }
-      ],
-      lang: {
-        target_lang: normalizeDeepLLang(targetLang),
-        source_lang_computed: sourceLang === "auto" ? null : normalizeDeepLLang(sourceLang)
-      },
-      priority: -1,
-      commonJobParams: {
-        quality: "fast",
-        mode: "translate",
-        browserType: 1,
-        textType: "plaintext"
-      },
-      timestamp
-    }
-  };
-}
-
-function parseDeepLWebResponse(payload: DeepLWebResponse): string {
-  const sentence = payload.result?.translations?.[0]?.beams?.[0]?.sentences?.[0]?.text;
-  if (typeof sentence !== "string" || !sentence) {
-    throw new Error("DeepL Web response did not include translated text.");
-  }
-  return sentence;
 }
 
 function decodeHtmlEntities(value: string): string {

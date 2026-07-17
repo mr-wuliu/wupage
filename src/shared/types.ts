@@ -1,6 +1,5 @@
 export type ProviderType =
   | "google-web-translate"
-  | "deepl-web"
   | "microsoft-translator"
   | "google-cloud-translation"
   | "openai-compatible"
@@ -9,12 +8,6 @@ export type ProviderType =
 
 export interface GoogleWebTranslateConfig {
   type: "google-web-translate";
-  id: string;
-  label: string;
-}
-
-export interface DeepLWebConfig {
-  type: "deepl-web";
   id: string;
   label: string;
 }
@@ -68,7 +61,6 @@ export interface HttpTemplateConfig {
 
 export type ProviderConfig =
   | GoogleWebTranslateConfig
-  | DeepLWebConfig
   | MicrosoftTranslatorConfig
   | GoogleCloudTranslationConfig
   | OpenAICompatibleConfig

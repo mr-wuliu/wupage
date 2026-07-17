@@ -65,10 +65,7 @@ function render(): void {
 
 function renderProviderForm(): void {
   const provider = getActiveProvider();
-  if (
-    provider.type === "google-web-translate" ||
-    provider.type === "deepl-web"
-  ) {
+  if (provider.type === "google-web-translate") {
     providerForm.innerHTML = `
       <div class="grid">
         <label>显示名称 <input data-field="label" type="text" value="${escapeAttr(provider.label)}" /></label>
@@ -201,10 +198,7 @@ function readProviderFromForm(provider: ProviderConfig): ProviderConfig {
   const form = providerForm;
   const field = (name: string) => form.querySelector<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>(`[data-field="${name}"]`)?.value ?? "";
 
-  if (
-    provider.type === "google-web-translate" ||
-    provider.type === "deepl-web"
-  ) {
+  if (provider.type === "google-web-translate") {
     return {
       ...provider,
       label: field("label").trim() || provider.label

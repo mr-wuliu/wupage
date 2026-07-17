@@ -15,11 +15,6 @@ export const DEFAULT_SETTINGS: ExtensionSettings = {
       label: "Google Web Translate"
     },
     {
-      type: "deepl-web",
-      id: "deepl-web",
-      label: "DeepL Web"
-    },
-    {
       type: "microsoft-translator",
       id: "microsoft-translator",
       label: "Microsoft Translator",
