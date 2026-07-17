@@ -12,6 +12,8 @@ const floatingBallButton = query<HTMLButtonElement>("#floatingBall");
 const debugButton = query<HTMLButtonElement>("#debug");
 const clearCacheButton = query<HTMLButtonElement>("#clearCache");
 const optionsButton = query<HTMLButtonElement>("#openOptions");
+const githubButton = query<HTMLButtonElement>("#openGithub");
+const GITHUB_URL = "https://github.com/mr-wuliu/wupage";
 
 let settings: ExtensionSettings;
 let paragraphMode = false;
@@ -47,6 +49,9 @@ async function init(): Promise<void> {
   debugButton.addEventListener("click", openDebugPanel);
   clearCacheButton.addEventListener("click", clearCache);
   optionsButton.addEventListener("click", () => chrome.runtime.openOptionsPage());
+  githubButton.addEventListener("click", () => {
+    void chrome.tabs.create({ url: GITHUB_URL });
+  });
 }
 
 async function savePopupSettings(): Promise<void> {
@@ -104,6 +109,7 @@ function setBusy(value: boolean): void {
   floatingBallButton.disabled = value;
   debugButton.disabled = value;
   clearCacheButton.disabled = value;
+  githubButton.disabled = value;
 }
 
 function setStatus(value: string): void {
