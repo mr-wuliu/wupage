@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>WuPage 设置</title>
+    <script type="module" src="/src/options/index.ts"></script>
+  </head>
+  <body>
+    <main class="settings">
+      <header>
+        <h1>WuPage 设置</h1>
+        <p>配置翻译服务和页面翻译行为。</p>
+      </header>
+
+      <section>
+        <h2>通用</h2>
+        <div class="grid">
+          <label>目标语言 <select id="targetLang"></select></label>
+          <label>源语言 <input id="sourceLang" type="text" /></label>
+          <label>分块大小 <input id="chunkSize" type="number" min="200" max="4000" /></label>
+          <label>并发数 <input id="concurrency" type="number" min="1" max="8" /></label>
+        </div>
+        <label class="check"><input id="cacheEnabled" type="checkbox" /> 启用本地缓存</label>
+        <label class="check"><input id="floatingBallEnabled" type="checkbox" /> 显示悬浮球</label>
+      </section>
+
+      <section>
+        <h2>翻译服务</h2>
+        <label>当前服务 <select id="provider"></select></label>
+        <div id="providerForm"></div>
+      </section>
+
+      <footer>
+        <button id="save" type="button">保存</button>
+        <button id="test" type="button" class="secondary">测试服务</button>
+        <p id="status" role="status"></p>
+      </footer>
+    </main>
+  </body>
+</html>

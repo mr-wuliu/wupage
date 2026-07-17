@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>WuPage Translator</title>
+    <script type="module" src="/src/popup/index.ts"></script>
+  </head>
+  <body>
+    <main class="popup">
+      <header>
+        <h1>WuPage</h1>
+        <button id="openOptions" type="button" title="打开设置">设置</button>
+      </header>
+      <label>
+        目标语言
+        <select id="targetLang"></select>
+      </label>
+      <label>
+        翻译服务
+        <select id="provider"></select>
+      </label>
+      <button id="paragraphMode" type="button" class="switch-row" aria-pressed="false">
+        <span>段落模式</span>
+        <span class="switch" aria-hidden="true"><span></span></span>
+      </button>
+      <button id="floatingBall" type="button" class="switch-row" aria-pressed="true">
+        <span>悬浮球</span>
+        <span class="switch" aria-hidden="true"><span></span></span>
+      </button>
+      <div class="actions">
+        <button id="pageToggle" type="button">翻译全文</button>
+      </div>
+      <div class="actions">
+        <button id="debug" type="button" class="secondary">Debug</button>
+        <button id="clearCache" type="button" class="secondary">清除缓存</button>
+      </div>
+      <p id="status" role="status"></p>
+    </main>
+  </body>
+</html>
