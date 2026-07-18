@@ -87,9 +87,15 @@ export function injectContentStyles(): void {
     }
 
     #wupage-floating-ball {
+      all: initial;
       position: relative;
+      box-sizing: border-box;
       width: 42px;
       height: 42px;
+      min-width: 0;
+      min-height: 0;
+      margin: 0;
+      padding: 0;
       border: 0;
       border-radius: 999px;
       display: grid;
@@ -97,11 +103,36 @@ export function injectContentStyles(): void {
       color: #ffffff;
       background: #116466;
       box-shadow: 0 8px 24px rgba(15, 35, 38, 0.22);
-      font: 700 16px/1 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      appearance: none;
       cursor: pointer;
+      overflow: visible;
+      text-align: center;
+      text-decoration: none;
+      text-indent: 0;
+      text-transform: none;
       user-select: none;
+      white-space: nowrap;
       touch-action: none;
       transition: transform 160ms ease, background 160ms ease, opacity 160ms ease;
+    }
+
+    #wupage-floating-ball > .wupage-floating-label {
+      all: initial;
+      display: block;
+      color: #ffffff;
+      font-family: "Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", "Noto Sans CJK SC", sans-serif;
+      font-size: 16px;
+      font-style: normal !important;
+      font-synthesis: none;
+      font-weight: 700;
+      line-height: 1;
+      letter-spacing: 0;
+      text-align: center;
+      text-decoration: none;
+      text-indent: 0;
+      text-transform: none;
+      transform: none !important;
+      writing-mode: horizontal-tb;
     }
 
     #wupage-floating-ball:hover {

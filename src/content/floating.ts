@@ -71,7 +71,10 @@ export function initFloatingBall(): void {
   button.id = FLOATING_ID;
   button.type = "button";
   button.title = "Translate paragraph";
-  button.textContent = "译";
+  const label = document.createElement("span");
+  label.className = "wupage-floating-label";
+  label.textContent = "译";
+  button.append(label);
   button.addEventListener("click", (event) => {
     if (movedDuringDrag) {
       event.preventDefault();

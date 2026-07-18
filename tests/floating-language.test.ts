@@ -10,6 +10,7 @@ vi.mock("../src/content/runtime", () => ({
 
 import { initFloatingBall, openDebugPanel } from "../src/content/floating";
 import { sendRuntimeRequest } from "../src/content/runtime";
+import { injectContentStyles } from "../src/content/styles";
 
 describe("floating language controls", () => {
   afterEach(() => {
@@ -46,6 +47,30 @@ describe("floating language controls", () => {
     await vi.waitFor(() => {
       expect(stored).toMatchObject({ sourceLang: "en", targetLang: "ko" });
     });
+  });
+
+  it("isolates the floating label from host button typography", () => {
+    vi.mocked(sendRuntimeRequest).mockResolvedValue(structuredClone(DEFAULT_SETTINGS));
+    vi.stubGlobal("chrome", {
+      runtime: { id: "test" },
+      storage: { local: { get: vi.fn(async () => ({})), set: vi.fn(async () => undefined) } }
+    });
+    const hostStyle = document.createElement("style");
+    hostStyle.textContent = `
+      button { font-style: italic; transform: skewX(-18deg); text-transform: uppercase; }
+      button > span { font-style: italic !important; transform: rotate(-12deg) !important; }
+    `;
+    document.documentElement.append(hostStyle);
+
+    injectContentStyles();
+    initFloatingBall();
+
+    const ball = query<HTMLElement>("#wupage-floating-ball");
+    const label = query<HTMLElement>(".wupage-floating-label");
+    expect(ball.textContent).toBe("译");
+    expect(getComputedStyle(label).fontStyle).toBe("normal");
+    expect(getComputedStyle(label).transform).toBe("none");
+    expect(getComputedStyle(label).writingMode).toBe("horizontal-tb");
   });
 
   it("resizes the debug panel from its bottom-right handle", async () => {
