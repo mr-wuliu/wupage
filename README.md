@@ -25,6 +25,21 @@ npm run build
 
 Load the extension from `dist/` in `chrome://extensions` or `edge://extensions` with developer mode enabled.
 
+## Tagged Releases
+
+Pushing a `v*` tag runs the release workflow. It checks the project, builds the extension, creates an Edge-ready ZIP with `manifest.json` at the archive root, and uploads the ZIP and its SHA-256 checksum to a GitHub Release.
+
+Before tagging, keep the versions in `package.json`, `package-lock.json`, and `public/manifest.json` identical. For example, to publish `v0.1.1`:
+
+```bash
+npm version 0.1.1 --no-git-tag-version
+# Update public/manifest.json to 0.1.1, then commit the version change.
+git tag v0.1.1
+git push origin main v0.1.1
+```
+
+The workflow publishes `wupage-0.1.1-edge.zip` on the `v0.1.1` release page. Upload that ZIP directly to Microsoft Partner Center.
+
 ## No-Key Web Providers
 
 These providers use web translation endpoints similar to the approach used by projects such as PowerTranslator. They do not need an API key, but they are unofficial and can be rate-limited, blocked, or changed by the vendor.

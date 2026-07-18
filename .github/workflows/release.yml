@@ -1,0 +1,109 @@
+name: Build tagged release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build and publish Edge package
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Verify release version
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag_version="${GITHUB_REF_NAME#v}"
+          package_version="$(node -p "JSON.parse(require('fs').readFileSync('package.json', 'utf8')).version")"
+          lock_version="$(node -p "JSON.parse(require('fs').readFileSync('package-lock.json', 'utf8')).version")"
+          manifest_version="$(node -p "JSON.parse(require('fs').readFileSync('public/manifest.json', 'utf8')).version")"
+
+          if [[ "$GITHUB_REF_NAME" != v* || -z "$tag_version" ]]; then
+            echo "Release tags must use the v<version> format, for example v0.1.0."
+            exit 1
+          fi
+
+          if [[ "$tag_version" != "$package_version" ||
+                "$tag_version" != "$lock_version" ||
+                "$tag_version" != "$manifest_version" ]]; then
+            echo "Version mismatch:"
+            echo "  tag:          $tag_version"
+            echo "  package:      $package_version"
+            echo "  package-lock: $lock_version"
+            echo "  manifest:     $manifest_version"
+            exit 1
+          fi
+
+          echo "RELEASE_VERSION=$tag_version" >> "$GITHUB_ENV"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check types
+        run: npm run typecheck
+
+      - name: Run tests
+        run: npm test
+
+      - name: Build extension
+        run: npm run build
+
+      - name: Verify content script bundle
+        shell: bash
+        run: |
+          if head -n 1 dist/content.js | grep -q '^import'; then
+            echo "dist/content.js contains a top-level import and cannot run as a classic MV3 content script."
+            exit 1
+          fi
+
+      - name: Package Edge extension
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive_name="wupage-${RELEASE_VERSION}-edge.zip"
+          archive="release/$archive_name"
+          mkdir -p release
+          (cd dist && zip -r "../$archive" .)
+
+          if ! unzip -Z1 "$archive" | grep -qx 'manifest.json'; then
+            echo "The ZIP package must contain manifest.json at its root."
+            exit 1
+          fi
+
+          (cd release && sha256sum "$archive_name" > "${archive_name}.sha256")
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: wupage-${{ github.ref_name }}-edge
+          path: release/*
+          if-no-files-found: error
+
+      - name: Create or update GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" release/* --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" release/* \
+              --verify-tag \
+              --generate-notes \
+              --title "WuPage $GITHUB_REF_NAME"
+          fi
