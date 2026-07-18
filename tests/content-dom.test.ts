@@ -639,6 +639,41 @@ describe("content DOM translation extraction", () => {
     expect(document.querySelector(".wupage-translation")?.textContent).toBe("你好世界");
   });
 
+  it("translates a structured commit title without appending a second translation to its grid card", () => {
+    document.body.innerHTML = `
+      <main>
+        <ul>
+          <li id="commit-card">
+            <div class="timeline-marker">●</div>
+            <div class="commit-content">
+              <h3 id="commit-title">
+                <a href="/commit/812f0df">Recover malformed LLM translation batches</a>
+              </h3>
+              <div class="metadata"><a href="/mr-wuliu">mr-wuliu</a> committed on Jul 18</div>
+            </div>
+            <div class="commit-sha">812f0df</div>
+          </li>
+        </ul>
+      </main>
+    `;
+    stubLayout();
+
+    const segments = collectTextSegments();
+
+    expect(segments.map((segment) => segment.text)).toEqual([
+      "Recover malformed LLM translation batches"
+    ]);
+
+    renderTranslations([{ id: segments[0].id, text: "恢复损坏的 LLM 翻译批次" }]);
+
+    const card = document.querySelector("#commit-card")!;
+    expect(card.querySelector(":scope > .wupage-translation")).toBeNull();
+    expect(document.querySelectorAll(".wupage-translation")).toHaveLength(1);
+    expect(document.querySelector("#commit-title .wupage-translation")?.textContent)
+      .toBe("恢复损坏的 LLM 翻译批次");
+    expect(document.querySelector(".metadata .wupage-translation")).toBeNull();
+  });
+
   it("removes translation state when pending placeholders are cleared", () => {
     document.body.innerHTML = `<p>Hello <em>world</em></p>`;
     stubLayout();

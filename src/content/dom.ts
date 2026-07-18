@@ -222,6 +222,7 @@ function collectTextSegmentsFromRoot(
       if (!node.textContent?.trim()) return NodeFilter.FILTER_REJECT;
       const parent = node.parentElement;
       if (!parent || shouldSkipElement(parent, true)) return NodeFilter.FILTER_REJECT;
+      if (isStructuredListMetadata(parent)) return NodeFilter.FILTER_REJECT;
       if (!isElementVisible(parent)) return NodeFilter.FILTER_REJECT;
       return NodeFilter.FILTER_ACCEPT;
     }
@@ -456,8 +457,31 @@ function groupTextSegments(nodes: TrackedNode[], fallback: TextSegment[]): TextS
 
 function findGroupingBlock(element: Element | null): Element | null {
   if (!element) return null;
-  return getCompactNavigationTarget(element) ??
-    element.closest(`p, li, blockquote, ${HEADING_SELECTOR}`);
+  const compactNavigationTarget = getCompactNavigationTarget(element);
+  if (compactNavigationTarget) return compactNavigationTarget;
+
+  const readableBlock = element.closest(`p, blockquote, ${HEADING_SELECTOR}`);
+  if (readableBlock) return readableBlock;
+
+  const listItem = element.closest("li");
+  return listItem && !isStructuredListItem(listItem) ? listItem : null;
+}
+
+/**
+ * Application timelines and result lists often use a list item as a complete
+ * grid/card. Appending a translation to that item makes it another grid child
+ * (and can squeeze it into a narrow icon or timeline column). The heading and
+ * real paragraphs inside the card remain independently translatable.
+ */
+function isStructuredListItem(element: Element): boolean {
+  return element.matches("li") && Boolean(element.querySelector(HEADING_SELECTOR));
+}
+
+function isStructuredListMetadata(element: Element): boolean {
+  const listItem = element.closest("li");
+  if (!listItem || !isStructuredListItem(listItem)) return false;
+
+  return !element.closest(`p, blockquote, ${HEADING_SELECTOR}`);
 }
 
 function shouldSkipElement(element: Element, includeNavigation = false): boolean {

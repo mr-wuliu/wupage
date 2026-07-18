@@ -216,6 +216,7 @@ function createMenu(): void {
               `<option value="${language.code}">${language.label}</option>`
             ).join("")}
           </select>
+          <span class="wupage-language-value" data-role="source-lang-value" aria-hidden="true">自动检测</span>
           <span class="wupage-language-chevron" aria-hidden="true"></span>
         </label>
         <span class="wupage-language-direction" aria-hidden="true">→</span>
@@ -226,6 +227,7 @@ function createMenu(): void {
               `<option value="${language.code}">${language.label}</option>`
             ).join("")}
           </select>
+          <span class="wupage-language-value" data-role="target-lang-value" aria-hidden="true">中文</span>
           <span class="wupage-language-chevron" aria-hidden="true"></span>
         </label>
       </div>
@@ -242,6 +244,7 @@ function createMenu(): void {
   menu.addEventListener("change", (event) => {
     const target = event.target instanceof HTMLSelectElement ? event.target : null;
     if (!target || (target.dataset.role !== "source-lang" && target.dataset.role !== "target-lang")) return;
+    syncLanguageValue(target);
     void updateLanguages(menu);
   });
   menu.addEventListener("click", (event) => {
@@ -310,7 +313,7 @@ function toggleMenu(): void {
 
 function positionMenu(menu: HTMLElement, button: HTMLElement): void {
   const rect = button.getBoundingClientRect();
-  const menuWidth = menu.offsetWidth || 220;
+  const menuWidth = menu.offsetWidth || 240;
   const menuHeight = menu.offsetHeight || 246;
   const left = clamp(rect.left + rect.width / 2 - menuWidth / 2, EDGE_MARGIN, window.innerWidth - menuWidth - EDGE_MARGIN);
   const top =
@@ -341,12 +344,22 @@ async function updateMenuState(menu: HTMLElement): Promise<void> {
   if (sourceLangSelect) {
     ensureLanguageOption(sourceLangSelect, settings.sourceLang);
     sourceLangSelect.value = settings.sourceLang;
+    syncLanguageValue(sourceLangSelect);
   }
   const targetLangSelect = menu.querySelector<HTMLSelectElement>("[data-role='target-lang']");
   if (targetLangSelect) {
     ensureLanguageOption(targetLangSelect, settings.targetLang);
     targetLangSelect.value = settings.targetLang;
+    syncLanguageValue(targetLangSelect);
   }
+}
+
+function syncLanguageValue(select: HTMLSelectElement): void {
+  const value = select.parentElement?.querySelector<HTMLElement>(
+    `[data-role="${select.dataset.role}-value"]`
+  );
+  if (!value) return;
+  value.textContent = select.selectedOptions[0]?.textContent?.trim() || select.value;
 }
 
 function updatePageToggleButton(menu: HTMLElement): void {

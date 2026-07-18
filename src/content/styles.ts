@@ -175,7 +175,8 @@ export function injectContentStyles(): void {
       z-index: 2147483647;
       display: block;
       box-sizing: border-box;
-      width: 220px;
+      width: 240px;
+      max-width: calc(100vw - 16px);
       padding: 6px;
       border: 1px solid rgba(31, 42, 46, 0.12);
       border-radius: 8px;
@@ -233,10 +234,18 @@ export function injectContentStyles(): void {
     }
 
     #wupage-floating-menu .wupage-language-pair {
+      all: initial;
       display: grid;
-      grid-template-columns: minmax(0, 1fr) 18px minmax(0, 1fr);
+      grid-template-columns: minmax(0, 1fr) 24px minmax(0, 1fr);
       align-items: center;
-      gap: 4px;
+      width: 100%;
+      min-width: 0;
+      margin: 0;
+      padding: 0;
+      gap: 0;
+      box-sizing: border-box;
+      direction: ltr;
+      font: 13px/1.2 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     }
 
     #wupage-floating-menu .wupage-language-select {
@@ -244,36 +253,78 @@ export function injectContentStyles(): void {
       position: relative;
       display: block;
       box-sizing: border-box;
-      float: none;
-      width: auto;
-      min-width: 0;
-      margin: 0;
-      padding: 0;
+      float: none !important;
+      width: auto !important;
+      min-width: 0 !important;
+      height: 40px !important;
+      margin: 0 !important;
+      padding: 0 !important;
       border: 0;
       color: inherit;
       font: inherit;
       text-align: left;
+      transform: none !important;
     }
 
     #wupage-floating-menu .wupage-language-select select {
       all: initial;
       display: block;
-      width: 100%;
-      max-width: none;
-      height: 40px;
+      position: static !important;
+      width: 100% !important;
+      min-width: 0 !important;
+      max-width: none !important;
+      height: 40px !important;
       box-sizing: border-box;
-      appearance: none;
+      margin: 0 !important;
+      appearance: none !important;
       border: 1px solid transparent;
       border-radius: 8px;
-      padding: 0 24px 0 8px;
-      color: #26343a;
+      padding: 0 24px 0 10px !important;
+      color: transparent !important;
       background: #eef2f1;
-      font: 13px/1.2 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      font-weight: 500;
-      box-shadow: none;
-      text-shadow: none;
-      vertical-align: middle;
+      font: 500 13px/1.2 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
+      letter-spacing: normal !important;
+      text-align: left !important;
+      text-indent: 0 !important;
+      text-transform: none !important;
+      transform: none !important;
+      overflow: hidden !important;
+      text-overflow: ellipsis !important;
+      white-space: nowrap !important;
+      box-shadow: none !important;
+      text-shadow: none !important;
+      vertical-align: middle !important;
       cursor: pointer;
+    }
+
+    #wupage-floating-menu .wupage-language-select select option {
+      color: #26343a !important;
+      background: #ffffff !important;
+      font: 500 13px/1.2 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
+    }
+
+    #wupage-floating-menu .wupage-language-value {
+      all: initial;
+      position: absolute !important;
+      z-index: 1;
+      inset: 0 !important;
+      display: flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      min-width: 0 !important;
+      margin: 0 !important;
+      padding: 0 24px 0 8px !important;
+      overflow: hidden !important;
+      color: #26343a;
+      font: 500 13px/1 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
+      letter-spacing: normal !important;
+      text-align: center !important;
+      text-overflow: ellipsis !important;
+      text-transform: none !important;
+      text-shadow: none !important;
+      white-space: nowrap !important;
+      pointer-events: none;
+      transform: none !important;
     }
 
     #wupage-floating-menu .wupage-language-select select:hover,
@@ -283,23 +334,36 @@ export function injectContentStyles(): void {
     }
 
     #wupage-floating-menu .wupage-language-chevron {
-      position: absolute;
+      all: initial;
+      position: absolute !important;
+      z-index: 2;
       pointer-events: none;
-      right: 9px;
-      top: 50%;
-      width: 5px;
-      height: 5px;
-      margin-top: -4px;
+      right: 10px !important;
+      top: 50% !important;
+      width: 5px !important;
+      height: 5px !important;
+      margin: 0 !important;
+      padding: 0 !important;
       border-right: 2px solid #7d898e;
       border-bottom: 2px solid #7d898e;
-      transform: rotate(45deg);
+      box-sizing: content-box;
+      transform: translateY(-65%) rotate(45deg) !important;
     }
 
     #wupage-floating-menu .wupage-language-direction {
+      all: initial;
+      position: static !important;
+      width: 24px !important;
+      height: 40px !important;
+      display: grid !important;
+      place-items: center !important;
+      align-self: center !important;
+      margin: 0 !important;
+      padding: 0 !important;
       color: #7a878b;
-      font-size: 17px;
-      line-height: 1;
-      text-align: center;
+      font: 17px/1 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
+      text-align: center !important;
+      transform: none !important;
     }
 
     #wupage-floating-menu .wupage-visually-hidden {

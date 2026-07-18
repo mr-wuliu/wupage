@@ -38,14 +38,20 @@ describe("floating language controls", () => {
     initFloatingBall();
     const source = query<HTMLSelectElement>("[data-role='source-lang']");
     const target = query<HTMLSelectElement>("[data-role='target-lang']");
+    const sourceValue = query<HTMLElement>("[data-role='source-lang-value']");
+    const targetValue = query<HTMLElement>("[data-role='target-lang-value']");
     expect(source.options[0]?.textContent).toBe("自动检测");
     expect(target.value).toBe("zh-CN");
+    expect(sourceValue.textContent).toBe("自动检测");
+    expect(targetValue.textContent).toBe("中文");
 
     source.value = "en";
     target.value = "ko";
     source.dispatchEvent(new Event("change", { bubbles: true }));
     await vi.waitFor(() => {
       expect(stored).toMatchObject({ sourceLang: "en", targetLang: "ko" });
+      expect(sourceValue.textContent).toBe("English");
+      expect(targetValue.textContent).toBe("한국어");
     });
   });
 
@@ -88,10 +94,17 @@ describe("floating language controls", () => {
         text-align: right;
       }
       select {
-        width: 100%;
-        max-width: calc(100% - 20px);
-        padding: 4px;
-        box-shadow: inset 0 1px 3px #000;
+        width: 160px !important;
+        min-width: 160px !important;
+        max-width: calc(100% - 20px) !important;
+        padding: 4px !important;
+        box-shadow: inset 0 1px 3px #000 !important;
+        transform: translateY(8px) !important;
+      }
+      span {
+        position: relative !important;
+        top: 7px !important;
+        margin-left: 12px !important;
       }
       button {
         text-align: center;
@@ -107,16 +120,34 @@ describe("floating language controls", () => {
     const menu = query<HTMLElement>("#wupage-floating-menu");
     const languageLabel = query<HTMLElement>(".wupage-language-select");
     const languageSelect = query<HTMLSelectElement>("[data-role='source-lang']");
+    const languageValue = query<HTMLElement>("[data-role='source-lang-value']");
+    const direction = query<HTMLElement>(".wupage-language-direction");
+    const chevron = query<HTMLElement>(".wupage-language-chevron");
     const menuButton = query<HTMLButtonElement>("[data-action='page-toggle']");
     menu.hidden = false;
 
     expect(getComputedStyle(menu).boxSizing).toBe("border-box");
+    expect(getComputedStyle(menu).width).toBe("240px");
     expect(getComputedStyle(languageLabel).float).toBe("none");
     expect(getComputedStyle(languageLabel).width).toBe("auto");
     expect(getComputedStyle(languageLabel).paddingTop).toBe("0px");
     expect(getComputedStyle(languageLabel).textAlign).toBe("left");
     expect(getComputedStyle(languageSelect).maxWidth).toBe("none");
     expect(getComputedStyle(languageSelect).boxShadow).toBe("none");
+    expect(getComputedStyle(languageSelect).height).toBe("40px");
+    expect(getComputedStyle(languageSelect).transform).toBe("none");
+    expect(getComputedStyle(languageSelect).whiteSpace).toBe("nowrap");
+    expect(getComputedStyle(languageSelect).color).toBe("rgba(0, 0, 0, 0)");
+    expect(getComputedStyle(languageValue).display).toBe("flex");
+    expect(getComputedStyle(languageValue).alignItems).toBe("center");
+    expect(getComputedStyle(languageValue).justifyContent).toBe("center");
+    expect(getComputedStyle(languageValue).textAlign).toBe("center");
+    expect(getComputedStyle(direction).position).toBe("static");
+    expect(getComputedStyle(direction).width).toBe("24px");
+    expect(getComputedStyle(direction).height).toBe("40px");
+    expect(getComputedStyle(direction).transform).toBe("none");
+    expect(getComputedStyle(chevron).position).toBe("absolute");
+    expect(getComputedStyle(chevron).marginLeft).toBe("0px");
     expect(getComputedStyle(menuButton).textAlign).toBe("left");
     expect(["none", "rgba(0, 0, 0, 0)"]).toContain(getComputedStyle(menuButton).textShadow);
   });
