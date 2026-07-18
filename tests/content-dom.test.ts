@@ -477,6 +477,47 @@ describe("content DOM translation extraction", () => {
     expect(document.querySelector("h3 a")?.textContent).toBe("Trait Implementations特性实现方式");
   });
 
+  it("translates semantic navigation without site-specific class names", () => {
+    document.body.innerHTML = `
+      <header>
+        <nav role="navigation">
+          <a href="/learn">Learn</a>
+          <a href="/api">API Docs</a>
+          <a href="/social"><svg></svg></a>
+        </nav>
+      </header>
+      <aside>
+        <p>Tokio</p>
+        <ul>
+          <li><a href="/tutorial">Tutorial</a></li>
+          <li><a href="/overview">Overview</a></li>
+          <li><a href="/async">Async in depth</a></li>
+        </ul>
+      </aside>
+      <main><p>Readable content</p></main>
+    `;
+    stubLayout();
+
+    const segments = collectTextSegments();
+
+    expect(segments.map((segment) => segment.text)).toEqual([
+      "Learn",
+      "API Docs",
+      "Tokio",
+      "Tutorial",
+      "Overview",
+      "Async in depth",
+      "Readable content"
+    ]);
+    renderTranslations(segments.map((segment) => ({
+      id: segment.id,
+      text: `译：${segment.text}`
+    })));
+    expect(document.querySelector("aside a")?.textContent).toBe("Tutorial译：Tutorial");
+    expect(document.querySelector("aside .wupage-translation")?.getAttribute("data-wupage-mode"))
+      .toBe("inline");
+  });
+
   it("does not render translations that are identical to their source text", () => {
     document.body.innerHTML = `
       <nav class="sidebar">

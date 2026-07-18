@@ -89,9 +89,23 @@ const SKIP_SELECTORS = [
 const SKIP_SELECTOR = SKIP_SELECTORS.join(",");
 const READABLE_HEADING_SKIP_SELECTOR = SKIP_SELECTORS.filter((selector) => selector !== "summary").join(",");
 const COMPACT_NAV_SKIP_SELECTOR = SKIP_SELECTORS.filter(
-  (selector) => selector !== "nav" && selector !== "aside"
+  (selector) => ![
+    "nav",
+    "aside",
+    "header",
+    "footer",
+    "[role='navigation']",
+    "[role='banner']",
+    "[role='contentinfo']"
+  ].includes(selector)
 ).join(",");
-const COMPACT_NAV_SELECTOR = "nav.sidebar, #rustdoc-toc, .sidebar-elems";
+const KNOWN_COMPACT_NAV_SELECTOR = "nav.sidebar, #rustdoc-toc, .sidebar-elems";
+const NAVIGATION_CONTAINER_SELECTOR = [
+  "nav",
+  "aside",
+  "[role='navigation']",
+  KNOWN_COMPACT_NAV_SELECTOR
+].join(",");
 const HEADING_SELECTOR = "h1,h2,h3,h4,h5,h6";
 const READABLE_ROOT_SELECTOR = "main,article,[role='main'],.markdown-body,.docblock,#main-content";
 const CODE_SELECTOR = "pre, code, .highlight, .example-wrap, .blob-code, .react-code-text";
@@ -204,7 +218,7 @@ function collectTextSegmentsFromRoot(
     acceptNode(node) {
       if (!node.textContent?.trim()) return NodeFilter.FILTER_REJECT;
       const parent = node.parentElement;
-      if (!parent || shouldSkipElement(parent)) return NodeFilter.FILTER_REJECT;
+      if (!parent || shouldSkipElement(parent, true)) return NodeFilter.FILTER_REJECT;
       if (!isElementVisible(parent)) return NodeFilter.FILTER_REJECT;
       return NodeFilter.FILTER_ACCEPT;
     }
@@ -437,11 +451,12 @@ function groupTextSegments(nodes: TrackedNode[], fallback: TextSegment[]): TextS
   ];
 }
 
-function shouldSkipElement(element: Element): boolean {
+function shouldSkipElement(element: Element, includeNavigation = false): boolean {
   if (isInsideCodeBlock(element)) return false;
   if (SKIP_TAGS.has(element.tagName)) return true;
   if (element.closest(`.${TRANSLATION_CLASS}`)) return true;
   if (isCompactNavigationText(element)) {
+    if (!includeNavigation && !element.closest(KNOWN_COMPACT_NAV_SELECTOR)) return true;
     return Boolean(element.closest(COMPACT_NAV_SKIP_SELECTOR));
   }
   if (isInsideReadableHeadingContent(element)) {
@@ -652,11 +667,15 @@ function isInsideReadableHeadingContent(element: Element): boolean {
 }
 
 function isCompactNavigationText(element: Element): boolean {
-  const container = element.closest(COMPACT_NAV_SELECTOR);
+  const container = element.closest(NAVIGATION_CONTAINER_SELECTOR);
   if (!container) return false;
-  const target = element.closest("a, h2, h3, li");
+  const target = element.closest("a, h2, h3, h4, li, p");
   if (!target || !container.contains(target)) return false;
+  if (target.matches("button,[role='button']")) return false;
   if (target.querySelector("button,input,select,textarea,[role='button']")) return false;
+  if (target.matches("a") && target.querySelector("img,svg,canvas")) return false;
+  const text = normalizeText(target.textContent ?? "");
+  if (text.length < 2 || text.length > 80) return false;
   return true;
 }
 
