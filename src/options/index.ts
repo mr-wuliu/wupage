@@ -1,11 +1,11 @@
 import { BUILT_IN_PROVIDER_IDS, DEFAULT_SETTINGS } from "../shared/defaults";
-import { TARGET_LANGUAGES } from "../shared/languages";
+import { SOURCE_LANGUAGES, TARGET_LANGUAGES } from "../shared/languages";
 import { sendRuntimeMessage } from "../shared/messaging";
 import type { ExtensionSettings, ProviderConfig } from "../shared/types";
 import "./styles.css";
 
 const targetLang = query<HTMLSelectElement>("#targetLang");
-const sourceLang = query<HTMLInputElement>("#sourceLang");
+const sourceLang = query<HTMLSelectElement>("#sourceLang");
 const chunkSize = query<HTMLInputElement>("#chunkSize");
 const concurrency = query<HTMLInputElement>("#concurrency");
 const cacheEnabled = query<HTMLInputElement>("#cacheEnabled");
@@ -79,20 +79,28 @@ async function init(): Promise<void> {
 }
 
 function render(): void {
-  const languages = TARGET_LANGUAGES.some((entry) => entry.code === settings.targetLang)
-    ? TARGET_LANGUAGES
-    : [{ code: settings.targetLang, label: settings.targetLang }, ...TARGET_LANGUAGES];
-  targetLang.innerHTML = languages
-    .map((entry) => `<option value="${escapeHtml(entry.code)}">${escapeHtml(entry.label)}</option>`)
-    .join("");
-  targetLang.value = settings.targetLang;
-  sourceLang.value = settings.sourceLang;
+  renderLanguageOptions(targetLang, settings.targetLang, TARGET_LANGUAGES);
+  renderLanguageOptions(sourceLang, settings.sourceLang, SOURCE_LANGUAGES);
   chunkSize.value = String(settings.chunkSize);
   concurrency.value = String(settings.concurrency);
   cacheEnabled.checked = settings.cacheEnabled;
   floatingBallEnabled.checked = settings.floatingBallEnabled;
   renderProviderPicker(false);
   renderProviderForm();
+}
+
+function renderLanguageOptions(
+  select: HTMLSelectElement,
+  value: string,
+  languages: ReadonlyArray<{ code: string; label: string }>
+): void {
+  const options = languages.some((entry) => entry.code === value)
+    ? languages
+    : [{ code: value, label: value }, ...languages];
+  select.innerHTML = options
+    .map((entry) => `<option value="${escapeHtml(entry.code)}">${escapeHtml(entry.label)}</option>`)
+    .join("");
+  select.value = value;
 }
 
 function renderProviderPicker(keepOpen: boolean): void {

@@ -15,9 +15,23 @@
 
       <section>
         <h2>通用</h2>
+        <div class="language-field">
+          <span class="field-label">翻译语言</span>
+          <div class="language-pair">
+            <label class="language-select">
+              <span class="visually-hidden">源语言</span>
+              <select id="sourceLang"></select>
+              <span class="language-chevron" aria-hidden="true"></span>
+            </label>
+            <span class="language-direction" aria-hidden="true">→</span>
+            <label class="language-select">
+              <span class="visually-hidden">目标语言</span>
+              <select id="targetLang"></select>
+              <span class="language-chevron" aria-hidden="true"></span>
+            </label>
+          </div>
+        </div>
         <div class="grid">
-          <label>目标语言 <select id="targetLang"></select></label>
-          <label>源语言 <input id="sourceLang" type="text" /></label>
           <label>分块大小 <input id="chunkSize" type="number" min="200" max="4000" /></label>
           <label>并发数 <input id="concurrency" type="number" min="1" max="8" /></label>
         </div>

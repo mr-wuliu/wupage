@@ -8,3 +8,8 @@ export const TARGET_LANGUAGES = [
   { code: "es", label: "Español" },
   { code: "ru", label: "Русский" }
 ];
+
+export const SOURCE_LANGUAGES = [
+  { code: "auto", label: "自动检测" },
+  ...TARGET_LANGUAGES
+];

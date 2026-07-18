@@ -49,6 +49,12 @@ describe("options provider controls", () => {
       expect(document.querySelector("#providerTriggerLabel")?.textContent)
         .toBe("Google Web Translate");
     });
+    expect(query<HTMLSelectElement>("#sourceLang").value).toBe("auto");
+    expect(query<HTMLSelectElement>("#sourceLang").selectedOptions[0]?.textContent)
+      .toBe("自动检测");
+    query<HTMLSelectElement>("#sourceLang").value = "en";
+    click("#save");
+    await vi.waitFor(() => expect(stored.sourceLang).toBe("en"));
 
     click("#providerTrigger");
     expect(document.querySelectorAll(".provider-menu-row")).toHaveLength(6);
