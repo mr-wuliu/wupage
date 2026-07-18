@@ -98,9 +98,26 @@ label {
 }
 
 .provider-chevron {
-  color: #627077;
-  font-size: 18px;
-  line-height: 1;
+  flex: 0 0 auto;
+  width: 7px;
+  height: 7px;
+  margin: 0 3px 4px 0;
+  border-right: 2px solid #627077;
+  border-bottom: 2px solid #627077;
+  transform: rotate(45deg);
+  transition: transform 150ms ease, margin 150ms ease;
+}
+
+.provider-trigger[aria-expanded="true"] .provider-chevron {
+  margin: 4px 3px 0 0;
+  transform: rotate(225deg);
+}
+
+.provider-trigger-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .provider-menu {
