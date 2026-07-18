@@ -119,15 +119,18 @@ const PARAGRAPH_SELECTOR = [
   ".comment-body p"
 ].join(",");
 
-export function collectTextSegments(): TextSegment[] {
+export function collectTextSegments(translateCodeComments = true): TextSegment[] {
   clearNodeTracking();
-  return collectTextSegmentsFromRoot(document.body, true);
+  return collectTextSegmentsFromRoot(document.body, true, translateCodeComments);
 }
 
-export function collectParagraphTextSegments(element: Element): TextSegment[] {
+export function collectParagraphTextSegments(
+  element: Element,
+  translateCodeComments = true
+): TextSegment[] {
   trackedNodes = trackedNodes.filter((tracked) => !element.contains(tracked.node));
   trackedGroups = trackedGroups.filter((group) => !group.nodes.some((tracked) => element.contains(tracked.node)));
-  return collectTextSegmentsFromRoot(element, false);
+  return collectTextSegmentsFromRoot(element, false, translateCodeComments);
 }
 
 export function findTranslatableParagraph(start: Element | null): Element | null {
@@ -191,7 +194,11 @@ export function ensureTranslationTarget(element: Element): string {
   return id;
 }
 
-function collectTextSegmentsFromRoot(root: Element, resetTracking: boolean): TextSegment[] {
+function collectTextSegmentsFromRoot(
+  root: Element,
+  resetTracking: boolean,
+  translateCodeComments: boolean
+): TextSegment[] {
   if (resetTracking) clearNodeTracking();
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
     acceptNode(node) {
@@ -208,7 +215,7 @@ function collectTextSegmentsFromRoot(root: Element, resetTracking: boolean): Tex
   let index = 0;
   while (walker.nextNode()) {
     const node = walker.currentNode as Text;
-    const codeComment = getCodeComment(node);
+    const codeComment = translateCodeComments ? getCodeComment(node) : null;
     if (isInsideCodeBlock(node.parentElement) && !codeComment) continue;
     const text = normalizeText(node.textContent ?? "");
     const sourceText = codeComment?.text ?? text;

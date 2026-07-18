@@ -49,6 +49,19 @@ describe("content DOM translation extraction", () => {
     expect(translations[1].textContent).toBe("// 解释下一行");
   });
 
+  it("skips code comments when comment translation is disabled", () => {
+    document.body.innerHTML = `
+      <main>
+        <p>Hello world</p>
+        <pre id="code"><code>// Explain the next line</code></pre>
+      </main>
+    `;
+    stubLayout();
+
+    expect(collectTextSegments(false).map((segment) => segment.text)).toEqual(["Hello world"]);
+    expect(collectParagraphTextSegments(document.querySelector("#code")!, false)).toEqual([]);
+  });
+
   it("clears translated comments", () => {
     document.body.innerHTML = `<pre><code># A comment</code></pre>`;
     stubLayout();

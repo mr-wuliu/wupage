@@ -122,11 +122,11 @@ async function translateActiveParagraph(): Promise<void> {
       return;
     }
 
-    const segments = collectParagraphTextSegments(target);
+    const settings = await getSettings();
+    const segments = collectParagraphTextSegments(target, settings.translateCodeComments);
     if (!segments.length) return;
     renderTranslationPlaceholders(segments);
 
-    const settings = await getSettings();
     try {
       const data = await translateSegments(settings, segments.map((segment) => segment.text));
       renderTranslations(

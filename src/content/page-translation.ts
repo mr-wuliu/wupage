@@ -53,7 +53,7 @@ let viewportTimer: number | undefined;
 
 export function startPageTranslation(settings: ExtensionSettings): Promise<PageTranslationResult> {
   clearPageTranslation();
-  const segments = collectTextSegments();
+  const segments = collectTextSegments(settings.translateCodeComments);
   if (!segments.length) return Promise.resolve(emptyResult());
 
   let resolveInitial!: (result: PageTranslationResult) => void;

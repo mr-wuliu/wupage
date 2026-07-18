@@ -10,6 +10,7 @@ const chunkSize = query<HTMLInputElement>("#chunkSize");
 const concurrency = query<HTMLInputElement>("#concurrency");
 const cacheEnabled = query<HTMLInputElement>("#cacheEnabled");
 const floatingBallEnabled = query<HTMLInputElement>("#floatingBallEnabled");
+const translateCodeComments = query<HTMLInputElement>("#translateCodeComments");
 const providerPicker = query<HTMLDivElement>("#providerPicker");
 const providerTrigger = query<HTMLButtonElement>("#providerTrigger");
 const providerTriggerLabel = query<HTMLSpanElement>("#providerTriggerLabel");
@@ -85,6 +86,7 @@ function render(): void {
   concurrency.value = String(settings.concurrency);
   cacheEnabled.checked = settings.cacheEnabled;
   floatingBallEnabled.checked = settings.floatingBallEnabled;
+  translateCodeComments.checked = settings.translateCodeComments;
   renderProviderPicker(false);
   renderProviderForm();
 }
@@ -483,6 +485,7 @@ function readSettingsFromForm(): ExtensionSettings {
     concurrency: Number(concurrency.value),
     cacheEnabled: cacheEnabled.checked,
     floatingBallEnabled: floatingBallEnabled.checked,
+    translateCodeComments: translateCodeComments.checked,
     providers: settings.providers.map((provider) =>
       provider.id === activeProvider.id ? activeProvider : provider
     )

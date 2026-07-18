@@ -166,6 +166,7 @@ function createLlmSettings(
     concurrency,
     cacheEnabled: false,
     floatingBallEnabled: true,
+    translateCodeComments: true,
     providers: [
       {
         type: "zhipu-glm",

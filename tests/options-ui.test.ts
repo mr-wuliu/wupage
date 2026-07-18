@@ -55,6 +55,11 @@ describe("options provider controls", () => {
     query<HTMLSelectElement>("#sourceLang").value = "en";
     click("#save");
     await vi.waitFor(() => expect(stored.sourceLang).toBe("en"));
+    const translateCodeComments = query<HTMLInputElement>("#translateCodeComments");
+    expect(translateCodeComments.checked).toBe(true);
+    translateCodeComments.click();
+    click("#save");
+    await vi.waitFor(() => expect(stored.translateCodeComments).toBe(false));
     const inheritPerformance = query<HTMLInputElement>("[data-field='inheritPerformance']");
     expect(inheritPerformance.checked).toBe(true);
     inheritPerformance.click();

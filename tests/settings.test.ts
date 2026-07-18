@@ -14,7 +14,12 @@ describe("normalizeSettings", () => {
     expect(settings.activeProviderId).toBe("google-web-translate");
     expect(settings.chunkSize).toBe(4000);
     expect(settings.concurrency).toBe(1);
+    expect(settings.translateCodeComments).toBe(true);
     expect(settings.providers.length).toBeGreaterThan(0);
+  });
+
+  it("preserves a disabled code comment translation setting", () => {
+    expect(normalizeSettings({ translateCodeComments: false }).translateCodeComments).toBe(false);
   });
 
   it("adds new built-in providers to older saved settings", () => {

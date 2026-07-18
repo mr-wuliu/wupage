@@ -82,6 +82,7 @@ export interface ExtensionSettings {
   concurrency: number;
   cacheEnabled: boolean;
   floatingBallEnabled: boolean;
+  translateCodeComments: boolean;
   providers: ProviderConfig[];
 }
 

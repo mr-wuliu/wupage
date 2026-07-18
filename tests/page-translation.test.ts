@@ -18,6 +18,7 @@ const settings: ExtensionSettings = {
   concurrency: 8,
   cacheEnabled: true,
   floatingBallEnabled: true,
+  translateCodeComments: true,
   providers: []
 };
 

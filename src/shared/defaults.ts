@@ -8,6 +8,7 @@ export const DEFAULT_SETTINGS: ExtensionSettings = {
   concurrency: 3,
   cacheEnabled: true,
   floatingBallEnabled: true,
+  translateCodeComments: true,
   providers: [
     {
       type: "google-web-translate",

@@ -44,7 +44,11 @@ export function normalizeSettings(value: unknown): ExtensionSettings {
     floatingBallEnabled:
       typeof input.floatingBallEnabled === "boolean"
         ? input.floatingBallEnabled
-        : DEFAULT_SETTINGS.floatingBallEnabled
+        : DEFAULT_SETTINGS.floatingBallEnabled,
+    translateCodeComments:
+      typeof input.translateCodeComments === "boolean"
+        ? input.translateCodeComments
+        : DEFAULT_SETTINGS.translateCodeComments
   };
 }
 
