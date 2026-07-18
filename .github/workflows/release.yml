@@ -31,6 +31,7 @@ jobs:
           package_version="$(node -p "JSON.parse(require('fs').readFileSync('package.json', 'utf8')).version")"
           lock_version="$(node -p "JSON.parse(require('fs').readFileSync('package-lock.json', 'utf8')).version")"
           manifest_version="$(node -p "JSON.parse(require('fs').readFileSync('public/manifest.json', 'utf8')).version")"
+          manifest_release_version="$(node -p "const manifest = JSON.parse(require('fs').readFileSync('public/manifest.json', 'utf8')); manifest.version_name || manifest.version")"
 
           if [[ "$GITHUB_REF_NAME" != v* || -z "$tag_version" ]]; then
             echo "Release tags must use the v<version> format, for example v0.1.0."
@@ -39,12 +40,13 @@ jobs:
 
           if [[ "$tag_version" != "$package_version" ||
                 "$tag_version" != "$lock_version" ||
-                "$tag_version" != "$manifest_version" ]]; then
+                "$tag_version" != "$manifest_release_version" ]]; then
             echo "Version mismatch:"
             echo "  tag:          $tag_version"
             echo "  package:      $package_version"
             echo "  package-lock: $lock_version"
             echo "  manifest:     $manifest_version"
+            echo "  version_name: $manifest_release_version"
             exit 1
           fi
 
@@ -101,9 +103,17 @@ jobs:
           set -euo pipefail
           if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
             gh release upload "$GITHUB_REF_NAME" release/* --clobber
+            if [[ "$RELEASE_VERSION" == *-* ]]; then
+              gh release edit "$GITHUB_REF_NAME" --prerelease
+            fi
           else
+            release_flags=()
+            if [[ "$RELEASE_VERSION" == *-* ]]; then
+              release_flags+=(--prerelease)
+            fi
             gh release create "$GITHUB_REF_NAME" release/* \
               --verify-tag \
               --generate-notes \
-              --title "WuPage $GITHUB_REF_NAME"
+              --title "WuPage $GITHUB_REF_NAME" \
+              "${release_flags[@]}"
           fi

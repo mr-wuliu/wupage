@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PDF 翻译 · WuPage</title>
+    <script type="module" src="/src/pdf/index.ts"></script>
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <a class="brand" href="pdf.html" aria-label="返回 PDF 翻译首页">
+          <span class="brand-mark" aria-hidden="true">W</span>
+          <span>
+            <strong>WuPage</strong>
+            <small>PDF 双语阅读</small>
+          </span>
+        </a>
+
+        <div class="document-summary" id="documentSummary" hidden>
+          <strong id="documentName"></strong>
+          <span id="documentMeta"></span>
+        </div>
+
+        <div class="toolbar-actions">
+          <label class="compact-select">
+            <span class="visually-hidden">源语言</span>
+            <select id="sourceLang" aria-label="源语言"></select>
+          </label>
+          <span class="language-arrow" aria-hidden="true">→</span>
+          <label class="compact-select">
+            <span class="visually-hidden">目标语言</span>
+            <select id="targetLang" aria-label="目标语言"></select>
+          </label>
+          <label class="compact-select provider-select">
+            <span class="visually-hidden">翻译服务</span>
+            <select id="provider" aria-label="翻译服务"></select>
+          </label>
+          <button id="replaceDocument" type="button" class="ghost-button" hidden>更换文档</button>
+          <button id="translateDocument" type="button" class="primary-button" disabled>
+            <span>翻译全文</span>
+          </button>
+        </div>
+      </header>
+
+      <div class="progress-track" aria-hidden="true"><span id="progressBar"></span></div>
+
+      <main>
+        <section id="welcomeView" class="welcome-view">
+          <div class="welcome-copy">
+            <span class="eyebrow">专注阅读，不打乱原稿</span>
+            <h1>把 PDF 变成<br />左右对照的双语文档</h1>
+            <p>原始排版完整保留在左侧，译文按页呈现在右侧。论文、报告和说明书都能自然对照阅读。</p>
+            <ul class="feature-list" aria-label="功能特点">
+              <li><span>01</span>原稿与译文逐页对齐</li>
+              <li><span>02</span>复用你的翻译服务和缓存</li>
+              <li><span>03</span>文档只在本机解析</li>
+            </ul>
+          </div>
+
+          <div class="open-card">
+            <div id="dropZone" class="drop-zone" tabindex="0" role="button" aria-label="选择 PDF 文件">
+              <div class="pdf-glyph" aria-hidden="true">
+                <span>PDF</span>
+              </div>
+              <h2>打开一个 PDF</h2>
+              <p>拖放文件到这里，或从电脑中选择</p>
+              <button id="chooseFile" type="button" class="primary-button">选择 PDF 文件</button>
+              <input id="fileInput" type="file" accept="application/pdf,.pdf" hidden />
+              <small>文件仅在当前浏览器中处理</small>
+            </div>
+
+            <div class="divider"><span>或者使用在线地址</span></div>
+            <form id="urlForm" class="url-form">
+              <label for="pdfUrl" class="visually-hidden">PDF 在线地址</label>
+              <input id="pdfUrl" type="url" placeholder="https://example.com/document.pdf" autocomplete="off" />
+              <button type="submit" class="ghost-button">打开</button>
+            </form>
+          </div>
+        </section>
+
+        <section id="readerView" class="reader-view" hidden aria-label="PDF 双语阅读器">
+          <div id="pages" class="pages"></div>
+        </section>
+      </main>
+
+      <div id="loadingOverlay" class="loading-overlay" hidden>
+        <div class="loading-card">
+          <span class="spinner" aria-hidden="true"></span>
+          <strong id="loadingTitle">正在打开 PDF</strong>
+          <p id="loadingDetail">准备解析文档…</p>
+        </div>
+      </div>
+
+      <div class="status-toast" id="statusToast" role="status" aria-live="polite" hidden></div>
+    </div>
+  </body>
+</html>

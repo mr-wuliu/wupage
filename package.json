@@ -1,6 +1,6 @@
 {
   "name": "wupage",
-  "version": "0.1.1",
+  "version": "1.0.0-beta.1",
   "private": true,
   "type": "module",
   "scripts": {
@@ -16,5 +16,8 @@
     "typescript": "^5.9.3",
     "vite": "^7.0.5",
     "vitest": "^3.2.4"
+  },
+  "dependencies": {
+    "pdfjs-dist": "^6.1.200"
   }
 }

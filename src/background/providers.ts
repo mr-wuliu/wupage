@@ -13,6 +13,11 @@ import type {
 } from "../shared/types";
 import { readPath, renderTemplate } from "./template";
 
+const GOOGLE_WEB_REQUEST_CONCURRENCY = 4;
+const WEB_TRANSLATION_TIMEOUT_MS = 20_000;
+const API_TRANSLATION_TIMEOUT_MS = 45_000;
+const LLM_TRANSLATION_TIMEOUT_MS = 90_000;
+
 export function createProvider(config: ProviderConfig): TranslatorProvider {
   if (config.type === "google-web-translate") return new GoogleWebTranslateProvider(config);
   if (config.type === "microsoft-translator") return new MicrosoftTranslatorProvider(config);
@@ -41,8 +46,10 @@ class GoogleWebTranslateProvider implements TranslatorProvider {
   }
 
   async translateBatch(request: TranslateBatchRequest, signal?: AbortSignal): Promise<string[]> {
-    return Promise.all(
-      request.texts.map(async (text) => {
+    return mapWithConcurrency(
+      request.texts,
+      GOOGLE_WEB_REQUEST_CONCURRENCY,
+      async (text) => {
         const endpoint = new URL("https://translate.googleapis.com/translate_a/single");
         endpoint.searchParams.set("client", "gtx");
         endpoint.searchParams.set("sl", normalizeGoogleLang(request.sourceLang ?? "auto"));
@@ -50,11 +57,15 @@ class GoogleWebTranslateProvider implements TranslatorProvider {
         endpoint.searchParams.set("dt", "t");
         endpoint.searchParams.set("q", text);
 
-        const response = await fetch(endpoint.toString(), { signal });
+        const response = await fetchWithTimeout(
+          endpoint.toString(),
+          { signal },
+          WEB_TRANSLATION_TIMEOUT_MS
+        );
         if (!response.ok) throw new Error(`Google Web Translate request failed: ${response.status}`);
         const payload = (await response.json()) as GoogleWebTranslateResponse;
         return parseGoogleWebResponse(payload);
-      })
+      }
     );
   }
 }
@@ -95,12 +106,12 @@ class MicrosoftTranslatorProvider implements TranslatorProvider {
       headers["Ocp-Apim-Subscription-Region"] = this.config.region.trim();
     }
 
-    const response = await fetch(endpoint.toString(), {
+    const response = await fetchWithTimeout(endpoint.toString(), {
       method: "POST",
       signal,
       headers,
       body: JSON.stringify(request.texts.map((text) => ({ Text: text })))
-    });
+    }, API_TRANSLATION_TIMEOUT_MS);
 
     if (!response.ok) throw new Error(`Microsoft Translator request failed: ${response.status}`);
     const payload = (await response.json()) as MicrosoftTranslateResponse;
@@ -150,14 +161,14 @@ class GoogleCloudTranslationProvider implements TranslatorProvider {
       body.source = normalizeGoogleLang(request.sourceLang);
     }
 
-    const response = await fetch(endpoint.toString(), {
+    const response = await fetchWithTimeout(endpoint.toString(), {
       method: "POST",
       signal,
       headers: {
         "Content-Type": "application/json"
       },
       body: JSON.stringify(body)
-    });
+    }, API_TRANSLATION_TIMEOUT_MS);
 
     if (!response.ok) throw new Error(`Google Cloud Translation request failed: ${response.status}`);
     const payload = (await response.json()) as GoogleTranslateResponse;
@@ -355,7 +366,7 @@ class HttpTemplateProvider implements TranslatorProvider {
       Object.entries(this.config.headers).map(([key, value]) => [key, renderTemplate(value, context)])
     );
 
-    const response = await fetch(url, {
+    const response = await fetchWithTimeout(url, {
       method: this.config.method,
       signal,
       headers,
@@ -363,7 +374,7 @@ class HttpTemplateProvider implements TranslatorProvider {
         this.config.method === "POST"
           ? renderTemplate(this.config.bodyTemplate, context)
           : undefined
-    });
+    }, API_TRANSLATION_TIMEOUT_MS);
 
     if (!response.ok) throw new Error(`HTTP template request failed: ${response.status}`);
     const payload = (await response.json()) as unknown;
@@ -418,12 +429,60 @@ function withPlaceholderInstruction(prompt: string): string {
 
 async function fetchWithLlmRetry(url: string, init: RequestInit): Promise<Response> {
   for (let attempt = 0; attempt < 4; attempt += 1) {
-    const response = await fetch(url, init);
+    const response = await fetchWithTimeout(url, init, LLM_TRANSLATION_TIMEOUT_MS);
     if (response.status !== 429 && response.status !== 503) return response;
     if (attempt === 3) return response;
     await delay(readRetryDelay(response, attempt));
   }
   throw new Error("LLM request retry loop exited unexpectedly.");
+}
+
+async function fetchWithTimeout(
+  url: string,
+  init: RequestInit,
+  timeoutMs: number
+): Promise<Response> {
+  const controller = new AbortController();
+  const sourceSignal = init.signal;
+  const abortFromSource = (): void => controller.abort(sourceSignal?.reason);
+  if (sourceSignal?.aborted) abortFromSource();
+  else sourceSignal?.addEventListener("abort", abortFromSource, { once: true });
+  const timer = globalThis.setTimeout(
+    () => controller.abort(new DOMException("Translation request timed out.", "TimeoutError")),
+    timeoutMs
+  );
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } catch (error) {
+    if (controller.signal.reason instanceof DOMException
+      && controller.signal.reason.name === "TimeoutError") {
+      throw new Error(`Translation request timed out after ${Math.round(timeoutMs / 1000)} seconds.`);
+    }
+    throw error;
+  } finally {
+    globalThis.clearTimeout(timer);
+    sourceSignal?.removeEventListener("abort", abortFromSource);
+  }
+}
+
+async function mapWithConcurrency<T, R>(
+  values: T[],
+  concurrency: number,
+  mapper: (value: T, index: number) => Promise<R>
+): Promise<R[]> {
+  const output = Array<R>(values.length);
+  let cursor = 0;
+  async function worker(): Promise<void> {
+    while (cursor < values.length) {
+      const index = cursor;
+      cursor += 1;
+      output[index] = await mapper(values[index], index);
+    }
+  }
+  await Promise.all(
+    Array.from({ length: Math.min(Math.max(1, concurrency), values.length) }, () => worker())
+  );
+  return output;
 }
 
 function readRetryDelay(response: Response, attempt: number): number {

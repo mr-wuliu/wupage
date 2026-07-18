@@ -21,6 +21,7 @@ let paragraphMode = false;
 let paragraphModeAvailable = true;
 let pageTranslated = false;
 let floatingBallEnabled = true;
+let activeTabIsPdf = false;
 
 void init();
 
@@ -37,6 +38,13 @@ async function init(): Promise<void> {
   updateFloatingBallButton();
   await loadParagraphMode();
   await loadTranslationState();
+  activeTabIsPdf = await detectCurrentTabPdf();
+  if (activeTabIsPdf) {
+    paragraphModeAvailable = false;
+    paragraphModeButton.disabled = true;
+    paragraphModeButton.title = "PDF 使用独立的双栏翻译页面。";
+    updatePageToggleButton();
+  }
 
   targetLang.addEventListener("change", savePopupSettings);
   sourceLang.addEventListener("change", savePopupSettings);
@@ -77,6 +85,17 @@ function renderLanguageOptions(
 }
 
 async function togglePageTranslation(): Promise<void> {
+  if (activeTabIsPdf) {
+    setPageToggleBusy(true);
+    setStatus("正在打开 PDF 并开始翻译...");
+    try {
+      await openPdfTranslator();
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : String(error));
+      setPageToggleBusy(false);
+    }
+    return;
+  }
   const request = { type: pageTranslated ? "CLEAR_TRANSLATION" : "TRANSLATE_PAGE" } as const;
   setPageToggleBusy(true);
   setStatus(request.type === "TRANSLATE_PAGE" ? "正在翻译..." : "正在显示原文...");
@@ -125,6 +144,33 @@ function setBusy(value: boolean): void {
   floatingBallButton.disabled = value;
   debugButton.disabled = value;
   clearCacheButton.disabled = value;
+}
+
+async function openPdfTranslator(): Promise<void> {
+  await savePopupSettings();
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  const pageUrl = new URL(chrome.runtime.getURL("pdf.html"));
+  if (tab.url && isLikelyPdfUrl(tab.url)) {
+    pageUrl.searchParams.set("url", tab.url);
+    pageUrl.searchParams.set("translate", "1");
+  }
+  await chrome.tabs.create({ url: pageUrl.toString() });
+  window.close();
+}
+
+function isLikelyPdfUrl(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return (url.protocol === "http:" || url.protocol === "https:")
+      && (url.pathname.toLowerCase().endsWith(".pdf") || url.search.toLowerCase().includes(".pdf"));
+  } catch {
+    return false;
+  }
+}
+
+async function detectCurrentTabPdf(): Promise<boolean> {
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  return Boolean(tab.url && isLikelyPdfUrl(tab.url));
 }
 
 function setPageToggleBusy(value: boolean): void {
@@ -270,7 +316,9 @@ function updateParagraphModeButton(): void {
 }
 
 function updatePageToggleButton(): void {
-  pageToggleButton.textContent = pageTranslated ? "显示全文" : "翻译全文";
+  pageToggleButton.textContent = activeTabIsPdf
+    ? "翻译 PDF"
+    : pageTranslated ? "显示全文" : "翻译全文";
 }
 
 function updateFloatingBallButton(): void {

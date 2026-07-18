@@ -49,6 +49,7 @@ describe("MicrosoftTranslatorProvider", () => {
 
 describe("GoogleWebTranslateProvider", () => {
   afterEach(() => {
+    vi.useRealTimers();
     vi.unstubAllGlobals();
   });
 
@@ -80,6 +81,39 @@ describe("GoogleWebTranslateProvider", () => {
     expect(url).toContain("tl=zh-CN");
     expect(url).toContain("q=hello");
     expect(url).not.toContain("key=");
+  });
+
+  it("limits concurrent web requests for large PDF batches", async () => {
+    vi.useFakeTimers();
+    let inFlight = 0;
+    let maxInFlight = 0;
+    const fetchMock = vi.fn(async () => {
+      inFlight += 1;
+      maxInFlight = Math.max(maxInFlight, inFlight);
+      await new Promise((resolve) => globalThis.setTimeout(resolve, 100));
+      inFlight -= 1;
+      return {
+        ok: true,
+        json: async () => [[["译文", "source", null, null]]]
+      };
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const provider = createProvider({
+      type: "google-web-translate",
+      id: "google-web",
+      label: "Google Web"
+    });
+
+    const request = provider.translateBatch({
+      texts: Array.from({ length: 12 }, (_, index) => `text ${index}`),
+      sourceLang: "en",
+      targetLang: "zh-CN"
+    });
+    await vi.runAllTimersAsync();
+    await request;
+
+    expect(fetchMock).toHaveBeenCalledTimes(12);
+    expect(maxInFlight).toBe(4);
   });
 });
 

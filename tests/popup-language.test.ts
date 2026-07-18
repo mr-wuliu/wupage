@@ -31,12 +31,17 @@ describe("popup language controls", () => {
       if (request.type === "GET_TRANSLATION_STATE") return { ok: true, data: { translated: false } };
       return { ok: true };
     });
+    const createTab = vi.fn(async () => undefined);
     vi.stubGlobal("chrome", {
-      runtime: { sendMessage, openOptionsPage: vi.fn() },
+      runtime: {
+        sendMessage,
+        openOptionsPage: vi.fn(),
+        getURL: (path: string) => `chrome-extension://test-extension/${path}`
+      },
       tabs: {
-        query: vi.fn(async () => [{ id: 1 }]),
+        query: vi.fn(async () => [{ id: 1, url: "https://example.com/paper.pdf" }]),
         sendMessage: vi.fn(async (_tabId: number, request: RuntimeRequest) => sendTabMessage(request)),
-        create: vi.fn()
+        create: createTab
       }
     });
 
@@ -47,12 +52,22 @@ describe("popup language controls", () => {
     const target = query<HTMLSelectElement>("#targetLang");
     expect(source.selectedOptions[0]?.textContent).toBe("自动检测");
     expect(target.value).toBe("zh-CN");
+    expect(query<HTMLButtonElement>("#pageToggle").textContent).toBe("翻译 PDF");
+    expect(document.querySelector("#pdfTranslate")).toBeNull();
 
     source.value = "en";
     target.value = "ja";
     target.dispatchEvent(new Event("change", { bubbles: true }));
     await vi.waitFor(() => {
       expect(stored).toMatchObject({ sourceLang: "en", targetLang: "ja" });
+    });
+
+    vi.spyOn(window, "close").mockImplementation(() => undefined);
+    query<HTMLButtonElement>("#pageToggle").click();
+    await vi.waitFor(() => {
+      expect(createTab).toHaveBeenCalledWith({
+        url: "chrome-extension://test-extension/pdf.html?url=https%3A%2F%2Fexample.com%2Fpaper.pdf&translate=1"
+      });
     });
   });
 });
