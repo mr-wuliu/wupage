@@ -15,6 +15,7 @@ interface TrackedGroup {
   id: string;
   nodes: TrackedNode[];
   block: Element;
+  mode: RenderMode;
 }
 
 type RenderMode = "block" | "inline" | "code-comment";
@@ -267,13 +268,13 @@ export function renderTranslations(translations: Array<{ id: string; text: strin
     const targetId = ensureTranslationTarget(block);
     const element = document.createElement("span");
     element.className = TRANSLATION_CLASS;
-    element.dataset.wupageMode = "block";
+    element.dataset.wupageMode = group.mode;
     renderProtectedText(element, group.id, translation);
     element.setAttribute("lang", "translated");
     element.setAttribute("aria-hidden", "true");
     element.setAttribute(TRANSLATION_TARGET_ATTR, targetId);
     block.setAttribute(TRANSLATED_ATTR, "true");
-    insertBlockTranslation(block, element);
+    insertGroupedTranslation(block, element, group.mode);
   }
 
   for (const tracked of trackedNodes) {
@@ -323,10 +324,10 @@ export function renderTranslationPlaceholders(segments: TextSegment[]): void {
     const block = group.block;
     if (block.closest(`.${TRANSLATION_CLASS}`)) continue;
     const targetId = ensureTranslationTarget(block);
-    const pending = createPendingElement(group.id, "block");
+    const pending = createPendingElement(group.id, group.mode);
     pending.setAttribute(TRANSLATION_TARGET_ATTR, targetId);
     removePendingForId(group.id);
-    insertBlockTranslation(block, pending);
+    insertGroupedTranslation(block, pending, group.mode);
     block.setAttribute(TRANSLATED_ATTR, "true");
   }
 
@@ -422,7 +423,7 @@ function groupTextSegments(nodes: TrackedNode[], fallback: TextSegment[]): TextS
 
   for (const tracked of nodes) {
     if (tracked.mode === "code-comment") continue;
-    const block = tracked.node.parentElement?.closest(`p, li, blockquote, ${HEADING_SELECTOR}`);
+    const block = findGroupingBlock(tracked.node.parentElement);
     if (!block) continue;
     if (block.querySelector(`.${TRANSLATION_CLASS}`)) continue;
     const group = groups.get(block) ?? [];
@@ -432,14 +433,14 @@ function groupTextSegments(nodes: TrackedNode[], fallback: TextSegment[]): TextS
 
   const groupedSegments: TextSegment[] = [];
   for (const groupNodes of groups.values()) {
-    const block = groupNodes[0].node.parentElement?.closest(`p, li, blockquote, ${HEADING_SELECTOR}`);
+    const block = findGroupingBlock(groupNodes[0].node.parentElement);
     if (!block) continue;
     const nodeText = normalizeText(groupNodes.map((tracked) => tracked.node.textContent ?? "").join(" "));
     const id = groupNodes[0].id;
     const { text, tokens } = getReadableBlockText(block);
     if (groupNodes.length < 2 && text === nodeText) continue;
     if (!text) continue;
-    trackedGroups.push({ id, nodes: groupNodes, block });
+    trackedGroups.push({ id, nodes: groupNodes, block, mode: getRenderMode(block) });
     if (tokens.length) protectedTokensById.set(id, tokens);
     groupedSegments.push({ id, text, element: block });
     groupNodes.forEach((tracked) => standalone.delete(tracked.id));
@@ -449,6 +450,12 @@ function groupTextSegments(nodes: TrackedNode[], fallback: TextSegment[]): TextS
     ...groupedSegments,
     ...fallback.filter((segment) => standalone.has(segment.id))
   ];
+}
+
+function findGroupingBlock(element: Element | null): Element | null {
+  if (!element) return null;
+  return getCompactNavigationTarget(element) ??
+    element.closest(`p, li, blockquote, ${HEADING_SELECTOR}`);
 }
 
 function shouldSkipElement(element: Element, includeNavigation = false): boolean {
@@ -605,6 +612,18 @@ function insertBlockTranslation(block: Element, translation: Element): void {
   block.after(translation);
 }
 
+function insertGroupedTranslation(
+  block: Element,
+  translation: Element,
+  mode: RenderMode
+): void {
+  if (mode === "inline") {
+    block.append(translation);
+    return;
+  }
+  insertBlockTranslation(block, translation);
+}
+
 function findHeadingAnchor(block: Element): Element | null {
   return Array.from(block.children).find((child) =>
     child.matches(".anchor, [href^='#']")
@@ -667,16 +686,20 @@ function isInsideReadableHeadingContent(element: Element): boolean {
 }
 
 function isCompactNavigationText(element: Element): boolean {
+  return Boolean(getCompactNavigationTarget(element));
+}
+
+function getCompactNavigationTarget(element: Element): Element | null {
   const container = element.closest(NAVIGATION_CONTAINER_SELECTOR);
-  if (!container) return false;
+  if (!container) return null;
   const target = element.closest("a, h2, h3, h4, li, p");
-  if (!target || !container.contains(target)) return false;
-  if (target.matches("button,[role='button']")) return false;
-  if (target.querySelector("button,input,select,textarea,[role='button']")) return false;
-  if (target.matches("a") && target.querySelector("img,svg,canvas")) return false;
+  if (!target || !container.contains(target)) return null;
+  if (target.matches("button,[role='button']")) return null;
+  if (target.querySelector("button,input,select,textarea,[role='button']")) return null;
+  if (target.matches("a") && target.querySelector("img,svg,canvas")) return null;
   const text = normalizeText(target.textContent ?? "");
-  if (text.length < 2 || text.length > 80) return false;
-  return true;
+  if (text.length < 2 || text.length > 80) return null;
+  return target;
 }
 
 function isInsideReadableRoot(element: Element): boolean {

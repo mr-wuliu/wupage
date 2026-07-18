@@ -518,6 +518,42 @@ describe("content DOM translation extraction", () => {
       .toBe("inline");
   });
 
+  it("does not aggregate nested navigation items into duplicate translations", () => {
+    document.body.innerHTML = `
+      <aside>
+        <ul>
+          <li>
+            <a href="/tutorial">Tutorial</a>
+            <ul>
+              <li><a href="/overview">Overview</a></li>
+              <li><a href="/setup">Setup</a></li>
+              <li><a href="/async"><span>Async in depth</span></a></li>
+            </ul>
+          </li>
+        </ul>
+      </aside>
+    `;
+    stubLayout();
+
+    const segments = collectTextSegments();
+
+    expect(segments.map((segment) => segment.text)).toEqual([
+      "Tutorial",
+      "Overview",
+      "Setup",
+      "Async in depth"
+    ]);
+    renderTranslations(segments.map((segment) => ({
+      id: segment.id,
+      text: `译：${segment.text}`
+    })));
+
+    expect(document.querySelectorAll(".wupage-translation")).toHaveLength(4);
+    expect(document.querySelector("li > .wupage-translation")).toBeNull();
+    expect(document.querySelector("a[href='/async']")?.textContent)
+      .toBe("Async in depth译：Async in depth");
+  });
+
   it("does not render translations that are identical to their source text", () => {
     document.body.innerHTML = `
       <nav class="sidebar">
