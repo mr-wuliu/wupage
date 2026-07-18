@@ -12,10 +12,22 @@
         <h1>WuPage</h1>
         <button id="openOptions" type="button" title="打开设置">设置</button>
       </header>
-      <label>
-        目标语言
-        <select id="targetLang"></select>
-      </label>
+      <div class="language-field">
+        <span class="field-label">翻译语言</span>
+        <div class="language-pair">
+          <label class="language-select">
+            <span class="visually-hidden">源语言</span>
+            <select id="sourceLang"></select>
+            <span class="language-chevron" aria-hidden="true"></span>
+          </label>
+          <span class="language-direction" aria-hidden="true">→</span>
+          <label class="language-select">
+            <span class="visually-hidden">目标语言</span>
+            <select id="targetLang"></select>
+            <span class="language-chevron" aria-hidden="true"></span>
+          </label>
+        </div>
+      </div>
       <label>
         翻译服务
         <select id="provider"></select>

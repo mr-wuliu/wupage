@@ -182,25 +182,69 @@ export function injectContentStyles(): void {
       padding: 4px;
     }
 
-    #wupage-floating-menu .wupage-menu-field {
+    #wupage-floating-menu .wupage-language-pair {
       display: grid;
-      gap: 6px;
-      color: #5f6f75;
-      font-size: 12px;
-      line-height: 1.2;
+      grid-template-columns: minmax(0, 1fr) 18px minmax(0, 1fr);
+      align-items: center;
+      gap: 4px;
     }
 
-    #wupage-floating-menu select {
+    #wupage-floating-menu .wupage-language-select {
+      position: relative;
+      display: block;
+      min-width: 0;
+    }
+
+    #wupage-floating-menu .wupage-language-select select {
       width: 100%;
-      height: 32px;
+      height: 40px;
       box-sizing: border-box;
-      border: 1px solid rgba(31, 42, 46, 0.18);
-      border-radius: 6px;
-      padding: 0 28px 0 9px;
-      color: #172026;
-      background: #ffffff;
+      appearance: none;
+      border: 1px solid transparent;
+      border-radius: 8px;
+      padding: 0 24px 0 8px;
+      color: #26343a;
+      background: #eef2f1;
       font: 13px/1.2 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-weight: 500;
       cursor: pointer;
+    }
+
+    #wupage-floating-menu .wupage-language-select select:hover,
+    #wupage-floating-menu .wupage-language-select select:focus-visible {
+      border-color: #aebbb7;
+      background: #ffffff;
+    }
+
+    #wupage-floating-menu .wupage-language-chevron {
+      position: absolute;
+      pointer-events: none;
+      right: 9px;
+      top: 50%;
+      width: 5px;
+      height: 5px;
+      margin-top: -4px;
+      border-right: 2px solid #7d898e;
+      border-bottom: 2px solid #7d898e;
+      transform: rotate(45deg);
+    }
+
+    #wupage-floating-menu .wupage-language-direction {
+      color: #7a878b;
+      font-size: 17px;
+      line-height: 1;
+      text-align: center;
+    }
+
+    #wupage-floating-menu .wupage-visually-hidden {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      clip-path: inset(50%);
     }
 
     #wupage-floating-menu .wupage-menu-divider {

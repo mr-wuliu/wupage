@@ -62,6 +62,80 @@ label {
   color: #4c5a61;
 }
 
+.field-label {
+  color: #4c5a61;
+  font-size: 12px;
+}
+
+.language-field {
+  display: grid;
+  gap: 6px;
+}
+
+.language-pair {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 22px minmax(0, 1fr);
+  align-items: center;
+  gap: 5px;
+}
+
+.language-select {
+  position: relative;
+  display: block;
+  min-width: 0;
+}
+
+.language-select select {
+  width: 100%;
+  min-height: 42px;
+  appearance: none;
+  padding: 0 28px 0 11px;
+  border-color: transparent;
+  border-radius: 8px;
+  color: #26343a;
+  background: #eef2f1;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.language-select select:hover,
+.language-select select:focus-visible {
+  border-color: #aebbb7;
+  background: #ffffff;
+}
+
+.language-chevron {
+  position: absolute;
+  pointer-events: none;
+  right: 11px;
+  top: 50%;
+  width: 6px;
+  height: 6px;
+  margin-top: -5px;
+  border-right: 2px solid #7d898e;
+  border-bottom: 2px solid #7d898e;
+  transform: rotate(45deg);
+}
+
+.language-direction {
+  color: #7a878b;
+  font-size: 19px;
+  line-height: 1;
+  text-align: center;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  clip-path: inset(50%);
+}
+
 input,
 select {
   min-height: 34px;

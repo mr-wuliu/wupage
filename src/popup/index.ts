@@ -1,9 +1,10 @@
 import { sendRuntimeMessage, sendTabMessage } from "../shared/messaging";
-import { TARGET_LANGUAGES } from "../shared/languages";
+import { SOURCE_LANGUAGES, TARGET_LANGUAGES } from "../shared/languages";
 import type { ExtensionSettings } from "../shared/types";
 import "./styles.css";
 
 const targetLang = query<HTMLSelectElement>("#targetLang");
+const sourceLang = query<HTMLSelectElement>("#sourceLang");
 const provider = query<HTMLSelectElement>("#provider");
 const status = query<HTMLParagraphElement>("#status");
 const pageToggleButton = query<HTMLButtonElement>("#pageToggle");
@@ -25,13 +26,8 @@ void init();
 
 async function init(): Promise<void> {
   settings = await sendRuntimeMessage<ExtensionSettings>({ type: "GET_SETTINGS" });
-  const languages = TARGET_LANGUAGES.some((entry) => entry.code === settings.targetLang)
-    ? TARGET_LANGUAGES
-    : [{ code: settings.targetLang, label: settings.targetLang }, ...TARGET_LANGUAGES];
-  targetLang.innerHTML = languages
-    .map((entry) => `<option value="${escapeHtml(entry.code)}">${escapeHtml(entry.label)}</option>`)
-    .join("");
-  targetLang.value = settings.targetLang;
+  renderLanguageOptions(sourceLang, settings.sourceLang, SOURCE_LANGUAGES);
+  renderLanguageOptions(targetLang, settings.targetLang, TARGET_LANGUAGES);
   provider.innerHTML = settings.providers
     .filter((entry) => entry.enabled !== false)
     .map((entry) => `<option value="${escapeHtml(entry.id)}">${escapeHtml(entry.label)}</option>`)
@@ -43,6 +39,7 @@ async function init(): Promise<void> {
   await loadTranslationState();
 
   targetLang.addEventListener("change", savePopupSettings);
+  sourceLang.addEventListener("change", savePopupSettings);
   provider.addEventListener("change", savePopupSettings);
   pageToggleButton.addEventListener("click", togglePageTranslation);
   paragraphModeButton.addEventListener("click", toggleParagraphMode);
@@ -58,10 +55,25 @@ async function init(): Promise<void> {
 async function savePopupSettings(): Promise<void> {
   settings = {
     ...settings,
+    sourceLang: sourceLang.value || "auto",
     targetLang: targetLang.value || "zh-CN",
     activeProviderId: provider.value
   };
   await sendRuntimeMessage({ type: "SAVE_SETTINGS", settings });
+}
+
+function renderLanguageOptions(
+  select: HTMLSelectElement,
+  value: string,
+  languages: ReadonlyArray<{ code: string; label: string }>
+): void {
+  const options = languages.some((entry) => entry.code === value)
+    ? languages
+    : [{ code: value, label: value }, ...languages];
+  select.innerHTML = options
+    .map((entry) => `<option value="${escapeHtml(entry.code)}">${escapeHtml(entry.label)}</option>`)
+    .join("");
+  select.value = value;
 }
 
 async function togglePageTranslation(): Promise<void> {

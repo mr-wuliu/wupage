@@ -38,6 +38,10 @@ const TARGET_LANGUAGES = [
   { code: "es", label: "Español" },
   { code: "ru", label: "Русский" }
 ];
+const SOURCE_LANGUAGES = [
+  { code: "auto", label: "自动检测" },
+  ...TARGET_LANGUAGES
+];
 
 let activeParagraph: Element | null = null;
 let translating = false;
@@ -196,14 +200,27 @@ function createMenu(): void {
   menu.hidden = true;
   menu.innerHTML = `
     <div class="wupage-menu-section">
-      <label class="wupage-menu-field">
-        <span>目标语言</span>
-        <select data-role="target-lang">
-          ${TARGET_LANGUAGES.map((language) =>
-            `<option value="${language.code}">${language.label}</option>`
-          ).join("")}
-        </select>
-      </label>
+      <div class="wupage-language-pair">
+        <label class="wupage-language-select">
+          <span class="wupage-visually-hidden">源语言</span>
+          <select data-role="source-lang">
+            ${SOURCE_LANGUAGES.map((language) =>
+              `<option value="${language.code}">${language.label}</option>`
+            ).join("")}
+          </select>
+          <span class="wupage-language-chevron" aria-hidden="true"></span>
+        </label>
+        <span class="wupage-language-direction" aria-hidden="true">→</span>
+        <label class="wupage-language-select">
+          <span class="wupage-visually-hidden">目标语言</span>
+          <select data-role="target-lang">
+            ${TARGET_LANGUAGES.map((language) =>
+              `<option value="${language.code}">${language.label}</option>`
+            ).join("")}
+          </select>
+          <span class="wupage-language-chevron" aria-hidden="true"></span>
+        </label>
+      </div>
     </div>
     <div class="wupage-menu-divider"></div>
     <button type="button" data-action="page-toggle">翻译全文</button>
@@ -216,8 +233,8 @@ function createMenu(): void {
   `;
   menu.addEventListener("change", (event) => {
     const target = event.target instanceof HTMLSelectElement ? event.target : null;
-    if (!target || target.dataset.role !== "target-lang") return;
-    void updateTargetLanguage(target.value, menu);
+    if (!target || (target.dataset.role !== "source-lang" && target.dataset.role !== "target-lang")) return;
+    void updateLanguages(menu);
   });
   menu.addEventListener("click", (event) => {
     const target = event.target instanceof HTMLElement ? event.target.closest("button") : null;
@@ -312,6 +329,11 @@ async function updateMenuState(menu: HTMLElement): Promise<void> {
   updatePageToggleButton(menu);
 
   const settings = await getSettings();
+  const sourceLangSelect = menu.querySelector<HTMLSelectElement>("[data-role='source-lang']");
+  if (sourceLangSelect) {
+    ensureLanguageOption(sourceLangSelect, settings.sourceLang);
+    sourceLangSelect.value = settings.sourceLang;
+  }
   const targetLangSelect = menu.querySelector<HTMLSelectElement>("[data-role='target-lang']");
   if (targetLangSelect) {
     ensureLanguageOption(targetLangSelect, settings.targetLang);
@@ -325,11 +347,11 @@ function updatePageToggleButton(menu: HTMLElement): void {
   pageToggleButton.textContent = hasPageTranslations() ? "显示全文" : "翻译全文";
 }
 
-function ensureLanguageOption(select: HTMLSelectElement, targetLang: string): void {
-  if (Array.from(select.options).some((option) => option.value === targetLang)) return;
+function ensureLanguageOption(select: HTMLSelectElement, language: string): void {
+  if (Array.from(select.options).some((option) => option.value === language)) return;
   const option = document.createElement("option");
-  option.value = targetLang;
-  option.textContent = targetLang;
+  option.value = language;
+  option.textContent = language;
   select.prepend(option);
 }
 
@@ -707,13 +729,17 @@ function applyFloatingBallVisibility(): void {
   }
 }
 
-async function updateTargetLanguage(targetLang: string, menu: HTMLElement): Promise<void> {
+async function updateLanguages(menu: HTMLElement): Promise<void> {
+  const sourceLang = menu.querySelector<HTMLSelectElement>("[data-role='source-lang']")?.value;
+  const targetLang = menu.querySelector<HTMLSelectElement>("[data-role='target-lang']")?.value;
+  if (!sourceLang || !targetLang) return;
   const settings = await getSettings();
-  if (settings.targetLang !== targetLang) {
+  if (settings.sourceLang !== sourceLang || settings.targetLang !== targetLang) {
     await sendRuntimeRequest({
       type: "SAVE_SETTINGS",
       settings: {
         ...settings,
+        sourceLang,
         targetLang
       }
     } satisfies RuntimeRequest);
