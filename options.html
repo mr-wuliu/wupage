@@ -21,8 +21,18 @@
           <label>分块大小 <input id="chunkSize" type="number" min="200" max="4000" /></label>
           <label>并发数 <input id="concurrency" type="number" min="1" max="8" /></label>
         </div>
-        <label class="check"><input id="cacheEnabled" type="checkbox" /> 启用本地缓存</label>
-        <label class="check"><input id="floatingBallEnabled" type="checkbox" /> 显示悬浮球</label>
+        <div class="general-toggles">
+          <label class="setting-toggle">
+            <span>启用本地缓存</span>
+            <input id="cacheEnabled" type="checkbox" role="switch" />
+            <span class="setting-toggle-control" aria-hidden="true"></span>
+          </label>
+          <label class="setting-toggle">
+            <span>显示悬浮球</span>
+            <input id="floatingBallEnabled" type="checkbox" role="switch" />
+            <span class="setting-toggle-control" aria-hidden="true"></span>
+          </label>
+        </div>
       </section>
 
       <section>
