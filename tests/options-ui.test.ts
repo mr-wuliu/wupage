@@ -55,6 +55,17 @@ describe("options provider controls", () => {
     query<HTMLSelectElement>("#sourceLang").value = "en";
     click("#save");
     await vi.waitFor(() => expect(stored.sourceLang).toBe("en"));
+    const inheritPerformance = query<HTMLInputElement>("[data-field='inheritPerformance']");
+    expect(inheritPerformance.checked).toBe(true);
+    inheritPerformance.click();
+    expect(query<HTMLElement>("[data-role='performanceOverrides']").hidden).toBe(false);
+    query<HTMLInputElement>("[data-field='chunkSize']").value = "800";
+    query<HTMLInputElement>("[data-field='concurrency']").value = "2";
+    click("#save");
+    await vi.waitFor(() => {
+      expect(stored.providers.find((entry) => entry.id === "google-web-translate"))
+        .toMatchObject({ performanceMode: "custom", chunkSize: 800, concurrency: 2 });
+    });
 
     click("#providerTrigger");
     expect(document.querySelectorAll(".provider-menu-row")).toHaveLength(6);

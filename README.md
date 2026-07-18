@@ -31,6 +31,8 @@ These providers use web translation endpoints similar to the approach used by pr
 
 The options page also supports custom HTTP providers and custom LLM providers using either the OpenAI Chat Completions or Anthropic Messages format. Providers can be enabled, disabled, or removed without editing extension files.
 
+Chunk size and concurrency have global defaults. Each provider can inherit those values or override them independently. Provider concurrency is always capped by the global maximum, including when requests from different providers overlap.
+
 - `Google Web Translate`: `https://translate.googleapis.com/translate_a/single`
 
 ## Built-In Providers

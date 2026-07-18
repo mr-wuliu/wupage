@@ -40,7 +40,7 @@ describe("LLM provider queue", () => {
     });
     vi.stubGlobal("fetch", fetchMock);
 
-    const settings = createLlmSettings("zhipu-glm-queue", 2);
+    const settings = createLlmSettings("zhipu-glm-queue", 4, 2);
     const first = translateWithSettings(settings, {
       texts: ["hello"],
       sourceLang: "en",
@@ -66,6 +66,51 @@ describe("LLM provider queue", () => {
     expect(fetchMock).toHaveBeenCalledTimes(3);
     expect(maxInFlight).toBe(2);
     expect(starts).toEqual([0, 0, 100]);
+  });
+
+  it("limits total requests across providers with the global concurrency cap", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(0);
+    let inFlight = 0;
+    let maxInFlight = 0;
+    const fetchMock = vi.fn(async () => {
+      inFlight += 1;
+      maxInFlight = Math.max(maxInFlight, inFlight);
+      await new Promise((resolve) => globalThis.setTimeout(resolve, 100));
+      inFlight -= 1;
+      return {
+        ok: true,
+        json: async () => ({ choices: [{ message: { content: "[\"译文\"]" } }] })
+      };
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const settings = createLlmSettings("zhipu-global-a", 2, 2);
+    settings.providers.push({
+      ...settings.providers[0],
+      id: "zhipu-global-b",
+      label: "Zhipu GLM B"
+    });
+    const requests = [
+      translateWithSettings(settings, {
+        texts: ["one"], targetLang: "zh-CN", providerId: "zhipu-global-a"
+      }),
+      translateWithSettings(settings, {
+        texts: ["two"], targetLang: "zh-CN", providerId: "zhipu-global-a"
+      }),
+      translateWithSettings(settings, {
+        texts: ["three"], targetLang: "zh-CN", providerId: "zhipu-global-b"
+      }),
+      translateWithSettings(settings, {
+        texts: ["four"], targetLang: "zh-CN", providerId: "zhipu-global-b"
+      })
+    ];
+
+    await vi.advanceTimersByTimeAsync(300);
+    await Promise.all(requests);
+
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+    expect(maxInFlight).toBe(2);
   });
 
   it("records debug task state and speed metadata", async () => {
@@ -108,7 +153,11 @@ describe("LLM provider queue", () => {
   });
 });
 
-function createLlmSettings(providerId: string, concurrency: number): ExtensionSettings {
+function createLlmSettings(
+  providerId: string,
+  concurrency: number,
+  providerConcurrency = concurrency
+): ExtensionSettings {
   return {
     targetLang: "zh-CN",
     sourceLang: "auto",
@@ -122,6 +171,9 @@ function createLlmSettings(providerId: string, concurrency: number): ExtensionSe
         type: "zhipu-glm",
         id: providerId,
         label: "Zhipu GLM",
+        performanceMode: "custom",
+        chunkSize: 3200,
+        concurrency: providerConcurrency,
         baseURL: "https://open.bigmodel.cn/api/paas/v4",
         apiKey: "secret",
         model: "glm-4-flash-250414",

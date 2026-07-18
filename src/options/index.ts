@@ -153,40 +153,40 @@ function renderProviderMenuRow(provider: ProviderConfig): string {
 function renderProviderForm(): void {
   const provider = getActiveProvider();
   if (provider.type === "google-web-translate") {
-    providerForm.innerHTML = `
+    setProviderFormMarkup(provider, `
       <div class="grid">
         <label>显示名称 <input data-field="label" type="text" value="${escapeAttr(provider.label)}" /></label>
       </div>
       <p class="hint">该服务使用非官方网页翻译接口，不需要 API key，但可能被限流或被厂商调整。</p>
-    `;
+    `);
     return;
   }
 
   if (provider.type === "microsoft-translator") {
-    providerForm.innerHTML = `
+    setProviderFormMarkup(provider, `
       <div class="grid">
         <label>显示名称 <input data-field="label" type="text" value="${escapeAttr(provider.label)}" /></label>
         <label>Endpoint <input data-field="endpoint" type="url" value="${escapeAttr(provider.endpoint)}" /></label>
         <label>API key <input data-field="apiKey" type="password" value="${escapeAttr(provider.apiKey)}" /></label>
         <label>区域 <input data-field="region" type="text" value="${escapeAttr(provider.region)}" placeholder="global 或 Azure 区域" /></label>
       </div>
-    `;
+    `);
     return;
   }
 
   if (provider.type === "google-cloud-translation") {
-    providerForm.innerHTML = `
+    setProviderFormMarkup(provider, `
       <div class="grid">
         <label>显示名称 <input data-field="label" type="text" value="${escapeAttr(provider.label)}" /></label>
         <label>API key <input data-field="apiKey" type="password" value="${escapeAttr(provider.apiKey)}" /></label>
       </div>
-    `;
+    `);
     return;
   }
 
   if (provider.type === "openai-compatible" || provider.type === "anthropic-compatible") {
     const isAnthropic = provider.type === "anthropic-compatible";
-    providerForm.innerHTML = `
+    setProviderFormMarkup(provider, `
       <div class="grid">
         <label>显示名称 <input data-field="label" type="text" value="${escapeAttr(provider.label)}" /></label>
         <label>Base URL <input data-field="baseURL" type="url" value="${escapeAttr(provider.baseURL)}" /></label>
@@ -202,12 +202,12 @@ function renderProviderForm(): void {
       </div>
       <label>系统提示词 <textarea data-field="systemPrompt">${escapeHtml(provider.systemPrompt)}</textarea></label>
       <p class="hint">接口格式：${isAnthropic ? "Anthropic Messages" : "OpenAI Chat Completions"}。</p>
-    `;
+    `);
     return;
   }
 
   if (provider.type === "zhipu-glm") {
-    providerForm.innerHTML = `
+    setProviderFormMarkup(provider, `
       <div class="grid">
         <label>显示名称 <input data-field="label" type="text" value="${escapeAttr(provider.label)}" /></label>
         <label>Base URL <input data-field="baseURL" type="url" value="${escapeAttr(provider.baseURL)}" /></label>
@@ -218,11 +218,11 @@ function renderProviderForm(): void {
       </div>
       <label>系统提示词 <textarea data-field="systemPrompt">${escapeHtml(provider.systemPrompt)}</textarea></label>
       <p class="hint">使用智谱 GLM Chat Completions。API 地址默认使用 https://open.bigmodel.cn/api/paas/v4。</p>
-    `;
+    `);
     return;
   }
 
-  providerForm.innerHTML = `
+  setProviderFormMarkup(provider, `
     <div class="grid">
       <label>显示名称 <input data-field="label" type="text" value="${escapeAttr(provider.label)}" /></label>
       <label>请求方法
@@ -236,7 +236,47 @@ function renderProviderForm(): void {
     </div>
     <label>请求头 JSON <textarea data-field="headers">${escapeHtml(JSON.stringify(provider.headers, null, 2))}</textarea></label>
     <label>请求体模板 <textarea data-field="bodyTemplate">${escapeHtml(provider.bodyTemplate)}</textarea></label>
+  `);
+}
+
+function setProviderFormMarkup(provider: ProviderConfig, markup: string): void {
+  providerForm.innerHTML = `${markup}${renderProviderPerformance(provider)}`;
+  const inherit = providerForm.querySelector<HTMLInputElement>("[data-field='inheritPerformance']");
+  inherit?.addEventListener("change", updateProviderPerformanceFields);
+  updateProviderPerformanceFields();
+}
+
+function renderProviderPerformance(provider: ProviderConfig): string {
+  const inherited = provider.performanceMode !== "custom";
+  return `
+    <fieldset class="provider-performance">
+      <legend>性能设置</legend>
+      <label class="setting-toggle performance-inherit">
+        <span>继承通用性能设置</span>
+        <input data-field="inheritPerformance" type="checkbox" role="switch" ${inherited ? "checked" : ""} />
+        <span class="setting-toggle-control" aria-hidden="true"></span>
+      </label>
+      <div class="grid performance-overrides" data-role="performanceOverrides" ${inherited ? "hidden" : ""}>
+        <label>分块大小
+          <input data-field="chunkSize" type="number" min="200" max="4000" value="${provider.chunkSize ?? settings.chunkSize}" />
+        </label>
+        <label>服务商并发数
+          <input data-field="concurrency" type="number" min="1" max="${settings.concurrency}" value="${provider.concurrency ?? settings.concurrency}" />
+        </label>
+      </div>
+      <p class="hint">服务商并发数不会超过通用设置中的全局最大并发数。</p>
+    </fieldset>
   `;
+}
+
+function updateProviderPerformanceFields(): void {
+  const inherit = providerForm.querySelector<HTMLInputElement>("[data-field='inheritPerformance']");
+  const overrides = providerForm.querySelector<HTMLElement>("[data-role='performanceOverrides']");
+  if (!inherit || !overrides) return;
+  overrides.hidden = inherit.checked;
+  overrides.querySelectorAll<HTMLInputElement>("input").forEach((input) => {
+    input.disabled = inherit.checked;
+  });
 }
 
 async function handleProviderAction(action: string, providerId: string): Promise<void> {
@@ -343,6 +383,7 @@ function createCustomProvider(name: string, kind: string, llmFormat: string): Pr
       id,
       label: name || "自定义 HTTP",
       enabled: true,
+      performanceMode: "inherit",
       method: "POST",
       url: "",
       headers: { "Content-Type": "application/json" },
@@ -356,6 +397,9 @@ function createCustomProvider(name: string, kind: string, llmFormat: string): Pr
       id,
       label: name || "自定义 Anthropic LLM",
       enabled: true,
+      performanceMode: "custom",
+      chunkSize: 3200,
+      concurrency: settings.concurrency,
       baseURL: "https://api.anthropic.com/v1",
       apiKey: "",
       model: "claude-3-5-haiku-latest",
@@ -367,6 +411,9 @@ function createCustomProvider(name: string, kind: string, llmFormat: string): Pr
     id,
     label: name || "自定义 OpenAI LLM",
     enabled: true,
+    performanceMode: "custom",
+    chunkSize: 3200,
+    concurrency: settings.concurrency,
     baseURL: "https://api.openai.com/v1",
     apiKey: "",
     model: "gpt-4o-mini",
@@ -423,7 +470,10 @@ async function restoreDefaults(): Promise<void> {
 }
 
 function readSettingsFromForm(): ExtensionSettings {
-  const activeProvider = readProviderFromForm(getActiveProvider());
+  const activeProvider = {
+    ...readProviderFromForm(getActiveProvider()),
+    ...readProviderPerformance()
+  } as ProviderConfig;
   return {
     ...settings,
     targetLang: targetLang.value.trim() || "zh-CN",
@@ -436,6 +486,27 @@ function readSettingsFromForm(): ExtensionSettings {
     providers: settings.providers.map((provider) =>
       provider.id === activeProvider.id ? activeProvider : provider
     )
+  };
+}
+
+function readProviderPerformance(): Pick<
+  ProviderConfig,
+  "performanceMode" | "chunkSize" | "concurrency"
+> {
+  const inherit = providerForm.querySelector<HTMLInputElement>("[data-field='inheritPerformance']");
+  if (!inherit || inherit.checked) {
+    return {
+      performanceMode: "inherit",
+      chunkSize: undefined,
+      concurrency: undefined
+    };
+  }
+  const providerChunkSize = providerForm.querySelector<HTMLInputElement>("[data-field='chunkSize']");
+  const providerConcurrency = providerForm.querySelector<HTMLInputElement>("[data-field='concurrency']");
+  return {
+    performanceMode: "custom",
+    chunkSize: Number(providerChunkSize?.value),
+    concurrency: Number(providerConcurrency?.value)
   };
 }
 

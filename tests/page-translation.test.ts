@@ -127,6 +127,51 @@ describe("viewport page translation", () => {
     expect(document.querySelectorAll(".wupage-translation:not(.wupage-translation-pending)")).toHaveLength(3);
   });
 
+  it("uses the active provider concurrency override", async () => {
+    const longText = (label: string) => `${label} ${"translation content ".repeat(36)}`;
+    document.body.innerHTML = `
+      <main>
+        <p data-top="100">${longText("First")}</p>
+        <p data-top="200">${longText("Second")}</p>
+      </main>
+    `;
+    let activeRequests = 0;
+    let maxActiveRequests = 0;
+    vi.mocked(sendRuntimeRequest).mockImplementation(async (request: RuntimeRequest) => {
+      if (request.type !== "TRANSLATE_BATCH") throw new Error("Unexpected request");
+      activeRequests += 1;
+      maxActiveRequests = Math.max(maxActiveRequests, activeRequests);
+      await Promise.resolve();
+      activeRequests -= 1;
+      return {
+        translations: request.texts.map((text) => `译文：${text.slice(0, 10)}`),
+        cached: 0
+      } as TranslateBatchResponse;
+    });
+    const providerSettings: ExtensionSettings = {
+      ...settings,
+      providers: [
+        {
+          type: "zhipu-glm",
+          id: "zhipu-glm",
+          label: "Zhipu GLM",
+          performanceMode: "custom",
+          chunkSize: 700,
+          concurrency: 1,
+          baseURL: "https://open.bigmodel.cn/api/paas/v4",
+          apiKey: "",
+          model: "glm-4-flash-250414",
+          systemPrompt: "Translate"
+        }
+      ]
+    };
+
+    await startPageTranslation(providerSettings);
+
+    expect(vi.mocked(sendRuntimeRequest)).toHaveBeenCalledTimes(2);
+    expect(maxActiveRequests).toBe(1);
+  });
+
   it("continues lazily when a distant segment is scrolled into view", async () => {
     document.body.innerHTML = `
       <main>

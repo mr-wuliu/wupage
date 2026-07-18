@@ -34,6 +34,12 @@ describe("normalizeSettings", () => {
     });
 
     expect(settings.activeProviderId).toBe("openai-compatible");
+    expect(settings.providers.find((provider) => provider.id === "openai-compatible"))
+      .toMatchObject({
+        performanceMode: "custom",
+        chunkSize: 3200,
+        concurrency: 3
+      });
     expect(settings.providers.map((provider) => provider.id)).toEqual([
       "google-web-translate",
       "microsoft-translator",
@@ -42,6 +48,32 @@ describe("normalizeSettings", () => {
       "zhipu-glm",
       "http-template"
     ]);
+  });
+
+  it("preserves an explicit inherited provider performance mode", () => {
+    const settings = normalizeSettings({
+      chunkSize: 900,
+      concurrency: 2,
+      providers: [
+        {
+          type: "zhipu-glm",
+          id: "zhipu-glm",
+          label: "Zhipu GLM",
+          performanceMode: "inherit",
+          chunkSize: 3900,
+          concurrency: 8,
+          baseURL: "https://open.bigmodel.cn/api/paas/v4",
+          apiKey: "",
+          model: "glm-4-flash-250414",
+          systemPrompt: "Translate to {{targetLang}}"
+        }
+      ]
+    });
+
+    expect(settings.providers.find((provider) => provider.id === "zhipu-glm"))
+      .toMatchObject({ performanceMode: "inherit" });
+    expect(settings.providers.find((provider) => provider.id === "zhipu-glm")?.chunkSize)
+      .toBeUndefined();
   });
 
   it("preserves custom providers and falls back when the active provider is disabled", () => {

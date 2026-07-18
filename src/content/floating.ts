@@ -593,6 +593,11 @@ function renderDebugTask(task: TranslationDebugTask): HTMLElement {
 function renderDebugDetails(task: TranslationDebugTask): HTMLElement {
   const details = document.createElement("div");
   details.className = "wupage-debug-task-detail";
+  if (task.chunkSize || task.concurrency) {
+    const performance = document.createElement("p");
+    performance.textContent = `性能：分块 ${task.chunkSize ?? "-"} · 并发 ${task.concurrency ?? "-"} · ${task.performanceMode === "custom" ? "服务商覆盖" : "继承通用"}`;
+    details.append(performance);
+  }
   details.append(renderDebugTextBlock("请求文本", task.sourceTexts));
   if (task.translatedTexts?.length) {
     details.append(renderDebugTextBlock("翻译结果", task.translatedTexts));

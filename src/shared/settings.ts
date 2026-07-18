@@ -1,4 +1,5 @@
 import { DEFAULT_SETTINGS, SETTINGS_KEY } from "./defaults";
+import { isLlmProvider } from "./performance";
 import type { ExtensionSettings, ProviderConfig } from "./types";
 
 export async function getSettings(): Promise<ExtensionSettings> {
@@ -12,10 +13,12 @@ export async function saveSettings(settings: ExtensionSettings): Promise<void> {
 
 export function normalizeSettings(value: unknown): ExtensionSettings {
   const input = isRecord(value) ? value : {};
+  const chunkSize = clampNumber(input.chunkSize, 200, 4000, DEFAULT_SETTINGS.chunkSize);
+  const concurrency = clampNumber(input.concurrency, 1, 8, DEFAULT_SETTINGS.concurrency);
   const storedProviders = Array.isArray(input.providers)
     ? input.providers.filter(isProviderConfig)
     : [];
-  const providers = mergeProviders(storedProviders);
+  const providers = mergeProviders(storedProviders, chunkSize, concurrency);
   ensureEnabledProvider(providers);
   const requestedProviderId = readString(input.activeProviderId, DEFAULT_SETTINGS.activeProviderId);
   const activeProviderId =
@@ -32,8 +35,8 @@ export function normalizeSettings(value: unknown): ExtensionSettings {
     targetLang: readString(input.targetLang, DEFAULT_SETTINGS.targetLang),
     sourceLang: readString(input.sourceLang, DEFAULT_SETTINGS.sourceLang),
     activeProviderId,
-    chunkSize: clampNumber(input.chunkSize, 200, 4000, DEFAULT_SETTINGS.chunkSize),
-    concurrency: clampNumber(input.concurrency, 1, 8, DEFAULT_SETTINGS.concurrency),
+    chunkSize,
+    concurrency,
     cacheEnabled:
       typeof input.cacheEnabled === "boolean"
         ? input.cacheEnabled
@@ -45,18 +48,54 @@ export function normalizeSettings(value: unknown): ExtensionSettings {
   };
 }
 
-function mergeProviders(storedProviders: ProviderConfig[]): ProviderConfig[] {
+function mergeProviders(
+  storedProviders: ProviderConfig[],
+  globalChunkSize: number,
+  globalConcurrency: number
+): ProviderConfig[] {
   const byId = new Map(
-    DEFAULT_SETTINGS.providers.map((provider) => [provider.id, normalizeProvider(provider)])
+    DEFAULT_SETTINGS.providers.map((provider) => [
+      provider.id,
+      normalizeProvider(provider, globalChunkSize, globalConcurrency)
+    ])
   );
   for (const provider of storedProviders) {
-    byId.set(provider.id, normalizeProvider(provider));
+    byId.set(provider.id, normalizeProvider(provider, globalChunkSize, globalConcurrency));
   }
   return Array.from(byId.values());
 }
 
-function normalizeProvider(provider: ProviderConfig): ProviderConfig {
-  return { ...provider, enabled: provider.enabled !== false };
+function normalizeProvider(
+  provider: ProviderConfig,
+  globalChunkSize: number,
+  globalConcurrency: number
+): ProviderConfig {
+  const legacyPerformance = provider.performanceMode === undefined;
+  const performanceMode = provider.performanceMode === "custom"
+    || (legacyPerformance && isLlmProvider(provider))
+    ? "custom"
+    : "inherit";
+  if (performanceMode === "inherit") {
+    return {
+      ...provider,
+      enabled: provider.enabled !== false,
+      performanceMode,
+      chunkSize: undefined,
+      concurrency: undefined
+    };
+  }
+  return {
+    ...provider,
+    enabled: provider.enabled !== false,
+    performanceMode,
+    chunkSize: clampNumber(
+      provider.chunkSize,
+      200,
+      4000,
+      legacyPerformance && isLlmProvider(provider) ? Math.max(3200, globalChunkSize) : globalChunkSize
+    ),
+    concurrency: clampNumber(provider.concurrency, 1, 8, globalConcurrency)
+  };
 }
 
 function ensureEnabledProvider(providers: ProviderConfig[]): void {
@@ -69,6 +108,13 @@ function ensureEnabledProvider(providers: ProviderConfig[]): void {
 function isProviderConfig(value: unknown): value is ProviderConfig {
   if (!isRecord(value)) return false;
   if (value.enabled !== undefined && typeof value.enabled !== "boolean") return false;
+  if (
+    value.performanceMode !== undefined
+    && value.performanceMode !== "inherit"
+    && value.performanceMode !== "custom"
+  ) return false;
+  if (value.chunkSize !== undefined && typeof value.chunkSize !== "number") return false;
+  if (value.concurrency !== undefined && typeof value.concurrency !== "number") return false;
   if (value.type === "google-web-translate") {
     return ["id", "label"].every((key) => typeof value[key] === "string");
   }

@@ -11,6 +11,9 @@ export interface ProviderBaseConfig {
   id: string;
   label: string;
   enabled?: boolean;
+  performanceMode?: "inherit" | "custom";
+  chunkSize?: number;
+  concurrency?: number;
 }
 
 export interface GoogleWebTranslateConfig extends ProviderBaseConfig {
@@ -109,6 +112,9 @@ export interface TranslationDebugTask {
   waitUntil?: number;
   sourceLang?: string;
   targetLang?: string;
+  chunkSize?: number;
+  concurrency?: number;
+  performanceMode?: "inherit" | "custom";
   sourceTexts?: string[];
   translatedTexts?: string[];
   error?: string;

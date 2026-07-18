@@ -12,7 +12,7 @@ import { sendRuntimeRequest } from "./runtime";
 const VIEWPORT_MARGIN_RATIO = 0.75;
 const MIN_VIEWPORT_MARGIN = 240;
 const MAX_PAGE_CONCURRENCY = 2;
-const MAX_PROGRESSIVE_CHUNK_SIZE = 1200;
+const MAX_PROGRESSIVE_CHUNK_SIZE = 4000;
 const VIEWPORT_DEBOUNCE_MS = 100;
 
 type SegmentStatus = "idle" | "queued" | "running" | "done" | "failed";
@@ -60,13 +60,14 @@ export function startPageTranslation(settings: ExtensionSettings): Promise<PageT
   const initialPromise = new Promise<PageTranslationResult>((resolve) => {
     resolveInitial = resolve;
   });
+  const performance = getPageProviderPerformance(settings);
   const session: TranslationSession = {
     id: ++sessionCounter,
     settings,
     entries: new Map(segments.map((segment) => [segment.id, { segment, status: "idle" }])),
     queue: [],
     activeCount: 0,
-    maxConcurrency: Math.min(MAX_PAGE_CONCURRENCY, Math.max(1, settings.concurrency)),
+    maxConcurrency: Math.min(MAX_PAGE_CONCURRENCY, performance.concurrency),
     cancelled: false,
     translated: 0,
     cached: 0,
@@ -223,7 +224,36 @@ function groupSegments(segments: TextSegment[], maxChars: number): TextSegment[]
 }
 
 function getProgressiveChunkSize(settings: ExtensionSettings): number {
-  return Math.max(200, Math.min(MAX_PROGRESSIVE_CHUNK_SIZE, settings.chunkSize));
+  const performance = getPageProviderPerformance(settings);
+  return Math.max(200, Math.min(MAX_PROGRESSIVE_CHUNK_SIZE, performance.chunkSize));
+}
+
+function getPageProviderPerformance(settings: ExtensionSettings): {
+  chunkSize: number;
+  concurrency: number;
+} {
+  // Keep this calculation local so Vite does not add a shared import to the MV3 content script.
+  const provider = settings.providers.find((entry) => entry.id === settings.activeProviderId);
+  if (provider?.performanceMode !== "custom") {
+    return { chunkSize: settings.chunkSize, concurrency: settings.concurrency };
+  }
+  return {
+    chunkSize: clampPerformanceValue(provider.chunkSize, 200, 4000, settings.chunkSize),
+    concurrency: Math.min(
+      settings.concurrency,
+      clampPerformanceValue(provider.concurrency, 1, 8, settings.concurrency)
+    )
+  };
+}
+
+function clampPerformanceValue(
+  value: number | undefined,
+  min: number,
+  max: number,
+  fallback: number
+): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) return fallback;
+  return Math.min(max, Math.max(min, Math.round(value)));
 }
 
 function settleInitialSegment(session: TranslationSession, id: string): void {

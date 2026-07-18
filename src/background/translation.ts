@@ -1,5 +1,6 @@
 import { CACHE_PREFIX } from "../shared/defaults";
 import { sha256 } from "../shared/hash";
+import { getEffectiveProviderPerformance } from "../shared/performance";
 import type {
   ExtensionSettings,
   ProviderConfig,
@@ -25,8 +26,7 @@ export async function translateWithSettings(
   if (providerConfig.enabled === false) throw new Error(`Provider is disabled: ${providerId}`);
 
   const provider = createProvider(providerConfig);
-  const chunkSize = getEffectiveChunkSize(settings.chunkSize, providerConfig.type);
-  const concurrency = getEffectiveConcurrency(settings.concurrency);
+  const performance = getEffectiveProviderPerformance(settings, providerId);
   const cachedTranslations = new Map<number, string>();
   const uncachedTexts: string[] = [];
   const uncachedIndexes: number[] = [];
@@ -45,10 +45,10 @@ export async function translateWithSettings(
 
   const translated = await runBatches(
     uncachedTexts,
-    chunkSize,
-    concurrency,
+    performance.chunkSize,
+    performance.concurrency,
     async (texts) =>
-      runProviderTask(providerConfig, request, texts, concurrency, () =>
+      runProviderTask(providerConfig, request, texts, performance, settings.concurrency, () =>
         provider.translateBatch({ ...request, texts })
       )
   );
@@ -89,32 +89,19 @@ export async function clearTranslationCache(): Promise<{ removed: number }> {
   return { removed: keys.length };
 }
 
-function getEffectiveChunkSize(chunkSize: number, providerType: string): number {
-  if (isLlmProvider(providerType)) return Math.max(chunkSize, 3200);
-  return chunkSize;
-}
-
-function getEffectiveConcurrency(concurrency: number): number {
-  return concurrency;
-}
-
-function isLlmProvider(providerType: string): boolean {
-  return providerType === "openai-compatible"
-    || providerType === "anthropic-compatible"
-    || providerType === "zhipu-glm";
-}
-
 async function runProviderTask(
   providerConfig: ProviderConfig,
   request: TranslateBatchRequest,
   texts: string[],
-  concurrency: number,
+  performance: ReturnType<typeof getEffectiveProviderPerformance>,
+  globalConcurrency: number,
   task: () => Promise<string[]>
 ): Promise<string[]> {
-  const debugTask = createDebugTask(providerConfig, request, texts);
-  const release = await acquireProviderSlot(
+  const debugTask = createDebugTask(providerConfig, request, texts, performance);
+  const release = await acquireTaskSlots(
     providerConfig.id,
-    getProviderConcurrency(concurrency),
+    performance.concurrency,
+    globalConcurrency,
     debugTask
   );
 
@@ -136,14 +123,11 @@ async function runProviderTask(
   }
 }
 
-function getProviderConcurrency(concurrency: number): number {
-  return Math.max(1, concurrency);
-}
-
 function createDebugTask(
   providerConfig: ProviderConfig,
   request: TranslateBatchRequest,
-  texts: string[]
+  texts: string[],
+  performance: ReturnType<typeof getEffectiveProviderPerformance>
 ): TranslationDebugTask {
   const task: TranslationDebugTask = {
     id: nextDebugTaskId,
@@ -155,6 +139,9 @@ function createDebugTask(
     createdAt: Date.now(),
     sourceLang: request.sourceLang ?? "auto",
     targetLang: request.targetLang,
+    chunkSize: performance.chunkSize,
+    concurrency: performance.concurrency,
+    performanceMode: performance.performanceMode,
     sourceTexts: texts.map(truncateDebugText)
   };
   nextDebugTaskId += 1;
@@ -188,6 +175,33 @@ async function acquireProviderSlot(
       resolve(() => releaseProviderSlot(limiter));
     });
   });
+}
+
+async function acquireTaskSlots(
+  providerId: string,
+  providerConcurrency: number,
+  globalConcurrency: number,
+  debugTask: TranslationDebugTask
+): Promise<() => void> {
+  const releaseProvider = await acquireProviderSlot(
+    providerId,
+    Math.max(1, providerConcurrency),
+    debugTask
+  );
+  try {
+    const releaseGlobal = await acquireProviderSlot(
+      "__wupage_global__",
+      Math.max(1, globalConcurrency),
+      debugTask
+    );
+    return () => {
+      releaseGlobal();
+      releaseProvider();
+    };
+  } catch (error) {
+    releaseProvider();
+    throw error;
+  }
 }
 
 function getProviderLimiter(key: string): ProviderLimiter {

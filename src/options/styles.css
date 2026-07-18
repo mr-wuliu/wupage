@@ -391,6 +391,41 @@ label {
   background: #ffffff;
 }
 
+.provider-performance {
+  display: grid;
+  gap: 12px;
+  margin: 16px 0 0;
+  padding: 14px;
+  border: 1px solid #d7dedb;
+  border-radius: 8px;
+}
+
+.provider-performance legend {
+  padding: 0 6px;
+  color: #26343a;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.performance-inherit {
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.performance-inherit:hover {
+  border-color: transparent;
+  background: transparent;
+}
+
+.performance-overrides[hidden] {
+  display: none;
+}
+
+.provider-performance .hint {
+  margin-top: -2px;
+}
+
 input,
 select,
 textarea {
