@@ -170,8 +170,11 @@ export function injectContentStyles(): void {
     }
 
     #wupage-floating-menu {
+      all: initial;
       position: fixed;
       z-index: 2147483647;
+      display: block;
+      box-sizing: border-box;
       width: 220px;
       padding: 6px;
       border: 1px solid rgba(31, 42, 46, 0.12);
@@ -179,6 +182,17 @@ export function injectContentStyles(): void {
       background: #ffffff;
       box-shadow: 0 12px 30px rgba(15, 35, 38, 0.2);
       font: 13px/1.3 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: #172026;
+      direction: ltr;
+      text-align: left;
+      font-synthesis: none;
+      isolation: isolate;
+    }
+
+    #wupage-floating-menu *,
+    #wupage-floating-menu *::before,
+    #wupage-floating-menu *::after {
+      box-sizing: border-box;
     }
 
     #wupage-floating-menu[hidden] {
@@ -186,7 +200,9 @@ export function injectContentStyles(): void {
     }
 
     #wupage-floating-menu button {
+      all: initial;
       display: block;
+      box-sizing: border-box;
       width: 100%;
       min-height: 32px;
       border: 0;
@@ -196,6 +212,9 @@ export function injectContentStyles(): void {
       background: transparent;
       text-align: left;
       font: inherit;
+      text-shadow: none;
+      appearance: none;
+      white-space: nowrap;
       cursor: pointer;
     }
 
@@ -221,13 +240,26 @@ export function injectContentStyles(): void {
     }
 
     #wupage-floating-menu .wupage-language-select {
+      all: initial;
       position: relative;
       display: block;
+      box-sizing: border-box;
+      float: none;
+      width: auto;
       min-width: 0;
+      margin: 0;
+      padding: 0;
+      border: 0;
+      color: inherit;
+      font: inherit;
+      text-align: left;
     }
 
     #wupage-floating-menu .wupage-language-select select {
+      all: initial;
+      display: block;
       width: 100%;
+      max-width: none;
       height: 40px;
       box-sizing: border-box;
       appearance: none;
@@ -238,6 +270,9 @@ export function injectContentStyles(): void {
       background: #eef2f1;
       font: 13px/1.2 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       font-weight: 500;
+      box-shadow: none;
+      text-shadow: none;
+      vertical-align: middle;
       cursor: pointer;
     }
 

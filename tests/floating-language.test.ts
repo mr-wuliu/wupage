@@ -73,6 +73,54 @@ describe("floating language controls", () => {
     expect(getComputedStyle(label).writingMode).toBe("horizontal-tb");
   });
 
+  it("isolates the floating menu from host form styles", () => {
+    vi.mocked(sendRuntimeRequest).mockResolvedValue(structuredClone(DEFAULT_SETTINGS));
+    vi.stubGlobal("chrome", {
+      runtime: { id: "test" },
+      storage: { local: { get: vi.fn(async () => ({})), set: vi.fn(async () => undefined) } }
+    });
+    const hostStyle = document.createElement("style");
+    hostStyle.textContent = `
+      label {
+        float: left;
+        width: 180px;
+        padding-top: 6px;
+        text-align: right;
+      }
+      select {
+        width: 100%;
+        max-width: calc(100% - 20px);
+        padding: 4px;
+        box-shadow: inset 0 1px 3px #000;
+      }
+      button {
+        text-align: center;
+        text-shadow: 0 1px #fff;
+        background: linear-gradient(#fff, #ddd);
+      }
+    `;
+    document.documentElement.append(hostStyle);
+
+    injectContentStyles();
+    initFloatingBall();
+
+    const menu = query<HTMLElement>("#wupage-floating-menu");
+    const languageLabel = query<HTMLElement>(".wupage-language-select");
+    const languageSelect = query<HTMLSelectElement>("[data-role='source-lang']");
+    const menuButton = query<HTMLButtonElement>("[data-action='page-toggle']");
+    menu.hidden = false;
+
+    expect(getComputedStyle(menu).boxSizing).toBe("border-box");
+    expect(getComputedStyle(languageLabel).float).toBe("none");
+    expect(getComputedStyle(languageLabel).width).toBe("auto");
+    expect(getComputedStyle(languageLabel).paddingTop).toBe("0px");
+    expect(getComputedStyle(languageLabel).textAlign).toBe("left");
+    expect(getComputedStyle(languageSelect).maxWidth).toBe("none");
+    expect(getComputedStyle(languageSelect).boxShadow).toBe("none");
+    expect(getComputedStyle(menuButton).textAlign).toBe("left");
+    expect(["none", "rgba(0, 0, 0, 0)"]).toContain(getComputedStyle(menuButton).textShadow);
+  });
+
   it("resizes the debug panel from its bottom-right handle", async () => {
     vi.mocked(sendRuntimeRequest).mockResolvedValue({
       tasks: [],
