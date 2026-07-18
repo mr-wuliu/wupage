@@ -8,7 +8,7 @@ vi.mock("../src/content/runtime", () => ({
   sendRuntimeRequest: vi.fn()
 }));
 
-import { initFloatingBall } from "../src/content/floating";
+import { initFloatingBall, openDebugPanel } from "../src/content/floating";
 import { sendRuntimeRequest } from "../src/content/runtime";
 
 describe("floating language controls", () => {
@@ -47,10 +47,52 @@ describe("floating language controls", () => {
       expect(stored).toMatchObject({ sourceLang: "en", targetLang: "ko" });
     });
   });
+
+  it("resizes the debug panel from its bottom-right handle", async () => {
+    vi.mocked(sendRuntimeRequest).mockResolvedValue({
+      tasks: [],
+      activeCount: 0,
+      queuedCount: 0
+    });
+    Object.defineProperty(window, "innerWidth", { configurable: true, value: 1200 });
+    Object.defineProperty(window, "innerHeight", { configurable: true, value: 800 });
+
+    await openDebugPanel();
+    const panel = query<HTMLElement>("#wupage-debug-panel");
+    const handle = query<HTMLElement>(".wupage-debug-resize");
+    vi.spyOn(panel, "getBoundingClientRect").mockReturnValue({
+      left: 100,
+      top: 100,
+      width: 360,
+      height: 300,
+      right: 460,
+      bottom: 400,
+      x: 100,
+      y: 100,
+      toJSON: () => ({})
+    } as DOMRect);
+
+    handle.dispatchEvent(pointerEvent("pointerdown", 460, 400));
+    window.dispatchEvent(pointerEvent("pointermove", 560, 500));
+
+    expect(panel.style.width).toBe("460px");
+    expect(panel.style.height).toBe("400px");
+    window.dispatchEvent(pointerEvent("pointerup", 560, 500));
+    query<HTMLButtonElement>("[data-action='close-debug']").click();
+  });
 });
 
 function query<T extends Element>(selector: string): T {
   const element = document.querySelector<T>(selector);
   if (!element) throw new Error(`Missing element: ${selector}`);
   return element;
+}
+
+function pointerEvent(type: string, clientX: number, clientY: number): Event {
+  const event = new Event(type, { bubbles: true, cancelable: true });
+  Object.defineProperties(event, {
+    clientX: { value: clientX },
+    clientY: { value: clientY }
+  });
+  return event;
 }

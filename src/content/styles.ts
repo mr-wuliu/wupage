@@ -315,7 +315,11 @@ export function injectContentStyles(): void {
       bottom: 18px;
       z-index: 2147483647;
       width: min(360px, calc(100vw - 36px));
-      max-height: min(520px, calc(100vh - 36px));
+      height: min(420px, calc(100vh - 36px));
+      min-width: min(280px, calc(100vw - 16px));
+      min-height: min(200px, calc(100vh - 16px));
+      max-width: calc(100vw - 16px);
+      max-height: calc(100vh - 16px);
       box-sizing: border-box;
       display: grid;
       grid-template-rows: auto auto minmax(0, 1fr);
@@ -378,6 +382,40 @@ export function injectContentStyles(): void {
       min-height: 80px;
       overflow: auto;
       padding: 8px;
+    }
+
+    #wupage-debug-panel .wupage-debug-resize {
+      position: absolute;
+      right: 0;
+      bottom: 0;
+      width: 22px;
+      height: 22px;
+      cursor: nwse-resize;
+      touch-action: none;
+    }
+
+    #wupage-debug-panel .wupage-debug-resize::before,
+    #wupage-debug-panel .wupage-debug-resize::after {
+      content: "";
+      position: absolute;
+      right: 4px;
+      bottom: 4px;
+      border-right: 2px solid #87959a;
+      border-bottom: 2px solid #87959a;
+    }
+
+    #wupage-debug-panel .wupage-debug-resize::before {
+      width: 10px;
+      height: 10px;
+    }
+
+    #wupage-debug-panel .wupage-debug-resize::after {
+      width: 5px;
+      height: 5px;
+    }
+
+    #wupage-debug-panel.is-resizing {
+      user-select: none;
     }
 
     #wupage-debug-panel .wupage-debug-empty {

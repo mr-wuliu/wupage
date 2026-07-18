@@ -55,6 +55,11 @@ let debugRefreshTimer: number | undefined;
 let debugDragging = false;
 let debugDragOffsetX = 0;
 let debugDragOffsetY = 0;
+let debugResizing = false;
+let debugResizeStartX = 0;
+let debugResizeStartY = 0;
+let debugResizeStartWidth = 0;
+let debugResizeStartHeight = 0;
 const expandedDebugTaskIds = new Set<number>();
 
 export function initFloatingBall(): void {
@@ -491,9 +496,12 @@ export async function openDebugPanel(): Promise<void> {
     </header>
     <div class="wupage-debug-summary">正在读取任务...</div>
     <div class="wupage-debug-list"></div>
+    <div class="wupage-debug-resize" title="调整窗口大小" aria-label="调整 Debug 窗口大小"></div>
   `;
   const header = panel.querySelector("header");
+  const resizeHandle = panel.querySelector<HTMLElement>(".wupage-debug-resize");
   header?.addEventListener("pointerdown", startDebugDrag);
+  resizeHandle?.addEventListener("pointerdown", startDebugResize);
   panel.addEventListener("click", (event) => {
     const target = event.target instanceof HTMLElement ? event.target : null;
     if (target?.dataset.action !== "close-debug") return;
@@ -543,6 +551,59 @@ function stopDebugDrag(): void {
   window.removeEventListener("pointermove", dragDebugPanel);
   window.removeEventListener("pointerup", stopDebugDrag);
   window.removeEventListener("pointercancel", stopDebugDrag);
+}
+
+function startDebugResize(event: PointerEvent): void {
+  event.preventDefault();
+  event.stopPropagation();
+  const panel = document.getElementById(DEBUG_PANEL_ID);
+  if (!panel) return;
+  const rect = panel.getBoundingClientRect();
+  debugResizing = true;
+  debugResizeStartX = event.clientX;
+  debugResizeStartY = event.clientY;
+  debugResizeStartWidth = rect.width;
+  debugResizeStartHeight = rect.height;
+  panel.classList.add("is-resizing");
+  panel.style.left = `${rect.left}px`;
+  panel.style.top = `${rect.top}px`;
+  panel.style.right = "auto";
+  panel.style.bottom = "auto";
+  panel.style.width = `${rect.width}px`;
+  panel.style.height = `${rect.height}px`;
+  window.addEventListener("pointermove", resizeDebugPanel);
+  window.addEventListener("pointerup", stopDebugResize);
+  window.addEventListener("pointercancel", stopDebugResize);
+}
+
+function resizeDebugPanel(event: PointerEvent): void {
+  if (!debugResizing) return;
+  const panel = document.getElementById(DEBUG_PANEL_ID);
+  if (!panel) return;
+  const rect = panel.getBoundingClientRect();
+  const maxWidth = Math.max(1, window.innerWidth - rect.left - 8);
+  const maxHeight = Math.max(1, window.innerHeight - rect.top - 8);
+  const minWidth = Math.min(280, maxWidth);
+  const minHeight = Math.min(200, maxHeight);
+  panel.style.width = `${clamp(
+    debugResizeStartWidth + event.clientX - debugResizeStartX,
+    minWidth,
+    maxWidth
+  )}px`;
+  panel.style.height = `${clamp(
+    debugResizeStartHeight + event.clientY - debugResizeStartY,
+    minHeight,
+    maxHeight
+  )}px`;
+}
+
+function stopDebugResize(): void {
+  const panel = document.getElementById(DEBUG_PANEL_ID);
+  debugResizing = false;
+  panel?.classList.remove("is-resizing");
+  window.removeEventListener("pointermove", resizeDebugPanel);
+  window.removeEventListener("pointerup", stopDebugResize);
+  window.removeEventListener("pointercancel", stopDebugResize);
 }
 
 function startDebugRefresh(panel: HTMLElement): void {
