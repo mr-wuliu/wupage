@@ -19,6 +19,7 @@ import {
 describe("content DOM translation extraction", () => {
   afterEach(() => {
     vi.restoreAllMocks();
+    document.documentElement.className = "";
     document.body.innerHTML = "";
   });
 
@@ -516,6 +517,29 @@ describe("content DOM translation extraction", () => {
     expect(document.querySelector("aside a")?.textContent).toBe("Tutorial译：Tutorial");
     expect(document.querySelector("aside .wupage-translation")?.getAttribute("data-wupage-mode"))
       .toBe("inline");
+  });
+
+  it("does not mistake a page-level breadcrumb state class for breadcrumb navigation", () => {
+    document.documentElement.className = "layout show-table-of-contents show-breadcrumb";
+    document.body.innerHTML = `
+      <nav aria-label="Breadcrumb">
+        <a href="/docs">Documentation</a>
+      </nav>
+      <main id="main" role="main" class="layout-body-main">
+        <div class="content">
+          <h1>Publish a Microsoft Edge extension</h1>
+          <p>After you develop and test your extension, it is ready to be published.</p>
+        </div>
+      </main>
+    `;
+    stubLayout();
+
+    const segments = collectTextSegments();
+
+    expect(segments.map((segment) => segment.text)).toEqual([
+      "Publish a Microsoft Edge extension",
+      "After you develop and test your extension, it is ready to be published."
+    ]);
   });
 
   it("does not aggregate nested navigation items into duplicate translations", () => {
