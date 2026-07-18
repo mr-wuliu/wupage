@@ -2,6 +2,8 @@
 
 A Manifest V3 browser extension for one-click page translation. The first version targets Chrome and Edge.
 
+[Privacy Policy](PRIVACY.md)
+
 ## Features
 
 - One-click full-page translation from the popup.
