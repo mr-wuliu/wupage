@@ -173,6 +173,48 @@ describe("viewport page translation", () => {
     expect(maxActiveRequests).toBe(1);
   });
 
+  it("limits LLM page batches by item count", async () => {
+    document.body.innerHTML = `<main>${Array.from(
+      { length: 35 },
+      (_, index) => `<p data-top="${100 + index * 10}">Short paragraph ${index + 1}</p>`
+    ).join("")}</main>`;
+    vi.mocked(sendRuntimeRequest).mockImplementation(async (request: RuntimeRequest) => {
+      if (request.type !== "TRANSLATE_BATCH") throw new Error("Unexpected request");
+      return {
+        translations: request.texts.map((text) => `译文：${text}`),
+        cached: 0
+      } as TranslateBatchResponse;
+    });
+    const providerSettings: ExtensionSettings = {
+      ...settings,
+      providers: [
+        {
+          type: "zhipu-glm",
+          id: "zhipu-glm",
+          label: "Zhipu GLM",
+          performanceMode: "custom",
+          chunkSize: 3200,
+          concurrency: 3,
+          baseURL: "https://open.bigmodel.cn/api/paas/v4",
+          apiKey: "",
+          model: "glm-4-flash-250414",
+          systemPrompt: "Translate"
+        }
+      ]
+    };
+
+    await startPageTranslation(providerSettings);
+
+    const requests = vi.mocked(sendRuntimeRequest).mock.calls
+      .map(([request]) => request)
+      .filter((request): request is Extract<RuntimeRequest, { type: "TRANSLATE_BATCH" }> =>
+        request.type === "TRANSLATE_BATCH"
+      );
+    expect(requests).toHaveLength(3);
+    expect(requests.every((request) => request.texts.length <= 16)).toBe(true);
+    expect(requests.flatMap((request) => request.texts)).toHaveLength(35);
+  });
+
   it("continues lazily when a distant segment is scrolled into view", async () => {
     document.body.innerHTML = `
       <main>

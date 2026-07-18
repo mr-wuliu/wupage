@@ -13,6 +13,7 @@ const VIEWPORT_MARGIN_RATIO = 0.75;
 const MIN_VIEWPORT_MARGIN = 240;
 const MAX_PAGE_CONCURRENCY = 2;
 const MAX_PROGRESSIVE_CHUNK_SIZE = 4000;
+const MAX_LLM_BATCH_ITEMS = 16;
 const VIEWPORT_DEBOUNCE_MS = 100;
 
 type SegmentStatus = "idle" | "queued" | "running" | "done" | "failed";
@@ -115,7 +116,11 @@ function scheduleNearbySegments(session: TranslationSession, initial = false): v
     .map(({ entry }) => entry)
     .filter((entry) => entry.status === "queued")
     .map((entry) => entry.segment);
-  session.queue = groupSegments(queuedSegments, getProgressiveChunkSize(session.settings));
+  session.queue = groupSegments(
+    queuedSegments,
+    getProgressiveChunkSize(session.settings),
+    getProgressiveMaxItems(session.settings)
+  );
   pumpQueue(session);
 }
 
@@ -201,7 +206,7 @@ function getViewportPriority(element: Element): number | null {
     : viewportHeight + Math.max(0, rect.top - viewportHeight);
 }
 
-function groupSegments(segments: TextSegment[], maxChars: number): TextSegment[][] {
+function groupSegments(segments: TextSegment[], maxChars: number, maxItems: number): TextSegment[][] {
   const groups: TextSegment[][] = [];
   let current: TextSegment[] = [];
   let currentLength = 0;
@@ -210,7 +215,10 @@ function groupSegments(segments: TextSegment[], maxChars: number): TextSegment[]
     const text = segment.text.trim();
     if (!text) continue;
     const normalizedSegment = text === segment.text ? segment : { ...segment, text };
-    if (current.length && currentLength + normalizedSegment.text.length > maxChars) {
+    if (
+      current.length
+      && (currentLength + normalizedSegment.text.length > maxChars || current.length >= maxItems)
+    ) {
       groups.push(current);
       current = [];
       currentLength = 0;
@@ -221,6 +229,15 @@ function groupSegments(segments: TextSegment[], maxChars: number): TextSegment[]
 
   if (current.length) groups.push(current);
   return groups;
+}
+
+function getProgressiveMaxItems(settings: ExtensionSettings): number {
+  const provider = settings.providers.find((entry) => entry.id === settings.activeProviderId);
+  return provider && isLlmProvider(provider.type) ? MAX_LLM_BATCH_ITEMS : Number.POSITIVE_INFINITY;
+}
+
+function isLlmProvider(type: string): boolean {
+  return type === "openai-compatible" || type === "anthropic-compatible" || type === "zhipu-glm";
 }
 
 function getProgressiveChunkSize(settings: ExtensionSettings): number {

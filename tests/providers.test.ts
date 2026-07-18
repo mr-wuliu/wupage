@@ -176,6 +176,52 @@ describe("ZhipuGlmProvider", () => {
       temperature: 0
     });
   });
+
+  it("accepts a plain-text response for a single input", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ choices: [{ message: { content: "你好" } }] })
+    }));
+    const provider = createProvider({
+      type: "zhipu-glm",
+      id: "zhipu-glm",
+      label: "Zhipu GLM",
+      baseURL: "https://open.bigmodel.cn/api/paas/v4",
+      apiKey: "secret",
+      model: "glm-4-flash-250414",
+      systemPrompt: "Translate to {{targetLang}}"
+    });
+
+    await expect(provider.translateBatch({
+      texts: ["hello"],
+      sourceLang: "en",
+      targetLang: "zh-CN"
+    })).resolves.toEqual(["你好"]);
+  });
+
+  it("joins a single translation split into multiple response strings", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        choices: [{ message: { content: '["第一部分","第二部分"]' } }]
+      })
+    }));
+    const provider = createProvider({
+      type: "zhipu-glm",
+      id: "zhipu-glm",
+      label: "Zhipu GLM",
+      baseURL: "https://open.bigmodel.cn/api/paas/v4",
+      apiKey: "secret",
+      model: "glm-4-flash-250414",
+      systemPrompt: "Translate to {{targetLang}}"
+    });
+
+    await expect(provider.translateBatch({
+      texts: ["A paragraph with two parts."],
+      sourceLang: "en",
+      targetLang: "zh-CN"
+    })).resolves.toEqual(["第一部分\n第二部分"]);
+  });
 });
 
 describe("AnthropicCompatibleProvider", () => {

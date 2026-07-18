@@ -15,6 +15,7 @@ const providerLimiters = new Map<string, ProviderLimiter>();
 const debugTasks: TranslationDebugTask[] = [];
 let nextDebugTaskId = 1;
 const MAX_DEBUG_TASKS = 100;
+const MAX_LLM_BATCH_ITEMS = 16;
 
 export async function translateWithSettings(
   settings: ExtensionSettings,
@@ -43,14 +44,16 @@ export async function translateWithSettings(
     }
   }
 
+  const runProviderTexts = (texts: string[]) =>
+    runProviderTask(providerConfig, request, texts, performance, settings.concurrency, () =>
+      provider.translateBatch({ ...request, texts })
+    );
   const translated = await runBatches(
     uncachedTexts,
     performance.chunkSize,
+    isLlmProvider(providerConfig) ? MAX_LLM_BATCH_ITEMS : Number.POSITIVE_INFINITY,
     performance.concurrency,
-    async (texts) =>
-      runProviderTask(providerConfig, request, texts, performance, settings.concurrency, () =>
-        provider.translateBatch({ ...request, texts })
-      )
+    (texts) => translateProviderBatchWithRecovery(providerConfig, texts, runProviderTexts)
   );
 
   const output = Array<string>(request.texts.length);
@@ -231,13 +234,17 @@ interface ProviderLimiter {
   queue: Array<() => void>;
 }
 
-export function groupTexts(texts: string[], maxChars: number): string[][] {
+export function groupTexts(
+  texts: string[],
+  maxChars: number,
+  maxItems = Number.POSITIVE_INFINITY
+): string[][] {
   const groups: string[][] = [];
   let current: string[] = [];
   let currentLength = 0;
 
   for (const text of texts) {
-    if (current.length && currentLength + text.length > maxChars) {
+    if (current.length && (currentLength + text.length > maxChars || current.length >= maxItems)) {
       groups.push(current);
       current = [];
       currentLength = 0;
@@ -253,10 +260,11 @@ export function groupTexts(texts: string[], maxChars: number): string[][] {
 async function runBatches(
   texts: string[],
   maxChars: number,
+  maxItems: number,
   concurrency: number,
   translate: (texts: string[]) => Promise<string[]>
 ): Promise<string[]> {
-  const groups = groupTexts(texts, maxChars);
+  const groups = groupTexts(texts, maxChars, maxItems);
   const results: string[][] = Array(groups.length);
   let cursor = 0;
 
@@ -270,6 +278,37 @@ async function runBatches(
 
   await Promise.all(Array.from({ length: Math.min(concurrency, groups.length) }, () => worker()));
   return results.flat();
+}
+
+async function translateProviderBatchWithRecovery(
+  providerConfig: ProviderConfig,
+  texts: string[],
+  translate: (texts: string[]) => Promise<string[]>
+): Promise<string[]> {
+  try {
+    return await translate(texts);
+  } catch (error) {
+    if (!isLlmProvider(providerConfig) || !isRecoverableLlmResponseError(error)) throw error;
+    if (texts.length === 1) return translate(texts);
+
+    const midpoint = Math.ceil(texts.length / 2);
+    const [left, right] = await Promise.all([
+      translateProviderBatchWithRecovery(providerConfig, texts.slice(0, midpoint), translate),
+      translateProviderBatchWithRecovery(providerConfig, texts.slice(midpoint), translate)
+    ]);
+    return [...left, ...right];
+  }
+}
+
+function isLlmProvider(providerConfig: ProviderConfig): boolean {
+  return providerConfig.type === "openai-compatible"
+    || providerConfig.type === "anthropic-compatible"
+    || providerConfig.type === "zhipu-glm";
+}
+
+function isRecoverableLlmResponseError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  return error.message.startsWith("LLM response ");
 }
 
 async function readCachedTranslation(

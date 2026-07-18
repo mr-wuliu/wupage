@@ -10,6 +10,14 @@ describe("groupTexts", () => {
   it("keeps oversized individual texts as their own group", () => {
     expect(groupTexts(["abcdef", "g"], 3)).toEqual([["abcdef"], ["g"]]);
   });
+
+  it("caps the number of short texts in each group", () => {
+    expect(groupTexts(["a", "b", "c", "d", "e"], 100, 2)).toEqual([
+      ["a", "b"],
+      ["c", "d"],
+      ["e"]
+    ]);
+  });
 });
 
 describe("LLM provider queue", () => {
@@ -150,6 +158,37 @@ describe("LLM provider queue", () => {
     });
     expect(task.startedAt).toBeDefined();
     expect(task.finishedAt).toBeDefined();
+  });
+
+  it("recovers from an LLM response count mismatch by splitting the failed batch", async () => {
+    const fetchMock = vi.fn(async (_url: string, init: RequestInit) => {
+      const body = JSON.parse(String(init.body)) as {
+        messages: Array<{ content: string }>;
+      };
+      const input = JSON.parse(body.messages[1].content) as { texts: string[] };
+      const translations = input.texts.length === 1
+        ? [`译文：${input.texts[0]}`]
+        : ["模型漏掉了部分条目"];
+      return {
+        ok: true,
+        json: async () => ({
+          choices: [{ message: { content: JSON.stringify(translations) } }]
+        })
+      };
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(translateWithSettings(createLlmSettings("zhipu-recovery", 2), {
+      texts: ["first", "second", "third"],
+      sourceLang: "en",
+      targetLang: "zh-CN",
+      providerId: "zhipu-recovery"
+    })).resolves.toEqual({
+      translations: ["译文：first", "译文：second", "译文：third"],
+      cached: 0
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(5);
   });
 });
 

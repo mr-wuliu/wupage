@@ -380,12 +380,29 @@ class HttpTemplateProvider implements TranslatorProvider {
 
 function parseTranslationArray(content: string, expectedLength: number): string[] {
   const trimmed = stripCodeFence(content.trim());
-  const parsed = JSON.parse(trimmed) as unknown;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(trimmed) as unknown;
+  } catch {
+    if (expectedLength === 1 && trimmed) return [trimmed];
+    throw new Error("LLM response was not valid JSON.");
+  }
+  if (expectedLength === 1 && typeof parsed === "string") return [parsed];
+  if (
+    expectedLength === 1
+    && Array.isArray(parsed)
+    && parsed.length > 0
+    && parsed.every((item) => typeof item === "string")
+  ) {
+    return [parsed.join("\n")];
+  }
   if (!Array.isArray(parsed) || !parsed.every((item) => typeof item === "string")) {
     throw new Error("LLM response must be a JSON array of strings.");
   }
   if (parsed.length !== expectedLength) {
-    throw new Error("LLM response count does not match source text count.");
+    throw new Error(
+      `LLM response count does not match source text count (expected ${expectedLength}, received ${parsed.length}).`
+    );
   }
   return parsed;
 }
