@@ -16,7 +16,14 @@ export function normalizeSettings(value: unknown): ExtensionSettings {
     ? input.providers.filter(isProviderConfig)
     : [];
   const providers = mergeProviders(storedProviders);
-  const activeProviderId = readString(input.activeProviderId, DEFAULT_SETTINGS.activeProviderId);
+  ensureEnabledProvider(providers);
+  const requestedProviderId = readString(input.activeProviderId, DEFAULT_SETTINGS.activeProviderId);
+  const activeProviderId =
+    providers.find(
+      (provider) => provider.id === requestedProviderId && provider.enabled !== false
+    )?.id
+    ?? providers.find((provider) => provider.enabled !== false)?.id
+    ?? DEFAULT_SETTINGS.activeProviderId;
 
   return {
     ...DEFAULT_SETTINGS,
@@ -24,9 +31,7 @@ export function normalizeSettings(value: unknown): ExtensionSettings {
     providers,
     targetLang: readString(input.targetLang, DEFAULT_SETTINGS.targetLang),
     sourceLang: readString(input.sourceLang, DEFAULT_SETTINGS.sourceLang),
-    activeProviderId: providers.some((provider) => provider.id === activeProviderId)
-      ? activeProviderId
-      : DEFAULT_SETTINGS.activeProviderId,
+    activeProviderId,
     chunkSize: clampNumber(input.chunkSize, 200, 4000, DEFAULT_SETTINGS.chunkSize),
     concurrency: clampNumber(input.concurrency, 1, 8, DEFAULT_SETTINGS.concurrency),
     cacheEnabled:
@@ -41,15 +46,29 @@ export function normalizeSettings(value: unknown): ExtensionSettings {
 }
 
 function mergeProviders(storedProviders: ProviderConfig[]): ProviderConfig[] {
-  const byId = new Map(DEFAULT_SETTINGS.providers.map((provider) => [provider.id, provider]));
+  const byId = new Map(
+    DEFAULT_SETTINGS.providers.map((provider) => [provider.id, normalizeProvider(provider)])
+  );
   for (const provider of storedProviders) {
-    byId.set(provider.id, provider);
+    byId.set(provider.id, normalizeProvider(provider));
   }
   return Array.from(byId.values());
 }
 
+function normalizeProvider(provider: ProviderConfig): ProviderConfig {
+  return { ...provider, enabled: provider.enabled !== false };
+}
+
+function ensureEnabledProvider(providers: ProviderConfig[]): void {
+  if (providers.some((provider) => provider.enabled !== false)) return;
+  const fallback = providers.find((provider) => provider.id === DEFAULT_SETTINGS.activeProviderId)
+    ?? providers[0];
+  if (fallback) fallback.enabled = true;
+}
+
 function isProviderConfig(value: unknown): value is ProviderConfig {
   if (!isRecord(value)) return false;
+  if (value.enabled !== undefined && typeof value.enabled !== "boolean") return false;
   if (value.type === "google-web-translate") {
     return ["id", "label"].every((key) => typeof value[key] === "string");
   }
@@ -65,6 +84,12 @@ function isProviderConfig(value: unknown): value is ProviderConfig {
   }
 
   if (value.type === "openai-compatible") {
+    return ["id", "label", "baseURL", "apiKey", "model", "systemPrompt"].every((key) =>
+      typeof value[key] === "string"
+    );
+  }
+
+  if (value.type === "anthropic-compatible") {
     return ["id", "label", "baseURL", "apiKey", "model", "systemPrompt"].every((key) =>
       typeof value[key] === "string"
     );

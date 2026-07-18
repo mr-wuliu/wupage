@@ -36,6 +36,7 @@ async function handleMessage(request: RuntimeRequest): Promise<unknown> {
         (provider) => provider.id === (request.providerId ?? settings.activeProviderId)
       );
       if (!providerConfig) throw new Error("Provider not found.");
+      if (providerConfig.enabled === false) throw new Error("Provider is disabled.");
       const provider = createProvider(providerConfig);
       const validation = provider.validateConfig();
       if (!validation.ok) throw new Error(validation.message);

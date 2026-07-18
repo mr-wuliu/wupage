@@ -29,6 +29,8 @@ Load the extension from `dist/` in `chrome://extensions` or `edge://extensions` 
 
 These providers use web translation endpoints similar to the approach used by projects such as PowerTranslator. They do not need an API key, but they are unofficial and can be rate-limited, blocked, or changed by the vendor.
 
+The options page also supports custom HTTP providers and custom LLM providers using either the OpenAI Chat Completions or Anthropic Messages format. Providers can be enabled, disabled, or removed without editing extension files.
+
 - `Google Web Translate`: `https://translate.googleapis.com/translate_a/single`
 
 ## Built-In Providers

@@ -177,3 +177,46 @@ describe("ZhipuGlmProvider", () => {
     });
   });
 });
+
+describe("AnthropicCompatibleProvider", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("calls the Anthropic Messages endpoint and parses text content", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        content: [{ type: "text", text: "[\"你好\",\"世界\"]" }]
+      })
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const provider = createProvider({
+      type: "anthropic-compatible",
+      id: "custom-anthropic",
+      label: "Custom Anthropic",
+      baseURL: "https://api.anthropic.com/v1",
+      apiKey: "secret",
+      model: "claude-test",
+      systemPrompt: "Translate to {{targetLang}}"
+    });
+
+    await expect(provider.translateBatch({
+      texts: ["hello", "world"],
+      sourceLang: "en",
+      targetLang: "zh-CN"
+    })).resolves.toEqual(["你好", "世界"]);
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("https://api.anthropic.com/v1/messages");
+    expect(init.headers).toMatchObject({
+      "x-api-key": "secret",
+      "anthropic-version": "2023-06-01"
+    });
+    expect(JSON.parse(String(init.body))).toMatchObject({
+      model: "claude-test",
+      max_tokens: 8192,
+      temperature: 0
+    });
+  });
+});

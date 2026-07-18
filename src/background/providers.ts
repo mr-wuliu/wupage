@@ -1,4 +1,5 @@
 import type {
+  AnthropicCompatibleConfig,
   GoogleCloudTranslationConfig,
   GoogleWebTranslateConfig,
   HttpTemplateConfig,
@@ -19,6 +20,7 @@ export function createProvider(config: ProviderConfig): TranslatorProvider {
     return new GoogleCloudTranslationProvider(config);
   }
   if (config.type === "openai-compatible") return new OpenAICompatibleProvider(config);
+  if (config.type === "anthropic-compatible") return new AnthropicCompatibleProvider(config);
   if (config.type === "zhipu-glm") return new ZhipuGlmProvider(config);
   return new HttpTemplateProvider(config);
 }
@@ -186,7 +188,6 @@ class OpenAICompatibleProvider implements TranslatorProvider {
 
   validateConfig(): ValidationResult {
     if (!this.config.baseURL.trim()) return { ok: false, message: "Base URL is required." };
-    if (!this.config.apiKey.trim()) return { ok: false, message: "API key is required." };
     if (!this.config.model.trim()) return { ok: false, message: "Model is required." };
     return { ok: true };
   }
@@ -202,13 +203,14 @@ class OpenAICompatibleProvider implements TranslatorProvider {
       targetLang: request.targetLang
     });
 
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json"
+    };
+    if (this.config.apiKey.trim()) headers.Authorization = `Bearer ${this.config.apiKey}`;
     const init: RequestInit = {
       method: "POST",
       signal,
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${this.config.apiKey}`
-      },
+      headers,
       body: JSON.stringify({
         model: this.config.model,
         temperature: 0,
@@ -234,6 +236,74 @@ class OpenAICompatibleProvider implements TranslatorProvider {
     const content = payload.choices?.[0]?.message?.content;
     if (!content) throw new Error("LLM response did not include content.");
 
+    return parseTranslationArray(content, request.texts.length);
+  }
+}
+
+class AnthropicCompatibleProvider implements TranslatorProvider {
+  get id(): string {
+    return this.config.id;
+  }
+
+  get label(): string {
+    return this.config.label;
+  }
+
+  constructor(private readonly config: AnthropicCompatibleConfig) {}
+
+  validateConfig(): ValidationResult {
+    if (!this.config.baseURL.trim()) return { ok: false, message: "Base URL is required." };
+    if (!this.config.model.trim()) return { ok: false, message: "Model is required." };
+    return { ok: true };
+  }
+
+  async translateBatch(request: TranslateBatchRequest, signal?: AbortSignal): Promise<string[]> {
+    const validation = this.validateConfig();
+    if (!validation.ok) throw new Error(validation.message);
+
+    const endpoint = `${this.config.baseURL.replace(/\/$/, "")}/messages`;
+    const systemPrompt = renderTemplate(withPlaceholderInstruction(this.config.systemPrompt), {
+      texts: request.texts,
+      sourceLang: request.sourceLang ?? "auto",
+      targetLang: request.targetLang
+    });
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+      "anthropic-version": "2023-06-01"
+    };
+    if (this.config.apiKey.trim()) headers["x-api-key"] = this.config.apiKey;
+    const response = await fetchWithLlmRetry(endpoint, {
+      method: "POST",
+      signal,
+      headers,
+      body: JSON.stringify({
+        model: this.config.model,
+        max_tokens: 8192,
+        temperature: 0,
+        system: systemPrompt,
+        messages: [
+          {
+            role: "user",
+            content: JSON.stringify({
+              sourceLang: request.sourceLang ?? "auto",
+              targetLang: request.targetLang,
+              texts: request.texts
+            })
+          }
+        ]
+      })
+    });
+    if (!response.ok) {
+      throw new Error(
+        `LLM request failed: ${response.status} ${response.statusText}. ${await readErrorBody(response)}`
+      );
+    }
+    const payload = (await response.json()) as AnthropicMessagesResponse;
+    const content = payload.content
+      ?.filter((entry) => entry.type === "text" && typeof entry.text === "string")
+      .map((entry) => entry.text)
+      .join("");
+    if (!content) throw new Error("LLM response did not include content.");
     return parseTranslationArray(content, request.texts.length);
   }
 }
@@ -382,6 +452,13 @@ interface OpenAIChatResponse {
     message?: {
       content?: string;
     };
+  }>;
+}
+
+interface AnthropicMessagesResponse {
+  content?: Array<{
+    type?: string;
+    text?: string;
   }>;
 }
 

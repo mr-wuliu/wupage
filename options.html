@@ -27,7 +27,19 @@
 
       <section>
         <h2>翻译服务</h2>
-        <label>当前服务 <select id="provider"></select></label>
+        <div class="provider-field">
+          <span class="field-label">当前服务</span>
+          <div class="provider-toolbar">
+            <div id="providerPicker" class="provider-picker">
+              <button id="providerTrigger" class="provider-trigger" type="button" aria-haspopup="listbox" aria-expanded="false">
+                <span id="providerTriggerLabel"></span>
+                <span class="provider-chevron" aria-hidden="true">⌄</span>
+              </button>
+              <div id="providerMenu" class="provider-menu" role="listbox" hidden></div>
+            </div>
+            <button id="addProvider" class="icon-button add-provider" type="button" title="添加自定义供应商" aria-label="添加自定义供应商">+</button>
+          </div>
+        </div>
         <div id="providerForm"></div>
       </section>
 
@@ -38,5 +50,30 @@
         <p id="status" role="status"></p>
       </footer>
     </main>
+
+    <dialog id="providerDialog" class="provider-dialog">
+      <form id="providerDialogForm">
+        <header class="dialog-header">
+          <h2>添加自定义供应商</h2>
+          <button id="cancelProvider" class="dialog-close" type="button" title="关闭" aria-label="关闭">×</button>
+        </header>
+        <label>显示名称 <input id="customProviderName" type="text" placeholder="例如：公司翻译服务" /></label>
+        <label>供应商类型
+          <select id="customProviderKind">
+            <option value="http">HTTP</option>
+            <option value="llm">LLM</option>
+          </select>
+        </label>
+        <label id="customLlmFormatField" hidden>LLM 接口格式
+          <select id="customLlmFormat">
+            <option value="openai">OpenAI 兼容</option>
+            <option value="anthropic">Anthropic 兼容</option>
+          </select>
+        </label>
+        <div class="dialog-actions">
+          <button type="submit">添加</button>
+        </div>
+      </form>
+    </dialog>
   </body>
 </html>

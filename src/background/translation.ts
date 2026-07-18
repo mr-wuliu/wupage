@@ -22,6 +22,7 @@ export async function translateWithSettings(
   const providerId = request.providerId ?? settings.activeProviderId;
   const providerConfig = settings.providers.find((provider) => provider.id === providerId);
   if (!providerConfig) throw new Error(`Provider not found: ${providerId}`);
+  if (providerConfig.enabled === false) throw new Error(`Provider is disabled: ${providerId}`);
 
   const provider = createProvider(providerConfig);
   const chunkSize = getEffectiveChunkSize(settings.chunkSize, providerConfig.type);
@@ -98,7 +99,9 @@ function getEffectiveConcurrency(concurrency: number): number {
 }
 
 function isLlmProvider(providerType: string): boolean {
-  return providerType === "openai-compatible" || providerType === "zhipu-glm";
+  return providerType === "openai-compatible"
+    || providerType === "anthropic-compatible"
+    || providerType === "zhipu-glm";
 }
 
 async function runProviderTask(

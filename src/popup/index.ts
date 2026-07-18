@@ -33,6 +33,7 @@ async function init(): Promise<void> {
     .join("");
   targetLang.value = settings.targetLang;
   provider.innerHTML = settings.providers
+    .filter((entry) => entry.enabled !== false)
     .map((entry) => `<option value="${escapeHtml(entry.id)}">${escapeHtml(entry.label)}</option>`)
     .join("");
   provider.value = settings.activeProviderId;

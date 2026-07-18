@@ -12,12 +12,14 @@ export const DEFAULT_SETTINGS: ExtensionSettings = {
     {
       type: "google-web-translate",
       id: "google-web-translate",
-      label: "Google Web Translate"
+      label: "Google Web Translate",
+      enabled: true
     },
     {
       type: "microsoft-translator",
       id: "microsoft-translator",
       label: "Microsoft Translator",
+      enabled: true,
       endpoint: "https://api.cognitive.microsofttranslator.com",
       apiKey: "",
       region: ""
@@ -26,12 +28,14 @@ export const DEFAULT_SETTINGS: ExtensionSettings = {
       type: "google-cloud-translation",
       id: "google-cloud-translation",
       label: "Google Cloud Translation",
+      enabled: true,
       apiKey: ""
     },
     {
       type: "openai-compatible",
       id: "openai-compatible",
       label: "OpenAI Compatible",
+      enabled: true,
       baseURL: "https://api.openai.com/v1",
       apiKey: "",
       model: "gpt-4o-mini",
@@ -42,6 +46,7 @@ export const DEFAULT_SETTINGS: ExtensionSettings = {
       type: "zhipu-glm",
       id: "zhipu-glm",
       label: "Zhipu GLM",
+      enabled: true,
       baseURL: "https://open.bigmodel.cn/api/paas/v4",
       apiKey: "",
       model: "glm-4-flash-250414",
@@ -52,6 +57,7 @@ export const DEFAULT_SETTINGS: ExtensionSettings = {
       type: "http-template",
       id: "http-template",
       label: "HTTP Template",
+      enabled: true,
       method: "POST",
       url: "",
       headers: {
@@ -66,3 +72,6 @@ export const DEFAULT_SETTINGS: ExtensionSettings = {
 
 export const SETTINGS_KEY = "wupage.settings";
 export const CACHE_PREFIX = "wupage.cache.";
+export const BUILT_IN_PROVIDER_IDS = new Set(
+  DEFAULT_SETTINGS.providers.map((provider) => provider.id)
+);

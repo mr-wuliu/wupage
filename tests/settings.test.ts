@@ -43,4 +43,48 @@ describe("normalizeSettings", () => {
       "http-template"
     ]);
   });
+
+  it("preserves custom providers and falls back when the active provider is disabled", () => {
+    const settings = normalizeSettings({
+      activeProviderId: "openai-compatible",
+      providers: [
+        {
+          type: "openai-compatible",
+          id: "openai-compatible",
+          label: "OpenAI Compatible",
+          enabled: false,
+          baseURL: "https://api.openai.com/v1",
+          apiKey: "",
+          model: "gpt-4o-mini",
+          systemPrompt: "Translate to {{targetLang}}"
+        },
+        {
+          type: "anthropic-compatible",
+          id: "custom-anthropic-test",
+          label: "Custom Anthropic",
+          enabled: true,
+          baseURL: "https://api.anthropic.com/v1",
+          apiKey: "secret",
+          model: "claude-test",
+          systemPrompt: "Translate to {{targetLang}}"
+        }
+      ]
+    });
+
+    expect(settings.providers.find((provider) => provider.id === "openai-compatible")?.enabled)
+      .toBe(false);
+    expect(settings.providers.some((provider) => provider.id === "custom-anthropic-test")).toBe(true);
+    expect(settings.activeProviderId).toBe("google-web-translate");
+  });
+
+  it("keeps at least one provider enabled", () => {
+    const disabledProviders = normalizeSettings(undefined).providers.map((provider) => ({
+      ...provider,
+      enabled: false
+    }));
+    const settings = normalizeSettings({ providers: disabledProviders });
+
+    expect(settings.providers.filter((provider) => provider.enabled !== false)).toHaveLength(1);
+    expect(settings.activeProviderId).toBe("google-web-translate");
+  });
 });

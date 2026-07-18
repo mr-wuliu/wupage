@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "WuPage Translator",
-  "description": "One-click page translation with configurable free APIs and OpenAI-compatible LLM providers.",
+  "description": "One-click page translation with configurable HTTP and OpenAI- or Anthropic-compatible LLM providers.",
   "version": "0.1.0",
   "icons": {
     "16": "icons/icon-16.png",

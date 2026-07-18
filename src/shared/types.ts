@@ -3,55 +3,58 @@ export type ProviderType =
   | "microsoft-translator"
   | "google-cloud-translation"
   | "openai-compatible"
+  | "anthropic-compatible"
   | "zhipu-glm"
   | "http-template";
 
-export interface GoogleWebTranslateConfig {
-  type: "google-web-translate";
+export interface ProviderBaseConfig {
   id: string;
   label: string;
+  enabled?: boolean;
 }
 
-export interface MicrosoftTranslatorConfig {
+export interface GoogleWebTranslateConfig extends ProviderBaseConfig {
+  type: "google-web-translate";
+}
+
+export interface MicrosoftTranslatorConfig extends ProviderBaseConfig {
   type: "microsoft-translator";
-  id: string;
-  label: string;
   endpoint: string;
   apiKey: string;
   region: string;
 }
 
-export interface GoogleCloudTranslationConfig {
+export interface GoogleCloudTranslationConfig extends ProviderBaseConfig {
   type: "google-cloud-translation";
-  id: string;
-  label: string;
   apiKey: string;
 }
 
-export interface OpenAICompatibleConfig {
+export interface OpenAICompatibleConfig extends ProviderBaseConfig {
   type: "openai-compatible";
-  id: string;
-  label: string;
   baseURL: string;
   apiKey: string;
   model: string;
   systemPrompt: string;
 }
 
-export interface ZhipuGlmConfig {
+export interface AnthropicCompatibleConfig extends ProviderBaseConfig {
+  type: "anthropic-compatible";
+  baseURL: string;
+  apiKey: string;
+  model: string;
+  systemPrompt: string;
+}
+
+export interface ZhipuGlmConfig extends ProviderBaseConfig {
   type: "zhipu-glm";
-  id: string;
-  label: string;
   baseURL: string;
   apiKey: string;
   model: string;
   systemPrompt: string;
 }
 
-export interface HttpTemplateConfig {
+export interface HttpTemplateConfig extends ProviderBaseConfig {
   type: "http-template";
-  id: string;
-  label: string;
   method: "GET" | "POST";
   url: string;
   headers: Record<string, string>;
@@ -64,6 +67,7 @@ export type ProviderConfig =
   | MicrosoftTranslatorConfig
   | GoogleCloudTranslationConfig
   | OpenAICompatibleConfig
+  | AnthropicCompatibleConfig
   | ZhipuGlmConfig
   | HttpTemplateConfig;
 
