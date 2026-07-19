@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { getPdfLaunchOptions } from "../src/pdf/launch";
+import { describe, expect, it, vi } from "vitest";
+import { getPdfLaunchOptions, openPdfWorkspaceInNewTab } from "../src/pdf/launch";
 
 describe("PDF launch options", () => {
   it("recognizes popup-initiated automatic translation", () => {
@@ -15,6 +15,19 @@ describe("PDF launch options", () => {
     expect(getPdfLaunchOptions("chrome-extension://extension/pdf.html")).toEqual({
       url: null,
       autoTranslate: false
+    });
+  });
+
+  it("opens another blank workspace in a new tab without replacing the current document", async () => {
+    const createTab = vi.fn(async () => undefined);
+
+    await openPdfWorkspaceInNewTab(
+      createTab,
+      (path) => `chrome-extension://extension/${path}`
+    );
+
+    expect(createTab).toHaveBeenCalledWith({
+      url: "chrome-extension://extension/pdf.html"
     });
   });
 });

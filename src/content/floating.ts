@@ -435,6 +435,9 @@ function setButtonPosition(button: HTMLElement, left: number, top: number): void
   target.style.top = `${top - offset}px`;
   target.style.right = "auto";
   target.style.bottom = "auto";
+
+  const menu = document.getElementById("wupage-floating-menu");
+  if (menu && isMenuOpen(menu)) positionMenu(menu, button);
 }
 
 function setMenuOpen(menu: HTMLElement, open: boolean): void {

@@ -165,6 +165,13 @@ button.secondary,
   background: #dfe8e5;
 }
 
+.footer-links {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+}
+
 .footer-link {
   min-height: 28px;
   display: inline-flex;
@@ -187,6 +194,14 @@ button.secondary,
   width: 15px;
   height: 15px;
   fill: currentColor;
+}
+
+.footer-link svg.globe-icon {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .switch-row {

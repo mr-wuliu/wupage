@@ -10,3 +10,10 @@ export function getPdfLaunchOptions(href: string): PdfLaunchOptions {
     autoTranslate: parameters.get("translate") === "1"
   };
 }
+
+export async function openPdfWorkspaceInNewTab(
+  createTab: (properties: { url: string }) => Promise<unknown>,
+  getExtensionUrl: (path: string) => string
+): Promise<void> {
+  await createTab({ url: getExtensionUrl("pdf.html") });
+}

@@ -76,6 +76,7 @@ describe("options provider controls", () => {
     expect(document.querySelectorAll(".provider-menu-row")).toHaveLength(6);
     expect(document.querySelectorAll(".provider-enable")).toHaveLength(6);
     expect(document.querySelectorAll(".provider-delete")).toHaveLength(0);
+    expect(document.querySelectorAll(".provider-option-type")).toHaveLength(0);
 
     click("#addProvider");
     expect(document.querySelector("#providerDialog")?.hasAttribute("open")).toBe(true);

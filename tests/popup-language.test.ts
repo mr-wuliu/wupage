@@ -62,6 +62,12 @@ describe("popup language controls", () => {
       expect(stored).toMatchObject({ sourceLang: "en", targetLang: "ja" });
     });
 
+    query<HTMLButtonElement>("#openGithub").click();
+    query<HTMLButtonElement>("#openWebsite").click();
+    expect(createTab).toHaveBeenCalledWith({ url: "https://github.com/mr-wuliu/wupage" });
+    expect(createTab).toHaveBeenCalledWith({ url: "https://wupage.mrwuliu.top/" });
+    createTab.mockClear();
+
     vi.spyOn(window, "close").mockImplementation(() => undefined);
     query<HTMLButtonElement>("#pageToggle").click();
     await vi.waitFor(() => {

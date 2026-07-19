@@ -4,8 +4,6 @@ A Manifest V3 browser extension for one-click page translation. The first versio
 
 [Privacy Policy](PRIVACY.md)
 
-> PDF translation is currently available as a `v1.0.0-beta.1` prerelease. It is suitable for testing, but complex documents may still require manual layout adjustments.
-
 ## Features
 
 - One-click full-page translation from the popup.
@@ -21,7 +19,7 @@ A Manifest V3 browser extension for one-click page translation. The first versio
 - Local translation cache keyed by provider, target language, and source text.
 - No hosted proxy. Requests are sent directly from the extension to the configured provider.
 
-## PDF Translation (Beta)
+## PDF Translation
 
 When the active tab is an online PDF, the popup's **Translate full page** action automatically changes to **Translate PDF**. Opening it launches a dedicated workspace and starts translation immediately.
 
@@ -29,12 +27,13 @@ When the active tab is an online PDF, the popup's **Translate full page** action
 - Online PDF URLs and locally uploaded PDF files are supported.
 - Translated text blocks can be edited, moved, resized, or removed without changing the original column.
 - Text color and placement are reconstructed from the PDF text layer where possible.
+- The current edited translation can be downloaded as a translated PDF.
 
 Current limitations:
 
 - Image-only or scanned PDFs are not translated because OCR is not included yet.
 - Complex tables, unusual fonts, and highly graphical layouts may need manual correction.
-- Edited layouts remain in the current workspace; exporting a translated PDF is not available yet.
+- Downloaded pages are flattened to preserve multilingual text and layout, so their text is not selectable or searchable yet.
 
 ## Development
 

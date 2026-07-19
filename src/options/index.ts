@@ -127,7 +127,6 @@ function renderProviderMenuRow(provider: ProviderConfig): string {
         ${enabled ? "" : "disabled"}
       >
         <span class="provider-option-label">${escapeHtml(provider.label)}</span>
-        <span class="provider-option-type">${escapeHtml(getProviderTypeLabel(provider))}</span>
       </button>
       <button
         class="provider-enable"
@@ -584,15 +583,6 @@ function getActiveProvider(): ProviderConfig {
   const provider = settings.providers.find((entry) => entry.id === settings.activeProviderId);
   if (!provider) throw new Error("找不到当前翻译服务。");
   return provider;
-}
-
-function getProviderTypeLabel(provider: ProviderConfig): string {
-  if (provider.type === "openai-compatible") return "OpenAI";
-  if (provider.type === "anthropic-compatible") return "Anthropic";
-  if (provider.type === "zhipu-glm") return "GLM";
-  if (provider.type === "http-template") return "HTTP";
-  if (provider.type === "google-web-translate") return "Web";
-  return "API";
 }
 
 function setProviderMenuOpen(open: boolean): void {

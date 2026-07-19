@@ -152,6 +152,68 @@ describe("floating language controls", () => {
     expect(["none", "rgba(0, 0, 0, 0)"]).toContain(getComputedStyle(menuButton).textShadow);
   });
 
+  it("keeps the open menu attached while dragging the floating ball", async () => {
+    vi.mocked(sendRuntimeRequest).mockResolvedValue(structuredClone(DEFAULT_SETTINGS));
+    vi.stubGlobal("chrome", {
+      runtime: { id: "test" },
+      storage: {
+        local: {
+          get: vi.fn(async () => ({
+            "wupage.floating.position": { left: 500, top: 400, edge: null }
+          })),
+          set: vi.fn(async () => undefined)
+        }
+      }
+    });
+    Object.defineProperty(window, "innerWidth", { configurable: true, value: 1200 });
+    Object.defineProperty(window, "innerHeight", { configurable: true, value: 800 });
+
+    initFloatingBall();
+    const hitbox = query<HTMLElement>("#wupage-floating-hitbox");
+    const button = query<HTMLButtonElement>("#wupage-floating-ball");
+    const menu = query<HTMLElement>("#wupage-floating-menu");
+    Object.defineProperty(button, "offsetWidth", { configurable: true, value: 42 });
+    Object.defineProperty(menu, "offsetWidth", { configurable: true, value: 240 });
+    Object.defineProperty(menu, "offsetHeight", { configurable: true, value: 200 });
+    button.setPointerCapture = vi.fn();
+    button.releasePointerCapture = vi.fn();
+    vi.spyOn(button, "getBoundingClientRect").mockImplementation(() => {
+      const left = (Number.parseFloat(hitbox.style.left) || 484) + 16;
+      const top = (Number.parseFloat(hitbox.style.top) || 384) + 16;
+      return {
+        left,
+        top,
+        width: 42,
+        height: 42,
+        right: left + 42,
+        bottom: top + 42,
+        x: left,
+        y: top,
+        toJSON: () => ({})
+      } as DOMRect;
+    });
+
+    await vi.waitFor(() => expect(hitbox.style.left).toBe("484px"));
+    button.click();
+    expect(menu.hidden).toBe(false);
+    expect(menu.style.left).toBe("401px");
+    expect(menu.style.top).toBe("192px");
+
+    button.dispatchEvent(pointerEvent("pointerdown", 521, 421));
+    button.dispatchEvent(pointerEvent("pointermove", 621, 321));
+
+    expect(hitbox.style.left).toBe("584px");
+    expect(hitbox.style.top).toBe("284px");
+    expect(menu.style.left).toBe("501px");
+    expect(menu.style.top).toBe("92px");
+
+    button.dispatchEvent(pointerEvent("pointerup", 621, 321));
+    button.click();
+    expect(menu.hidden).toBe(false);
+    button.click();
+    expect(menu.hidden).toBe(true);
+  });
+
   it("resizes the debug panel from its bottom-right handle", async () => {
     vi.mocked(sendRuntimeRequest).mockResolvedValue({
       tasks: [],
@@ -196,7 +258,8 @@ function pointerEvent(type: string, clientX: number, clientY: number): Event {
   const event = new Event(type, { bubbles: true, cancelable: true });
   Object.defineProperties(event, {
     clientX: { value: clientX },
-    clientY: { value: clientY }
+    clientY: { value: clientY },
+    pointerId: { value: 1 }
   });
   return event;
 }

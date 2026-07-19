@@ -14,7 +14,9 @@ const debugButton = query<HTMLButtonElement>("#debug");
 const clearCacheButton = query<HTMLButtonElement>("#clearCache");
 const optionsButton = query<HTMLButtonElement>("#openOptions");
 const githubButton = query<HTMLButtonElement>("#openGithub");
+const websiteButton = query<HTMLButtonElement>("#openWebsite");
 const GITHUB_URL = "https://github.com/mr-wuliu/wupage";
+const WEBSITE_URL = "https://wupage.mrwuliu.top/";
 
 let settings: ExtensionSettings;
 let paragraphMode = false;
@@ -57,6 +59,9 @@ async function init(): Promise<void> {
   optionsButton.addEventListener("click", () => chrome.runtime.openOptionsPage());
   githubButton.addEventListener("click", () => {
     void chrome.tabs.create({ url: GITHUB_URL });
+  });
+  websiteButton.addEventListener("click", () => {
+    void chrome.tabs.create({ url: WEBSITE_URL });
   });
 }
 
