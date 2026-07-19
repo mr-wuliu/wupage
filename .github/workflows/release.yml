@@ -117,3 +117,27 @@ jobs:
               --title "WuPage $GITHUB_REF_NAME" \
               "${release_flags[@]}"
           fi
+
+      - name: Trigger wupage-web sync
+        if: success()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Dispatch sync-web.yml on default branch with the release tag.
+          # sync-web.yml reads release info via `gh release view` and updates
+          # 6 hardcoded version references in wupage-web/index.html, then
+          # commits + pushes (which fires wupage-web's deploy.yml).
+          #
+          # Why dispatch instead of `on: release: published`?
+          # release.yml uses the default GITHUB_TOKEN to create the release,
+          # so the release:published event actor = github-actions[bot].
+          # GitHub's loop-prevention drops bot-actor events, so the release
+          # trigger never fires downstream workflows. Explicit dispatch
+          # bypasses that restriction.
+          sleep 3  # brief pause so the release API reflects the new assets
+          gh workflow run sync-web.yml \
+            --ref main \
+            -f tag="$GITHUB_REF_NAME"
+          echo "Dispatched sync-web.yml with tag=$GITHUB_REF_NAME"

@@ -1,18 +1,28 @@
-name: Sync website on release
+name: Sync website with release
 
-# When a release is published on mr-wuliu/wupage, this workflow checks out
-# mr-wuliu/wupage-web, updates index.html with the new version + asset info,
-# and pushes. The push triggers wupage-web's existing deploy.yml, which
-# deploys to Cloudflare Workers (wupage.mrwuliu.top).
+# Triggered manually OR by release.yml after a successful release.
+# Updates 6 hardcoded version references in wupage-web/index.html,
+# then commits + pushes (which fires wupage-web's deploy.yml).
 #
 # Requires repository secret WUPAGE_WEB_PAT in mr-wuliu/wupage:
 #   Fine-grained PAT, resource owner = mr-wuliu,
 #   repository access = mr-wuliu/wupage-web only,
 #   Contents permission = Read and write.
+#
+# Why workflow_dispatch and not `on: release: published`?
+#   release.yml creates releases with the default GITHUB_TOKEN, which makes
+#   the release:published event actor = github-actions[bot]. GitHub's
+#   loop-prevention policy drops events from bot accounts, so the release
+#   trigger never fires. release.yml instead explicitly dispatches this
+#   workflow via `gh workflow run` after a successful release.
 
 on:
-  release:
-    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to sync (e.g. v0.1.1)'
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -32,15 +42,25 @@ jobs:
           token: ${{ secrets.WUPAGE_WEB_PAT }}
           path: wupage-web
 
-      - name: Extract release info
+      - name: Fetch release info
         id: release
         env:
-          RELEASE_PAYLOAD: ${{ toJSON(github.event.release) }}
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
         run: |
           python3 - <<'PY'
-          import json, os
-          rel = json.loads(os.environ['RELEASE_PAYLOAD'])
-          assets = rel.get('assets') or []
+          import json, os, subprocess, sys
+          tag = os.environ['TAG']
+          try:
+              result = subprocess.run(
+                  ['gh', 'release', 'view', tag, '--json', 'tagName,assets'],
+                  capture_output=True, text=True, check=True,
+              )
+          except subprocess.CalledProcessError as e:
+              print(f"ERROR: gh release view {tag} failed: {e.stderr}", file=sys.stderr)
+              sys.exit(1)
+          data = json.loads(result.stdout)
+          assets = data.get('assets') or []
           zip_asset = next(
               (a for a in assets
                if a.get('name', '').lower().endswith('.zip')
@@ -48,7 +68,7 @@ jobs:
               None,
           )
           if not zip_asset:
-              raise SystemExit('No .zip asset found in release (skipping .sha256)')
+              raise SystemExit(f'No .zip asset in release {tag}')
 
           size = int(zip_asset.get('size') or 0)
           if size < 1024:
@@ -59,12 +79,12 @@ jobs:
               size_str = f"{size / 1024 / 1024:.1f} MB"
 
           with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as f:
-              f.write(f"tag={rel['tag_name']}\n")
+              f.write(f"tag={data['tagName']}\n")
               f.write(f"zip_name={zip_asset['name']}\n")
-              f.write(f"zip_url={zip_asset['browser_download_url']}\n")
+              f.write(f"zip_url={zip_asset['url']}\n")
               f.write(f"zip_size={size_str}\n")
 
-          print(f"tag={rel['tag_name']} zip={zip_asset['name']} size={size_str}")
+          print(f"tag={data['tagName']} zip={zip_asset['name']} size={size_str}")
           PY
 
       - name: Run sync script
@@ -88,7 +108,7 @@ jobs:
           fi
           git commit -m "Auto-sync with wupage ${{ steps.release.outputs.tag }}
 
-          Triggered by release ${{ steps.release.outputs.tag }} on mr-wuliu/wupage.
-          Updated 6 references: version badge, sidebar nav, showcase desc,
-          ZIP name + size, download button, release notes link."
+          Triggered by workflow_dispatch after release ${{ steps.release.outputs.tag }}
+          on mr-wuliu/wupage. Updated 6 references: version badge, sidebar nav,
+          showcase desc, ZIP name + size, download button, release notes link."
           git push
