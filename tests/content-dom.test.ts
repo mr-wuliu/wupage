@@ -141,6 +141,19 @@ describe("content DOM translation extraction", () => {
     ]);
   });
 
+  it("excludes unrendered descendants from a grouped paragraph", () => {
+    document.body.innerHTML = `
+      <p>Visible beginning <span id="hidden">invisible middle</span><em>visible ending.</em></p>
+    `;
+    stubLayout("", {
+      style: (element) => element.id === "hidden" ? { display: "none" } : {}
+    });
+
+    expect(collectTextSegments().map((segment) => segment.text)).toEqual([
+      "Visible beginning visible ending."
+    ]);
+  });
+
   it("keeps inline code text inside readable paragraph segments", () => {
     document.body.innerHTML = `
       <main>
@@ -910,13 +923,19 @@ describe("content DOM translation extraction", () => {
   });
 });
 
-function stubLayout(color = ""): void {
-  vi.spyOn(window, "getComputedStyle").mockReturnValue({
+function stubLayout(
+  color = "",
+  options: {
+    style?: (element: Element) => Partial<CSSStyleDeclaration>;
+  } = {}
+): void {
+  vi.spyOn(window, "getComputedStyle").mockImplementation((element) => ({
     display: "block",
     visibility: "visible",
     opacity: "1",
-    color
-  } as CSSStyleDeclaration);
+    color,
+    ...options.style?.(element)
+  }) as CSSStyleDeclaration);
 
   vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(function (this: Element) {
     const visuallyHidden = this.matches(".sr-only");

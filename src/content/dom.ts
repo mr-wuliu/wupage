@@ -1,3 +1,9 @@
+import {
+  createRenderVisibilitySnapshot,
+  isElementVisuallyRendered
+} from "./visibility";
+import type { RenderVisibilitySnapshot } from "./visibility";
+
 export interface TextSegment {
   id: string;
   text: string;
@@ -249,14 +255,15 @@ function collectTextSegmentsFromRoot(
 ): TextSegment[] {
   if (resetTracking) clearNodeTracking();
   const alreadyTracked = new Set(trackedNodes.map((tracked) => tracked.node));
+  const visibility = createRenderVisibilitySnapshot();
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
     acceptNode(node) {
       if (!node.textContent?.trim()) return NodeFilter.FILTER_REJECT;
       if (alreadyTracked.has(node as Text)) return NodeFilter.FILTER_REJECT;
       const parent = node.parentElement;
-      if (!parent || shouldSkipElement(parent, true)) return NodeFilter.FILTER_REJECT;
+      if (!parent || shouldSkipElement(parent, true, visibility)) return NodeFilter.FILTER_REJECT;
       if (isStructuredListMetadata(parent)) return NodeFilter.FILTER_REJECT;
-      if (!isElementVisible(parent)) return NodeFilter.FILTER_REJECT;
+      if (!visibility.isTextNodeVisuallyRendered(node as Text)) return NodeFilter.FILTER_REJECT;
       return NodeFilter.FILTER_ACCEPT;
     }
   });
@@ -284,7 +291,7 @@ function collectTextSegmentsFromRoot(
     segments.push({ id, text: sourceText, element: node.parentElement! });
   }
 
-  const groupedSegments = groupTextSegments(textNodes, segments);
+  const groupedSegments = groupTextSegments(textNodes, segments, visibility);
   groupedSegments.forEach((segment) => sourceTextById.set(segment.id, segment.text));
   return groupedSegments;
 }
@@ -464,7 +471,11 @@ function removePendingForId(id: string): void {
   });
 }
 
-function groupTextSegments(nodes: TrackedNode[], fallback: TextSegment[]): TextSegment[] {
+function groupTextSegments(
+  nodes: TrackedNode[],
+  fallback: TextSegment[],
+  visibility: RenderVisibilitySnapshot
+): TextSegment[] {
   const groups = new Map<Element, TrackedNode[]>();
   const standalone = new Set(fallback.map((segment) => segment.id));
 
@@ -484,7 +495,7 @@ function groupTextSegments(nodes: TrackedNode[], fallback: TextSegment[]): TextS
     if (!block) continue;
     const nodeText = normalizeText(groupNodes.map((tracked) => tracked.node.textContent ?? "").join(" "));
     const id = groupNodes[0].id;
-    const { text, tokens } = getReadableBlockText(block);
+    const { text, tokens } = getReadableBlockText(block, visibility);
     if (groupNodes.length < 2 && text === nodeText) continue;
     if (!text) continue;
     trackedGroups.push({ id, nodes: groupNodes, block, mode: getRenderMode(block) });
@@ -530,7 +541,11 @@ function isStructuredListMetadata(element: Element): boolean {
   return !element.closest(`p, blockquote, ${HEADING_SELECTOR}`);
 }
 
-function shouldSkipElement(element: Element, includeNavigation = false): boolean {
+function shouldSkipElement(
+  element: Element,
+  includeNavigation = false,
+  visibility?: RenderVisibilitySnapshot
+): boolean {
   if (isInsideCodeBlock(element)) return false;
   if (isCompactControlText(element)) {
     return Boolean(element.closest(COMPACT_CONTROL_SKIP_SELECTOR));
@@ -544,17 +559,21 @@ function shouldSkipElement(element: Element, includeNavigation = false): boolean
   if (isInsideReadableHeadingContent(element)) {
     return Boolean(element.closest(READABLE_HEADING_SKIP_SELECTOR));
   }
-  const skipSelector = isVisuallyRenderedAriaHiddenText(element)
+  const skipSelector = isVisuallyRenderedAriaHiddenText(element, visibility)
     ? VISIBLE_ARIA_HIDDEN_SKIP_SELECTOR
     : SKIP_SELECTOR;
   if (element.closest(skipSelector)) return true;
   return false;
 }
 
-function isVisuallyRenderedAriaHiddenText(element: Element): boolean {
+function isVisuallyRenderedAriaHiddenText(
+  element: Element,
+  visibility?: RenderVisibilitySnapshot
+): boolean {
   const hiddenContainer = element.closest("[aria-hidden='true']");
   if (!hiddenContainer || hiddenContainer.matches("svg,canvas")) return false;
-  if (!isElementVisible(element) || !isElementVisible(hiddenContainer)) return false;
+  const isRendered = visibility?.isElementVisuallyRendered ?? isElementVisuallyRendered;
+  if (!isRendered(element) || !isRendered(hiddenContainer)) return false;
 
   const sourceText = normalizeText(hiddenContainer.textContent ?? "");
   const semanticBlock = hiddenContainer.closest(`p,blockquote,li,${HEADING_SELECTOR}`)
@@ -592,7 +611,10 @@ function isInlineCodeInReadableText(element: Element): boolean {
   return Boolean(code.closest("p, li, blockquote"));
 }
 
-function getReadableBlockText(block: Element): { text: string; tokens: ProtectedToken[] } {
+function getReadableBlockText(
+  block: Element,
+  visibility: RenderVisibilitySnapshot
+): { text: string; tokens: ProtectedToken[] } {
   const clone = block.cloneNode(true) as Element;
   const protectedCandidates = Array.from(clone.querySelectorAll("code,kbd,samp")).map((node) => {
     const element = node as Element;
@@ -602,6 +624,7 @@ function getReadableBlockText(block: Element): { text: string; tokens: Protected
       sourceElement: sourcePath ? getElementByPath(block, sourcePath) : null
     };
   });
+  removeUnrenderedCloneText(block, clone, visibility);
   clone
     .querySelectorAll(
       [
@@ -636,6 +659,25 @@ function getReadableBlockText(block: Element): { text: string; tokens: Protected
     text: normalizeText(clone.textContent ?? ""),
     tokens
   };
+}
+
+function removeUnrenderedCloneText(
+  source: Element,
+  clone: Element,
+  visibility: RenderVisibilitySnapshot
+): void {
+  const sourceWalker = source.ownerDocument.createTreeWalker(source, NodeFilter.SHOW_TEXT);
+  const cloneWalker = clone.ownerDocument.createTreeWalker(clone, NodeFilter.SHOW_TEXT);
+  const pairs: Array<{ source: Text; clone: Text }> = [];
+  while (sourceWalker.nextNode() && cloneWalker.nextNode()) {
+    pairs.push({
+      source: sourceWalker.currentNode as Text,
+      clone: cloneWalker.currentNode as Text
+    });
+  }
+  for (const pair of pairs) {
+    if (!visibility.isTextNodeVisuallyRendered(pair.source)) pair.clone.remove();
+  }
 }
 
 function renderProtectedText(container: Element, id: string, text: string): void {
@@ -924,15 +966,6 @@ function readCommentText(line: string): { text: string; prefix: string } | null 
   const text = normalizeText(match[1]);
   if (!text || !/\p{L}/u.test(text)) return null;
   return { text, prefix };
-}
-
-function isElementVisible(element: Element): boolean {
-  const style = window.getComputedStyle(element);
-  if (style.display === "none" || style.visibility === "hidden" || style.opacity === "0") {
-    return false;
-  }
-  const rect = element.getBoundingClientRect();
-  return rect.width > 0 && rect.height > 0;
 }
 
 function normalizeText(value: string): string {

@@ -98,7 +98,7 @@ export function startPageTranslation(settings: ExtensionSettings): Promise<PageT
     childList: true,
     subtree: true,
     attributes: true,
-    attributeFilter: ["class", "hidden", "aria-hidden"]
+    attributeFilter: ["class", "style", "hidden", "aria-hidden"]
   });
   window.addEventListener("scroll", handleViewportChange, { passive: true });
   window.addEventListener("resize", handleViewportChange, { passive: true });
