@@ -1,0 +1,94 @@
+name: Sync website on release
+
+# When a release is published on mr-wuliu/wupage, this workflow checks out
+# mr-wuliu/wupage-web, updates index.html with the new version + asset info,
+# and pushes. The push triggers wupage-web's existing deploy.yml, which
+# deploys to Cloudflare Workers (wupage.mrwuliu.top).
+#
+# Requires repository secret WUPAGE_WEB_PAT in mr-wuliu/wupage:
+#   Fine-grained PAT, resource owner = mr-wuliu,
+#   repository access = mr-wuliu/wupage-web only,
+#   Contents permission = Read and write.
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+jobs:
+  sync-website:
+    name: Push version to wupage-web
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout wupage (for sync script)
+        uses: actions/checkout@v6
+
+      - name: Checkout wupage-web (target)
+        uses: actions/checkout@v6
+        with:
+          repository: mr-wuliu/wupage-web
+          token: ${{ secrets.WUPAGE_WEB_PAT }}
+          path: wupage-web
+
+      - name: Extract release info
+        id: release
+        env:
+          RELEASE_PAYLOAD: ${{ toJSON(github.event.release) }}
+        run: |
+          python3 - <<'PY'
+          import json, os
+          rel = json.loads(os.environ['RELEASE_PAYLOAD'])
+          assets = rel.get('assets') or []
+          zip_asset = next(
+              (a for a in assets
+               if a.get('name', '').lower().endswith('.zip')
+               and not a.get('name', '').lower().endswith('.sha256')),
+              None,
+          )
+          if not zip_asset:
+              raise SystemExit('No .zip asset found in release (skipping .sha256)')
+
+          size = int(zip_asset.get('size') or 0)
+          if size < 1024:
+              size_str = f"{size} B"
+          elif size < 1024 * 1024:
+              size_str = f"{round(size / 1024)} KB"
+          else:
+              size_str = f"{size / 1024 / 1024:.1f} MB"
+
+          with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as f:
+              f.write(f"tag={rel['tag_name']}\n")
+              f.write(f"zip_name={zip_asset['name']}\n")
+              f.write(f"zip_url={zip_asset['browser_download_url']}\n")
+              f.write(f"zip_size={size_str}\n")
+
+          print(f"tag={rel['tag_name']} zip={zip_asset['name']} size={size_str}")
+          PY
+
+      - name: Run sync script
+        env:
+          NEW_TAG: ${{ steps.release.outputs.tag }}
+          NEW_ZIP_NAME: ${{ steps.release.outputs.zip_name }}
+          NEW_ZIP_URL: ${{ steps.release.outputs.zip_url }}
+          NEW_ZIP_SIZE: ${{ steps.release.outputs.zip_size }}
+          TARGET_DIR: wupage-web
+        run: python3 scripts/sync-web.py
+
+      - name: Commit and push
+        working-directory: wupage-web
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          if git diff --cached --quiet; then
+            echo "No changes — index.html already in sync."
+            exit 0
+          fi
+          git commit -m "Auto-sync with wupage ${{ steps.release.outputs.tag }}
+
+          Triggered by release ${{ steps.release.outputs.tag }} on mr-wuliu/wupage.
+          Updated 6 references: version badge, sidebar nav, showcase desc,
+          ZIP name + size, download button, release notes link."
+          git push
