@@ -2,6 +2,7 @@ import type { ExtensionSettings, RuntimeRequest, TranslateBatchResponse } from "
 import {
   clearTranslationPlaceholders,
   clearTranslations,
+  collectAdditionalTextSegments,
   collectTextSegments,
   renderTranslationPlaceholders,
   renderTranslations
@@ -15,6 +16,14 @@ const MAX_PAGE_CONCURRENCY = 2;
 const MAX_PROGRESSIVE_CHUNK_SIZE = 4000;
 const MAX_LLM_BATCH_ITEMS = 16;
 const VIEWPORT_DEBOUNCE_MS = 100;
+const DYNAMIC_CONTENT_DEBOUNCE_MS = 160;
+const EXTENSION_OWNED_SELECTOR = [
+  ".wupage-translation",
+  "#wupage-floating-hitbox",
+  "#wupage-floating-menu",
+  "#wupage-debug-panel",
+  "#wupage-paragraph-highlight"
+].join(",");
 
 type SegmentStatus = "idle" | "queued" | "running" | "done" | "failed";
 
@@ -38,6 +47,9 @@ interface TranslationSession {
   initialPending: Set<string>;
   initialResolved: boolean;
   resolveInitial: (result: PageTranslationResult) => void;
+  observer: MutationObserver;
+  dynamicRoots: Set<Element>;
+  dynamicTimer?: number;
 }
 
 export interface PageTranslationResult {
@@ -62,6 +74,7 @@ export function startPageTranslation(settings: ExtensionSettings): Promise<PageT
     resolveInitial = resolve;
   });
   const performance = getPageProviderPerformance(settings);
+  const observer = new MutationObserver((mutations) => handleDynamicContent(session, mutations));
   const session: TranslationSession = {
     id: ++sessionCounter,
     settings,
@@ -75,10 +88,18 @@ export function startPageTranslation(settings: ExtensionSettings): Promise<PageT
     failed: 0,
     initialPending: new Set(),
     initialResolved: false,
-    resolveInitial
+    resolveInitial,
+    observer,
+    dynamicRoots: new Set()
   };
 
   activeSession = session;
+  observer.observe(document.body, {
+    childList: true,
+    subtree: true,
+    attributes: true,
+    attributeFilter: ["class", "hidden", "aria-hidden"]
+  });
   window.addEventListener("scroll", handleViewportChange, { passive: true });
   window.addEventListener("resize", handleViewportChange, { passive: true });
   scheduleNearbySegments(session, true);
@@ -141,7 +162,7 @@ async function runBatch(session: TranslationSession, segments: TextSegment[]): P
     const entry = session.entries.get(segment.id);
     if (entry) entry.status = "running";
   });
-  renderTranslationPlaceholders(segments);
+  preserveViewportPosition(() => renderTranslationPlaceholders(segments));
 
   try {
     const data = await sendRuntimeRequest<TranslateBatchResponse>({
@@ -153,12 +174,14 @@ async function runBatch(session: TranslationSession, segments: TextSegment[]): P
     } satisfies RuntimeRequest);
     if (!isActive(session)) return;
 
-    renderTranslations(
-      segments.map((segment, index) => ({
-        id: segment.id,
-        text: data.translations[index]
-      }))
-    );
+    preserveViewportPosition(() => {
+      renderTranslations(
+        segments.map((segment, index) => ({
+          id: segment.id,
+          text: data.translations[index]
+        }))
+      );
+    });
     session.cached += data.cached;
     session.translated += segments.length;
     segments.forEach((segment) => {
@@ -167,7 +190,7 @@ async function runBatch(session: TranslationSession, segments: TextSegment[]): P
     });
   } catch (error) {
     if (!isActive(session)) return;
-    clearTranslationPlaceholders(segments);
+    preserveViewportPosition(() => clearTranslationPlaceholders(segments));
     session.failed += segments.length;
     session.firstError ??= error instanceof Error ? error.message : String(error);
     segments.forEach((segment) => {
@@ -191,6 +214,64 @@ function handleViewportChange(): void {
     const session = activeSession;
     if (session) scheduleNearbySegments(session);
   }, VIEWPORT_DEBOUNCE_MS);
+}
+
+function handleDynamicContent(session: TranslationSession, mutations: MutationRecord[]): void {
+  if (!isActive(session)) return;
+  for (const mutation of mutations) {
+    if (mutation.type === "attributes") {
+      const root = mutation.target instanceof Element ? mutation.target : null;
+      if (root && !isExtensionOwned(root)) session.dynamicRoots.add(root);
+      continue;
+    }
+    for (const node of mutation.addedNodes) {
+      const root = node.nodeType === Node.ELEMENT_NODE
+        ? node as Element
+        : node.parentElement;
+      if (!root || isExtensionOwned(root)) continue;
+      session.dynamicRoots.add(root);
+    }
+  }
+  if (!session.dynamicRoots.size || session.dynamicTimer !== undefined) return;
+  session.dynamicTimer = window.setTimeout(() => {
+    session.dynamicTimer = undefined;
+    collectDynamicSegments(session);
+  }, DYNAMIC_CONTENT_DEBOUNCE_MS);
+}
+
+function collectDynamicSegments(session: TranslationSession): void {
+  if (!isActive(session)) return;
+  const connectedRoots = [...session.dynamicRoots].filter((root) => root.isConnected);
+  session.dynamicRoots.clear();
+  const roots = connectedRoots.filter(
+    (root) => !connectedRoots.some((candidate) => candidate !== root && candidate.contains(root))
+  );
+  const segments = roots.flatMap((root) =>
+    collectAdditionalTextSegments(root, session.settings.translateCodeComments)
+  );
+  for (const segment of segments) {
+    if (!session.entries.has(segment.id)) {
+      session.entries.set(segment.id, { segment, status: "idle" });
+    }
+  }
+  if (segments.length) scheduleNearbySegments(session);
+}
+
+function isExtensionOwned(element: Element): boolean {
+  return element.matches(EXTENSION_OWNED_SELECTOR) || Boolean(element.closest(EXTENSION_OWNED_SELECTOR));
+}
+
+function preserveViewportPosition(mutate: () => void): void {
+  const left = window.scrollX;
+  const top = window.scrollY;
+  mutate();
+  // Chromium applies scroll anchoring during layout, after the DOM mutation has
+  // returned. Force that layout now so any resulting drift is observable and
+  // can be corrected before the next frame is painted.
+  void document.documentElement.offsetHeight;
+  if (window.scrollX !== left || window.scrollY !== top) {
+    window.scrollTo(left, top);
+  }
 }
 
 function getViewportPriority(element: Element): number | null {
@@ -294,6 +375,12 @@ function cancelActiveSession(): void {
   window.removeEventListener("scroll", handleViewportChange);
   window.removeEventListener("resize", handleViewportChange);
   if (!session) return;
+  session.observer.disconnect();
+  session.dynamicRoots.clear();
+  if (session.dynamicTimer !== undefined) {
+    window.clearTimeout(session.dynamicTimer);
+    session.dynamicTimer = undefined;
+  }
   session.cancelled = true;
   if (!session.initialResolved) {
     session.initialResolved = true;

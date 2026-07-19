@@ -242,6 +242,91 @@ describe("viewport page translation", () => {
     });
   });
 
+  it("translates interactive content added after the initial page scan", async () => {
+    document.body.innerHTML = `<main><p data-top="100">Initial paragraph</p></main>`;
+    vi.mocked(sendRuntimeRequest).mockImplementation(async (request: RuntimeRequest) => {
+      if (request.type !== "TRANSLATE_BATCH") throw new Error("Unexpected request");
+      return {
+        translations: request.texts.map((text) => `译文：${text}`),
+        cached: 0
+      } as TranslateBatchResponse;
+    });
+
+    await startPageTranslation(settings);
+    const button = document.createElement("button");
+    button.dataset.top = "200";
+    button.innerHTML = `<svg aria-hidden="true"></svg><span>Microsoft 365 のヒント</span>`;
+    document.querySelector("main")?.append(button);
+
+    await vi.waitFor(() => {
+      expect(vi.mocked(sendRuntimeRequest)).toHaveBeenCalledTimes(2);
+      expect(button.querySelector(".wupage-translation")?.textContent)
+        .toBe("译文：Microsoft 365 のヒント");
+    });
+  });
+
+  it("translates carousel content when it becomes visible through an attribute change", async () => {
+    document.body.innerHTML = `
+      <main>
+        <p data-top="100">Visible slide</p>
+        <section class="is-hidden" aria-hidden="true">
+          <p data-top="200">後から表示されるスライド</p>
+        </section>
+      </main>
+    `;
+    vi.mocked(window.getComputedStyle).mockImplementation((element: Element) => ({
+      display: element.closest(".is-hidden") ? "none" : "block",
+      visibility: "visible",
+      opacity: "1"
+    } as CSSStyleDeclaration));
+    vi.mocked(sendRuntimeRequest).mockImplementation(async (request: RuntimeRequest) => {
+      if (request.type !== "TRANSLATE_BATCH") throw new Error("Unexpected request");
+      return {
+        translations: request.texts.map((text) => `译文：${text}`),
+        cached: 0
+      } as TranslateBatchResponse;
+    });
+
+    await startPageTranslation(settings);
+    const slide = document.querySelector<HTMLElement>(".is-hidden")!;
+    expect(slide.querySelector(".wupage-translation")).toBeNull();
+    slide.classList.remove("is-hidden");
+    slide.removeAttribute("aria-hidden");
+
+    await vi.waitFor(() => {
+      expect(vi.mocked(sendRuntimeRequest)).toHaveBeenCalledTimes(2);
+      expect(slide.querySelector(".wupage-translation")?.textContent)
+        .toBe("译文：後から表示されるスライド");
+    });
+  });
+
+  it("restores the viewport after translation nodes change page layout", async () => {
+    document.body.innerHTML = `<main><p data-top="100">Stable viewport paragraph</p></main>`;
+    let currentScrollY = 3400;
+    vi.spyOn(window, "scrollX", "get").mockReturnValue(0);
+    vi.spyOn(window, "scrollY", "get").mockImplementation(() => currentScrollY);
+    const scrollTo = vi.spyOn(window, "scrollTo").mockImplementation((_left, top) => {
+      currentScrollY = Number(top);
+    });
+    const nativeAfter = CharacterData.prototype.after;
+    vi.spyOn(CharacterData.prototype, "after").mockImplementation(function (
+      this: CharacterData,
+      ...nodes: Array<Node | string>
+    ) {
+      nativeAfter.apply(this, nodes);
+      currentScrollY += 33;
+    });
+    vi.mocked(sendRuntimeRequest).mockImplementation(async (request: RuntimeRequest) => {
+      if (request.type !== "TRANSLATE_BATCH") throw new Error("Unexpected request");
+      return { translations: ["稳定的视口译文"], cached: 0 } as TranslateBatchResponse;
+    });
+
+    await startPageTranslation(settings);
+
+    expect(currentScrollY).toBe(3400);
+    expect(scrollTo).toHaveBeenCalledWith(0, 3400);
+  });
+
   it("does not render a late response after translations are cleared", async () => {
     document.body.innerHTML = `<main><p data-top="100">Pending paragraph</p></main>`;
     let resolveRequest!: (response: TranslateBatchResponse) => void;

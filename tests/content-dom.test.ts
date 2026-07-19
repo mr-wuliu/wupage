@@ -205,6 +205,57 @@ describe("content DOM translation extraction", () => {
     expect(document.body.textContent).not.toContain("WUPAGE0");
   });
 
+  it("repairs duplicated inline-code placeholder indexes by occurrence order", () => {
+    document.body.innerHTML = `
+      <main>
+        <p id="doc">
+          Both <code>tokio::spawn</code> and <code>select!</code> enable running
+          concurrent asynchronous operations.
+        </p>
+      </main>
+    `;
+    stubLayout();
+
+    const segments = collectTextSegments();
+
+    expect(segments.map((segment) => segment.text)).toEqual([
+      "Both ⟪WUPAGE0⟫ and ⟪WUPAGE1⟫ enable running concurrent asynchronous operations."
+    ]);
+    renderTranslations([{
+      id: segments[0].id,
+      text: "⟪WUPAGE0⟫ 和 ⟪WUPAGE0⟫ 都能启用并发异步操作。"
+    }]);
+
+    const restoredCode = document.querySelectorAll(".wupage-translation code");
+    expect([...restoredCode].map((node) => node.textContent)).toEqual([
+      "tokio::spawn",
+      "select!"
+    ]);
+    expect(document.querySelector(".wupage-translation")?.textContent)
+      .toBe("tokio::spawn 和 select! 都能启用并发异步操作。");
+  });
+
+  it("restores distinct inline-code nodes without shifting their source paths", () => {
+    document.body.innerHTML = `
+      <main>
+        <p id="doc">
+          Both <code>tokio::spawn</code> and <code>select!</code> enable running
+          concurrent asynchronous operations.
+        </p>
+      </main>
+    `;
+    stubLayout();
+
+    const segments = collectTextSegments();
+    renderTranslations([{
+      id: segments[0].id,
+      text: "⟪WUPAGE0⟫ 和 ⟪WUPAGE1⟫ 都能启用并发异步操作。"
+    }]);
+
+    expect([...document.querySelectorAll(".wupage-translation code")]
+      .map((node) => node.textContent)).toEqual(["tokio::spawn", "select!"]);
+  });
+
   it("groups readable headings with inline code into one segment", () => {
     document.body.innerHTML = `
       <main id="main-content">
@@ -517,6 +568,101 @@ describe("content DOM translation extraction", () => {
     expect(document.querySelector("aside a")?.textContent).toBe("Tutorial译：Tutorial");
     expect(document.querySelector("aside .wupage-translation")?.getAttribute("data-wupage-mode"))
       .toBe("inline");
+  });
+
+  it("translates icon navigation labels and compact controls inside their text hosts", () => {
+    document.body.innerHTML = `
+      <main>
+        <nav aria-label="Secondary Nav">
+          <a id="surface-link" href="/surface/deals">
+            <svg aria-hidden="true"></svg>
+            <span class="label">お得な Surface 特別モデル</span>
+          </a>
+        </nav>
+        <header>
+          <a id="accessory-link" href="/accessories">
+            <svg aria-hidden="true"></svg>
+            <span class="label">その他のアクセサリを見る</span>
+          </a>
+        </header>
+        <section>
+          <button id="hint-button" type="button">
+            <svg aria-hidden="true"></svg>
+            <span class="label">最適な PC を選ぶヒント</span>
+          </button>
+        </section>
+      </main>
+    `;
+    stubLayout();
+
+    const segments = collectTextSegments();
+
+    expect(segments.map((segment) => segment.text)).toEqual([
+      "お得な Surface 特別モデル",
+      "その他のアクセサリを見る",
+      "最適な PC を選ぶヒント"
+    ]);
+    renderTranslations([
+      { id: segments[0].id, text: "超值 Surface 特别版机型" },
+      { id: segments[1].id, text: "查看其他配件" },
+      { id: segments[2].id, text: "选择最佳 PC 的技巧" }
+    ]);
+
+    expect(document.querySelector("#surface-link > .wupage-translation")).toBeNull();
+    expect(document.querySelector("#surface-link .label .wupage-translation")?.textContent)
+      .toBe("超值 Surface 特别版机型");
+    expect(document.querySelector("#accessory-link .label .wupage-translation")?.textContent)
+      .toBe("查看其他配件");
+    expect(document.querySelector("#hint-button > .wupage-translation")).toBeNull();
+    expect(document.querySelector("#hint-button .label .wupage-translation")?.textContent)
+      .toBe("选择最佳 PC 的技巧");
+    expect([...document.querySelectorAll<HTMLElement>(".wupage-translation")]
+      .map((node) => node.dataset.wupageMode)).toEqual(["inline", "inline", "inline"]);
+  });
+
+  it("translates custom-element navigation items exposed through listitem roles", () => {
+    document.body.innerHTML = `
+      <main>
+        <store-ui-shell role="navigation" aria-label="产品类别">
+          <store-secondary-nav>
+            <store-secondary-nav-item role="listitem" enlabeltext="お得な Surface 特別モデル">
+              お得な Surface 特別モデル
+              <span slot="secondary-nav-item__description"></span>
+              <store-icon slot="secondary-nav-item__asset" aria-hidden="true">
+                <img alt="" src="icon.png">
+              </store-icon>
+            </store-secondary-nav-item>
+            <store-secondary-nav-item role="listitem" enlabeltext="Surface を購入">
+              Surface を購入
+              <span slot="secondary-nav-item__description"></span>
+              <store-icon slot="secondary-nav-item__asset" aria-hidden="true">
+                <img alt="" src="icon.png">
+              </store-icon>
+            </store-secondary-nav-item>
+          </store-secondary-nav>
+        </store-ui-shell>
+      </main>
+    `;
+    stubLayout();
+
+    const segments = collectTextSegments();
+
+    expect(segments.map((segment) => segment.text)).toEqual([
+      "お得な Surface 特別モデル",
+      "Surface を購入"
+    ]);
+    renderTranslations([
+      { id: segments[0].id, text: "超值 Surface 特别版机型" },
+      { id: segments[1].id, text: "购买 Surface" }
+    ]);
+
+    const items = document.querySelectorAll("store-secondary-nav-item");
+    expect(items[0].querySelector(".wupage-translation")?.textContent)
+      .toBe("超值 Surface 特别版机型");
+    expect(items[1].querySelector(".wupage-translation")?.textContent)
+      .toBe("购买 Surface");
+    expect([...document.querySelectorAll<HTMLElement>(".wupage-translation")]
+      .map((node) => node.dataset.wupageMode)).toEqual(["inline", "inline"]);
   });
 
   it("does not mistake a page-level breadcrumb state class for breadcrumb navigation", () => {

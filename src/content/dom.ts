@@ -46,6 +46,10 @@ const SKIP_TAGS = new Set([
   "CANVAS"
 ]);
 const SKIP_SELECTORS = [
+  "#wupage-floating-hitbox",
+  "#wupage-floating-menu",
+  "#wupage-debug-panel",
+  "#wupage-paragraph-highlight",
   "header",
   "nav",
   "footer",
@@ -102,6 +106,22 @@ const COMPACT_NAV_SKIP_SELECTOR = SKIP_SELECTORS.filter(
     "[role='contentinfo']"
   ].includes(selector)
 ).join(",");
+const COMPACT_CONTROL_SKIP_SELECTOR = SKIP_SELECTORS.filter(
+  (selector) => ![
+    "header",
+    "nav",
+    "footer",
+    "aside",
+    "button",
+    "a[role='button']",
+    "[role='button']",
+    "[role='tab']",
+    "[role='menuitem']",
+    "[role='navigation']",
+    "[role='banner']",
+    "[role='contentinfo']"
+  ].includes(selector)
+).join(",");
 const KNOWN_COMPACT_NAV_SELECTOR = "nav.sidebar, #rustdoc-toc, .sidebar-elems";
 const NAVIGATION_CONTAINER_SELECTOR = [
   "nav",
@@ -119,6 +139,7 @@ let trackedGroups: TrackedGroup[] = [];
 let protectedTokensById = new Map<string, ProtectedToken[]>();
 let sourceTextById = new Map<string, string>();
 let targetIdCounter = 0;
+let segmentIdCounter = 0;
 
 const PARAGRAPH_SELECTOR = [
   "p",
@@ -147,6 +168,13 @@ export function collectParagraphTextSegments(
 ): TextSegment[] {
   trackedNodes = trackedNodes.filter((tracked) => !element.contains(tracked.node));
   trackedGroups = trackedGroups.filter((group) => !group.nodes.some((tracked) => element.contains(tracked.node)));
+  return collectTextSegmentsFromRoot(element, false, translateCodeComments);
+}
+
+export function collectAdditionalTextSegments(
+  element: Element,
+  translateCodeComments = true
+): TextSegment[] {
   return collectTextSegmentsFromRoot(element, false, translateCodeComments);
 }
 
@@ -217,9 +245,11 @@ function collectTextSegmentsFromRoot(
   translateCodeComments: boolean
 ): TextSegment[] {
   if (resetTracking) clearNodeTracking();
+  const alreadyTracked = new Set(trackedNodes.map((tracked) => tracked.node));
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
     acceptNode(node) {
       if (!node.textContent?.trim()) return NodeFilter.FILTER_REJECT;
+      if (alreadyTracked.has(node as Text)) return NodeFilter.FILTER_REJECT;
       const parent = node.parentElement;
       if (!parent || shouldSkipElement(parent, true)) return NodeFilter.FILTER_REJECT;
       if (isStructuredListMetadata(parent)) return NodeFilter.FILTER_REJECT;
@@ -230,7 +260,6 @@ function collectTextSegmentsFromRoot(
 
   const segments: TextSegment[] = [];
   const textNodes: TrackedNode[] = [];
-  let index = 0;
   while (walker.nextNode()) {
     const node = walker.currentNode as Text;
     const codeComment = translateCodeComments ? getCodeComment(node) : null;
@@ -240,7 +269,7 @@ function collectTextSegmentsFromRoot(
     if (!sourceText || sourceText.length < 2) continue;
     if (!codeComment && isNonTranslatableFragment(sourceText)) continue;
     if (!codeComment && isLikelyUiToken(sourceText, node.parentElement)) continue;
-    const id = `seg-${Date.now()}-${index}`;
+    const id = `seg-${Date.now()}-${segmentIdCounter++}`;
     const tracked: TrackedNode = {
       id,
       node,
@@ -250,7 +279,6 @@ function collectTextSegmentsFromRoot(
     trackedNodes.push(tracked);
     textNodes.push(tracked);
     segments.push({ id, text: sourceText, element: node.parentElement! });
-    index += 1;
   }
 
   const groupedSegments = groupTextSegments(textNodes, segments);
@@ -459,6 +487,8 @@ function findGroupingBlock(element: Element | null): Element | null {
   if (!element) return null;
   const compactNavigationTarget = getCompactNavigationTarget(element);
   if (compactNavigationTarget) return compactNavigationTarget;
+  const compactControlTarget = getCompactControlTarget(element);
+  if (compactControlTarget) return compactControlTarget;
 
   const readableBlock = element.closest(`p, blockquote, ${HEADING_SELECTOR}`);
   if (readableBlock) return readableBlock;
@@ -486,6 +516,9 @@ function isStructuredListMetadata(element: Element): boolean {
 
 function shouldSkipElement(element: Element, includeNavigation = false): boolean {
   if (isInsideCodeBlock(element)) return false;
+  if (isCompactControlText(element)) {
+    return Boolean(element.closest(COMPACT_CONTROL_SKIP_SELECTOR));
+  }
   if (SKIP_TAGS.has(element.tagName)) return true;
   if (element.closest(`.${TRANSLATION_CLASS}`)) return true;
   if (isCompactNavigationText(element)) {
@@ -513,6 +546,14 @@ function isInlineCodeInReadableText(element: Element): boolean {
 
 function getReadableBlockText(block: Element): { text: string; tokens: ProtectedToken[] } {
   const clone = block.cloneNode(true) as Element;
+  const protectedCandidates = Array.from(clone.querySelectorAll("code,kbd,samp")).map((node) => {
+    const element = node as Element;
+    const sourcePath = getElementPath(clone, element);
+    return {
+      element,
+      sourceElement: sourcePath ? getElementByPath(block, sourcePath) : null
+    };
+  });
   clone
     .querySelectorAll(
       [
@@ -533,11 +574,9 @@ function getReadableBlockText(block: Element): { text: string; tokens: Protected
     .forEach((node) => node.remove());
 
   const tokens: ProtectedToken[] = [];
-  clone.querySelectorAll("code,kbd,samp").forEach((node) => {
-    const element = node as Element;
+  protectedCandidates.forEach(({ element, sourceElement }) => {
+    if (!clone.contains(element)) return;
     if (!isProtectedInlineElement(element)) return;
-    const sourcePath = getElementPath(clone, element);
-    const sourceElement = sourcePath ? getElementByPath(block, sourcePath) : null;
     if (!sourceElement) return;
     const protectedElement = getProtectedRenderElement(sourceElement);
     const marker = `⟪WUPAGE${tokens.length}⟫`;
@@ -577,10 +616,23 @@ function normalizeProtectedMarkers(text: string, tokens: ProtectedToken[]): stri
   const markerByIndex = new Map(
     tokens.map((token) => [Number(token.marker.match(/\d+/)?.[0]), token.marker])
   );
-  return text.replace(
-    /[⟪《〈<【\[\{«「『]\s*WUPAGE\s*(\d+)\s*[⟫》〉>】\]\}»」』]/gi,
-    (match, index: string) => markerByIndex.get(Number(index)) ?? match
-  );
+  const pattern = /[⟪《〈<【\[\{«「『]\s*WUPAGE\s*(\d+)\s*[⟫》〉>】\]\}»」』]/gi;
+  const occurrences = [...text.matchAll(pattern)];
+  const indexes = occurrences.map((match) => Number(match[1]));
+  const isCompletePermutation =
+    occurrences.length === tokens.length &&
+    new Set(indexes).size === tokens.length &&
+    indexes.every((index) => markerByIndex.has(index));
+  const repairByPosition = occurrences.length === tokens.length && !isCompletePermutation;
+  let occurrenceIndex = 0;
+
+  pattern.lastIndex = 0;
+  return text.replace(pattern, (match, index: string) => {
+    if (repairByPosition) {
+      return tokens[occurrenceIndex++]?.marker ?? match;
+    }
+    return markerByIndex.get(Number(index)) ?? match;
+  });
 }
 
 function isProtectedInlineElement(element: Element): boolean {
@@ -659,6 +711,7 @@ function findHeadingAnchor(block: Element): Element | null {
 function getRenderMode(element: Element | null): RenderMode {
   if (!element) return "inline";
   if (isCompactNavigationText(element)) return "inline";
+  if (isCompactControlText(element)) return "inline";
   if (isReadableHeading(element)) return "block";
   if (isCompactUiElement(element)) return "inline";
   return "block";
@@ -682,6 +735,7 @@ function isCompactUiElement(element: Element): boolean {
 function isLikelyUiToken(text: string, element: Element | null): boolean {
   if (!element) return false;
   if (isCompactNavigationText(element)) return false;
+  if (isCompactControlText(element)) return false;
   if (text.length > 28) return false;
   if (element.closest("p")) return false;
   if (isReadableHeading(element)) return false;
@@ -695,7 +749,7 @@ function isLikelyUiToken(text: string, element: Element | null): boolean {
 
 function isNonTranslatableFragment(text: string): boolean {
   if (!text.trim()) return true;
-  if (/^[\W_]+$/.test(text)) return true;
+  if (!/[\p{L}\p{N}]/u.test(text)) return true;
   if (/^<?'?[a-zA-Z]>?$/.test(text)) return true;
   if (/^(::|->|=>|for|of)$/i.test(text)) return true;
   if (/^impl(?:<[^>]+>)?$/i.test(text)) return true;
@@ -718,14 +772,42 @@ function isCompactNavigationText(element: Element): boolean {
 function getCompactNavigationTarget(element: Element): Element | null {
   const container = element.closest(NAVIGATION_CONTAINER_SELECTOR);
   if (!container) return null;
-  const target = element.closest("a, h2, h3, h4, li, p");
+  const target = element.closest("a, h2, h3, h4, li, p, [role='listitem']");
   if (!target || !container.contains(target)) return null;
   if (target.matches("button,[role='button']")) return null;
   if (target.querySelector("button,input,select,textarea,[role='button']")) return null;
-  if (target.matches("a") && target.querySelector("img,svg,canvas")) return null;
   const text = normalizeText(target.textContent ?? "");
   if (text.length < 2 || text.length > 80) return null;
+  if (target.matches("a") && target.querySelector("img,svg,canvas")) {
+    return getNestedTextHost(element, target);
+  }
   return target;
+}
+
+function isCompactControlText(element: Element): boolean {
+  return Boolean(getCompactControlTarget(element));
+}
+
+function getCompactControlTarget(element: Element): Element | null {
+  const control = element.closest("button,a,[role='button'],[role='tab'],[role='menuitem']");
+  if (!control || control.closest(HEADING_SELECTOR)) return null;
+  if (control.matches("a:not([role='button'])") && !control.querySelector("img,svg,canvas")) return null;
+  if (control.querySelector("input,select,textarea,[contenteditable='true']")) return null;
+  const text = normalizeText(control.textContent ?? "");
+  if (text.length < 2 || text.length > 120) return null;
+  return getNestedTextHost(element, control);
+}
+
+function getNestedTextHost(element: Element, container: Element): Element {
+  if (element === container) return container;
+  let host = element;
+  while (host.parentElement && host.parentElement !== container) {
+    const parent = host.parentElement;
+    if (parent.querySelector("img,svg,canvas,button,input,select,textarea,[role='button']")) break;
+    if (normalizeText(parent.textContent ?? "") !== normalizeText(host.textContent ?? "")) break;
+    host = parent;
+  }
+  return host;
 }
 
 function isInsideReadableRoot(element: Element): boolean {
@@ -792,7 +874,7 @@ function readCommentText(line: string): { text: string; prefix: string } | null 
   if (!match) return null;
   const prefix = trimmed.startsWith("/*") ? "/*" : trimmed.match(/^(\/\/|#|--|;|\*)/)?.[1] ?? "//";
   const text = normalizeText(match[1]);
-  if (!text || /^[\W\d_]+$/.test(text)) return null;
+  if (!text || !/\p{L}/u.test(text)) return null;
   return { text, prefix };
 }
 

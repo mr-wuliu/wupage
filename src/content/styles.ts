@@ -24,6 +24,7 @@ export function injectContentStyles(): void {
     .wupage-translation[data-wupage-mode="block"][data-wupage-container="heading"] {
       display: inline;
       margin: 0 0 0 0.35em;
+      color: inherit;
       font-size: 1rem;
       font-weight: 400;
       line-height: 1.45;
@@ -32,7 +33,7 @@ export function injectContentStyles(): void {
     .wupage-translation[data-wupage-mode="inline"] {
       display: inline;
       margin-left: 0.35em;
-      color: #0f766e;
+      color: inherit;
       font-size: 0.92em;
       line-height: inherit;
     }
