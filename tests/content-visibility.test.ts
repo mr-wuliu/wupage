@@ -13,6 +13,9 @@ describe("render-aware text visibility", () => {
     delete (document as unknown as {
       elementFromPoint?: Document["elementFromPoint"];
     }).elementFromPoint;
+    delete (Element.prototype as unknown as {
+      checkVisibility?: () => boolean;
+    }).checkVisibility;
   });
 
   it("rejects text that has no rendered range even when its parent has a box", () => {
@@ -20,6 +23,24 @@ describe("render-aware text visibility", () => {
     stubRendering(() => []);
 
     expect(isTextNodeVisuallyRendered(text)).toBe(false);
+  });
+
+  it("keeps rendered text inside a display-contents ancestor", () => {
+    document.body.innerHTML = `<div id="contents"><p>Visible descendant text</p></div>`;
+    const text = document.querySelector("p")!.firstChild as Text;
+    Object.defineProperty(Element.prototype, "checkVisibility", {
+      configurable: true,
+      value(this: Element) {
+        return this.id !== "contents";
+      }
+    });
+    stubRendering(
+      () => [rect(20, 300, 50, 20)],
+      undefined,
+      (element) => ({ display: element.id === "contents" ? "contents" : "block" })
+    );
+
+    expect(isTextNodeVisuallyRendered(text)).toBe(true);
   });
 
   it("rejects text fully clipped by a hidden-overflow ancestor", () => {

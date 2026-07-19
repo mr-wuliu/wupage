@@ -83,23 +83,6 @@ function isElementTreeRendered(
   element: Element,
   cache?: WeakMap<Element, boolean>
 ): boolean {
-  const checkVisibility = (element as Element & {
-    checkVisibility?: (options?: {
-      checkOpacity?: boolean;
-      checkVisibilityCSS?: boolean;
-    }) => boolean;
-  }).checkVisibility;
-  if (typeof checkVisibility === "function") {
-    try {
-      if (!checkVisibility.call(element, { checkOpacity: true, checkVisibilityCSS: true })) {
-        return false;
-      }
-    } catch {
-      // Older Chromium builds may expose the method with a narrower signature.
-      if (!checkVisibility.call(element)) return false;
-    }
-  }
-
   const view = element.ownerDocument.defaultView;
   if (!view) return false;
   const style = view.getComputedStyle(element);
