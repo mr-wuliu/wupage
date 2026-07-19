@@ -50,6 +50,21 @@ describe("content DOM translation extraction", () => {
     expect(translations[1].textContent).toBe("// 解释下一行");
   });
 
+  it("matches block translation color to the translated source element", () => {
+    document.body.innerHTML = `
+      <main>
+        <p id="source">Readable text on a dark card.</p>
+      </main>
+    `;
+    stubLayout("rgb(224, 232, 240)");
+    const [segment] = collectTextSegments();
+
+    renderTranslations([{ id: segment.id, text: "深色卡片上的可读文本。" }]);
+
+    expect(document.querySelector<HTMLElement>(".wupage-translation")?.style.color)
+      .toBe("rgb(224, 232, 240)");
+  });
+
   it("skips code comments when comment translation is disabled", () => {
     document.body.innerHTML = `
       <main>
@@ -665,6 +680,55 @@ describe("content DOM translation extraction", () => {
       .map((node) => node.dataset.wupageMode)).toEqual(["inline", "inline"]);
   });
 
+  it("translates visible animated hero text inside an aria-hidden wrapper", () => {
+    document.body.innerHTML = `
+      <main>
+        <section>
+          <p class="animated-heading">
+            <span aria-hidden="true">
+              <div class="animation-line">
+                <div class="animation-word">パフォーマンスをお楽しみください</div>
+              </div>
+            </span>
+            <span class="sr-only">パフォーマンスをお楽しみください</span>
+          </p>
+        </section>
+      </main>
+    `;
+    stubLayout("rgb(255, 255, 255)");
+
+    const segments = collectTextSegments();
+
+    expect(segments.map((segment) => segment.text)).toEqual([
+      "パフォーマンスをお楽しみください"
+    ]);
+    renderTranslations([{
+      id: segments[0].id,
+      text: "尽享卓越性能"
+    }]);
+
+    const translation = document.querySelector<HTMLElement>(".animation-word .wupage-translation");
+    expect(translation?.textContent).toBe("尽享卓越性能");
+    expect(translation?.style.color).toBe("rgb(255, 255, 255)");
+    expect(document.querySelector(".sr-only .wupage-translation")).toBeNull();
+  });
+
+  it("keeps decorative aria-hidden text excluded without an accessible duplicate", () => {
+    document.body.innerHTML = `
+      <main>
+        <p>
+          Readable content
+          <span aria-hidden="true"><span>Decorative badge text</span></span>
+        </p>
+      </main>
+    `;
+    stubLayout();
+
+    expect(collectTextSegments().map((segment) => segment.text)).toEqual([
+      "Readable content"
+    ]);
+  });
+
   it("does not mistake a page-level breadcrumb state class for breadcrumb navigation", () => {
     document.documentElement.className = "layout show-table-of-contents show-breadcrumb";
     document.body.innerHTML = `
@@ -846,22 +910,28 @@ describe("content DOM translation extraction", () => {
   });
 });
 
-function stubLayout(): void {
+function stubLayout(color = ""): void {
   vi.spyOn(window, "getComputedStyle").mockReturnValue({
     display: "block",
     visibility: "visible",
-    opacity: "1"
+    opacity: "1",
+    color
   } as CSSStyleDeclaration);
 
-  vi.spyOn(Element.prototype, "getBoundingClientRect").mockReturnValue({
-    width: 600,
-    height: 20,
-    top: 0,
-    right: 600,
-    bottom: 20,
-    left: 0,
-    x: 0,
-    y: 0,
-    toJSON: () => ({})
-  } as DOMRect);
+  vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(function (this: Element) {
+    const visuallyHidden = this.matches(".sr-only");
+    const width = visuallyHidden ? 1 : 600;
+    const height = visuallyHidden ? 1 : 20;
+    return {
+      width,
+      height,
+      top: 0,
+      right: width,
+      bottom: height,
+      left: 0,
+      x: 0,
+      y: 0,
+      toJSON: () => ({})
+    } as DOMRect;
+  });
 }

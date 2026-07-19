@@ -94,6 +94,9 @@ const SKIP_SELECTORS = [
   ".State"
 ];
 const SKIP_SELECTOR = SKIP_SELECTORS.join(",");
+const VISIBLE_ARIA_HIDDEN_SKIP_SELECTOR = SKIP_SELECTORS.filter(
+  (selector) => selector !== "[aria-hidden='true']"
+).join(",");
 const READABLE_HEADING_SKIP_SELECTOR = SKIP_SELECTORS.filter((selector) => selector !== "summary").join(",");
 const COMPACT_NAV_SKIP_SELECTOR = SKIP_SELECTORS.filter(
   (selector) => ![
@@ -300,6 +303,7 @@ export function renderTranslations(translations: Array<{ id: string; text: strin
     const element = document.createElement("span");
     element.className = TRANSLATION_CLASS;
     element.dataset.wupageMode = group.mode;
+    matchSourceTextColor(element, block);
     renderProtectedText(element, group.id, translation);
     element.setAttribute("lang", "translated");
     element.setAttribute("aria-hidden", "true");
@@ -319,6 +323,7 @@ export function renderTranslations(translations: Array<{ id: string; text: strin
     const element = document.createElement("span");
     element.className = TRANSLATION_CLASS;
     element.dataset.wupageMode = tracked.mode;
+    matchSourceTextColor(element, parent);
     element.textContent = tracked.mode === "code-comment" ? `${tracked.commentPrefix ?? "//"} ${translation}` : translation;
     element.setAttribute("lang", "translated");
     element.setAttribute("aria-hidden", "true");
@@ -339,6 +344,7 @@ export function renderTargetTranslation(element: Element, text: string, sourceTe
   const translation = document.createElement("span");
   translation.className = TRANSLATION_CLASS;
   translation.dataset.wupageMode = getRenderMode(element);
+  matchSourceTextColor(translation, element);
   translation.textContent = text;
   translation.setAttribute("lang", "translated");
   translation.setAttribute("aria-hidden", "true");
@@ -356,6 +362,7 @@ export function renderTranslationPlaceholders(segments: TextSegment[]): void {
     if (block.closest(`.${TRANSLATION_CLASS}`)) continue;
     const targetId = ensureTranslationTarget(block);
     const pending = createPendingElement(group.id, group.mode);
+    matchSourceTextColor(pending, block);
     pending.setAttribute(TRANSLATION_TARGET_ATTR, targetId);
     removePendingForId(group.id);
     insertGroupedTranslation(block, pending, group.mode);
@@ -382,6 +389,7 @@ export function renderTargetPlaceholder(element: Element): void {
   const targetId = ensureTranslationTarget(element);
   findTargetTranslations(targetId).forEach((node) => node.remove());
   const pending = createPendingElement(targetId, getRenderMode(element));
+  matchSourceTextColor(pending, element);
   pending.setAttribute(TRANSLATION_TARGET_ATTR, targetId);
   element.setAttribute(TRANSLATED_ATTR, "true");
   element.append(pending);
@@ -418,7 +426,15 @@ function findTargetTranslations(targetId: string): Element[] {
 
 function insertPending(anchor: Text, id: string, mode: RenderMode): void {
   removePendingForId(id);
-  anchor.after(createPendingElement(id, mode));
+  const pending = createPendingElement(id, mode);
+  if (anchor.parentElement) matchSourceTextColor(pending, anchor.parentElement);
+  anchor.after(pending);
+}
+
+function matchSourceTextColor(translation: HTMLElement, source: Element): void {
+  const color = window.getComputedStyle(source).color;
+  if (!color || color === "transparent" || color === "rgba(0, 0, 0, 0)") return;
+  translation.style.color = color;
 }
 
 function createPendingElement(id: string, mode: RenderMode): HTMLElement {
@@ -528,8 +544,40 @@ function shouldSkipElement(element: Element, includeNavigation = false): boolean
   if (isInsideReadableHeadingContent(element)) {
     return Boolean(element.closest(READABLE_HEADING_SKIP_SELECTOR));
   }
-  if (element.closest(SKIP_SELECTOR)) return true;
+  const skipSelector = isVisuallyRenderedAriaHiddenText(element)
+    ? VISIBLE_ARIA_HIDDEN_SKIP_SELECTOR
+    : SKIP_SELECTOR;
+  if (element.closest(skipSelector)) return true;
   return false;
+}
+
+function isVisuallyRenderedAriaHiddenText(element: Element): boolean {
+  const hiddenContainer = element.closest("[aria-hidden='true']");
+  if (!hiddenContainer || hiddenContainer.matches("svg,canvas")) return false;
+  if (!isElementVisible(element) || !isElementVisible(hiddenContainer)) return false;
+
+  const sourceText = normalizeText(hiddenContainer.textContent ?? "");
+  const semanticBlock = hiddenContainer.closest(`p,blockquote,li,${HEADING_SELECTOR}`)
+    ?? hiddenContainer.parentElement;
+  if (!sourceText || !semanticBlock) return false;
+
+  return Array.from(semanticBlock.querySelectorAll("*")).some((candidate) =>
+    candidate !== hiddenContainer &&
+    !hiddenContainer.contains(candidate) &&
+    !candidate.contains(hiddenContainer) &&
+    normalizeText(candidate.textContent ?? "") === sourceText &&
+    isVisuallyHiddenElement(candidate)
+  );
+}
+
+function isVisuallyHiddenElement(element: Element): boolean {
+  const style = window.getComputedStyle(element);
+  if (style.display === "none" || style.visibility === "hidden" || style.opacity === "0") {
+    return true;
+  }
+  if (style.clipPath && style.clipPath !== "none") return true;
+  const rect = element.getBoundingClientRect();
+  return rect.width <= 2 && rect.height <= 2;
 }
 
 function isInsideCodeBlock(element: Element | null): boolean {
@@ -878,7 +926,7 @@ function readCommentText(line: string): { text: string; prefix: string } | null 
   return { text, prefix };
 }
 
-function isElementVisible(element: HTMLElement): boolean {
+function isElementVisible(element: Element): boolean {
   const style = window.getComputedStyle(element);
   if (style.display === "none" || style.visibility === "hidden" || style.opacity === "0") {
     return false;

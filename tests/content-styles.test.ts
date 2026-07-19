@@ -8,11 +8,13 @@ describe("content translation styles", () => {
     document.querySelector("#wupage-translation-style")?.remove();
   });
 
-  it("inherits colors for headings and compact controls on dark backgrounds", () => {
+  it("inherits source colors in every translation text mode", () => {
     injectContentStyles();
     const css = document.querySelector("#wupage-translation-style")?.textContent ?? "";
 
+    expect(css).toMatch(/data-wupage-mode="block"[^}]*color:\s*inherit/s);
     expect(css).toMatch(/data-wupage-container="heading"[^}]*color:\s*inherit/s);
     expect(css).toMatch(/data-wupage-mode="inline"[^}]*color:\s*inherit/s);
+    expect(css).toMatch(/data-wupage-mode="code-comment"[^}]*color:\s*inherit/s);
   });
 });
