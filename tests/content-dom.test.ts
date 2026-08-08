@@ -505,6 +505,48 @@ describe("content DOM translation extraction", () => {
     ]);
   });
 
+  it("translates plain FAQ questions inside readable summary toggles", () => {
+    document.body.innerHTML = `
+      <main>
+        <details>
+          <summary><strong>🖼️ Do you support slicer projects with multiple build plates?</strong></summary>
+          No. Only single build plate setups are supported.
+        </details>
+      </main>
+    `;
+    stubLayout();
+
+    const segments = collectTextSegments();
+
+    expect(segments.map((segment) => segment.text)).toEqual([
+      "🖼️ Do you support slicer projects with multiple build plates?",
+      "No. Only single build plate setups are supported."
+    ]);
+
+    const summarySegment = segments.find((segment) => segment.element.matches("summary"));
+    renderTranslations([{ id: summarySegment!.id, text: "🖼️ 是否支持包含多个构建板的切片项目？" }]);
+
+    const summary = document.querySelector("summary");
+    const translation = summary?.querySelector(":scope > .wupage-translation");
+    expect(translation?.textContent).toBe("🖼️ 是否支持包含多个构建板的切片项目？");
+    expect(translation?.getAttribute("data-wupage-mode")).toBe("inline");
+  });
+
+  it("keeps summary controls outside readable content untranslated", () => {
+    document.body.innerHTML = `
+      <details>
+        <summary>Application menu</summary>
+        <nav>Menu contents</nav>
+      </details>
+      <main><p>Readable content</p></main>
+    `;
+    stubLayout();
+
+    const segments = collectTextSegments();
+
+    expect(segments.map((segment) => segment.text)).toEqual(["Readable content"]);
+  });
+
   it("does not select headings inside navigation chrome", () => {
     document.body.innerHTML = `
       <nav>

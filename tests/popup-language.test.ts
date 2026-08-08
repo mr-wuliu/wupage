@@ -10,6 +10,7 @@ describe("popup language controls", () => {
   afterEach(() => {
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
+    vi.resetModules();
     document.documentElement.replaceChildren();
   });
 
@@ -46,7 +47,8 @@ describe("popup language controls", () => {
     });
 
     await import("../src/popup/index");
-    await vi.waitFor(() => expect(sendTabMessage).toHaveBeenCalledTimes(2));
+    await vi.waitFor(() => expect(query<HTMLButtonElement>("#pageToggle").textContent).toBe("翻译 PDF"));
+    expect(sendTabMessage).not.toHaveBeenCalled();
 
     const source = query<HTMLSelectElement>("#sourceLang");
     const target = query<HTMLSelectElement>("#targetLang");
@@ -75,6 +77,40 @@ describe("popup language controls", () => {
         url: "chrome-extension://test-extension/pdf.html?url=https%3A%2F%2Fexample.com%2Fpaper.pdf&translate=1"
       });
     });
+  });
+
+  it("does not message Edge settings and extension-internal pages", async () => {
+    document.open();
+    document.write(readFileSync(resolve(process.cwd(), "popup.html"), "utf8"));
+    document.close();
+    const sendMessage = vi.fn(async (request: RuntimeRequest): Promise<RuntimeResponse> => {
+      if (request.type === "GET_SETTINGS") return { ok: true, data: structuredClone(DEFAULT_SETTINGS) };
+      return { ok: true };
+    });
+    const sendTabMessage = vi.fn(async (): Promise<RuntimeResponse> => ({ ok: true }));
+    vi.stubGlobal("chrome", {
+      runtime: {
+        sendMessage,
+        openOptionsPage: vi.fn(),
+        getURL: (path: string) => `chrome-extension://test-extension/${path}`
+      },
+      tabs: {
+        query: vi.fn(async () => [{ id: 2, url: "edge://extensions/" }]),
+        sendMessage: sendTabMessage,
+        create: vi.fn()
+      }
+    });
+
+    await import("../src/popup/index");
+    await vi.waitFor(() => {
+      expect(query<HTMLElement>("#status").textContent)
+        .toBe("此页面不支持翻译，请切换到普通网页。");
+    });
+
+    expect(query<HTMLButtonElement>("#pageToggle").disabled).toBe(true);
+    expect(query<HTMLButtonElement>("#paragraphMode").disabled).toBe(true);
+    expect(query<HTMLButtonElement>("#debug").disabled).toBe(true);
+    expect(sendTabMessage).not.toHaveBeenCalled();
   });
 });
 

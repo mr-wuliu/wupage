@@ -103,7 +103,7 @@ const SKIP_SELECTOR = SKIP_SELECTORS.join(",");
 const VISIBLE_ARIA_HIDDEN_SKIP_SELECTOR = SKIP_SELECTORS.filter(
   (selector) => selector !== "[aria-hidden='true']"
 ).join(",");
-const READABLE_HEADING_SKIP_SELECTOR = SKIP_SELECTORS.filter((selector) => selector !== "summary").join(",");
+const READABLE_SUMMARY_SKIP_SELECTOR = SKIP_SELECTORS.filter((selector) => selector !== "summary").join(",");
 const COMPACT_NAV_SKIP_SELECTOR = SKIP_SELECTORS.filter(
   (selector) => ![
     "nav",
@@ -496,7 +496,7 @@ function groupTextSegments(
     const nodeText = normalizeText(groupNodes.map((tracked) => tracked.node.textContent ?? "").join(" "));
     const id = groupNodes[0].id;
     const { text, tokens } = getReadableBlockText(block, visibility);
-    if (groupNodes.length < 2 && text === nodeText) continue;
+    if (groupNodes.length < 2 && text === nodeText && !block.matches("summary")) continue;
     if (!text) continue;
     trackedGroups.push({ id, nodes: groupNodes, block, mode: getRenderMode(block) });
     if (tokens.length) protectedTokensById.set(id, tokens);
@@ -517,7 +517,10 @@ function findGroupingBlock(element: Element | null): Element | null {
   const compactControlTarget = getCompactControlTarget(element);
   if (compactControlTarget) return compactControlTarget;
 
-  const readableBlock = element.closest(`p, blockquote, ${HEADING_SELECTOR}`);
+  const readableBlock = element.closest(`p, blockquote, ${HEADING_SELECTOR}, summary`);
+  if (readableBlock?.matches("summary") && !isInsideReadableSummary(readableBlock)) {
+    return null;
+  }
   if (readableBlock) return readableBlock;
 
   const listItem = element.closest("li");
@@ -557,7 +560,10 @@ function shouldSkipElement(
     return Boolean(element.closest(COMPACT_NAV_SKIP_SELECTOR));
   }
   if (isInsideReadableHeadingContent(element)) {
-    return Boolean(element.closest(READABLE_HEADING_SKIP_SELECTOR));
+    return Boolean(element.closest(READABLE_SUMMARY_SKIP_SELECTOR));
+  }
+  if (isInsideReadableSummary(element)) {
+    return Boolean(element.closest(READABLE_SUMMARY_SKIP_SELECTOR));
   }
   const skipSelector = isVisuallyRenderedAriaHiddenText(element, visibility)
     ? VISIBLE_ARIA_HIDDEN_SKIP_SELECTOR
@@ -800,6 +806,7 @@ function findHeadingAnchor(block: Element): Element | null {
 
 function getRenderMode(element: Element | null): RenderMode {
   if (!element) return "inline";
+  if (element.matches("summary")) return "inline";
   if (isCompactNavigationText(element)) return "inline";
   if (isCompactControlText(element)) return "inline";
   if (isReadableHeading(element)) return "block";
@@ -853,6 +860,11 @@ function isReadableHeading(element: Element): boolean {
 function isInsideReadableHeadingContent(element: Element): boolean {
   const heading = element.closest(HEADING_SELECTOR);
   return Boolean(heading && isReadableHeading(heading));
+}
+
+function isInsideReadableSummary(element: Element): boolean {
+  const summary = element.closest("summary");
+  return Boolean(summary && isInsideReadableRoot(summary));
 }
 
 function isCompactNavigationText(element: Element): boolean {

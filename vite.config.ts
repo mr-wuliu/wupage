@@ -6,6 +6,7 @@ export default defineConfig({
     outDir: "dist",
     emptyOutDir: true,
     sourcemap: true,
+    modulePreload: false,
     rollupOptions: {
       input: {
         background: resolve(__dirname, "src/background/index.ts"),

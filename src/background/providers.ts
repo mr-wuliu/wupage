@@ -63,7 +63,10 @@ class GoogleWebTranslateProvider implements TranslatorProvider {
           WEB_TRANSLATION_TIMEOUT_MS
         );
         if (!response.ok) throw new Error(`Google Web Translate request failed: ${response.status}`);
-        const payload = (await response.json()) as GoogleWebTranslateResponse;
+        const payload = await readJsonResponse<GoogleWebTranslateResponse>(
+          response,
+          "Google Web Translate"
+        );
         return parseGoogleWebResponse(payload);
       }
     );
@@ -114,7 +117,10 @@ class MicrosoftTranslatorProvider implements TranslatorProvider {
     }, API_TRANSLATION_TIMEOUT_MS);
 
     if (!response.ok) throw new Error(`Microsoft Translator request failed: ${response.status}`);
-    const payload = (await response.json()) as MicrosoftTranslateResponse;
+    const payload = await readJsonResponse<MicrosoftTranslateResponse>(
+      response,
+      "Microsoft Translator"
+    );
     if (!Array.isArray(payload) || payload.length !== request.texts.length) {
       throw new Error("Microsoft Translator response count does not match source text count.");
     }
@@ -171,7 +177,10 @@ class GoogleCloudTranslationProvider implements TranslatorProvider {
     }, API_TRANSLATION_TIMEOUT_MS);
 
     if (!response.ok) throw new Error(`Google Cloud Translation request failed: ${response.status}`);
-    const payload = (await response.json()) as GoogleTranslateResponse;
+    const payload = await readJsonResponse<GoogleTranslateResponse>(
+      response,
+      "Google Cloud Translation"
+    );
     const translations = payload.data?.translations;
     if (!Array.isArray(translations) || translations.length !== request.texts.length) {
       throw new Error("Google Cloud Translation response count does not match source text count.");
@@ -243,7 +252,7 @@ class OpenAICompatibleProvider implements TranslatorProvider {
     if (!response.ok) {
       throw new Error(`LLM request failed: ${response.status} ${response.statusText}. ${await readErrorBody(response)}`);
     }
-    const payload = (await response.json()) as OpenAIChatResponse;
+    const payload = await readJsonResponse<OpenAIChatResponse>(response, "LLM provider");
     const content = payload.choices?.[0]?.message?.content;
     if (!content) throw new Error("LLM response did not include content.");
 
@@ -309,7 +318,7 @@ class AnthropicCompatibleProvider implements TranslatorProvider {
         `LLM request failed: ${response.status} ${response.statusText}. ${await readErrorBody(response)}`
       );
     }
-    const payload = (await response.json()) as AnthropicMessagesResponse;
+    const payload = await readJsonResponse<AnthropicMessagesResponse>(response, "LLM provider");
     const content = payload.content
       ?.filter((entry) => entry.type === "text" && typeof entry.text === "string")
       .map((entry) => entry.text)
@@ -377,7 +386,7 @@ class HttpTemplateProvider implements TranslatorProvider {
     }, API_TRANSLATION_TIMEOUT_MS);
 
     if (!response.ok) throw new Error(`HTTP template request failed: ${response.status}`);
-    const payload = (await response.json()) as unknown;
+    const payload = await readJsonResponse<unknown>(response, "HTTP template provider");
     const translations = readPath(payload, this.config.responsePath);
     if (!Array.isArray(translations) || !translations.every((item) => typeof item === "string")) {
       throw new Error("Response path must resolve to an array of strings.");
@@ -391,6 +400,11 @@ class HttpTemplateProvider implements TranslatorProvider {
 
 function parseTranslationArray(content: string, expectedLength: number): string[] {
   const trimmed = stripCodeFence(content.trim());
+  if (looksLikeHtmlDocument(trimmed)) {
+    throw new Error(
+      "LLM response contained an HTML page instead of translations. Check the provider Base URL."
+    );
+  }
   let parsed: unknown;
   try {
     parsed = JSON.parse(trimmed) as unknown;
@@ -503,6 +517,9 @@ function delay(ms: number): Promise<void> {
 async function readErrorBody(response: Response): Promise<string> {
   const text = await response.text().catch(() => "");
   if (!text) return "";
+  if (looksLikeHtmlDocument(text)) {
+    return "The server returned an HTML page. Check the provider Base URL or endpoint.";
+  }
   try {
     const parsed = JSON.parse(text) as unknown;
     const message = readErrorMessage(parsed);
@@ -510,6 +527,28 @@ async function readErrorBody(response: Response): Promise<string> {
   } catch {
     return text.slice(0, 400);
   }
+}
+
+async function readJsonResponse<T>(response: Response, providerLabel: string): Promise<T> {
+  const contentType = response.headers?.get?.("content-type") ?? "";
+  if (/\btext\/html\b/i.test(contentType)) {
+    throw new Error(
+      `${providerLabel} returned an HTML page instead of JSON. Check the provider Base URL or endpoint.`
+    );
+  }
+
+  try {
+    return await response.json() as T;
+  } catch {
+    throw new Error(
+      `${providerLabel} response was not valid JSON. Check the provider Base URL or endpoint.`
+    );
+  }
+}
+
+function looksLikeHtmlDocument(value: string): boolean {
+  const normalized = value.trimStart().replace(/^\uFEFF/, "").trimStart();
+  return /^(?:<!doctype\s+html\b|<html\b|<head\b|<body\b)/i.test(normalized);
 }
 
 function readErrorMessage(value: unknown): unknown {

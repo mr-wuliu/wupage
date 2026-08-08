@@ -24,8 +24,13 @@ let paragraphModeAvailable = true;
 let pageTranslated = false;
 let floatingBallEnabled = true;
 let activeTabIsPdf = false;
+let pageTranslationAvailable = true;
 
-void init();
+void init().catch((error: unknown) => {
+  pageTranslationAvailable = false;
+  updatePageActionAvailability();
+  setStatus(error instanceof Error ? error.message : String(error));
+});
 
 async function init(): Promise<void> {
   settings = await sendRuntimeMessage<ExtensionSettings>({ type: "GET_SETTINGS" });
@@ -38,15 +43,26 @@ async function init(): Promise<void> {
   provider.value = settings.activeProviderId;
   floatingBallEnabled = settings.floatingBallEnabled;
   updateFloatingBallButton();
-  await loadParagraphMode();
-  await loadTranslationState();
-  activeTabIsPdf = await detectCurrentTabPdf();
+  const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  activeTabIsPdf = Boolean(activeTab.url && isLikelyPdfUrl(activeTab.url));
+  pageTranslationAvailable = activeTabIsPdf || isSupportedPageUrl(activeTab.url);
+  if (pageTranslationAvailable && !activeTabIsPdf) {
+    await loadParagraphMode();
+    await loadTranslationState();
+  } else if (!pageTranslationAvailable) {
+    paragraphModeAvailable = false;
+    paragraphModeButton.title = "浏览器设置页和扩展内部页面不支持段落模式。";
+    pageToggleButton.title = "请切换到普通网页后再翻译。";
+    debugButton.title = "请切换到普通网页后再打开 Debug。";
+    setStatus("此页面不支持翻译，请切换到普通网页。");
+  }
   if (activeTabIsPdf) {
     paragraphModeAvailable = false;
     paragraphModeButton.disabled = true;
     paragraphModeButton.title = "PDF 使用独立的双栏翻译页面。";
     updatePageToggleButton();
   }
+  updatePageActionAvailability();
 
   targetLang.addEventListener("change", savePopupSettings);
   sourceLang.addEventListener("change", savePopupSettings);
@@ -90,6 +106,10 @@ function renderLanguageOptions(
 }
 
 async function togglePageTranslation(): Promise<void> {
+  if (!pageTranslationAvailable) {
+    setStatus("此页面不支持翻译，请切换到普通网页。");
+    return;
+  }
   if (activeTabIsPdf) {
     setPageToggleBusy(true);
     setStatus("正在打开 PDF 并开始翻译...");
@@ -144,10 +164,10 @@ async function togglePageTranslation(): Promise<void> {
 
 function setBusy(value: boolean): void {
   document.body.classList.toggle("is-busy", value);
-  pageToggleButton.disabled = value;
+  pageToggleButton.disabled = value || !pageTranslationAvailable;
   paragraphModeButton.disabled = value || !paragraphModeAvailable;
   floatingBallButton.disabled = value;
-  debugButton.disabled = value;
+  debugButton.disabled = value || !pageTranslationAvailable || activeTabIsPdf;
   clearCacheButton.disabled = value;
 }
 
@@ -173,13 +193,18 @@ function isLikelyPdfUrl(value: string): boolean {
   }
 }
 
-async function detectCurrentTabPdf(): Promise<boolean> {
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  return Boolean(tab.url && isLikelyPdfUrl(tab.url));
+function isSupportedPageUrl(value: string | undefined): boolean {
+  if (!value) return false;
+  try {
+    const url = new URL(value);
+    return url.protocol === "http:" || url.protocol === "https:";
+  } catch {
+    return false;
+  }
 }
 
 function setPageToggleBusy(value: boolean): void {
-  pageToggleButton.disabled = value;
+  pageToggleButton.disabled = value || !pageTranslationAvailable;
   pageToggleButton.classList.toggle("is-loading", value);
 }
 
@@ -268,7 +293,7 @@ async function toggleFloatingBall(): Promise<void> {
     };
     await sendRuntimeMessage({ type: "SAVE_SETTINGS", settings });
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (tab.id) {
+    if (pageTranslationAvailable && !activeTabIsPdf && tab.id) {
       await sendTabMessage<{ enabled: boolean }>(tab.id, {
         type: "SET_FLOATING_BALL",
         enabled: floatingBallEnabled
@@ -285,6 +310,10 @@ async function toggleFloatingBall(): Promise<void> {
 }
 
 async function openDebugPanel(): Promise<void> {
+  if (!pageTranslationAvailable || activeTabIsPdf) {
+    setStatus("此页面无法打开 Debug，请切换到普通网页。");
+    return;
+  }
   setBusy(true);
   setStatus("正在打开 Debug...");
   try {
@@ -328,4 +357,10 @@ function updatePageToggleButton(): void {
 
 function updateFloatingBallButton(): void {
   floatingBallButton.setAttribute("aria-pressed", String(floatingBallEnabled));
+}
+
+function updatePageActionAvailability(): void {
+  pageToggleButton.disabled = !pageTranslationAvailable;
+  paragraphModeButton.disabled = !paragraphModeAvailable;
+  debugButton.disabled = !pageTranslationAvailable || activeTabIsPdf;
 }
