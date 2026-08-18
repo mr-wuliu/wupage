@@ -28,6 +28,8 @@ const EDGE_MARGIN = 8;
 const EDGE_VISIBLE = 22;
 const SNAP_THRESHOLD = 56;
 const HITBOX_PADDING = 16;
+const FLOATING_SIZE = 42;
+const DEFAULT_BOTTOM = 146;
 const TARGET_LANGUAGES = [
   { code: "zh-CN", label: "中文" },
   { code: "en", label: "English" },
@@ -89,13 +91,34 @@ export function initFloatingBall(): void {
   document.documentElement.append(hitbox);
   createHighlight();
   createMenu();
-  void restorePosition(button);
-  void syncFloatingBallFromSettings();
+  hitbox.hidden = true;
+  void initializeFloatingBall(button);
+  subscribeToPositionChanges(button);
   document.addEventListener("mousemove", handleParagraphPreview, { passive: true });
   document.addEventListener("click", handleDocumentClick, true);
-  window.addEventListener("resize", () => snapToEdge(button));
+  window.addEventListener("resize", () => keepPositionInViewport(button));
   window.addEventListener("scroll", updateHighlight, { passive: true });
   document.addEventListener("click", closeMenuOnOutsideClick, true);
+}
+
+async function initializeFloatingBall(button: HTMLElement): Promise<void> {
+  await Promise.allSettled([
+    restorePosition(button),
+    syncFloatingBallFromSettings()
+  ]);
+  const hitbox = document.getElementById(FLOATING_HITBOX_ID);
+  if (!hitbox) return;
+  hitbox.dataset.positionReady = "true";
+  applyFloatingBallVisibility();
+}
+
+function subscribeToPositionChanges(button: HTMLElement): void {
+  if (typeof chrome === "undefined" || !chrome.storage?.onChanged) return;
+  chrome.storage.onChanged.addListener((changes, areaName) => {
+    if (areaName !== "local" || dragging) return;
+    const position = changes[POSITION_KEY]?.newValue;
+    if (isFloatingPosition(position)) applyFloatingPosition(button, position);
+  });
 }
 
 function handleParagraphPreview(event: MouseEvent): void {
@@ -377,36 +400,63 @@ function ensureLanguageOption(select: HTMLSelectElement, language: string): void
 }
 
 async function restorePosition(button: HTMLElement): Promise<void> {
-  if (!chrome?.runtime?.id) return;
-  const result = await chrome.storage.local.get(POSITION_KEY);
-  const position = result[POSITION_KEY] as FloatingPosition | undefined;
-  if (isFloatingPosition(position)) {
-    setButtonPosition(
-      button,
-      clamp(position.left, 0, window.innerWidth - button.offsetWidth),
-      clamp(position.top, 0, window.innerHeight - button.offsetHeight)
-    );
-    if (position.edge) {
-      button.dataset.edge = position.edge;
-    } else {
-      delete button.dataset.edge;
+  if (typeof chrome !== "undefined" && chrome.runtime?.id) {
+    const result = await chrome.storage.local.get(POSITION_KEY);
+    const position = result[POSITION_KEY] as FloatingPosition | undefined;
+    if (isFloatingPosition(position)) {
+      applyFloatingPosition(button, position);
+      return;
     }
-    return;
   }
-  snapToEdge(button);
+
+  const size = getFloatingSize(button);
+  const position: FloatingPosition = {
+    left: window.innerWidth - EDGE_VISIBLE,
+    top: clamp(window.innerHeight - DEFAULT_BOTTOM, EDGE_MARGIN, window.innerHeight - size - EDGE_MARGIN),
+    edge: "right"
+  };
+  applyFloatingPosition(button, position);
+  void savePosition(position);
+}
+
+function applyFloatingPosition(button: HTMLElement, position: FloatingPosition): void {
+  const size = getFloatingSize(button);
+  const maxLeft = Math.max(EDGE_MARGIN, window.innerWidth - size - EDGE_MARGIN);
+  const maxTop = Math.max(EDGE_MARGIN, window.innerHeight - size - EDGE_MARGIN);
+  const left = position.edge === "left"
+    ? EDGE_VISIBLE - size
+    : position.edge === "right"
+      ? window.innerWidth - EDGE_VISIBLE
+      : clamp(position.left, EDGE_MARGIN, maxLeft);
+  setButtonPosition(button, left, clamp(position.top, EDGE_MARGIN, maxTop));
+  if (position.edge) button.dataset.edge = position.edge;
+  else delete button.dataset.edge;
+}
+
+function keepPositionInViewport(button: HTMLElement): void {
+  if (dragging) return;
+  const rect = button.getBoundingClientRect();
+  const edge = button.dataset.edge;
+  applyFloatingPosition(button, {
+    left: rect.left,
+    top: rect.top,
+    edge: edge === "left" || edge === "right" ? edge : null
+  });
+}
+
+function getFloatingSize(button: HTMLElement): number {
+  return button.offsetWidth || FLOATING_SIZE;
 }
 
 function snapToEdge(button: HTMLElement): void {
   const rect = button.getBoundingClientRect();
-  const size = button.offsetWidth;
+  const size = getFloatingSize(button);
   const edge = rect.left + size / 2 < window.innerWidth / 2 ? "left" : "right";
   const left = edge === "left" ? EDGE_VISIBLE - size : window.innerWidth - EDGE_VISIBLE;
   const top = clamp(rect.top, EDGE_MARGIN, window.innerHeight - size - EDGE_MARGIN);
   setButtonPosition(button, left, top);
   button.dataset.edge = edge;
-  void saveLocal({
-    [POSITION_KEY]: { left, top, edge } satisfies FloatingPosition
-  });
+  void savePosition({ left, top, edge });
 }
 
 function settlePosition(button: HTMLElement): void {
@@ -422,19 +472,21 @@ function settlePosition(button: HTMLElement): void {
   const top = clamp(rect.top, EDGE_MARGIN, window.innerHeight - button.offsetHeight - EDGE_MARGIN);
   setButtonPosition(button, left, top);
   delete button.dataset.edge;
-  void saveLocal({
-    [POSITION_KEY]: { left, top, edge: null } satisfies FloatingPosition
-  });
+  void savePosition({ left, top, edge: null });
+}
+
+function savePosition(position: FloatingPosition): Promise<void> {
+  return saveLocal({ [POSITION_KEY]: position });
 }
 
 function setButtonPosition(button: HTMLElement, left: number, top: number): void {
   const hitbox = document.getElementById(FLOATING_HITBOX_ID);
   const target = hitbox ?? button;
   const offset = hitbox ? HITBOX_PADDING : 0;
-  target.style.left = `${left - offset}px`;
-  target.style.top = `${top - offset}px`;
-  target.style.right = "auto";
-  target.style.bottom = "auto";
+  target.style.setProperty("left", `${left - offset}px`, "important");
+  target.style.setProperty("top", `${top - offset}px`, "important");
+  target.style.setProperty("right", "auto", "important");
+  target.style.setProperty("bottom", "auto", "important");
 
   const menu = document.getElementById("wupage-floating-menu");
   if (menu && isMenuOpen(menu)) positionMenu(menu, button);
@@ -458,7 +510,9 @@ function isFloatingPosition(value: unknown): value is FloatingPosition {
     Boolean(value) &&
     typeof value === "object" &&
     typeof (value as FloatingPosition).left === "number" &&
+    Number.isFinite((value as FloatingPosition).left) &&
     typeof (value as FloatingPosition).top === "number" &&
+    Number.isFinite((value as FloatingPosition).top) &&
     ((value as FloatingPosition).edge === "left" ||
       (value as FloatingPosition).edge === "right" ||
       (value as FloatingPosition).edge === null)
@@ -802,7 +856,9 @@ async function syncFloatingBallFromSettings(): Promise<void> {
 function applyFloatingBallVisibility(): void {
   const hitbox = document.getElementById(FLOATING_HITBOX_ID);
   const menu = document.getElementById("wupage-floating-menu");
-  if (hitbox) hitbox.hidden = !floatingBallEnabled;
+  if (hitbox) {
+    hitbox.hidden = !floatingBallEnabled || hitbox.dataset.positionReady !== "true";
+  }
   if (!floatingBallEnabled) {
     if (menu) setMenuOpen(menu, false);
     setActiveParagraph(null);

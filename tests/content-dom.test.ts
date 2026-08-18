@@ -65,6 +65,54 @@ describe("content DOM translation extraction", () => {
       .toBe("rgb(224, 232, 240)");
   });
 
+  it("renders an x.com post translation below the complete post text", () => {
+    document.body.innerHTML = `
+      <main>
+        <article>
+          <div id="post-text" data-testid="tweetText" lang="en">
+            <span>Operation Cheespeek: Phase 1 Complete</span><br><br>
+            <span>OpenCode Go subscribers now get $30 of usage for $10</span><br><br>
+            <span>Phase 2 initiating.</span>
+          </div>
+        </article>
+      </main>
+    `;
+    stubLayout();
+
+    const segments = collectTextSegments();
+
+    expect(segments).toHaveLength(1);
+    expect(segments[0].text).toBe(
+      "Operation Cheespeek: Phase 1 Complete OpenCode Go subscribers now get $30 of usage for $10 Phase 2 initiating."
+    );
+
+    renderTranslations([{ id: segments[0].id, text: "第一阶段完成。第二阶段即将启动。" }]);
+
+    const postText = document.querySelector("#post-text")!;
+    const translation = document.querySelector<HTMLElement>(".wupage-translation")!;
+    expect(postText.contains(translation)).toBe(false);
+    expect(translation.previousElementSibling).toBe(postText);
+    expect(translation.dataset.wupageMode).toBe("block");
+    expect(translation.textContent).toBe("第一阶段完成。第二阶段即将启动。");
+  });
+
+  it("keeps a single-node x.com post translation outside its text container", () => {
+    document.body.innerHTML = `
+      <main><article><div id="post-text" data-testid="tweetText">A short standalone post.</div></article></main>
+    `;
+    stubLayout();
+
+    const segments = collectTextSegments();
+    renderTranslations([{ id: segments[0].id, text: "一条简短的独立推文。" }]);
+
+    const postText = document.querySelector("#post-text")!;
+    const translation = document.querySelector<HTMLElement>(".wupage-translation")!;
+    expect(segments).toHaveLength(1);
+    expect(postText.contains(translation)).toBe(false);
+    expect(translation.previousElementSibling).toBe(postText);
+    expect(translation.dataset.wupageMode).toBe("block");
+  });
+
   it("skips code comments when comment translation is disabled", () => {
     document.body.innerHTML = `
       <main>

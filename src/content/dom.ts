@@ -139,6 +139,7 @@ const NAVIGATION_CONTAINER_SELECTOR = [
   KNOWN_COMPACT_NAV_SELECTOR
 ].join(",");
 const HEADING_SELECTOR = "h1,h2,h3,h4,h5,h6";
+const X_POST_TEXT_SELECTOR = "[data-testid='tweetText']";
 const READABLE_ROOT_SELECTOR = "main,article,[role='main'],.markdown-body,.docblock,#main-content";
 const CODE_SELECTOR = "pre, code, .highlight, .example-wrap, .blob-code, .react-code-text";
 const CODE_COMMENT_TARGET_SELECTOR = ".react-code-text, .blob-code, pre, code, .highlight";
@@ -163,7 +164,8 @@ const PARAGRAPH_SELECTOR = [
   ".impl-items p",
   ".markdown-body > div",
   ".markdown-body > p",
-  ".comment-body p"
+  ".comment-body p",
+  X_POST_TEXT_SELECTOR
 ].join(",");
 
 export function collectTextSegments(translateCodeComments = true): TextSegment[] {
@@ -496,7 +498,11 @@ function groupTextSegments(
     const nodeText = normalizeText(groupNodes.map((tracked) => tracked.node.textContent ?? "").join(" "));
     const id = groupNodes[0].id;
     const { text, tokens } = getReadableBlockText(block, visibility);
-    if (groupNodes.length < 2 && text === nodeText && !block.matches("summary")) continue;
+    if (
+      groupNodes.length < 2 &&
+      text === nodeText &&
+      !block.matches(`summary, ${X_POST_TEXT_SELECTOR}`)
+    ) continue;
     if (!text) continue;
     trackedGroups.push({ id, nodes: groupNodes, block, mode: getRenderMode(block) });
     if (tokens.length) protectedTokensById.set(id, tokens);
@@ -517,7 +523,9 @@ function findGroupingBlock(element: Element | null): Element | null {
   const compactControlTarget = getCompactControlTarget(element);
   if (compactControlTarget) return compactControlTarget;
 
-  const readableBlock = element.closest(`p, blockquote, ${HEADING_SELECTOR}, summary`);
+  const readableBlock = element.closest(
+    `p, blockquote, ${HEADING_SELECTOR}, summary, ${X_POST_TEXT_SELECTOR}`
+  );
   if (readableBlock?.matches("summary") && !isInsideReadableSummary(readableBlock)) {
     return null;
   }
@@ -631,6 +639,9 @@ function getReadableBlockText(
     };
   });
   removeUnrenderedCloneText(block, clone, visibility);
+  clone.querySelectorAll("br").forEach((node) => {
+    node.replaceWith(document.createTextNode(" "));
+  });
   clone
     .querySelectorAll(
       [
@@ -806,6 +817,7 @@ function findHeadingAnchor(block: Element): Element | null {
 
 function getRenderMode(element: Element | null): RenderMode {
   if (!element) return "inline";
+  if (element.matches(X_POST_TEXT_SELECTOR)) return "block";
   if (element.matches("summary")) return "inline";
   if (isCompactNavigationText(element)) return "inline";
   if (isCompactControlText(element)) return "inline";
