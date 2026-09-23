@@ -47,6 +47,22 @@ export function injectContentStyles(): void {
       white-space: pre-wrap;
     }
 
+    .wupage-translation[data-wupage-preserve-whitespace="true"] {
+      white-space: pre-wrap;
+    }
+
+    .wupage-translation[data-wupage-display-mode="replace"] {
+      display: inline;
+      margin: 0;
+      color: inherit;
+      font: inherit;
+      line-height: inherit;
+    }
+
+    .wupage-replaced-source {
+      display: none !important;
+    }
+
     .wupage-translation-pending {
       min-width: 1.25em;
       min-height: 1.25em;

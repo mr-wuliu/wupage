@@ -15,11 +15,26 @@ describe("normalizeSettings", () => {
     expect(settings.chunkSize).toBe(4000);
     expect(settings.concurrency).toBe(1);
     expect(settings.translateCodeComments).toBe(true);
+    expect(settings.imageTranslationEnabled).toBe(false);
+    expect(settings.translationDisplayMode).toBe("bilingual");
     expect(settings.providers.length).toBeGreaterThan(0);
   });
 
   it("preserves a disabled code comment translation setting", () => {
     expect(normalizeSettings({ translateCodeComments: false }).translateCodeComments).toBe(false);
+  });
+  it("only enables image translation with an explicit boolean switch", () => {
+    expect(normalizeSettings({ imageTranslationEnabled: true }).imageTranslationEnabled).toBe(true);
+    expect(normalizeSettings({ imageTranslationEnabled: "true" }).imageTranslationEnabled).toBe(false);
+  });
+
+  it("preserves valid translation display modes and rejects unknown values", () => {
+    expect(normalizeSettings({ translationDisplayMode: "replace" }).translationDisplayMode)
+      .toBe("replace");
+    expect(normalizeSettings({ translationDisplayMode: "bilingual-accent" }).translationDisplayMode)
+      .toBe("bilingual-accent");
+    expect(normalizeSettings({ translationDisplayMode: "unknown" }).translationDisplayMode)
+      .toBe("bilingual");
   });
 
   it("adds new built-in providers to older saved settings", () => {
@@ -50,6 +65,7 @@ describe("normalizeSettings", () => {
       "microsoft-translator",
       "google-cloud-translation",
       "openai-compatible",
+      "deepseek",
       "zhipu-glm",
       "http-template"
     ]);

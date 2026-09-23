@@ -16,5 +16,8 @@ describe("content translation styles", () => {
     expect(css).toMatch(/data-wupage-container="heading"[^}]*color:\s*inherit/s);
     expect(css).toMatch(/data-wupage-mode="inline"[^}]*color:\s*inherit/s);
     expect(css).toMatch(/data-wupage-mode="code-comment"[^}]*color:\s*inherit/s);
+    expect(css).toMatch(/data-wupage-preserve-whitespace="true"[^}]*white-space:\s*pre-wrap/s);
+    expect(css).toMatch(/data-wupage-display-mode="replace"[^}]*font:\s*inherit/s);
+    expect(css).toMatch(/\.wupage-replaced-source[^}]*display:\s*none\s*!important/s);
   });
 });

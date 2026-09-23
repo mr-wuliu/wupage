@@ -20,6 +20,65 @@ describe("groupTexts", () => {
   });
 });
 
+describe("contextual machine translation", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("translates adjacent page items together so ambiguous terms share context", async () => {
+    const fetchMock = vi.fn(async (url: string) => {
+      const source = new URL(url).searchParams.get("q") ?? "";
+      expect(source).toContain("Why variance matters");
+      expect(source).toContain("⟪WUPAGESEGMENT0⟫");
+      expect(source).toContain("⟪WUPAGESEGMENT1⟫");
+      return {
+        ok: true,
+        json: async () => [[[
+          "⟪WUPAGESEGMENT0⟫\n为什么型变很重要\n⟪WUPAGESEGMENT1⟫\n型变涉及用一种类型替换另一种类型的能力。",
+          source,
+          null,
+          null
+        ]]]
+      };
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const settings: ExtensionSettings = {
+      targetLang: "zh-CN",
+      sourceLang: "en",
+      activeProviderId: "google-context",
+      chunkSize: 1200,
+      concurrency: 1,
+      cacheEnabled: false,
+      floatingBallEnabled: true,
+      translateCodeComments: true,
+      translationDisplayMode: "bilingual",
+      providers: [{
+        type: "google-web-translate",
+        id: "google-context",
+        label: "Google Web"
+      }]
+    };
+
+    await expect(translateWithSettings(settings, {
+      texts: [
+        "Why variance matters",
+        "Variance is about our ability to substitute types for other types."
+      ],
+      context: "Page title: Why variance matters\nDocument excerpts:\nVariance is about type substitution and subtyping.",
+      sourceLang: "en",
+      targetLang: "zh-CN",
+      providerId: "google-context"
+    })).resolves.toEqual({
+      translations: [
+        "为什么型变很重要",
+        "型变涉及用一种类型替换另一种类型的能力。"
+      ],
+      cached: 0
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe("LLM provider queue", () => {
   afterEach(() => {
     vi.useRealTimers();
@@ -190,6 +249,93 @@ describe("LLM provider queue", () => {
 
     expect(fetchMock).toHaveBeenCalledTimes(5);
   });
+
+  it("does not reuse a cached translation from a different document context", async () => {
+    const stored = new Map<string, string>();
+    vi.stubGlobal("chrome", {
+      storage: {
+        local: {
+          get: vi.fn(async (key: string) => ({ [key]: stored.get(key) })),
+          set: vi.fn(async (items: Record<string, string>) => {
+            Object.entries(items).forEach(([key, value]) => stored.set(key, value));
+          })
+        }
+      }
+    });
+    const fetchMock = vi.fn(async (_url: string, init: RequestInit) => {
+      const body = JSON.parse(String(init.body)) as { messages: Array<{ content: string }> };
+      const input = JSON.parse(body.messages[1].content) as { context: string };
+      const translation = input.context.includes("type system") ? "型变" : "方差";
+      return {
+        ok: true,
+        json: async () => ({ choices: [{ message: { content: JSON.stringify([translation]) } }] })
+      };
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const settings = createLlmSettings("zhipu-context-cache", 1);
+    settings.cacheEnabled = true;
+
+    const typeTheory = await translateWithSettings(settings, {
+      texts: ["variance"],
+      context: "This article is about a type system and subtyping.",
+      targetLang: "zh-CN",
+      providerId: "zhipu-context-cache"
+    });
+    const statistics = await translateWithSettings(settings, {
+      texts: ["variance"],
+      context: "This article is about statistics and probability.",
+      targetLang: "zh-CN",
+      providerId: "zhipu-context-cache"
+    });
+
+    expect(typeTheory.translations).toEqual(["型变"]);
+    expect(statistics.translations).toEqual(["方差"]);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("invalidates cached output after model, prompt, or source language changes", async () => {
+    const stored = new Map<string, string>();
+    vi.stubGlobal("chrome", { storage: { local: {
+      get: vi.fn(async (key: string) => ({ [key]: stored.get(key) })),
+      set: vi.fn(async (items: Record<string, string>) => {
+        Object.entries(items).forEach(([key, value]) => stored.set(key, value));
+      })
+    } } });
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({ choices: [{ message: { content: '["译文"]' } }] })
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+    const settings = createLlmSettings("cache-config", 1);
+    settings.cacheEnabled = true;
+    const request = { texts: ["Original text"], sourceLang: "en", targetLang: "zh-CN" };
+    await translateWithSettings(settings, request);
+    expect((await translateWithSettings(settings, request)).cached).toBe(1);
+    const provider = settings.providers[0];
+    if (provider.type !== "zhipu-glm") throw new Error("Unexpected provider");
+    provider.model = "another-model";
+    expect((await translateWithSettings(settings, request)).cached).toBe(0);
+    provider.systemPrompt = "Translate formal emails into {{targetLang}}";
+    expect((await translateWithSettings(settings, request)).cached).toBe(0);
+    expect((await translateWithSettings(settings, { ...request, sourceLang: "auto" })).cached).toBe(0);
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+  });
+
+  it("recovers empty LLM items instead of caching them as successful translations", async () => {
+    const fetchMock = vi.fn(async (_url: string, init: RequestInit) => {
+      const body = JSON.parse(String(init.body));
+      const { texts } = JSON.parse(body.messages[1].content) as { texts: string[] };
+      return { ok: true, json: async () => ({ choices: [{ message: {
+        content: JSON.stringify(texts.length > 1 ? ["译文", ""] : texts.map((text) => `译文：${text}`))
+      } }] }) };
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const settings = createLlmSettings("empty-recovery", 1);
+    await expect(translateWithSettings(settings, {
+      texts: ["First paragraph", "Second paragraph"], targetLang: "zh-CN"
+    })).resolves.toMatchObject({ translations: ["译文：First paragraph", "译文：Second paragraph"] });
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
 });
 
 function createLlmSettings(
@@ -206,6 +352,7 @@ function createLlmSettings(
     cacheEnabled: false,
     floatingBallEnabled: true,
     translateCodeComments: true,
+    translationDisplayMode: "bilingual",
     providers: [
       {
         type: "zhipu-glm",

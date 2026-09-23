@@ -8,6 +8,7 @@ import type { RuntimeRequest, RuntimeResponse } from "../src/shared/types";
 
 describe("popup language controls", () => {
   afterEach(() => {
+    window.dispatchEvent(new Event("pagehide"));
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
     vi.resetModules();
@@ -20,6 +21,7 @@ describe("popup language controls", () => {
     document.close();
     let stored = structuredClone(DEFAULT_SETTINGS);
     const sendMessage = vi.fn(async (request: RuntimeRequest): Promise<RuntimeResponse> => {
+      if (request.type === "GET_OCR_STATUS") return { ok: true, data: { state: "installed", total: 100, downloaded: 100 } };
       if (request.type === "GET_SETTINGS") return { ok: true, data: stored };
       if (request.type === "SAVE_SETTINGS") {
         stored = structuredClone(request.settings);
@@ -54,14 +56,31 @@ describe("popup language controls", () => {
     const target = query<HTMLSelectElement>("#targetLang");
     expect(source.selectedOptions[0]?.textContent).toBe("自动检测");
     expect(target.value).toBe("zh-CN");
+    expect(query<HTMLSelectElement>("#translationDisplayMode").selectedOptions[0]?.textContent)
+      .toBe("原色对照");
     expect(query<HTMLButtonElement>("#pageToggle").textContent).toBe("翻译 PDF");
     expect(document.querySelector("#pdfTranslate")).toBeNull();
+    const imageToggle = query<HTMLButtonElement>("#imageTranslation");
+    expect(imageToggle.getAttribute("aria-pressed")).toBe("false");
+    imageToggle.click();
+    await vi.waitFor(() => {
+      expect(stored.imageTranslationEnabled).toBe(true);
+      expect(imageToggle.getAttribute("aria-pressed")).toBe("true");
+      expect(imageToggle.disabled).toBe(false);
+    });
+    imageToggle.click();
+    await vi.waitFor(() => expect(stored.imageTranslationEnabled).toBe(false));
 
     source.value = "en";
     target.value = "ja";
+    query<HTMLSelectElement>("#translationDisplayMode").value = "replace";
     target.dispatchEvent(new Event("change", { bubbles: true }));
     await vi.waitFor(() => {
-      expect(stored).toMatchObject({ sourceLang: "en", targetLang: "ja" });
+      expect(stored).toMatchObject({
+        sourceLang: "en",
+        targetLang: "ja",
+        translationDisplayMode: "replace"
+      });
     });
 
     query<HTMLButtonElement>("#openGithub").click();
@@ -84,6 +103,7 @@ describe("popup language controls", () => {
     document.write(readFileSync(resolve(process.cwd(), "popup.html"), "utf8"));
     document.close();
     const sendMessage = vi.fn(async (request: RuntimeRequest): Promise<RuntimeResponse> => {
+      if (request.type === "GET_OCR_STATUS") return { ok: true, data: { state: "installed", total: 100, downloaded: 100 } };
       if (request.type === "GET_SETTINGS") return { ok: true, data: structuredClone(DEFAULT_SETTINGS) };
       return { ok: true };
     });

@@ -8,7 +8,9 @@ export const DEFAULT_SETTINGS: ExtensionSettings = {
   concurrency: 3,
   cacheEnabled: true,
   floatingBallEnabled: true,
+  imageTranslationEnabled: false,
   translateCodeComments: true,
+  translationDisplayMode: "bilingual",
   providers: [
     {
       type: "google-web-translate",
@@ -43,6 +45,20 @@ export const DEFAULT_SETTINGS: ExtensionSettings = {
       baseURL: "https://api.openai.com/v1",
       apiKey: "",
       model: "gpt-4o-mini",
+      systemPrompt:
+        "You are a translation engine. Translate each input item into {{targetLang}}. Preserve meaning, numbers, links, code-like tokens, placeholders like ⟪WUPAGE0⟫, and formatting. Return only a JSON array of strings in the same order."
+    },
+    {
+      type: "deepseek",
+      id: "deepseek",
+      label: "DeepSeek",
+      enabled: true,
+      performanceMode: "custom",
+      chunkSize: 3200,
+      concurrency: 3,
+      baseURL: "https://api.deepseek.com",
+      apiKey: "",
+      model: "deepseek-v4-flash",
       systemPrompt:
         "You are a translation engine. Translate each input item into {{targetLang}}. Preserve meaning, numbers, links, code-like tokens, placeholders like ⟪WUPAGE0⟫, and formatting. Return only a JSON array of strings in the same order."
     },

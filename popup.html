@@ -32,6 +32,10 @@
         翻译服务
         <select id="provider"></select>
       </label>
+      <label>
+        显示模式
+        <select id="translationDisplayMode"></select>
+      </label>
       <button id="paragraphMode" type="button" class="switch-row" aria-pressed="false">
         <span>段落模式</span>
         <span class="switch" aria-hidden="true"><span></span></span>
@@ -40,6 +44,18 @@
         <span>悬浮球</span>
         <span class="switch" aria-hidden="true"><span></span></span>
       </button>
+      <div class="image-feature">
+      <div class="image-feature-row">
+      <button id="imageTranslation" type="button" class="switch-row" aria-pressed="false" aria-describedby="ocrDescription ocrModelStatus" title="开启后，点击图片旁的按钮翻译并覆盖原文">
+        <span>图片翻译</span>
+        <span class="switch" aria-hidden="true"><span></span></span>
+      </button>
+      <button id="ocrModelAction" type="button" class="ocr-model-action" aria-label="安装 OCR 模型" disabled></button>
+      </div>
+      <p id="ocrDescription" class="ocr-description"></p>
+      <progress id="ocrModelProgress" class="ocr-model-progress" aria-label="OCR 模型下载进度" hidden></progress>
+      <p id="ocrModelStatus" class="ocr-model-status" role="status"></p>
+      </div>
       <div class="actions">
         <button id="pageToggle" type="button">翻译全文</button>
       </div>

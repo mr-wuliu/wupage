@@ -4,8 +4,11 @@ export type ProviderType =
   | "google-cloud-translation"
   | "openai-compatible"
   | "anthropic-compatible"
+  | "deepseek"
   | "zhipu-glm"
   | "http-template";
+
+export type TranslationDisplayMode = "replace" | "bilingual" | "bilingual-accent";
 
 export interface ProviderBaseConfig {
   id: string;
@@ -48,6 +51,14 @@ export interface AnthropicCompatibleConfig extends ProviderBaseConfig {
   systemPrompt: string;
 }
 
+export interface DeepSeekConfig extends ProviderBaseConfig {
+  type: "deepseek";
+  baseURL: string;
+  apiKey: string;
+  model: string;
+  systemPrompt: string;
+}
+
 export interface ZhipuGlmConfig extends ProviderBaseConfig {
   type: "zhipu-glm";
   baseURL: string;
@@ -71,6 +82,7 @@ export type ProviderConfig =
   | GoogleCloudTranslationConfig
   | OpenAICompatibleConfig
   | AnthropicCompatibleConfig
+  | DeepSeekConfig
   | ZhipuGlmConfig
   | HttpTemplateConfig;
 
@@ -82,12 +94,15 @@ export interface ExtensionSettings {
   concurrency: number;
   cacheEnabled: boolean;
   floatingBallEnabled: boolean;
+  imageTranslationEnabled?: boolean;
   translateCodeComments: boolean;
+  translationDisplayMode: TranslationDisplayMode;
   providers: ProviderConfig[];
 }
 
 export interface TranslateBatchRequest {
   texts: string[];
+  context?: string;
   sourceLang?: string;
   targetLang: string;
   providerId?: string;
@@ -96,6 +111,31 @@ export interface TranslateBatchRequest {
 export interface TranslateBatchResponse {
   translations: string[];
   cached: number;
+}
+
+export interface ImageTextRegion {
+  box: [number, number, number, number]; // x, y, width, height, normalized to 0–1000
+  text: string;
+  translation: string;
+  foreground: string;
+  background: string;
+  align: "left" | "center" | "right";
+  bold: boolean;
+  sampleColors?: boolean;
+}
+
+export interface TranslateImageRequest {
+  dataUrl: string;
+  width: number;
+  height: number;
+}
+
+export interface TranslateImageResponse {
+  regions: ImageTextRegion[];
+  targetLang: string;
+  cached: boolean;
+  warning?: string;
+  skippedRegions?: number;
 }
 
 export type TranslationDebugTaskStatus = "queued" | "waiting" | "running" | "succeeded" | "failed";
@@ -140,6 +180,9 @@ export interface TranslatorProvider {
 }
 
 export type RuntimeRequest =
+  | { type: "GET_OCR_STATUS" }
+  | { type: "INSTALL_OCR" }
+  | { type: "REMOVE_OCR" }
   | { type: "TRANSLATE_PAGE" }
   | { type: "CLEAR_TRANSLATION" }
   | { type: "GET_TRANSLATION_STATE" }
@@ -150,6 +193,9 @@ export type RuntimeRequest =
   | { type: "OPEN_TRANSLATION_DEBUG" }
   | { type: "GET_TRANSLATION_DEBUG" }
   | { type: "CLEAR_CACHE" }
+  | { type: "LOAD_IMAGE"; url: string }
+  | { type: "TRANSLATE_CONTEXT_IMAGE"; srcUrl: string }
+  | ({ type: "TRANSLATE_IMAGE" } & TranslateImageRequest)
   | ({ type: "TRANSLATE_BATCH" } & TranslateBatchRequest)
   | { type: "GET_SETTINGS" }
   | { type: "SAVE_SETTINGS"; settings: ExtensionSettings }

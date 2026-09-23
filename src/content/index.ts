@@ -11,6 +11,7 @@ import {
 import { addRuntimeMessageListener, sendRuntimeRequest } from "./runtime";
 import { clearPageTranslation, startPageTranslation } from "./page-translation";
 import { injectContentStyles } from "./styles";
+import { initImageTranslation, translateContextImage } from "./image-translation";
 
 addRuntimeMessageListener((request: RuntimeRequest, _sender, sendResponse) => {
   handleMessage(request)
@@ -26,8 +27,12 @@ addRuntimeMessageListener((request: RuntimeRequest, _sender, sendResponse) => {
 
 injectContentStyles();
 initFloatingBall();
+initImageTranslation();
 
 async function handleMessage(request: RuntimeRequest): Promise<unknown> {
+  if (request.type === "TRANSLATE_CONTEXT_IMAGE") {
+    return translateContextImage(request.srcUrl);
+  }
   if (request.type === "CLEAR_TRANSLATION") {
     clearPageTranslation();
     return { cleared: true };

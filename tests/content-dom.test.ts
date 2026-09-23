@@ -10,6 +10,7 @@ import {
   findTranslatableParagraph,
   hasPageTranslations,
   hasTranslationsIn,
+  mapTranslationTextColor,
   renderTargetPlaceholder,
   renderTargetTranslation,
   renderTranslationPlaceholders,
@@ -65,14 +66,47 @@ describe("content DOM translation extraction", () => {
       .toBe("rgb(224, 232, 240)");
   });
 
-  it("renders an x.com post translation below the complete post text", () => {
+  it("replaces source text visually and restores it when translations are cleared", () => {
+    document.body.innerHTML = `<main><p id="source">Read the <code>guide</code> today.</p></main>`;
+    stubLayout("rgb(34, 34, 34)");
+    const [segment] = collectTextSegments();
+
+    renderTranslations([{ id: segment.id, text: "今天阅读 ⟪WUPAGE0⟫。" }], "replace");
+
+    const source = document.querySelector("#source")!;
+    const translation = source.querySelector<HTMLElement>(".wupage-translation")!;
+    expect(translation.dataset.wupageDisplayMode).toBe("replace");
+    expect(translation.textContent).toBe("今天阅读 guide。");
+    expect(source.querySelector("code:not(.wupage-translation code)")?.classList)
+      .toContain("wupage-replaced-source");
+
+    clearTranslations();
+    expect(source.textContent).toBe("Read the guide today.");
+    expect(source.querySelector(".wupage-replaced-source")).toBeNull();
+  });
+
+  it("maps accent colors near the source while maintaining light and dark contrast", () => {
+    const lightMapped = mapTranslationTextColor("rgb(32, 38, 42)", "rgb(255, 255, 255)");
+    const darkMapped = mapTranslationTextColor("rgb(232, 238, 240)", "rgb(12, 18, 22)");
+
+    expect(lightMapped).toMatch(/^rgb\(/);
+    expect(darkMapped).toMatch(/^rgb\(/);
+    expect(lightMapped).not.toBe("rgb(32, 38, 42)");
+    expect(darkMapped).not.toBe("rgb(232, 238, 240)");
+    expect(cssContrast(lightMapped!, "rgb(255, 255, 255)")).toBeGreaterThanOrEqual(4.49);
+    expect(cssContrast(darkMapped!, "rgb(12, 18, 22)")).toBeGreaterThanOrEqual(4.49);
+    expect(mapTranslationTextColor("rgb(15, 118, 110)", "rgb(255, 255, 255)"))
+      .not.toBe("rgb(15, 118, 110)");
+    expect(mapTranslationTextColor("rgb(94, 234, 212)", "rgb(0, 0, 0)"))
+      .not.toBe("rgb(94, 234, 212)");
+  });
+
+  it("translates x.com post paragraphs at blank lines and preserves single line breaks", () => {
     document.body.innerHTML = `
       <main>
         <article>
           <div id="post-text" data-testid="tweetText" lang="en">
-            <span>Operation Cheespeek: Phase 1 Complete</span><br><br>
-            <span>OpenCode Go subscribers now get $30 of usage for $10</span><br><br>
-            <span>Phase 2 initiating.</span>
+            <span>Operation Cheespeek: Phase 1 Complete </span><img alt="😂"><span>\n\nOpenCode Go subscribers now get $30 of usage for $10\n\nPhase 2:\nAI watches\n↓\nAI adjusts.</span>
           </div>
         </article>
       </main>
@@ -81,19 +115,57 @@ describe("content DOM translation extraction", () => {
 
     const segments = collectTextSegments();
 
-    expect(segments).toHaveLength(1);
-    expect(segments[0].text).toBe(
-      "Operation Cheespeek: Phase 1 Complete OpenCode Go subscribers now get $30 of usage for $10 Phase 2 initiating."
-    );
+    expect(segments.map((segment) => segment.text)).toEqual([
+      "Operation Cheespeek: Phase 1 Complete",
+      "OpenCode Go subscribers now get $30 of usage for $10",
+      "Phase 2:\nAI watches\n↓\nAI adjusts."
+    ]);
 
-    renderTranslations([{ id: segments[0].id, text: "第一阶段完成。第二阶段即将启动。" }]);
+    renderTranslations([
+      { id: segments[0].id, text: "奶酪行动：第一阶段完成" },
+      { id: segments[1].id, text: "订阅用户现在能以 10 美元获得 30 美元用量" },
+      { id: segments[2].id, text: "第二阶段：\nAI 观察\n↓\nAI 调整。" }
+    ]);
 
     const postText = document.querySelector("#post-text")!;
-    const translation = document.querySelector<HTMLElement>(".wupage-translation")!;
-    expect(postText.contains(translation)).toBe(false);
-    expect(translation.previousElementSibling).toBe(postText);
-    expect(translation.dataset.wupageMode).toBe("block");
-    expect(translation.textContent).toBe("第一阶段完成。第二阶段即将启动。");
+    const emoji = document.querySelector("img")!;
+    const translations = [...document.querySelectorAll<HTMLElement>(".wupage-translation")];
+    expect(translations).toHaveLength(3);
+    expect(postText.contains(translations[0])).toBe(true);
+    expect(postText.contains(translations[1])).toBe(true);
+    expect(emoji.compareDocumentPosition(translations[0]) & Node.DOCUMENT_POSITION_FOLLOWING)
+      .toBeTruthy();
+    expect(translations[2].previousElementSibling).toBe(postText);
+    expect(translations.map((translation) => translation.dataset.wupageMode))
+      .toEqual(["block", "block", "block"]);
+    expect(translations[2].dataset.wupagePreserveWhitespace).toBe("true");
+    expect(translations[2].textContent).toBe("第二阶段：\nAI 观察\n↓\nAI 调整。");
+  });
+
+  it("uses consecutive br elements as x.com post paragraph boundaries", () => {
+    document.body.innerHTML = `
+      <main><article><div id="post-text" data-testid="tweetText">
+        <span>First paragraph.</span><br><br><span>Second paragraph.</span>
+      </div></article></main>
+    `;
+    stubLayout();
+
+    const segments = collectTextSegments();
+    expect(segments.map((segment) => segment.text)).toEqual([
+      "First paragraph.",
+      "Second paragraph."
+    ]);
+
+    renderTranslations([
+      { id: segments[0].id, text: "第一段。" },
+      { id: segments[1].id, text: "第二段。" }
+    ]);
+
+    const postText = document.querySelector("#post-text")!;
+    const translations = [...document.querySelectorAll<HTMLElement>(".wupage-translation")];
+    expect(postText.contains(translations[0])).toBe(true);
+    expect(translations[0].nextElementSibling?.tagName).toBe("BR");
+    expect(translations[1].previousElementSibling).toBe(postText);
   });
 
   it("keeps a single-node x.com post translation outside its text container", () => {
@@ -111,6 +183,64 @@ describe("content DOM translation extraction", () => {
     expect(postText.contains(translation)).toBe(false);
     expect(translation.previousElementSibling).toBe(postText);
     expect(translation.dataset.wupageMode).toBe("block");
+  });
+
+  it("translates Partner Center form labels, choices, and placeholders", () => {
+    document.body.innerHTML = `
+      <aside>
+        <nav><a href="#overview">Extension overview</a><a href="#packages">Packages</a></nav>
+      </aside>
+      <main>
+        <h1>Submit your extension</h1>
+        <div class="field">
+          <label id="credentials-label">
+            Does a tester need credentials, accounts, or any other info to test your extension?
+            <a href="#learn">Learn More</a>
+          </label>
+          <input id="no-credentials" type="radio" name="credentials">
+          <label for="no-credentials">No, testers can access and test all functionality without any additional info</label>
+          <input id="yes-credentials" type="radio" name="credentials">
+          <label for="yes-credentials">Yes, I need to provide credentials, accounts, or other info for testers</label>
+        </div>
+        <label for="certification-notes">Notes for certification (less than 2,000 characters)</label>
+        <div role="status">Certification notes must be provided with every submission.</div>
+        <textarea id="certification-notes"
+          placeholder="e.g. Username: demo@example.com / Password: Test1234"></textarea>
+      </main>
+    `;
+    stubLayout();
+
+    const segments = collectTextSegments();
+    const translationBySource = new Map([
+      ["Extension overview", "扩展概览"],
+      ["Packages", "程序包"],
+      ["Submit your extension", "提交扩展"],
+      ["Does a tester need credentials, accounts, or any other info to test your extension? Learn More", "测试扩展是否需要凭据或其他信息？了解更多"],
+      ["No, testers can access and test all functionality without any additional info", "否，测试人员无需额外信息"],
+      ["Yes, I need to provide credentials, accounts, or other info for testers", "是，我需要提供测试信息"],
+      ["Notes for certification (less than 2,000 characters)", "认证说明（少于 2,000 个字符）"],
+      ["Certification notes must be provided with every submission.", "每次提交都必须提供认证说明。"],
+      ["e.g. Username: demo@example.com / Password: Test1234", "例如：用户名 demo@example.com / 密码 Test1234"]
+    ]);
+
+    expect(segments.map((segment) => segment.text)).toEqual(
+      expect.arrayContaining([...translationBySource.keys()])
+    );
+    renderTranslations(segments.map((segment) => ({
+      id: segment.id,
+      text: translationBySource.get(segment.text) ?? `译：${segment.text}`
+    })));
+
+    const question = document.querySelector<HTMLElement>("#credentials-label")!;
+    const noChoice = document.querySelector<HTMLElement>("label[for='no-credentials']")!;
+    const notes = document.querySelector<HTMLTextAreaElement>("#certification-notes")!;
+    expect(question.nextElementSibling?.classList.contains("wupage-translation")).toBe(true);
+    expect(question.nextElementSibling?.textContent).toBe("测试扩展是否需要凭据或其他信息？了解更多");
+    expect(noChoice.querySelector(".wupage-translation")?.textContent).toBe("否，测试人员无需额外信息");
+    expect(notes.placeholder).toBe("例如：用户名 demo@example.com / 密码 Test1234");
+
+    clearTranslations();
+    expect(notes.placeholder).toBe("e.g. Username: demo@example.com / Password: Test1234");
   });
 
   it("skips code comments when comment translation is disabled", () => {
@@ -688,6 +818,46 @@ describe("content DOM translation extraction", () => {
       .toBe("inline");
   });
 
+  it("translates document text in article headers, asides, captions, tables, and footers", () => {
+    document.body.innerHTML = `
+      <header>
+        <h1>How Symmetric Are the Insides of a Go Network?</h1>
+        <p>A study of KataGo's neural networks · July 2026</p>
+        <nav><a href="#findings">Findings</a></nav>
+      </header>
+      <div class="strip">
+        <aside class="remark">
+          <p>The experiments and research in this article were performed almost entirely by Claude Code.</p>
+        </aside>
+        <h2>The networks</h2>
+        <figure>
+          <figcaption>Figure 1. The same position in <em>eight orientations</em>.</figcaption>
+        </figure>
+        <table>
+          <caption>Networks in this study</caption>
+          <tbody><tr><th>architecture</th><td>convolutional network</td></tr></tbody>
+        </table>
+        <footer><p>All reports and analysis scripts live alongside this article.</p></footer>
+      </div>
+    `;
+    stubLayout();
+
+    const segments = collectTextSegments();
+    const texts = segments.map((segment) => segment.text);
+
+    expect(texts).toEqual(expect.arrayContaining([
+      "How Symmetric Are the Insides of a Go Network?",
+      "A study of KataGo's neural networks · July 2026",
+      "The experiments and research in this article were performed almost entirely by Claude Code.",
+      "The networks",
+      "Figure 1. The same position in eight orientations.",
+      "Networks in this study",
+      "architecture",
+      "convolutional network",
+      "All reports and analysis scripts live alongside this article."
+    ]));
+  });
+
   it("translates icon navigation labels and compact controls inside their text hosts", () => {
     document.body.innerHTML = `
       <main>
@@ -1043,4 +1213,18 @@ function stubLayout(
       toJSON: () => ({})
     } as DOMRect;
   });
+}
+
+function cssContrast(left: string, right: string): number {
+  const luminance = (value: string): number => {
+    const channels = value.match(/[\d.]+/g)!.slice(0, 3).map(Number).map((channel) => {
+      const normalized = channel / 255;
+      return normalized <= 0.04045
+        ? normalized / 12.92
+        : ((normalized + 0.055) / 1.055) ** 2.4;
+    });
+    return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2];
+  };
+  const values = [luminance(left), luminance(right)].sort((a, b) => b - a);
+  return (values[0] + 0.05) / (values[1] + 0.05);
 }

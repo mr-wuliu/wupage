@@ -59,6 +59,12 @@ label {
   color: #4c5a61;
 }
 
+.field-description {
+  color: #77848a;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
 .language-field {
   display: grid;
   gap: 6px;

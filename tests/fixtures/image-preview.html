@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="zh-CN"><meta charset="utf-8"><title>图片覆盖翻译 · 本地测试</title>
+<style>
+body{margin:32px;background:#edf1f6;color:#172033;font:15px/1.6 system-ui,sans-serif}main{max-width:850px;margin:auto}button{padding:8px 14px;margin:0 8px 14px 0}img{display:block;width:640px;max-width:90%;height:auto;border-radius:12px}#pane{height:260px;overflow:auto;border:1px solid #bac6d6;padding:20px;margin-top:24px}#pane img{width:440px}#count{font-variant-numeric:tabular-nums}
+#photo.x-photo{position:relative;width:640px;max-width:90%;height:300px;overflow:hidden;border-radius:12px}#photo.x-photo img,#photo.x-photo .background{position:absolute;inset:0;width:100%;max-width:none;height:100%;background-size:cover;background-position:50% 50%;border-radius:0}#photo.x-photo img{opacity:0}
+</style><main>
+<h1>图片覆盖翻译 · 本地测试</h1><p>使用固定识别结果测试真实覆盖层，不访问外部翻译服务。</p>
+<button id="enable">开启图片翻译</button><button id="disable">关闭并恢复原图</button><button id="resize">切换图片大小</button>
+<button id="x-mode">切换 X 图片结构</button>
+<p id="count">翻译请求：0</p><div id="photo"><div class="background"></div><img id="image" alt="测试通知图片"></div>
+<section id="pane" aria-label="邮件滚动区域"><div style="height:80px">邮件中的图片：</div><img id="nested" alt="邮件通知图片"><div style="height:240px"></div></section>
+</main><script type="module">
+import { setImageTranslationEnabled } from '/src/content/image-translation.ts';
+let requests = 0;
+const regions = [];
+const source = document.createElement('canvas'); source.width = 1000; source.height = 560;
+const ctx = source.getContext('2d');ctx.fillStyle='#ffffff';ctx.fillRect(0,0,1000,560);ctx.fillStyle='#153d70';ctx.fillRect(0,0,1000,180);
+function line(text, translation, x, y, font, foreground, background) {
+ctx.font=font;ctx.textBaseline='top';ctx.fillStyle=foreground;ctx.fillText(text,x,y);
+const m=ctx.measureText(text);const h=parseFloat(font.match(/([\d.]+)px/)[1])*1.25;
+regions.push({box:[x,y/560*1000,m.width,h/560*1000],text,translation,foreground,background,align:'left',bold:font.startsWith('600')});
+}
+line('Your weekly update','本周动态',52,44,'600 54px sans-serif','#ffffff','#153d70');
+line('Everything you need to know','你需要了解的全部信息',54,116,'26px sans-serif','#d8eaff','#153d70');
+line('The next meeting is on Friday.','下次会议定于星期五举行。',54,226,'34px sans-serif','#18283b','#ffffff');
+line('Please review the attached document.','请查阅随附的文档。',54,292,'34px sans-serif','#18283b','#ffffff');
+line('Thank you for your time!','感谢你抽出时间！',54,400,'30px sans-serif','#52627a','#ffffff');
+document.querySelectorAll('img').forEach(img=>img.src=source.toDataURL());
+document.querySelector('#photo .background').style.backgroundImage=`url("${source.toDataURL()}")`;
+window.chrome={runtime:{id:'preview',sendMessage:async(request)=>{requests++;document.querySelector('#count').textContent=`翻译请求：${requests}`;return {ok:true,data:{regions,targetLang:'zh-CN',cached:false}}}}};
+document.querySelector('#enable').onclick=()=>setImageTranslationEnabled(true);
+document.querySelector('#disable').onclick=()=>setImageTranslationEnabled(false);
+document.querySelector('#resize').onclick=()=>{const img=document.querySelector('#image');img.style.width=img.style.width==='400px'?'640px':'400px'};
+document.querySelector('#x-mode').onclick=()=>document.querySelector('#photo').classList.toggle('x-photo');
+</script></html>

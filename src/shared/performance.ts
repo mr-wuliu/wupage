@@ -29,6 +29,7 @@ export function getEffectiveProviderPerformance(
 export function isLlmProvider(provider: ProviderConfig): boolean {
   return provider.type === "openai-compatible"
     || provider.type === "anthropic-compatible"
+    || provider.type === "deepseek"
     || provider.type === "zhipu-glm";
 }
 

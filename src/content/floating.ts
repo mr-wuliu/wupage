@@ -16,6 +16,7 @@ import {
   renderTranslations
 } from "./dom";
 import { clearPageTranslation, startPageTranslation } from "./page-translation";
+import { buildTranslationContext } from "./translation-context";
 
 const FLOATING_ID = "wupage-floating-ball";
 const FLOATING_HITBOX_ID = "wupage-floating-hitbox";
@@ -154,12 +155,17 @@ async function translateActiveParagraph(): Promise<void> {
     renderTranslationPlaceholders(segments);
 
     try {
-      const data = await translateSegments(settings, segments.map((segment) => segment.text));
+      const data = await translateSegments(
+        settings,
+        segments.map((segment) => segment.text),
+        buildTranslationContext([target])
+      );
       renderTranslations(
         segments.map((segment, index) => ({
           id: segment.id,
           text: data.translations[index]
-        }))
+        })),
+        settings.translationDisplayMode
       );
       setActiveParagraph(target);
     } catch (error) {
@@ -901,11 +907,13 @@ async function getSettings(): Promise<ExtensionSettings> {
 
 async function translateSegments(
   settings: ExtensionSettings,
-  texts: string[]
+  texts: string[],
+  context?: string
 ): Promise<TranslateBatchResponse> {
   return sendRuntimeRequest<TranslateBatchResponse>({
     type: "TRANSLATE_BATCH",
     texts,
+    context,
     sourceLang: settings.sourceLang,
     targetLang: settings.targetLang,
     providerId: settings.activeProviderId

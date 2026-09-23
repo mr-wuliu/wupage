@@ -1,0 +1,25 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><title>OCR 安装与识别验证</title></head><body>
+<main style="max-width:420px;margin:30px auto;font:14px system-ui">
+<div class="image-feature-row"><button id="imageTranslation" class="switch-row" aria-pressed="false"><span>图片翻译</span><span class="switch"><span></span></span></button><button id="ocrModelAction" class="ocr-model-action"></button></div>
+<p id="ocrDescription" class="ocr-description"></p><progress id="ocrModelProgress" class="ocr-model-progress" hidden></progress><p id="ocrModelStatus" class="ocr-model-status" role="status"></p>
+<p>此验证页使用真实模型、下载校验和沙箱；仅模拟扩展消息通道。</p>
+<button id="recognize">识别样例</button><canvas id="sample" width="600" height="180" style="width:100%;margin-top:20px"></canvas><pre id="result" style="white-space:pre-wrap"></pre>
+</main><script type="module">
+import '../../src/popup/styles.css';
+import { setupOcrControl } from '../../src/shared/ocr-control';
+let listener;
+window.chrome = { runtime: { id:'fixture', getURL: path => new URL('/dist/' + path, location.href).href,
+onMessage: {addListener: callback => listener = callback},
+sendMessage: request => new Promise(resolve => listener({target:'ocr-offscreen', action: ({GET_OCR_STATUS:'status',INSTALL_OCR:'install',REMOVE_OCR:'remove'})[request.type] ?? request.action, dataUrl:request.dataUrl}, {id:'fixture'}, resolve)) }};
+await import('../../src/ocr/offscreen');
+const toggle = document.querySelector('#imageTranslation');
+toggle.onclick = () => toggle.setAttribute('aria-pressed', String(toggle.getAttribute('aria-pressed') !== 'true'));
+setupOcrControl(toggle, () => toggle.setAttribute('aria-pressed','false'));
+const canvas = document.querySelector('#sample'); const ctx = canvas.getContext('2d');
+ctx.fillStyle = '#fff';ctx.fillRect(0,0,600,180);ctx.fillStyle='#172026';ctx.font='28px Arial';ctx.fillText('Cache performance',25,60);ctx.fillText('Hit rate 41.7%',25,120);
+document.querySelector('#recognize').onclick = async () => {
+document.querySelector('#result').textContent='正在识别…';
+const result = await chrome.runtime.sendMessage({action:'recognize',dataUrl:canvas.toDataURL()});
+document.querySelector('#result').textContent = JSON.stringify(result,null,2);
+};
+</script></body></html>

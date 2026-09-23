@@ -28,13 +28,17 @@ export async function translateWithSettings(
 
   const provider = createProvider(providerConfig);
   const performance = getEffectiveProviderPerformance(settings, providerId);
+  // Model/prompt/source-language changes must not keep serving old translations.
+  const cacheProviderId = settings.cacheEnabled
+    ? `${providerId}.${await sha256(JSON.stringify({ version: 2, provider: providerConfig, sourceLang: request.sourceLang ?? "auto" }))}`
+    : providerId;
   const cachedTranslations = new Map<number, string>();
   const uncachedTexts: string[] = [];
   const uncachedIndexes: number[] = [];
 
   for (const [index, text] of request.texts.entries()) {
     const cached = settings.cacheEnabled
-      ? await readCachedTranslation(providerId, request.targetLang, text)
+      ? await readCachedTranslation(cacheProviderId, request.targetLang, text, request.context)
       : undefined;
     if (cached !== undefined) {
       cachedTranslations.set(index, cached);
@@ -45,9 +49,13 @@ export async function translateWithSettings(
   }
 
   const runProviderTexts = (texts: string[]) =>
-    runProviderTask(providerConfig, request, texts, performance, settings.concurrency, () =>
-      provider.translateBatch({ ...request, texts })
-    );
+    runProviderTask(providerConfig, request, texts, performance, settings.concurrency, async () => {
+      const result = await translateProviderTexts(providerConfig, provider, request, texts);
+      if (result.length !== texts.length || result.some((text) => typeof text !== "string" || !text.trim())) {
+        throw new Error(`${isLlmProvider(providerConfig) ? "LLM" : "Translation"} response contains missing or empty items.`);
+      }
+      return result;
+    });
   const translated = await runBatches(
     uncachedTexts,
     performance.chunkSize,
@@ -63,7 +71,13 @@ export async function translateWithSettings(
     const translation = translated[translatedIndex];
     output[sourceIndex] = translation;
     if (settings.cacheEnabled) {
-      await writeCachedTranslation(providerId, request.targetLang, request.texts[sourceIndex], translation);
+      await writeCachedTranslation(
+        cacheProviderId,
+        request.targetLang,
+        request.texts[sourceIndex],
+        translation,
+        request.context
+      );
     }
   }
 
@@ -303,7 +317,57 @@ async function translateProviderBatchWithRecovery(
 function isLlmProvider(providerConfig: ProviderConfig): boolean {
   return providerConfig.type === "openai-compatible"
     || providerConfig.type === "anthropic-compatible"
+    || providerConfig.type === "deepseek"
     || providerConfig.type === "zhipu-glm";
+}
+
+async function translateProviderTexts(
+  providerConfig: ProviderConfig,
+  provider: ReturnType<typeof createProvider>,
+  request: TranslateBatchRequest,
+  texts: string[]
+): Promise<string[]> {
+  if (isLlmProvider(providerConfig) || !request.context || !texts.length) {
+    return provider.translateBatch({ ...request, texts });
+  }
+
+  const contextualSource = buildContextualSource(request.context, texts);
+  const contextualResult = await provider.translateBatch({
+    ...request,
+    texts: [contextualSource]
+  });
+  const translations = contextualResult.length === 1
+    ? parseContextualTranslation(contextualResult[0], texts.length)
+    : null;
+  if (translations) return translations;
+
+  // Some machine-translation endpoints rewrite unusual delimiters. Fall back
+  // to their ordinary batch mode rather than failing the whole page.
+  return provider.translateBatch({ ...request, texts });
+}
+
+function buildContextualSource(context: string, texts: string[]): string {
+  const textLength = texts.reduce((sum, text) => sum + text.length, 0);
+  const contextHint = textLength < 300
+    ? context.slice(0, 800)
+    : context.split("\n", 1)[0]?.slice(0, 240) ?? "";
+  const segments = texts.map((text, index) => `⟪WUPAGESEGMENT${index}⟫\n${text}`);
+  return [contextHint, ...segments].filter(Boolean).join("\n");
+}
+
+function parseContextualTranslation(value: string, expectedLength: number): string[] | null {
+  const marker = /[⟪《〈<【\[\{«「『]+\s*WUPAGE\s*SEGMENT\s*(\d+)\s*[⟫》〉>】\]\}»」』]+/gi;
+  const matches = [...value.matchAll(marker)];
+  if (matches.length !== expectedLength) return null;
+  const indexes = matches.map((match) => Number(match[1]));
+  if (indexes.some((index, position) => index !== position)) return null;
+
+  const translations = matches.map((match, position) => {
+    const start = (match.index ?? 0) + match[0].length;
+    const end = matches[position + 1]?.index ?? value.length;
+    return value.slice(start, end).trim();
+  });
+  return translations.every((text) => text.trim()) ? translations : null;
 }
 
 function isRecoverableLlmResponseError(error: unknown): boolean {
@@ -314,23 +378,31 @@ function isRecoverableLlmResponseError(error: unknown): boolean {
 async function readCachedTranslation(
   providerId: string,
   targetLang: string,
-  text: string
+  text: string,
+  context?: string
 ): Promise<string | undefined> {
-  const key = await cacheKey(providerId, targetLang, text);
+  const key = await cacheKey(providerId, targetLang, text, context);
   const result = await chrome.storage.local.get(key);
-  return typeof result[key] === "string" ? result[key] : undefined;
+  return typeof result[key] === "string" && result[key].trim() ? result[key] : undefined;
 }
 
 async function writeCachedTranslation(
   providerId: string,
   targetLang: string,
   text: string,
-  translation: string
+  translation: string,
+  context?: string
 ): Promise<void> {
-  const key = await cacheKey(providerId, targetLang, text);
+  const key = await cacheKey(providerId, targetLang, text, context);
   await chrome.storage.local.set({ [key]: translation });
 }
 
-async function cacheKey(providerId: string, targetLang: string, text: string): Promise<string> {
-  return `${CACHE_PREFIX}${providerId}.${targetLang}.${await sha256(text)}`;
+async function cacheKey(
+  providerId: string,
+  targetLang: string,
+  text: string,
+  context?: string
+): Promise<string> {
+  const contextualText = context ? `${context}\u0000${text}` : text;
+  return `${CACHE_PREFIX}${providerId}.${targetLang}.${await sha256(contextualText)}`;
 }
