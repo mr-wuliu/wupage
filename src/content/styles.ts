@@ -16,7 +16,7 @@ export function injectContentStyles(): void {
     .wupage-translation[data-wupage-mode="block"] {
       display: block;
       margin: 0.18em 0 0.38em;
-      color: #0f766e;
+      color: inherit;
       font-size: 0.95em;
       line-height: 1.55;
     }
@@ -41,10 +41,26 @@ export function injectContentStyles(): void {
     .wupage-translation[data-wupage-mode="code-comment"] {
       display: block;
       margin: 0;
-      color: #0f766e;
+      color: inherit;
       font: inherit;
       line-height: inherit;
       white-space: pre-wrap;
+    }
+
+    .wupage-translation[data-wupage-preserve-whitespace="true"] {
+      white-space: pre-wrap;
+    }
+
+    .wupage-translation[data-wupage-display-mode="replace"] {
+      display: inline;
+      margin: 0;
+      color: inherit;
+      font: inherit;
+      line-height: inherit;
+    }
+
+    .wupage-replaced-source {
+      display: none !important;
     }
 
     .wupage-translation-pending {
@@ -76,15 +92,26 @@ export function injectContentStyles(): void {
     }
 
     #wupage-floating-hitbox {
-      position: fixed;
-      right: 22px;
-      bottom: 88px;
-      z-index: 2147483647;
-      width: 74px;
-      height: 74px;
-      display: grid;
-      place-items: center;
-      pointer-events: auto;
+      all: initial;
+      position: fixed !important;
+      left: auto !important;
+      top: auto !important;
+      right: 22px !important;
+      bottom: 88px !important;
+      z-index: 2147483647 !important;
+      box-sizing: border-box !important;
+      width: 74px !important;
+      height: 74px !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      display: grid !important;
+      place-items: center !important;
+      transform: none !important;
+      pointer-events: auto !important;
+    }
+
+    #wupage-floating-hitbox[hidden] {
+      display: none !important;
     }
 
     #wupage-floating-ball {
@@ -228,6 +255,30 @@ export function injectContentStyles(): void {
       color: #0f5557;
       background: #d9efea;
       font-weight: 700;
+    }
+
+    #wupage-floating-menu button[data-action="page-toggle"] {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: calc(100% - 8px);
+      min-height: 36px;
+      margin: 4px;
+      border: 1px solid #116466;
+      color: #ffffff;
+      background: #116466;
+      text-align: center;
+      font-weight: 700;
+    }
+
+    #wupage-floating-menu button[data-action="page-toggle"]:hover {
+      border-color: #0f5557;
+      background: #0f5557;
+    }
+
+    #wupage-floating-menu button[data-action="page-toggle"]:focus-visible {
+      outline: 2px solid rgba(17, 100, 102, 0.34);
+      outline-offset: 2px;
     }
 
     #wupage-floating-menu .wupage-menu-section {

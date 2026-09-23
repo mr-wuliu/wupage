@@ -1,8 +1,10 @@
 import { BUILT_IN_PROVIDER_IDS, DEFAULT_SETTINGS } from "../shared/defaults";
 import { SOURCE_LANGUAGES, TARGET_LANGUAGES } from "../shared/languages";
+import { TRANSLATION_DISPLAY_MODES } from "../shared/display-modes";
 import { sendRuntimeMessage } from "../shared/messaging";
 import type { ExtensionSettings, ProviderConfig } from "../shared/types";
 import "./styles.css";
+import { setupOcrControl } from "../shared/ocr-control";
 
 const targetLang = query<HTMLSelectElement>("#targetLang");
 const sourceLang = query<HTMLSelectElement>("#sourceLang");
@@ -10,7 +12,10 @@ const chunkSize = query<HTMLInputElement>("#chunkSize");
 const concurrency = query<HTMLInputElement>("#concurrency");
 const cacheEnabled = query<HTMLInputElement>("#cacheEnabled");
 const floatingBallEnabled = query<HTMLInputElement>("#floatingBallEnabled");
+const imageTranslationEnabled = query<HTMLInputElement>("#imageTranslationEnabled");
 const translateCodeComments = query<HTMLInputElement>("#translateCodeComments");
+const translationDisplayMode = query<HTMLSelectElement>("#translationDisplayMode");
+const translationDisplayModeDescription = query<HTMLSpanElement>("#translationDisplayModeDescription");
 const providerPicker = query<HTMLDivElement>("#providerPicker");
 const providerTrigger = query<HTMLButtonElement>("#providerTrigger");
 const providerTriggerLabel = query<HTMLSpanElement>("#providerTriggerLabel");
@@ -40,6 +45,10 @@ const ZHIPU_MODEL_OPTIONS = [
   "glm-4.7-flash",
   "glm-4-flashx-250414"
 ];
+const DEEPSEEK_MODEL_OPTIONS = [
+  "deepseek-v4-flash",
+  "deepseek-v4-pro"
+];
 const DEFAULT_LLM_PROMPT =
   "You are a translation engine. Translate each input item into {{targetLang}}. Preserve meaning, numbers, links, code-like tokens, placeholders like ⟪WUPAGE0⟫, and formatting. Return only a JSON array of strings in the same order.";
 
@@ -50,6 +59,11 @@ void init();
 async function init(): Promise<void> {
   settings = await sendRuntimeMessage<ExtensionSettings>({ type: "GET_SETTINGS" });
   render();
+  setupOcrControl(imageTranslationEnabled, () => { settings.imageTranslationEnabled = false; imageTranslationEnabled.checked = false; });
+  const imageNotice = new URLSearchParams(location.search).get("imageTranslationNotice");
+  if (imageNotice === "setup") setStatus("使用右键图片翻译前，请先点击扳手安装 OCR 模型，开启图片翻译并保存。");
+  if (imageNotice === "refresh") setStatus("无法连接图片所在页面。请刷新刚才的网页，再右键点击图片翻译；部分嵌入页面暂不支持。");
+  if (imageNotice) imageTranslationEnabled.closest(".image-feature")?.scrollIntoView?.({ block: "center" });
 
   providerTrigger.addEventListener("click", () => setProviderMenuOpen(providerMenu.hidden));
   providerMenu.addEventListener("click", (event) => {
@@ -86,9 +100,23 @@ function render(): void {
   concurrency.value = String(settings.concurrency);
   cacheEnabled.checked = settings.cacheEnabled;
   floatingBallEnabled.checked = settings.floatingBallEnabled;
+  imageTranslationEnabled.checked = settings.imageTranslationEnabled === true;
   translateCodeComments.checked = settings.translateCodeComments;
+  translationDisplayMode.innerHTML = TRANSLATION_DISPLAY_MODES
+    .map((mode) => `<option value="${mode.value}">${mode.label}</option>`)
+    .join("");
+  translationDisplayMode.value = settings.translationDisplayMode;
+  updateTranslationDisplayModeDescription();
   renderProviderPicker(false);
   renderProviderForm();
+}
+
+translationDisplayMode.addEventListener("change", updateTranslationDisplayModeDescription);
+
+function updateTranslationDisplayModeDescription(): void {
+  translationDisplayModeDescription.textContent = TRANSLATION_DISPLAY_MODES.find(
+    (mode) => mode.value === translationDisplayMode.value
+  )?.description ?? "";
 }
 
 function renderLanguageOptions(
@@ -203,6 +231,22 @@ function renderProviderForm(): void {
       </div>
       <label>系统提示词 <textarea data-field="systemPrompt">${escapeHtml(provider.systemPrompt)}</textarea></label>
       <p class="hint">接口格式：${isAnthropic ? "Anthropic Messages" : "OpenAI Chat Completions"}。</p>
+    `);
+    return;
+  }
+
+  if (provider.type === "deepseek") {
+    setProviderFormMarkup(provider, `
+      <div class="grid">
+        <label>显示名称 <input data-field="label" type="text" value="${escapeAttr(provider.label)}" /></label>
+        <label>Base URL <input data-field="baseURL" type="url" value="${escapeAttr(provider.baseURL)}" /></label>
+        <label>API key <input data-field="apiKey" type="password" value="${escapeAttr(provider.apiKey)}" /></label>
+        <label>模型
+          <select data-field="model">${renderOptions(DEEPSEEK_MODEL_OPTIONS, provider.model)}</select>
+        </label>
+      </div>
+      <label>系统提示词 <textarea data-field="systemPrompt">${escapeHtml(provider.systemPrompt)}</textarea></label>
+      <p class="hint">使用 DeepSeek Chat Completions，默认关闭思考模式以降低翻译延迟。API 地址默认使用 https://api.deepseek.com。</p>
     `);
     return;
   }
@@ -484,7 +528,9 @@ function readSettingsFromForm(): ExtensionSettings {
     concurrency: Number(concurrency.value),
     cacheEnabled: cacheEnabled.checked,
     floatingBallEnabled: floatingBallEnabled.checked,
+    imageTranslationEnabled: imageTranslationEnabled.checked,
     translateCodeComments: translateCodeComments.checked,
+    translationDisplayMode: translationDisplayMode.value as ExtensionSettings["translationDisplayMode"],
     providers: settings.providers.map((provider) =>
       provider.id === activeProvider.id ? activeProvider : provider
     )
@@ -544,6 +590,16 @@ function readProviderFromForm(provider: ProviderConfig): ProviderConfig {
       baseURL: field("baseURL").trim(),
       apiKey: field("apiKey"),
       model: field("model").trim(),
+      systemPrompt: field("systemPrompt")
+    };
+  }
+  if (provider.type === "deepseek") {
+    return {
+      ...provider,
+      label: field("label").trim() || provider.label,
+      baseURL: field("baseURL").trim() || "https://api.deepseek.com",
+      apiKey: field("apiKey"),
+      model: field("model").trim() || "deepseek-v4-flash",
       systemPrompt: field("systemPrompt")
     };
   }

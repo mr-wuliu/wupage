@@ -9,6 +9,7 @@ import type { ExtensionSettings, RuntimeRequest, RuntimeResponse } from "../src/
 
 describe("options provider controls", () => {
   afterEach(() => {
+    window.dispatchEvent(new Event("pagehide"));
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
     delete (HTMLDialogElement.prototype as Partial<HTMLDialogElement>).showModal;
@@ -22,6 +23,7 @@ describe("options provider controls", () => {
     document.close();
     let stored = cloneSettings(DEFAULT_SETTINGS);
     const sendMessage = vi.fn(async (request: RuntimeRequest): Promise<RuntimeResponse> => {
+      if (request.type === "GET_OCR_STATUS") return { ok: true, data: { state: "installed", total: 100, downloaded: 100 } };
       if (request.type === "GET_SETTINGS") return { ok: true, data: stored };
       if (request.type === "SAVE_SETTINGS") {
         stored = normalizeSettings(request.settings);
@@ -52,11 +54,22 @@ describe("options provider controls", () => {
     expect(query<HTMLSelectElement>("#sourceLang").value).toBe("auto");
     expect(query<HTMLSelectElement>("#sourceLang").selectedOptions[0]?.textContent)
       .toBe("自动检测");
+    expect(query<HTMLSelectElement>("#translationDisplayMode").selectedOptions[0]?.textContent)
+      .toBe("原色对照");
+    query<HTMLSelectElement>("#translationDisplayMode").value = "bilingual-accent";
     query<HTMLSelectElement>("#sourceLang").value = "en";
     click("#save");
-    await vi.waitFor(() => expect(stored.sourceLang).toBe("en"));
+    await vi.waitFor(() => expect(stored).toMatchObject({
+      sourceLang: "en",
+      translationDisplayMode: "bilingual-accent"
+    }));
     const translateCodeComments = query<HTMLInputElement>("#translateCodeComments");
     expect(translateCodeComments.checked).toBe(true);
+    const imageTranslation = query<HTMLInputElement>("#imageTranslationEnabled");
+    expect(imageTranslation.checked).toBe(false);
+    imageTranslation.click();
+    click("#save");
+    await vi.waitFor(() => expect(stored.imageTranslationEnabled).toBe(true));
     translateCodeComments.click();
     click("#save");
     await vi.waitFor(() => expect(stored.translateCodeComments).toBe(false));
@@ -73,10 +86,24 @@ describe("options provider controls", () => {
     });
 
     click("#providerTrigger");
-    expect(document.querySelectorAll(".provider-menu-row")).toHaveLength(6);
-    expect(document.querySelectorAll(".provider-enable")).toHaveLength(6);
+    expect(document.querySelectorAll(".provider-menu-row")).toHaveLength(7);
+    expect(document.querySelectorAll(".provider-enable")).toHaveLength(7);
     expect(document.querySelectorAll(".provider-delete")).toHaveLength(0);
     expect(document.querySelectorAll(".provider-option-type")).toHaveLength(0);
+
+    click("[data-action='select'][data-provider-id='deepseek']");
+    await vi.waitFor(() => {
+      expect(document.querySelector("#providerTriggerLabel")?.textContent).toBe("DeepSeek");
+    });
+    expect(query<HTMLInputElement>("[data-field='baseURL']").value)
+      .toBe("https://api.deepseek.com");
+    expect(query<HTMLSelectElement>("[data-field='model']").value).toBe("deepseek-v4-flash");
+    click("#providerTrigger");
+    click("[data-action='select'][data-provider-id='google-web-translate']");
+    await vi.waitFor(() => {
+      expect(document.querySelector("#providerTriggerLabel")?.textContent)
+        .toBe("Google Web Translate");
+    });
 
     click("#addProvider");
     expect(document.querySelector("#providerDialog")?.hasAttribute("open")).toBe(true);
@@ -93,7 +120,7 @@ describe("options provider controls", () => {
     await vi.waitFor(() => {
       expect(document.querySelector("#providerTriggerLabel")?.textContent).toBe("My Anthropic");
     });
-    expect(stored.providers).toHaveLength(7);
+    expect(stored.providers).toHaveLength(8);
     expect(stored.providers.find((provider) => provider.id === stored.activeProviderId)?.type)
       .toBe("anthropic-compatible");
 
@@ -106,7 +133,7 @@ describe("options provider controls", () => {
 
     click(`[data-action="delete"][data-provider-id="${customId}"]`);
     await vi.waitFor(() => {
-      expect(stored.providers).toHaveLength(6);
+      expect(stored.providers).toHaveLength(7);
       expect(document.querySelectorAll(".provider-delete")).toHaveLength(0);
     });
   });

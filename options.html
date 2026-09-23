@@ -32,10 +32,27 @@
           </div>
         </div>
         <div class="grid">
+          <label>译文显示模式
+            <select id="translationDisplayMode"></select>
+            <span id="translationDisplayModeDescription" class="field-description"></span>
+          </label>
           <label>默认分块大小 <input id="chunkSize" type="number" min="200" max="4000" /></label>
           <label>全局最大并发数 <input id="concurrency" type="number" min="1" max="8" /></label>
         </div>
         <div class="general-toggles">
+          <div class="image-feature">
+          <div class="image-feature-row">
+          <label class="setting-toggle">
+            <span>图片翻译（点击图片旁按钮，覆盖原文）</span>
+            <input id="imageTranslationEnabled" type="checkbox" role="switch" aria-describedby="ocrDescription ocrModelStatus" />
+            <span class="setting-toggle-control" aria-hidden="true"></span>
+          </label>
+          <button id="ocrModelAction" type="button" class="ocr-model-action" aria-label="安装 OCR 模型" disabled></button>
+          </div>
+          <p id="ocrDescription" class="ocr-description"></p>
+          <progress id="ocrModelProgress" class="ocr-model-progress" aria-label="OCR 模型下载进度" hidden></progress>
+          <p id="ocrModelStatus" class="ocr-model-status" role="status"></p>
+          </div>
           <label class="setting-toggle">
             <span>启用本地缓存</span>
             <input id="cacheEnabled" type="checkbox" role="switch" />

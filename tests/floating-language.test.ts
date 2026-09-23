@@ -55,7 +55,7 @@ describe("floating language controls", () => {
     });
   });
 
-  it("isolates the floating label from host button typography", () => {
+  it("isolates the floating control from host positioning and button typography", async () => {
     vi.mocked(sendRuntimeRequest).mockResolvedValue(structuredClone(DEFAULT_SETTINGS));
     vi.stubGlobal("chrome", {
       runtime: { id: "test" },
@@ -63,6 +63,7 @@ describe("floating language controls", () => {
     });
     const hostStyle = document.createElement("style");
     hostStyle.textContent = `
+      div { position: static !important; left: 0 !important; top: 0 !important; }
       button { font-style: italic; transform: skewX(-18deg); text-transform: uppercase; }
       button > span { font-style: italic !important; transform: rotate(-12deg) !important; }
     `;
@@ -72,7 +73,12 @@ describe("floating language controls", () => {
     initFloatingBall();
 
     const ball = query<HTMLElement>("#wupage-floating-ball");
+    const hitbox = query<HTMLElement>("#wupage-floating-hitbox");
     const label = query<HTMLElement>(".wupage-floating-label");
+    await vi.waitFor(() => expect(hitbox.hidden).toBe(false));
+    expect(getComputedStyle(hitbox).position).toBe("fixed");
+    expect(hitbox.style.getPropertyPriority("left")).toBe("important");
+    expect(hitbox.style.getPropertyPriority("top")).toBe("important");
     expect(ball.textContent).toBe("译");
     expect(getComputedStyle(label).fontStyle).toBe("normal");
     expect(getComputedStyle(label).transform).toBe("none");
@@ -148,8 +154,33 @@ describe("floating language controls", () => {
     expect(getComputedStyle(direction).transform).toBe("none");
     expect(getComputedStyle(chevron).position).toBe("absolute");
     expect(getComputedStyle(chevron).marginLeft).toBe("0px");
-    expect(getComputedStyle(menuButton).textAlign).toBe("left");
+    expect(getComputedStyle(menuButton).textAlign).toBe("center");
     expect(["none", "rgba(0, 0, 0, 0)"]).toContain(getComputedStyle(menuButton).textShadow);
+  });
+
+  it("shows the translated-page toggle as a visible button", () => {
+    vi.mocked(sendRuntimeRequest).mockResolvedValue(structuredClone(DEFAULT_SETTINGS));
+    vi.stubGlobal("chrome", {
+      runtime: { id: "test" },
+      storage: { local: { get: vi.fn(async () => ({})), set: vi.fn(async () => undefined) } }
+    });
+    const existingTranslation = document.createElement("span");
+    existingTranslation.className = "wupage-translation";
+    existingTranslation.textContent = "已有译文";
+    document.documentElement.append(existingTranslation);
+
+    injectContentStyles();
+    initFloatingBall();
+    query<HTMLButtonElement>("#wupage-floating-ball").click();
+
+    const pageToggle = query<HTMLButtonElement>("[data-action='page-toggle']");
+    const style = getComputedStyle(pageToggle);
+    expect(pageToggle.tagName).toBe("BUTTON");
+    expect(pageToggle.textContent).toBe("显示全文");
+    expect(style.display).toBe("flex");
+    expect(style.backgroundColor).toBe("rgb(17, 100, 102)");
+    expect(style.borderTopStyle).toBe("solid");
+    expect(style.textAlign).toBe("center");
   });
 
   it("keeps the open menu attached while dragging the floating ball", async () => {
@@ -212,6 +243,58 @@ describe("floating language controls", () => {
     expect(menu.hidden).toBe(false);
     button.click();
     expect(menu.hidden).toBe(true);
+  });
+
+  it("restores and synchronizes one floating position across pages", async () => {
+    vi.mocked(sendRuntimeRequest).mockResolvedValue(structuredClone(DEFAULT_SETTINGS));
+    let resolvePosition!: (value: Record<string, unknown>) => void;
+    const storedPosition = new Promise<Record<string, unknown>>((resolve) => {
+      resolvePosition = resolve;
+    });
+    let notifyStorageChange: ((
+      changes: Record<string, { newValue?: unknown }>,
+      areaName: string
+    ) => void) | undefined;
+    vi.stubGlobal("chrome", {
+      runtime: { id: "test" },
+      storage: {
+        local: {
+          get: vi.fn(() => storedPosition),
+          set: vi.fn(async () => undefined)
+        },
+        onChanged: {
+          addListener: vi.fn((listener) => {
+            notifyStorageChange = listener;
+          })
+        }
+      }
+    });
+    Object.defineProperty(window, "innerWidth", { configurable: true, value: 1200 });
+    Object.defineProperty(window, "innerHeight", { configurable: true, value: 800 });
+
+    initFloatingBall();
+    const hitbox = query<HTMLElement>("#wupage-floating-hitbox");
+    const button = query<HTMLElement>("#wupage-floating-ball");
+    Object.defineProperty(button, "offsetWidth", { configurable: true, value: 42 });
+    Object.defineProperty(button, "offsetHeight", { configurable: true, value: 42 });
+
+    expect(hitbox.hidden).toBe(true);
+    resolvePosition({
+      "wupage.floating.position": { left: 500, top: 400, edge: null }
+    });
+    await vi.waitFor(() => {
+      expect(hitbox.hidden).toBe(false);
+      expect(hitbox.style.left).toBe("484px");
+      expect(hitbox.style.top).toBe("384px");
+    });
+
+    notifyStorageChange?.({
+      "wupage.floating.position": {
+        newValue: { left: 700, top: 260, edge: null }
+      }
+    }, "local");
+    expect(hitbox.style.left).toBe("684px");
+    expect(hitbox.style.top).toBe("244px");
   });
 
   it("resizes the debug panel from its bottom-right handle", async () => {

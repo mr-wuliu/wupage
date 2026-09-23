@@ -1,6 +1,6 @@
 # WuPage Privacy Policy
 
-Effective date: July 18, 2026
+Effective date: September 23, 2026
 
 WuPage is a Microsoft Edge and Chromium-compatible browser extension that translates webpage text using a translation provider selected and configured by the user.
 
@@ -9,18 +9,21 @@ WuPage is a Microsoft Edge and Chromium-compatible browser extension that transl
 WuPage processes the following data only to provide its translation functionality:
 
 - **Website content:** When the user requests a page or paragraph translation, WuPage reads the relevant text from the current webpage and sends that text to the translation provider selected by the user. This content can include text the user is viewing on the page.
+- **Image content:** Image translation is off by default and requires an explicit OCR model installation. When the user clicks an image's translate button, WuPage reads that image (which may require a request to its original host using browser credentials), resizes it if necessary, and recognizes its text locally. Only recognized text is sent to the selected translation provider. Image pixels and browser cookies are not forwarded to that provider. Translations are drawn as an overlay; the original image is not modified.
+- **Optional OCR models:** Clicking the wrench downloads approximately 20.5 MB of model data from PaddleOCR's official model host (`paddle-model-ecology.bj.bcebos.com`), without cookies or provider credentials. Files are verified and stored in the browser's extension Cache Storage. The host receives a normal download request, including the network IP address, but no page content. Clicking the trash icon deletes these models and disables image translation. Clearing translation results does not remove models. Executable OCR libraries are bundled with the extension; only model data is downloaded.
 - **Authentication information:** If a selected translation provider requires an API key or other authorization header, WuPage stores the credential in the browser's local extension storage and sends it only to the configured provider for authentication.
 - **Extension settings:** Language preferences, provider configurations, performance settings, the floating control position, and related extension preferences are stored locally in the browser.
 - **Translation cache:** When local caching is enabled, translated text is stored locally with a hash of the source text. Users can disable or clear the cache from the extension interface.
+- **Image translation cache:** When caching is enabled, recognized text, translations, region coordinates and colors are stored locally under a hash of the image and translation settings. Original image bytes are not persisted in the cache. The same cache controls clear these entries.
 - **Debug information:** When translation tasks run, WuPage can display source text, translated text, request status, and errors in its Debug window. This information is held by the extension for troubleshooting and is not sent to the WuPage developer.
 
 WuPage does not intentionally collect names, email addresses, health information, financial information, precise location, browsing history, or user activity for analytics, advertising, profiling, or tracking.
 
 ## How Data Is Used and Shared
 
-WuPage has no developer-operated translation proxy or analytics server. Translation requests are sent directly from the user's browser to the translation provider that the user selects or configures. Depending on the user's configuration, that provider can be Google Web Translate, Microsoft Translator, Google Cloud Translation, Zhipu GLM, an OpenAI-compatible service, an Anthropic-compatible service, or a custom HTTP service.
+WuPage has no developer-operated translation proxy or analytics server. Translation requests are sent directly from the user's browser to the translation provider that the user selects or configures. Depending on the user's configuration, that provider can be Google Web Translate, Microsoft Translator, Google Cloud Translation, DeepSeek, Zhipu GLM, an OpenAI-compatible service, an Anthropic-compatible service, or a custom HTTP service.
 
-Website content is shared with the selected provider solely to return the translation requested by the user. Authentication information is shared only with the corresponding provider to authorize that request. Each provider processes data under its own terms and privacy policy. Users should not translate sensitive content through a provider they do not trust.
+Website content is shared with the selected provider solely to return the translation requested by the user. Authentication information is shared only with the corresponding provider to authorize that request. Each provider, including DeepSeek when selected, processes data under its own terms and privacy policy. Users should not translate sensitive content through a provider they do not trust.
 
 WuPage does not sell user data. WuPage does not transfer user data for advertising, creditworthiness, lending, or any purpose unrelated to webpage translation.
 

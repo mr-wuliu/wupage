@@ -4,11 +4,13 @@ import {
   clearTranslations,
   collectAdditionalTextSegments,
   collectTextSegments,
+  invalidateStaleSegments,
   renderTranslationPlaceholders,
   renderTranslations
 } from "./dom";
 import type { TextSegment } from "./dom";
 import { sendRuntimeRequest } from "./runtime";
+import { buildTranslationContext } from "./translation-context";
 
 const VIEWPORT_MARGIN_RATIO = 0.75;
 const MIN_VIEWPORT_MARGIN = 240;
@@ -49,6 +51,7 @@ interface TranslationSession {
   resolveInitial: (result: PageTranslationResult) => void;
   observer: MutationObserver;
   dynamicRoots: Set<Element>;
+  changedRoots: Set<Element>;
   dynamicTimer?: number;
 }
 
@@ -67,7 +70,6 @@ let viewportTimer: number | undefined;
 export function startPageTranslation(settings: ExtensionSettings): Promise<PageTranslationResult> {
   clearPageTranslation();
   const segments = collectTextSegments(settings.translateCodeComments);
-  if (!segments.length) return Promise.resolve(emptyResult());
 
   let resolveInitial!: (result: PageTranslationResult) => void;
   const initialPromise = new Promise<PageTranslationResult>((resolve) => {
@@ -90,17 +92,19 @@ export function startPageTranslation(settings: ExtensionSettings): Promise<PageT
     initialResolved: false,
     resolveInitial,
     observer,
-    dynamicRoots: new Set()
+    dynamicRoots: new Set(),
+    changedRoots: new Set()
   };
 
   activeSession = session;
   observer.observe(document.body, {
     childList: true,
     subtree: true,
+    characterData: true,
     attributes: true,
-    attributeFilter: ["class", "hidden", "aria-hidden"]
+    attributeFilter: ["class", "style", "hidden", "aria-hidden", "placeholder", "open"]
   });
-  window.addEventListener("scroll", handleViewportChange, { passive: true });
+  window.addEventListener("scroll", handleViewportChange, { passive: true, capture: true });
   window.addEventListener("resize", handleViewportChange, { passive: true });
   scheduleNearbySegments(session, true);
   resolveInitialIfReady(session);
@@ -162,35 +166,44 @@ async function runBatch(session: TranslationSession, segments: TextSegment[]): P
     const entry = session.entries.get(segment.id);
     if (entry) entry.status = "running";
   });
-  preserveViewportPosition(() => renderTranslationPlaceholders(segments));
+  preserveViewportPosition(() => renderTranslationPlaceholders(segments), segments);
 
   try {
     const data = await sendRuntimeRequest<TranslateBatchResponse>({
       type: "TRANSLATE_BATCH",
       texts: segments.map((segment) => segment.text),
+      context: buildTranslationContext(segments.map((segment) => segment.element)),
       sourceLang: session.settings.sourceLang,
       targetLang: session.settings.targetLang,
       providerId: session.settings.activeProviderId
     } satisfies RuntimeRequest);
     if (!isActive(session)) return;
+    // A response can arrive after a virtualized row has been reused.
+    refreshSegments(session, false);
+    const currentSegments = segments.filter((segment) => session.entries.has(segment.id));
+    if (data.translations.length !== segments.length
+      || data.translations.some((text) => typeof text !== "string" || !text.trim())) {
+      throw new Error("Translation response contains missing or empty items.");
+    }
 
     preserveViewportPosition(() => {
       renderTranslations(
         segments.map((segment, index) => ({
           id: segment.id,
           text: data.translations[index]
-        }))
+        })).filter((entry) => session.entries.has(entry.id)),
+        session.settings.translationDisplayMode
       );
-    });
+    }, segments);
     session.cached += data.cached;
-    session.translated += segments.length;
-    segments.forEach((segment) => {
+    session.translated += currentSegments.length;
+    currentSegments.forEach((segment) => {
       const entry = session.entries.get(segment.id);
       if (entry) entry.status = "done";
     });
   } catch (error) {
     if (!isActive(session)) return;
-    preserveViewportPosition(() => clearTranslationPlaceholders(segments));
+    preserveViewportPosition(() => clearTranslationPlaceholders(segments), segments);
     session.failed += segments.length;
     session.firstError ??= error instanceof Error ? error.message : String(error);
     segments.forEach((segment) => {
@@ -212,17 +225,33 @@ function handleViewportChange(): void {
   viewportTimer = window.setTimeout(() => {
     viewportTimer = undefined;
     const session = activeSession;
-    if (session) scheduleNearbySegments(session);
+    if (session) {
+      refreshSegments(session);
+      scheduleNearbySegments(session);
+    }
   }, VIEWPORT_DEBOUNCE_MS);
 }
 
 function handleDynamicContent(session: TranslationSession, mutations: MutationRecord[]): void {
   if (!isActive(session)) return;
   for (const mutation of mutations) {
+    const target = mutation.target instanceof Element ? mutation.target : mutation.target.parentElement;
+    if (!target || isExtensionOwned(target)) continue;
+    if (mutation.type === "characterData") {
+      session.dynamicRoots.add(target);
+      continue;
+    }
     if (mutation.type === "attributes") {
       const root = mutation.target instanceof Element ? mutation.target : null;
       if (root && !isExtensionOwned(root)) session.dynamicRoots.add(root);
       continue;
+    }
+    const sourceChanged = [...mutation.addedNodes, ...mutation.removedNodes].some((node) =>
+      !(node instanceof Element && isExtensionOwned(node))
+    );
+    if (sourceChanged) {
+      session.changedRoots.add(target);
+      session.dynamicRoots.add(target);
     }
     for (const node of mutation.addedNodes) {
       const root = node.nodeType === Node.ELEMENT_NODE
@@ -241,34 +270,55 @@ function handleDynamicContent(session: TranslationSession, mutations: MutationRe
 
 function collectDynamicSegments(session: TranslationSession): void {
   if (!isActive(session)) return;
-  const connectedRoots = [...session.dynamicRoots].filter((root) => root.isConnected);
+  refreshSegments(session);
+  scheduleNearbySegments(session);
+}
+
+function refreshSegments(session: TranslationSession, rescan = true): void {
+  const staleIds = invalidateStaleSegments([...session.changedRoots]);
+  session.changedRoots.clear();
+  for (const id of staleIds) {
+    session.entries.delete(id);
+    settleInitialSegment(session, id);
+  }
   session.dynamicRoots.clear();
-  const roots = connectedRoots.filter(
-    (root) => !connectedRoots.some((candidate) => candidate !== root && candidate.contains(root))
-  );
-  const segments = roots.flatMap((root) =>
-    collectAdditionalTextSegments(root, session.settings.translateCodeComments)
-  );
+  if (!rescan && !staleIds.length) return;
+  // Visibility and clipping can change through scrolling alone, with no DOM
+  // mutation. Revisit previously excluded text, while skipping tracked nodes.
+  const segments = collectAdditionalTextSegments(document.body, session.settings.translateCodeComments);
   for (const segment of segments) {
     if (!session.entries.has(segment.id)) {
       session.entries.set(segment.id, { segment, status: "idle" });
     }
   }
-  if (segments.length) scheduleNearbySegments(session);
 }
 
 function isExtensionOwned(element: Element): boolean {
   return element.matches(EXTENSION_OWNED_SELECTOR) || Boolean(element.closest(EXTENSION_OWNED_SELECTOR));
 }
 
-function preserveViewportPosition(mutate: () => void): void {
+function preserveViewportPosition(mutate: () => void, segments: TextSegment[] = []): void {
   const left = window.scrollX;
   const top = window.scrollY;
+  const containers = new Map<Element, { left: number; top: number }>();
+  for (const segment of segments) {
+    let ancestor: Element | null = segment.element;
+    while (ancestor && ancestor !== document.scrollingElement) {
+      if (!containers.has(ancestor) && (ancestor.scrollTop || ancestor.scrollLeft)) {
+        containers.set(ancestor, { left: ancestor.scrollLeft, top: ancestor.scrollTop });
+      }
+      ancestor = ancestor.parentElement;
+    }
+  }
   mutate();
   // Chromium applies scroll anchoring during layout, after the DOM mutation has
   // returned. Force that layout now so any resulting drift is observable and
   // can be corrected before the next frame is painted.
   void document.documentElement.offsetHeight;
+  for (const [container, position] of containers) {
+    if (container.scrollLeft !== position.left) container.scrollLeft = position.left;
+    if (container.scrollTop !== position.top) container.scrollTop = position.top;
+  }
   if (window.scrollX !== left || window.scrollY !== top) {
     window.scrollTo(left, top);
   }
@@ -318,7 +368,10 @@ function getProgressiveMaxItems(settings: ExtensionSettings): number {
 }
 
 function isLlmProvider(type: string): boolean {
-  return type === "openai-compatible" || type === "anthropic-compatible" || type === "zhipu-glm";
+  return type === "openai-compatible"
+    || type === "anthropic-compatible"
+    || type === "deepseek"
+    || type === "zhipu-glm";
 }
 
 function getProgressiveChunkSize(settings: ExtensionSettings): number {
@@ -372,11 +425,12 @@ function cancelActiveSession(): void {
     window.clearTimeout(viewportTimer);
     viewportTimer = undefined;
   }
-  window.removeEventListener("scroll", handleViewportChange);
+  window.removeEventListener("scroll", handleViewportChange, true);
   window.removeEventListener("resize", handleViewportChange);
   if (!session) return;
   session.observer.disconnect();
   session.dynamicRoots.clear();
+  session.changedRoots.clear();
   if (session.dynamicTimer !== undefined) {
     window.clearTimeout(session.dynamicTimer);
     session.dynamicTimer = undefined;
@@ -400,8 +454,4 @@ function getResult(session: TranslationSession): PageTranslationResult {
     error: session.firstError,
     remaining: [...session.entries.values()].filter((entry) => entry.status === "idle").length
   };
-}
-
-function emptyResult(): PageTranslationResult {
-  return { translated: 0, cached: 0, failed: 0, remaining: 0 };
 }

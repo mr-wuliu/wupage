@@ -48,8 +48,16 @@ export function normalizeSettings(value: unknown): ExtensionSettings {
     translateCodeComments:
       typeof input.translateCodeComments === "boolean"
         ? input.translateCodeComments
-        : DEFAULT_SETTINGS.translateCodeComments
+        : DEFAULT_SETTINGS.translateCodeComments,
+    imageTranslationEnabled: input.imageTranslationEnabled === true,
+    translationDisplayMode: isTranslationDisplayMode(input.translationDisplayMode)
+      ? input.translationDisplayMode
+      : DEFAULT_SETTINGS.translationDisplayMode
   };
+}
+
+function isTranslationDisplayMode(value: unknown): value is ExtensionSettings["translationDisplayMode"] {
+  return value === "replace" || value === "bilingual" || value === "bilingual-accent";
 }
 
 function mergeProviders(
@@ -140,6 +148,12 @@ function isProviderConfig(value: unknown): value is ProviderConfig {
   }
 
   if (value.type === "anthropic-compatible") {
+    return ["id", "label", "baseURL", "apiKey", "model", "systemPrompt"].every((key) =>
+      typeof value[key] === "string"
+    );
+  }
+
+  if (value.type === "deepseek") {
     return ["id", "label", "baseURL", "apiKey", "model", "systemPrompt"].every((key) =>
       typeof value[key] === "string"
     );

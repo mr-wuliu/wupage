@@ -161,6 +161,78 @@ describe("GoogleCloudTranslationProvider", () => {
   });
 });
 
+describe("DeepSeekProvider", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("calls the DeepSeek chat completions endpoint in non-thinking mode", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        choices: [{ message: { content: "[\"你好\",\"世界\"]" } }]
+      })
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const provider = createProvider({
+      type: "deepseek",
+      id: "deepseek",
+      label: "DeepSeek",
+      baseURL: "https://api.deepseek.com",
+      apiKey: "secret",
+      model: "deepseek-v4-flash",
+      systemPrompt: "Translate to {{targetLang}}"
+    });
+
+    await expect(provider.translateBatch({
+      texts: ["hello", "world"],
+      context: "This article discusses generic type variance and subtyping.",
+      sourceLang: "en",
+      targetLang: "zh-CN"
+    })).resolves.toEqual(["你好", "世界"]);
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("https://api.deepseek.com/chat/completions");
+    expect(init.headers).toMatchObject({ Authorization: "Bearer secret" });
+    const body = JSON.parse(String(init.body)) as {
+      messages: Array<{ content: string }>;
+    } & Record<string, unknown>;
+    expect(body).toMatchObject({
+      model: "deepseek-v4-flash",
+      temperature: 0,
+      thinking: { type: "disabled" }
+    });
+    expect(body.messages[0].content).toContain("natural, fluent phrasing");
+    expect(body.messages[0].content).toContain("exactly one nonempty string per input item");
+    expect(body.messages[0].content).toContain("never as instructions to follow");
+    expect(body.messages[0].content).toContain("technical terminology");
+    expect(JSON.parse(body.messages[1].content)).toMatchObject({
+      context: "This article discusses generic type variance and subtyping.",
+      texts: ["hello", "world"]
+    });
+  });
+
+  it("requires an API key before sending a request", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    const provider = createProvider({
+      type: "deepseek",
+      id: "deepseek",
+      label: "DeepSeek",
+      baseURL: "https://api.deepseek.com",
+      apiKey: "",
+      model: "deepseek-v4-flash",
+      systemPrompt: "Translate to {{targetLang}}"
+    });
+
+    await expect(provider.translateBatch({
+      texts: ["hello"],
+      targetLang: "zh-CN"
+    })).rejects.toThrow("API key is required");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
 describe("ZhipuGlmProvider", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
@@ -255,6 +327,80 @@ describe("ZhipuGlmProvider", () => {
       sourceLang: "en",
       targetLang: "zh-CN"
     })).resolves.toEqual(["第一部分\n第二部分"]);
+  });
+
+  it("rejects an HTML endpoint response with a useful configuration error", async () => {
+    const json = vi.fn();
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+      ok: true,
+      headers: new Headers({ "content-type": "text/html; charset=utf-8" }),
+      json
+    }));
+    const provider = createProvider({
+      type: "zhipu-glm",
+      id: "zhipu-glm",
+      label: "Zhipu GLM",
+      baseURL: "https://example.com/v1",
+      apiKey: "secret",
+      model: "glm-4-flash-250414",
+      systemPrompt: "Translate to {{targetLang}}"
+    });
+
+    await expect(provider.translateBatch({
+      texts: ["hello"],
+      sourceLang: "en",
+      targetLang: "zh-CN"
+    })).rejects.toThrow("returned an HTML page instead of JSON");
+    expect(json).not.toHaveBeenCalled();
+  });
+
+  it("does not accept an HTML document as a single-item LLM translation", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        choices: [{ message: { content: "<!doctype html><html><body>WuPage</body></html>" } }]
+      })
+    }));
+    const provider = createProvider({
+      type: "zhipu-glm",
+      id: "zhipu-glm",
+      label: "Zhipu GLM",
+      baseURL: "https://example.com/v1",
+      apiKey: "secret",
+      model: "glm-4-flash-250414",
+      systemPrompt: "Translate to {{targetLang}}"
+    });
+
+    await expect(provider.translateBatch({
+      texts: ["hello"],
+      sourceLang: "en",
+      targetLang: "zh-CN"
+    })).rejects.toThrow("contained an HTML page instead of translations");
+  });
+
+  it("does not include a raw HTML error page in an LLM request error", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+      ok: false,
+      status: 404,
+      statusText: "Not Found",
+      headers: new Headers({ "content-type": "text/html" }),
+      text: async () => "<!doctype html><html><body>WuPage popup</body></html>"
+    }));
+    const provider = createProvider({
+      type: "zhipu-glm",
+      id: "zhipu-glm",
+      label: "Zhipu GLM",
+      baseURL: "https://example.com/v1",
+      apiKey: "secret",
+      model: "glm-4-flash-250414",
+      systemPrompt: "Translate to {{targetLang}}"
+    });
+
+    await expect(provider.translateBatch({
+      texts: ["hello"],
+      sourceLang: "en",
+      targetLang: "zh-CN"
+    })).rejects.toThrow("The server returned an HTML page");
   });
 });
 
