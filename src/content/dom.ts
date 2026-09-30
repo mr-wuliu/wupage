@@ -27,6 +27,7 @@ interface TrackedGroup {
   block: Element;
   mode: RenderMode;
   insertionBefore?: ChildNode;
+  insertionAfter?: ChildNode;
   preserveWhitespace?: boolean;
 }
 
@@ -173,6 +174,11 @@ const SEMANTIC_TEXT_BLOCK_SELECTOR = [
   "td"
 ].join(",");
 const X_POST_TEXT_SELECTOR = "[data-testid='tweetText']";
+const YOUTUBE_DESCRIPTION_SELECTOR = [
+  "#description-inline-expander .ytAttributedStringHost",
+  "ytd-expandable-video-description-body-renderer .ytAttributedStringHost",
+  "#description yt-formatted-string.content"
+].join(",");
 const READABLE_ROOT_SELECTOR = "main,article,[role='main'],.markdown-body,.docblock,#main-content";
 const CODE_SELECTOR = "pre, code, .highlight, .example-wrap, .blob-code, .react-code-text";
 const CODE_COMMENT_TARGET_SELECTOR = ".react-code-text, .blob-code, pre, code, .highlight";
@@ -207,7 +213,8 @@ const PARAGRAPH_SELECTOR = [
   ".markdown-body > div",
   ".markdown-body > p",
   ".comment-body p",
-  X_POST_TEXT_SELECTOR
+  X_POST_TEXT_SELECTOR,
+  YOUTUBE_DESCRIPTION_SELECTOR
 ].join(",");
 
 export function collectTextSegments(translateCodeComments = true): TextSegment[] {
@@ -354,6 +361,7 @@ function collectTextSegmentsFromRoot(
 ): TextSegment[] {
   if (resetTracking) clearNodeTracking();
   splitXPostLineBreakTextNodes(root);
+  splitYouTubeDescriptionTextNodes(root);
   const alreadyTracked = new Set(trackedNodes.map((tracked) => tracked.node));
   const visibility = createRenderVisibilitySnapshot();
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
@@ -378,6 +386,8 @@ function collectTextSegmentsFromRoot(
     const sourceText = codeComment?.text ?? text;
     if (!sourceText || sourceText.length < 2) continue;
     if (!codeComment && isNonTranslatableFragment(sourceText)) continue;
+    if (node.parentElement?.closest(YOUTUBE_DESCRIPTION_SELECTOR)
+      && /^https?:\/\/\S+$/i.test(sourceText)) continue;
     if (!codeComment && isLikelyUiToken(sourceText, node.parentElement)) continue;
     const id = `seg-${Date.now()}-${segmentIdCounter++}`;
     const tracked: TrackedNode = {
@@ -829,7 +839,7 @@ function groupTextSegments(
     if (tracked.mode === "code-comment") continue;
     const block = findGroupingBlock(tracked.node.parentElement);
     if (!block) continue;
-    if (block.querySelector(`.${TRANSLATION_CLASS}`)) continue;
+    if (block.querySelector(`.${TRANSLATION_CLASS}`) && !block.matches(YOUTUBE_DESCRIPTION_SELECTOR)) continue;
     const group = groups.get(block) ?? [];
     group.push(tracked);
     groups.set(block, group);
@@ -837,6 +847,21 @@ function groupTextSegments(
 
   const groupedSegments: TextSegment[] = [];
   for (const [block, groupNodes] of groups) {
+    if (block.matches(YOUTUBE_DESCRIPTION_SELECTOR)) {
+      for (const line of getYouTubeDescriptionLines(block, groupNodes, visibility)) {
+        const id = line.nodes[0].id;
+        trackedGroups.push({
+          id,
+          nodes: line.nodes,
+          block,
+          mode: "block",
+          insertionAfter: line.nodes.at(-1)!.node
+        });
+        groupedSegments.push({ id, text: line.text, element: block });
+        line.nodes.forEach((tracked) => standalone.delete(tracked.id));
+      }
+      continue;
+    }
     if (block.matches(X_POST_TEXT_SELECTOR)) {
       for (const paragraph of getXPostParagraphGroups(block, groupNodes)) {
         const id = paragraph.nodes[0].id;
@@ -879,6 +904,88 @@ interface XPostParagraphGroup {
   nodes: TrackedNode[];
   text: string;
   insertionBefore?: ChildNode;
+}
+
+// Description runs contain literal newlines, with links in separate siblings.
+// Track each authored line so providers cannot flatten the description and so
+// translations stay beside their source rather than at the end of the host.
+function splitYouTubeDescriptionTextNodes(root: Element): void {
+  const descriptions = [
+    ...(root.matches(YOUTUBE_DESCRIPTION_SELECTOR) ? [root] : []),
+    ...root.querySelectorAll(YOUTUBE_DESCRIPTION_SELECTOR)
+  ];
+  for (const description of descriptions) {
+    const walker = document.createTreeWalker(description, NodeFilter.SHOW_TEXT);
+    const nodes: Text[] = [];
+    while (walker.nextNode()) nodes.push(walker.currentNode as Text);
+    for (const node of nodes) {
+      if (node.parentElement?.closest(`a, .${TRANSLATION_CLASS}`)) continue;
+      const breaks = [...node.data.matchAll(/\r?\n+/g)];
+      for (const match of breaks.reverse()) {
+        const end = match.index! + match[0].length;
+        if (end < node.length) node.splitText(end);
+        if (match.index! > 0) node.splitText(match.index!);
+      }
+    }
+  }
+}
+
+function getYouTubeDescriptionLines(
+  block: Element,
+  groupNodes: TrackedNode[],
+  visibility: RenderVisibilitySnapshot
+): Array<{ nodes: TrackedNode[]; text: string }> {
+  const trackedByNode = new Map(groupNodes.map((tracked) => [tracked.node, tracked]));
+  const lines: Array<{ nodes: TrackedNode[]; text: string }> = [];
+  let nodes: TrackedNode[] = [];
+  let sourceNodes: Text[] = [];
+  let parts: string[] = [];
+  const finish = (): void => {
+    const text = normalizeText(parts.join(""));
+    if (nodes.length && text) {
+      // Include punctuation and short inline fragments in replacement/restore
+      // tracking even when they could not be translated on their own.
+      const id = nodes[0].id;
+      nodes = sourceNodes.map((node) => {
+        const existing = trackedByNode.get(node);
+        if (existing) return existing;
+        const tracked: TrackedNode = {
+          id, node, mode: "block", sourceValue: node.data, sourceParent: node.parentElement!
+        };
+        trackedNodes.push(tracked);
+        return tracked;
+      });
+      lines.push({ nodes, text });
+    }
+    nodes = [];
+    sourceNodes = [];
+    parts = [];
+  };
+  const visit = (parent: Element): void => {
+    for (const child of parent.childNodes) {
+      if (child instanceof Element) {
+        if (child.matches(`.${TRANSLATION_CLASS}`)) continue;
+        // Keep original URLs and video chips intact and independently clickable.
+        if (child.matches("a, br")) {
+          finish();
+        } else if (!shouldSkipElement(child, true, visibility)) {
+          visit(child);
+        }
+      } else if (child instanceof Text) {
+        if (/\r?\n/.test(child.data)) {
+          finish();
+        } else if (visibility.isTextNodeVisuallyRendered(child)) {
+          parts.push(child.data);
+          sourceNodes.push(child);
+          const tracked = trackedByNode.get(child);
+          if (tracked) nodes.push(tracked);
+        }
+      }
+    }
+  };
+  visit(block);
+  finish();
+  return lines;
 }
 
 /**
@@ -970,6 +1077,8 @@ function getXPostParagraphGroups(
 
 function findGroupingBlock(element: Element | null): Element | null {
   if (!element) return null;
+  const description = element.closest(YOUTUBE_DESCRIPTION_SELECTOR);
+  if (description) return element.closest("a") ? null : description;
   const compactNavigationTarget = getCompactNavigationTarget(element);
   if (compactNavigationTarget) return compactNavigationTarget;
   const compactControlTarget = getCompactControlTarget(element);
@@ -1273,7 +1382,14 @@ function insertGroupedTranslation(
   translation: Element,
   displayMode: TranslationDisplayMode = "bilingual"
 ): void {
-  const { block, insertionBefore, mode } = group;
+  const { block, insertionBefore, insertionAfter, mode } = group;
+  if (insertionAfter?.parentNode) {
+    if (block.matches(YOUTUBE_DESCRIPTION_SELECTOR)) {
+      translation.setAttribute("data-wupage-container", "youtube-description");
+    }
+    insertionAfter.after(translation);
+    return;
+  }
   if (insertionBefore?.parentNode) {
     insertionBefore.before(translation);
     return;
@@ -1333,6 +1449,7 @@ function isCompactUiElement(element: Element): boolean {
 
 function isLikelyUiToken(text: string, element: Element | null): boolean {
   if (!element) return false;
+  if (element.closest(YOUTUBE_DESCRIPTION_SELECTOR)) return false;
   if (isCompactNavigationText(element)) return false;
   if (isCompactControlText(element)) return false;
   if (text.length > 28) return false;

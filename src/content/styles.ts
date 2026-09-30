@@ -51,6 +51,17 @@ export function injectContentStyles(): void {
       white-space: pre-wrap;
     }
 
+    .wupage-translation[data-wupage-container="youtube-description"] {
+      display: inline;
+      margin: 0;
+      white-space: pre-wrap;
+    }
+
+    .wupage-translation[data-wupage-container="youtube-description"]:not([data-wupage-display-mode="replace"])::before {
+      content: "\\A";
+      white-space: pre;
+    }
+
     .wupage-translation[data-wupage-display-mode="replace"] {
       display: inline;
       margin: 0;
