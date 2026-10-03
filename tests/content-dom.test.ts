@@ -18,6 +18,40 @@ import {
 } from "../src/content/dom";
 
 describe("content DOM translation extraction", () => {
+  it("keeps Reddit comment metadata untouched and translations in the body slot", () => {
+    document.body.innerHTML = `
+      <main role="main">
+        <shreddit-comment>
+          <div slot="commentMeta"><a>Narthesia</a><span>8h ago</span><span>P1S + AMS</span></div>
+          <div slot="comment"><p>Scroll down for <em>30 seconds</em> and you will find someone like you.</p></div>
+        </shreddit-comment>
+      </main>`;
+    stubLayout();
+    const segments = collectTextSegments();
+    expect(segments.map((segment) => segment.text)).toEqual([
+      "Scroll down for 30 seconds and you will find someone like you."
+    ]);
+    renderTranslationPlaceholders(segments);
+    expect(document.querySelector("[slot='commentMeta'] .wupage-translation")).toBeNull();
+    renderTranslations([{ id: segments[0].id, text: "往下滑动30秒，你会找到和你一样的人。" }]);
+    expect(document.querySelector("[slot='comment'] .wupage-translation")?.textContent)
+      .toBe("往下滑动30秒，你会找到和你一样的人。");
+    expect(document.querySelector("shreddit-comment > .wupage-translation")).toBeNull();
+  });
+
+  it("keeps grouped translations and placeholders inside a named slot", () => {
+    document.body.innerHTML = `<custom-card><p slot="body">Hello <em>world</em></p></custom-card>`;
+    stubLayout();
+    const segments = collectTextSegments();
+    renderTranslationPlaceholders(segments);
+    expect(document.querySelector("p[slot='body'] .wupage-translation-pending")).not.toBeNull();
+    renderTranslations([{ id: segments[0].id, text: "你好世界" }]);
+    expect(document.querySelector("p[slot='body'] .wupage-translation")?.textContent).toBe("你好世界");
+    expect(document.querySelector("custom-card > .wupage-translation")).toBeNull();
+    clearTranslations();
+    expect(document.querySelector("p")?.textContent).toBe("Hello world");
+  });
+
   afterEach(() => {
     vi.restoreAllMocks();
     document.documentElement.className = "";

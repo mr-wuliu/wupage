@@ -179,6 +179,15 @@ const YOUTUBE_DESCRIPTION_SELECTOR = [
   "ytd-expandable-video-description-body-renderer .ytAttributedStringHost",
   "#description yt-formatted-string.content"
 ].join(",");
+// Reddit distributes comment metadata through named shadow-DOM slots. A
+// translation added to that wrapper can become an unslotted avatar-column item.
+const REDDIT_METADATA_SELECTOR = [
+  "shreddit-comment [slot='commentMeta']",
+  "shreddit-comment [slot='authorName']",
+  "shreddit-comment [slot='authorFlair']",
+  "shreddit-comment [slot='timestamp']",
+  "shreddit-post [slot='credit-bar']"
+].join(",");
 const READABLE_ROOT_SELECTOR = "main,article,[role='main'],.markdown-body,.docblock,#main-content";
 const CODE_SELECTOR = "pre, code, .highlight, .example-wrap, .blob-code, .react-code-text";
 const CODE_COMMENT_TARGET_SELECTOR = ".react-code-text, .blob-code, pre, code, .highlight";
@@ -1127,6 +1136,7 @@ function shouldSkipElement(
   visibility?: RenderVisibilitySnapshot
 ): boolean {
   if (element.closest(`.${TRANSLATION_CLASS}`)) return true;
+  if (element.closest(REDDIT_METADATA_SELECTOR)) return true;
   if (isInsideCodeBlock(element)) return false;
   if (isCompactControlText(element)) {
     return Boolean(element.closest(COMPACT_CONTROL_SKIP_SELECTOR));
@@ -1360,6 +1370,12 @@ function escapeRegExp(value: string): string {
 }
 
 function insertBlockTranslation(block: Element, translation: Element): void {
+  // Keep translated text in the same named slot as its source. A sibling
+  // without a slot is rendered in the custom element's default slot instead.
+  if (block.hasAttribute("slot")) {
+    block.append(translation);
+    return;
+  }
   if (block.matches(HEADING_SELECTOR)) {
     translation.setAttribute("data-wupage-container", "heading");
     const anchor = findHeadingAnchor(block);
