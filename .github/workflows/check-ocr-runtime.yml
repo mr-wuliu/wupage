@@ -11,6 +11,7 @@ on:
       - 'package*.json'
       - 'scripts/test-ocr-runtime.mjs'
       - 'tests/ocr-custom-runtime.test.ts'
+      - 'tests/test_ocr_types.py'
       - '.github/workflows/check-ocr-runtime.yml'
   workflow_dispatch:
 
@@ -27,6 +28,11 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install -r build/ocr/requirements.txt
+      - run: python3 -B -m unittest discover -s tests -p 'test_ocr_types.py'
       - run: npm run typecheck
       - run: npm test
       - run: npm run build && npm run build:firefox
@@ -44,6 +50,10 @@ jobs:
       - run: npm run test:ocr-runtime
         env:
           PLAYWRIGHT_MODULE: ${{ github.workspace }}/.npm-cache/ocr-test-tools/node_modules/playwright/index.mjs
+      - name: Verify the committed type inventory against the actual models
+        run: |
+          python3 -B build/ocr/build.py --component operators --work-dir .npm-cache/ocr-model-audit --model-dir .npm-cache/firefox/models --output .npm-cache/ocr-model-audit/artifacts
+          diff -u vendor/ocr/model-types.json .npm-cache/ocr-model-audit/artifacts/model-types.json
       - uses: actions/upload-artifact@v4
         if: always()
         with:

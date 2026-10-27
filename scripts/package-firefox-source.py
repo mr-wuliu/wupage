@@ -70,6 +70,13 @@ Rebuilding the custom OCR libraries (optional for a normal extension build)
   and no contrib, ML or generation operators. The standard threaded filenames
   are retained for compatibility with the npm loader; both files are from the
   same single-thread build. Runtime/model code is not downloaded on execution.
+- build/ocr/model_types.py inventories serialized and inferred model types,
+  including constants, Cast targets and nested graphs, before compilation.
+  The runtime disables float4/float8, optional, sparse-tensor and string-tensor
+  support. The pinned models use FLOAT, INT32 and INT64, all of which remain.
+  vendor/ocr/model-types.json records this inventory. Model weights, dictionaries
+  and decoded OCR text are unchanged. Tests in tests/test_ocr_types.py reject
+  incompatible models; both real OCR models are also exercised in browsers.
 
 Reviewer testing
 1. Install dist-firefox/manifest.json temporarily using about:debugging in

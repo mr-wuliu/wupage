@@ -1,8 +1,9 @@
 {
   "inputs": {
-    "build/ocr/runtime.json": "da1cdd346ceba857cb3d00333290e809ee612246b71a6ffc8a2f11411f956a0b",
+    "build/ocr/runtime.json": "623a61128334ee1c6c50649faea5e57afecae3ae931d9f3aa254c0e4c2023224",
     "build/ocr/opencv.config.py": "514e64754977667482094ae2c6f31a9c27ac86a51bd50302c83a1a7ad22e39c6",
-    "build/ocr/build.py": "bf226aaadafe3eb1005d02d94fa9f0465ac0c1b20e57d822293e6654d4c39e49",
+    "build/ocr/build.py": "101591ff1c5416d0ebabf1763c9b157b0b7cfc868c7c0ed2e2102d35671277fe",
+    "build/ocr/model_types.py": "2c890aed3c4f92cc8b79297d0fc7f1311ab9e57b07c948904a15055f3e6a83f1",
     "build/ocr/requirements.txt": "e8906315d6c5063a33ed93f25e01804e341a456e19a6c7b45fdd92165b376c9d"
   },
   "files": {
@@ -16,11 +17,11 @@
     },
     "ort-wasm-simd-threaded.mjs": {
       "bytes": 12291,
-      "sha256": "781ae3fd8b3776c6cc39caad076ec39eacdd0c61140743f0a1e7c73b622ef010"
+      "sha256": "b218917a058c27b54e01a2774d1d85da90497227ae0770912a5c2b2499b4b9a6"
     },
     "ort-wasm-simd-threaded.wasm": {
-      "bytes": 6875056,
-      "sha256": "8147bd3f4843dee95441dcfd6a9d6aebb4e1ad92c3fe92aaba56e591d258ccf0"
+      "bytes": 6612431,
+      "sha256": "f9c314f7c6c7a30c1bd628ccf6431a35c1a62de0b635bdb07c49998f0473179c"
     },
     "opencv-LICENSE.txt": {
       "bytes": 11358,
@@ -41,6 +42,10 @@
     "required-operators.config": {
       "bytes": 406,
       "sha256": "702041ecf9cd05c4054d13706294c24b2337102d297386b7b103591ebafeff17"
+    },
+    "model-types.json": {
+      "bytes": 712,
+      "sha256": "aa46ae526860a7523f4219113e1e9874bcc634484a15e0efdd078920690f75bc"
     }
   }
 }

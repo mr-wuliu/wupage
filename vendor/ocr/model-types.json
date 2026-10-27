@@ -1,0 +1,35 @@
+{
+  "disabled_types": [
+    "float4",
+    "float8",
+    "optional",
+    "sparsetensor",
+    "string"
+  ],
+  "models": [
+    {
+      "name": "PP-OCRv5_mobile_det",
+      "sha256": "781056046c9ed77a15c94681605db6a0f62317c2e9cce6931c71da2478d4bc30",
+      "element_types": [
+        "FLOAT"
+      ],
+      "container_types": [
+        "tensor_type"
+      ],
+      "checked_node_outputs": 526
+    },
+    {
+      "name": "PP-OCRv5_mobile_rec",
+      "sha256": "f7e792bc836f36e7ef895ad47c426d75b0b75b1650caa6d63fe9418441ffba8c",
+      "element_types": [
+        "FLOAT",
+        "INT32",
+        "INT64"
+      ],
+      "container_types": [
+        "tensor_type"
+      ],
+      "checked_node_outputs": 1019
+    }
+  ]
+}
