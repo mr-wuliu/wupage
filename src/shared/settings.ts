@@ -1,6 +1,7 @@
 import { DEFAULT_SETTINGS, SETTINGS_KEY } from "./defaults";
 import { isLlmProvider } from "./performance";
 import { normalizeAutoTranslation } from "./auto-translation";
+import { normalizeSelectionTranslation } from "./selection-translation";
 import { normalizeServiceConfig, supportsServiceMode } from "./translation-service";
 import type { ExtensionSettings, ProviderConfig } from "./types";
 
@@ -36,6 +37,7 @@ export function normalizeSettings(value: unknown): ExtensionSettings {
     ...input,
     providers,
     autoTranslation: normalizeAutoTranslation(input.autoTranslation),
+    selectionTranslation: normalizeSelectionTranslation(input.selectionTranslation),
     targetLang: readString(input.targetLang, DEFAULT_SETTINGS.targetLang),
     sourceLang: readString(input.sourceLang, DEFAULT_SETTINGS.sourceLang),
     activeProviderId,

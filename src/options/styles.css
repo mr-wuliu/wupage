@@ -126,6 +126,17 @@ label {
   .auto-site-editor small { grid-row: 2; padding-left: 8px; font-size: 11px; }
 }
 
+.selection-icon-toggle { width: min(100%, 430px); box-sizing: border-box; }
+.selection-shortcut-field { display: grid; gap: 6px; min-width: 0; }
+.selection-shortcut-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.selection-shortcut-controls input { flex: 1 1 220px; min-width: 0; box-sizing: border-box; max-width: 430px; min-height: 38px; }
+.selection-shortcut-controls input:focus-visible { outline: 2px solid #116466; outline-offset: 2px; }
+.selection-shortcut-controls input[aria-invalid="true"] { border-color: #ad3737; }
+#selectionTranslationStatus { min-height: 1.5em; }
+#selectionTranslationSettings:has([aria-invalid="true"]) #selectionTranslationStatus { color: #ad3737; }
+#selectionTranslationSettings[data-loading] .setting-toggle { opacity: 0.6; cursor: wait; }
+#selectionTranslationSettings :is(input, button):disabled { opacity: 0.6; cursor: wait; }
+
 #pdfTranslationPageRadiusField[hidden] {
   display: none;
 }

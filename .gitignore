@@ -4,3 +4,4 @@ dist-firefox/
 .env
 .DS_Store
 .npm-cache/
+.pnpm-store/

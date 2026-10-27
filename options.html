@@ -69,6 +69,25 @@
         </div>
       </section>
 
+      <section id="selectionTranslationSettings" data-loading aria-busy="true">
+        <h2>划词翻译</h2>
+        <label class="setting-toggle selection-icon-toggle">
+          <span>选中文字后显示翻译图标</span>
+          <input id="selectionTranslationShowIcon" type="checkbox" role="switch" disabled />
+          <span class="setting-toggle-control" aria-hidden="true"></span>
+        </label>
+        <div class="selection-shortcut-field">
+          <label for="selectionTranslationShortcut">划词翻译快捷键</label>
+          <div class="selection-shortcut-controls">
+            <input id="selectionTranslationShortcut" type="text" readonly disabled autocomplete="off" spellcheck="false" placeholder="点击后按下快捷键" aria-describedby="selectionTranslationHelp selectionTranslationStatus" />
+            <button id="clearSelectionTranslationShortcut" type="button" class="secondary" disabled>清除</button>
+            <button id="resetSelectionTranslationShortcut" type="button" class="secondary" disabled>恢复默认快捷键</button>
+          </div>
+        </div>
+        <p id="selectionTranslationHelp" class="hint">选中文字后按快捷键翻译，无需显示图标。点击输入框后，按包含 Ctrl、Alt 或 Meta（Command）的字母或数字组合键；Backspace / Delete 清除，Escape 退出，Tab 切换焦点。浏览器或系统快捷键可能冲突，冲突时请更换组合键。更改后请点击页面底部“保存”生效。</p>
+        <p id="selectionTranslationStatus" class="hint" role="status" aria-live="polite" aria-atomic="true"></p>
+      </section>
+
       <section id="autoTranslationSettings">
         <h2>自动翻译</h2>
         <div class="auto-translation-controls">

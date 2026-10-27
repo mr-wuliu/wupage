@@ -9,6 +9,7 @@ import { setImageTranslationToggle, setupOcrControl } from "../shared/ocr-contro
 import { setupLocalModelControl } from "../local/control";
 import { ensureProviderIconStyles, providerIconMarkup } from "../shared/provider-icons";
 import { setupAutoTranslationControls } from "./auto-translation";
+import { setupSelectionTranslationControls } from "./selection-translation";
 import { renderProviderUsage, updateProviderScheduling } from "./provider-usage";
 
 const targetLang = query<HTMLSelectElement>("#targetLang");
@@ -47,6 +48,7 @@ const saveButton = query<HTMLButtonElement>("#save");
 const restoreButton = query<HTMLButtonElement>("#restore");
 const status = query<HTMLParagraphElement>("#status");
 const autoTranslationControls = setupAutoTranslationControls(query<HTMLElement>("#autoTranslationSettings"));
+const selectionTranslationControls = setupSelectionTranslationControls(query<HTMLElement>("#selectionTranslationSettings"));
 
 const LLM_MODEL_OPTIONS = [
   "gpt-4o-mini",
@@ -139,6 +141,7 @@ async function init(): Promise<void> {
 
 function render(): void {
   autoTranslationControls.render(settings.autoTranslation);
+  selectionTranslationControls.render(settings.selectionTranslation);
   renderLanguageOptions(targetLang, settings.targetLang, TARGET_LANGUAGES);
   renderLanguageOptions(sourceLang, settings.sourceLang, SOURCE_LANGUAGES);
   chunkSize.value = String(settings.chunkSize);
@@ -742,6 +745,7 @@ function readSettingsFromForm(): ExtensionSettings {
   return {
     ...settings,
     autoTranslation: autoTranslationControls.read(),
+    selectionTranslation: selectionTranslationControls.read(),
     targetLang: targetLang.value.trim() || "zh-CN",
     sourceLang: sourceLang.value.trim() || "auto",
     activeProviderId: settings.activeProviderId,

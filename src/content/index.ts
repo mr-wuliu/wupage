@@ -14,6 +14,7 @@ import { injectContentStyles } from "./styles";
 import { initImageTranslation, translateContextImage } from "./image-translation";
 import { SETTINGS_KEY } from "../shared/defaults";
 import { initAutoTranslation } from "./auto-translation";
+import { initSelectionTranslation } from "./selection-translation";
 
 addRuntimeMessageListener((request: RuntimeRequest, _sender, sendResponse) => {
   handleMessage(request)
@@ -31,6 +32,7 @@ injectContentStyles();
 initFloatingBall();
 initImageTranslation();
 initAutoTranslation();
+initSelectionTranslation();
 
 chrome.storage.onChanged.addListener((changes, area) => {
   const change = changes[SETTINGS_KEY];

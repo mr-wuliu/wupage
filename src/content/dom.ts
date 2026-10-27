@@ -83,6 +83,7 @@ const SKIP_TAGS = new Set([
   "CANVAS"
 ]);
 const SKIP_SELECTORS = [
+  "#wupage-selection-translator",
   "#wupage-floating-hitbox",
   "#wupage-floating-menu",
   "#wupage-debug-panel",

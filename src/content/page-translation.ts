@@ -24,6 +24,7 @@ const MAX_LLM_BATCH_ITEMS = 16;
 const VIEWPORT_DEBOUNCE_MS = 100;
 const DYNAMIC_CONTENT_DEBOUNCE_MS = 160;
 const EXTENSION_OWNED_SELECTOR = [
+  "#wupage-selection-translator",
   ".wupage-translation",
   "#wupage-floating-hitbox",
   "#wupage-floating-menu",

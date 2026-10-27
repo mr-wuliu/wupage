@@ -1,6 +1,8 @@
 import type { ExtensionSettings } from "./types";
+import { DEFAULT_SELECTION_TRANSLATION } from "./selection-translation";
 
 export const DEFAULT_SETTINGS: ExtensionSettings = {
+  selectionTranslation: { ...DEFAULT_SELECTION_TRANSLATION },
   autoTranslation: { enabled: false, nonTargetLanguage: false, presetSites: [], customSites: [] },
   targetLang: "zh-CN",
   sourceLang: "auto",

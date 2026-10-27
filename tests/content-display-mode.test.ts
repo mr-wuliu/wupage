@@ -14,6 +14,7 @@ vi.mock("../src/content/floating", () => ({
 }));
 vi.mock("../src/content/image-translation", () => ({ initImageTranslation: vi.fn(), translateContextImage: vi.fn() }));
 vi.mock("../src/content/styles", () => ({ injectContentStyles: vi.fn() }));
+vi.mock("../src/content/selection-translation", () => ({ initSelectionTranslation: vi.fn() }));
 vi.mock("../src/content/runtime", () => ({ addRuntimeMessageListener: vi.fn(), sendRuntimeRequest: vi.fn() }));
 
 describe("saved display mode updates", () => {

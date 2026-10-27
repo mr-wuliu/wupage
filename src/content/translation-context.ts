@@ -13,6 +13,7 @@ const CONTEXT_BLOCK_SELECTOR = [
   "dd"
 ].join(",");
 const EXTENSION_OWNED_SELECTOR = [
+  "#wupage-selection-translator",
   ".wupage-translation",
   "#wupage-floating-hitbox",
   "#wupage-floating-menu",

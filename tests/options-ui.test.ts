@@ -52,6 +52,19 @@ describe("options provider controls", () => {
       expect(document.querySelector("#providerTriggerLabel")?.textContent)
         .toBe("Microsoft 翻译");
     });
+    const shortcutInput = query<HTMLInputElement>("#selectionTranslationShortcut");
+    expect(shortcutInput.value).toBe("Alt + Shift + T");
+    query<HTMLInputElement>("#selectionTranslationShowIcon").click();
+    shortcutInput.focus();
+    shortcutInput.dispatchEvent(new KeyboardEvent("keydown", { key: "e", code: "KeyE", ctrlKey: true, shiftKey: true, bubbles: true, cancelable: true }));
+    click("#save");
+    await vi.waitFor(() => expect(stored.selectionTranslation).toEqual({ showIcon: false, shortcut: "Ctrl+Shift+E" }));
+    click("#clearSelectionTranslationShortcut");
+    click("#save");
+    await vi.waitFor(() => expect(stored.selectionTranslation?.shortcut).toBe(""));
+    click("#resetSelectionTranslationShortcut");
+    click("#save");
+    await vi.waitFor(() => expect(stored.selectionTranslation?.shortcut).toBe("Alt+Shift+T"));
     expect(document.querySelector("[data-field='apiKey']")).toBeNull();
     expect(document.querySelector("#providerTriggerIcon [data-provider-icon='microsoft-color']")).not.toBeNull();
     expect(document.querySelector("#providerForm")?.textContent).toContain("无需注册或填写 API Key");

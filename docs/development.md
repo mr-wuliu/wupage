@@ -76,6 +76,10 @@ npm run build
 
 ### 网页翻译回归验证
 
+- 划词翻译由 `src/content/selection-translation.ts` 提供，使用 Shadow DOM 隔离样式，不改变原文 DOM。选区变化只显示入口，点击或 `Alt+Shift+T` 才读取当前配置并调用现有 `TRANSLATE_BATCH`，仅传递选中文字。请求代次隔离已关闭或已切换选区的迟到响应；输入框、编辑区和扩展界面不提供入口。
+- 划词设置使用 `selectionTranslation: { showIcon, shortcut }`；旧设置默认显示图标并使用 `Alt+Shift+T`，空快捷键表示禁用。`src/shared/selection-translation.ts` 统一处理规范化、录入与匹配，拒绝单字符、Shift-only、AltGraph 和部分常见保留组合键。网页通过 storage 初始读取与变更监听同步配置，晚到的初始读取不能覆盖新配置。入口为选区最后一行右下角的 8px 墨绿色圆点，保留 28px 透明点击区域，指针拖选期间不出现，选区稳定 180ms 后渐入。
+- `tests/selection-translation.test.ts`、`tests/selection-shortcut.test.ts` 与 `tests/selection-options.test.ts` 覆盖划词入口、设置录入/清除/默认、旧设置兼容、实时更新、自定义快捷键、编辑区排除、关闭与迟到响应、错误重试及安全文本显示。运行 `npm test -- tests/selection-translation.test.ts tests/selection-shortcut.test.ts tests/selection-options.test.ts`。人工检查多行选区、键盘选区、暗色页面、视口边缘和滚动位置，以及与全文翻译并用时不重复翻译浮层。
+
 - 自动翻译由 `src/shared/auto-translation.ts` 归一化并匹配站点规则，`src/content/auto-translation.ts` 在前台 HTML 页面触发现有渐进翻译。语言检测仅使用本机浏览器接口；路由、配置与手动停止会使过期检测结果失效。回归覆盖域名边界、通配与路径、旧设置默认关闭、动态内容、手动停止和单页导航。
 - `npm run test:auto`：构建后加载实际扩展，使用本地网页和模拟翻译服务验证规则保存、窄屏、自动触发、手动恢复原文、单页导航、目标语言跳过和异步加载的正文。报告保存在 `.npm-cache/auto-translation/`。
 - 六个预置在线翻译服务通过 `serviceMode` 区分 `free`（默认）和 `api`，凭据保存在对应配置的 `api` 中。免费分支不读取或发送这些凭据；切换方式会保留已有配置。旧版内置 Azure / Google Cloud 配置在规范化设置时迁移至对应服务商，存在不同凭据时保留独立配置。火山 API 在后台通过 Web Crypto 生成 V4 签名；腾讯 API 使用 TokenHub 的翻译模型。

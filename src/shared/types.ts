@@ -146,7 +146,14 @@ export type DualServiceProviderConfig = Extract<ProviderConfig, DualServiceConfi
     | "yandex-web-translate" | "volcengine-web-translate" | "mymemory";
 }>;
 
+export interface SelectionTranslationSettings {
+  showIcon: boolean;
+  /** Empty disables keyboard activation. */
+  shortcut: string;
+}
+
 export interface ExtensionSettings {
+  selectionTranslation?: SelectionTranslationSettings;
   autoTranslation?: AutoTranslationSettings;
   targetLang: string;
   sourceLang: string;
