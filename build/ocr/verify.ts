@@ -20,13 +20,13 @@ export async function verifyOcrRuntime(root: string): Promise<string> {
   if (JSON.stringify(OCR_MODELS.map(({ name, bytes, sha256 }) => ({ name, bytes, sha256 }))) !== JSON.stringify(config.models)) {
     throw new Error("OCR model pins changed. Rebuild the custom runtimes before packaging.");
   }
-  for (const file of ["build/ocr/runtime.json", "build/ocr/opencv.config.py", "build/ocr/build.py", "build/ocr/model_types.py", "build/ocr/requirements.txt"]) {
+  for (const file of ["build/ocr/runtime.json", "build/ocr/opencv.config.py", "build/ocr/build.py", "build/ocr/requirements.txt"]) {
     const expected = manifest.inputs[file];
     const actual = createHash("sha256").update(await readFile(resolve(root, file))).digest("hex");
     if (actual !== expected) throw new Error(`OCR build input changed: ${file}. Rebuild the custom runtimes.`);
   }
   for (const file of ["opencv.js", "opencv.wasm", "ort-wasm-simd-threaded.mjs", "ort-wasm-simd-threaded.wasm",
-    "opencv-LICENSE.txt", "opencv-NOTICES.txt", "onnxruntime-LICENSE.txt", "onnxruntime-NOTICES.txt", "required-operators.config", "model-types.json"]) {
+    "opencv-LICENSE.txt", "opencv-NOTICES.txt", "onnxruntime-LICENSE.txt", "onnxruntime-NOTICES.txt", "required-operators.config"]) {
     const expected = manifest.files[file];
     const bytes = await readFile(resolve(runtime, file));
     if (!expected || bytes.length !== expected.bytes || createHash("sha256").update(bytes).digest("hex") !== expected.sha256) {

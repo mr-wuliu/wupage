@@ -41,10 +41,8 @@ def checkout(spec: dict, destination: Path):
 
 def model_operators(models: Path, output: Path):
     import onnx
-    from model_types import audit_model_types
 
     operators: dict[tuple[str, int], set[str]] = {}
-    type_report = {"disabled_types": CONFIG["onnxruntime"]["disabledTypes"], "models": []}
     for model in CONFIG["models"]:
         filename = model["name"] + "_onnx_infer.tar"
         path = models / filename
@@ -62,11 +60,6 @@ def model_operators(models: Path, output: Path):
             if member is None:
                 raise ValueError(f"Missing inference.onnx in {path}")
             graph_model = onnx.load_model_from_string(member.read())
-        try:
-            inventory = audit_model_types(graph_model, CONFIG["onnxruntime"]["disabledTypes"])
-        except ValueError as error:
-            raise ValueError(f"{model['name']}: {error}") from error
-        type_report["models"].append({"name": model["name"], "sha256": model["sha256"], **inventory})
         versions = {op.domain or "ai.onnx": op.version for op in graph_model.opset_import}
 
         def visit(graph):
@@ -85,7 +78,6 @@ def model_operators(models: Path, output: Path):
     content += "".join(f"{domain};{version};{','.join(sorted(names))}\n"
                        for (domain, version), names in sorted(operators.items()))
     output.write_text(content, encoding="utf-8")
-    (output.parent / "model-types.json").write_text(json.dumps(type_report, indent=2) + "\n", encoding="utf-8", newline="\n")
     print(content, flush=True)
 
 
@@ -139,7 +131,6 @@ def build_ort(source: Path, build: Path, emsdk: Path, operators: Path, output: P
         "--emsdk_version", CONFIG["emsdk"]["version"], "--enable_wasm_simd",
         "--disable_wasm_exception_catching", "--disable_rtti",
         "--disable_contrib_ops", "--disable_ml_ops", "--disable_generation_ops",
-        "--disable_types", *CONFIG["onnxruntime"]["disabledTypes"],
         "--include_ops_by_config", operators, "--parallel", str(jobs),
         "--cmake_generator", "Ninja",
         "--cmake_extra_defines", "onnxruntime_BUILD_UNIT_TESTS=OFF",
@@ -160,9 +151,9 @@ def build_ort(source: Path, build: Path, emsdk: Path, operators: Path, output: P
 
 
 def write_manifest(output: Path):
-    inputs = ["build/ocr/runtime.json", "build/ocr/opencv.config.py", "build/ocr/build.py", "build/ocr/model_types.py", "build/ocr/requirements.txt"]
+    inputs = ["build/ocr/runtime.json", "build/ocr/opencv.config.py", "build/ocr/build.py", "build/ocr/requirements.txt"]
     files = ["opencv.js", "opencv.wasm", "ort-wasm-simd-threaded.mjs", "ort-wasm-simd-threaded.wasm",
-             "opencv-LICENSE.txt", "opencv-NOTICES.txt", "onnxruntime-LICENSE.txt", "onnxruntime-NOTICES.txt", "required-operators.config", "model-types.json"]
+             "opencv-LICENSE.txt", "opencv-NOTICES.txt", "onnxruntime-LICENSE.txt", "onnxruntime-NOTICES.txt", "required-operators.config"]
     manifest = {
         "inputs": {name: hashlib.sha256((ROOT / name).read_bytes()).hexdigest() for name in inputs},
         "files": {name: {"bytes": len(data), "sha256": hashlib.sha256(data).hexdigest()}
@@ -189,7 +180,6 @@ def main():
     if args.component in ("all", "onnxruntime", "operators"):
         model_operators((args.model_dir or work / "models").resolve(), operators)
         shutil.copyfile(operators, output / operators.name)
-        shutil.copyfile(work / "model-types.json", output / "model-types.json")
     if args.component == "operators":
         return
     emsdk = work / "emsdk"

@@ -105,12 +105,6 @@ pip install -r build/ocr/requirements.txt
 python3 build/ocr/build.py --work-dir .npm-cache/ocr-build-native --jobs 4
 ```
 
-`onnxruntime.disabledTypes` 关闭 `float4`、`float8`、`optional`、`sparsetensor`、`string` 支持，保留模型使用的 FLOAT、INT32 与 INT64。这里的 string 指模型内部的字符串张量，不影响识别文字、字库或翻译。`build/ocr/model_types.py` 扫描输入输出、参数、常量、类型属性和嵌套图，并通过非严格形状推断补充中间类型；发现被禁用类型或无法确认任何中间输出的类型时立即停止构建。识别模型含旧版 Constant 算子，严格 ONNX 类型推断会拒绝其 INT64 常量，因此审计不能替代实际推理回归。审计结果随库保存为 `vendor/ocr/model-types.json`，CI 用实际模型重新生成并比对。
-
-```bash
-python3 -B -m unittest discover -s tests -p 'test_ocr_types.py'
-```
-
 首次构建需要联网获取固定提交的上游源码、Emscripten 4.0.23 及两个 OCR 模型。脚本校验模型大小与摘要，从 ONNX 图生成所需操作清单，保留 ONNX 格式支持。OpenCV 仅保留 `core`、`imgproc` 和 `build/ocr/opencv.config.py` 中的接口，关闭文件系统；ONNX Runtime 保留 SIMD、单线程推理，裁剪模型未用到的操作与扩展功能。浏览器加载器仍使用标准 `ort-wasm-simd-threaded.*` 文件名，但这对文件来自同一次单线程构建。
 
 OpenCV 4.10 的构建文件还会移除旧 Emscripten 的 demangler 选项及文件系统预加载标志，并适配 C++17 和异步工厂包装器。ONNX Runtime 通过操作裁剪与 LTO 缩小体积，保留 `-O3` 优化以兼顾模型推理速度。完整变换由 `build/ocr/build.py` 记录；生成的许可、第三方声明、操作清单与文件摘要随 `vendor/ocr/` 提交。重新生成文件后运行下列真实 OCR 回归，比较识别文字、坐标与运行时间，再提交运行库更新。`npm test` 排除 `.npm-cache/`，避免将下载的上游源码或旧测试资料目录纳入项目单元测试。

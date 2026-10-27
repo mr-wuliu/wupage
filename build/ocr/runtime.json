@@ -8,8 +8,7 @@
   "onnxruntime": {
     "version": "1.30.0",
     "repository": "https://github.com/microsoft/onnxruntime.git",
-    "revision": "f2c39fe2f838cf35ce7da92824f5a5e3ee6e88a7",
-    "disabledTypes": ["float4", "float8", "optional", "sparsetensor", "string"]
+    "revision": "f2c39fe2f838cf35ce7da92824f5a5e3ee6e88a7"
   },
   "emsdk": {
     "version": "4.0.23",
