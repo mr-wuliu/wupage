@@ -1,0 +1,70 @@
+name: Check custom OCR runtimes
+
+on:
+  pull_request:
+    paths:
+      - 'build/ocr/**'
+      - 'vendor/ocr/**'
+      - 'src/ocr/**'
+      - 'src/shared/ocr.ts'
+      - 'vite.config.ts'
+      - 'package*.json'
+      - 'scripts/test-ocr-runtime.mjs'
+      - 'tests/ocr-custom-runtime.test.ts'
+      - '.github/workflows/check-ocr-runtime.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build && npm run build:firefox
+      - name: Check production builds contain no source maps
+        run: |
+          if find dist dist-firefox -name '*.map' -print -quit | grep -q .; then
+            echo 'Production builds must not contain source maps.'
+            exit 1
+          fi
+      - name: Install browser regression tools and CJK fonts
+        run: |
+          npm install --no-save --package-lock=false playwright@1.56.1
+          npx playwright install --with-deps chromium
+          sudo apt-get install -y fonts-noto-cjk
+      - run: npm run test:ocr-runtime
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ocr-runtime-regression
+          path: .npm-cache/ocr-runtime/report.json
+          if-no-files-found: ignore
+
+  rebuild:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install -r build/ocr/requirements.txt
+      - run: python3 build/ocr/build.py --work-dir .npm-cache/ocr-build-native --jobs 2
+      - uses: actions/upload-artifact@v4
+        with:
+          name: custom-ocr-runtimes
+          path: vendor/ocr/
+          if-no-files-found: error

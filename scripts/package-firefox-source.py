@@ -30,8 +30,10 @@ The source revision is recorded in SOURCE_REVISION.txt.
 Build transformations
 - Vite compiles the application; esbuild emits a classic content script and OCR
   sandbox bundle. build/manifest.ts creates the Firefox-specific manifest.
-- OpenCV's embedded base64 WASM is decoded into ocr-runtime/opencv.wasm without
-  changing its bytes, so the OCR JavaScript stays below AMO's parser size limit.
+- The custom OpenCV loader and its separate ocr-runtime/opencv.wasm are bundled
+  from vendor/ocr/. The custom ONNX Runtime loader and WASM are bundled together.
+  All vendored files and their build inputs are verified against manifest.json.
+- Source maps are disabled by default. WUPAGE_SOURCEMAP=1 enables them locally.
 - The pinned Bergamot worker's WASM loading expression is replaced with a
   Response containing bytes transferred from the extension page. This allows
   cold starts while Firefox is offline. The actual WASM and models are unchanged.
@@ -42,12 +44,32 @@ Versions and integrity values are in package-lock.json. Principal libraries:
 @browsermt/bergamot-translator 0.4.9 (https://github.com/browsermt/bergamot-translator)
 @paddleocr/paddleocr-js 0.4.2 (https://github.com/PaddlePaddle/PaddleOCR)
 onnxruntime-web 1.30.0 (https://github.com/microsoft/onnxruntime)
-@techstark/opencv-js (https://github.com/TechStark/opencv-js)
+OpenCV 4.10.0 (https://github.com/opencv/opencv)
 pdfjs-dist (https://github.com/mozilla/pdf.js)
 pdf-lib (https://github.com/Hopding/pdf-lib)
 All executable libraries and WASM are bundled. Runtime downloads contain only
 OCR or translation model data, verified by size and SHA-256. They are optional
 and are initiated by an explicit user action. No remote scripts are executed.
+
+Rebuilding the custom OCR libraries (optional for a normal extension build)
+- vendor/ocr/ includes precompiled libraries, licenses, notices and SHA-256 pins.
+- Exact upstream source commits, compiler and model pins: build/ocr/runtime.json.
+- OpenCV interface allowlist: build/ocr/opencv.config.py.
+- Full source fetching, model verification and build recipe: build/ocr/build.py.
+- On Linux or WSL, with Python 3.11+, Git, make and a C/C++ host compiler:
+    python3 -m venv .npm-cache/ocr-venv
+    . .npm-cache/ocr-venv/bin/activate
+    pip install -r build/ocr/requirements.txt
+    python3 build/ocr/build.py --work-dir .npm-cache/ocr-build-native --jobs 4
+- This downloads pinned official sources, Emscripten 4.0.23 and model data.
+  No credentials are required. Both models retain their original ONNX format.
+- OpenCV exports only the core/image-processing interfaces used by PaddleOCR;
+  filesystem/preload support and an obsolete demangler flag are removed. Its
+  old C++11 override and UMD factory are adapted for Emscripten 4/C++17.
+- ONNX Runtime includes only model-required operators, with SIMD, no pthreads,
+  and no contrib, ML or generation operators. The standard threaded filenames
+  are retained for compatibility with the npm loader; both files are from the
+  same single-thread build. Runtime/model code is not downloaded on execution.
 
 Reviewer testing
 1. Install dist-firefox/manifest.json temporarily using about:debugging in

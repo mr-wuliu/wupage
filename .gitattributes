@@ -1,0 +1,7 @@
+build/ocr/* text eol=lf
+vendor/ocr/* -text
+vendor/ocr/*.js linguist-generated=true
+vendor/ocr/*.mjs linguist-generated=true
+vendor/ocr/*-LICENSE.txt linguist-generated=true
+vendor/ocr/*-NOTICES.txt linguist-generated=true
+vendor/ocr/*.wasm binary

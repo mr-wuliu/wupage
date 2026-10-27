@@ -92,7 +92,7 @@ jobs:
           archive_name="wupage-${RELEASE_VERSION}-edge.zip"
           archive="release/$archive_name"
           mkdir -p release
-          (cd dist && zip -r "../$archive" .)
+          (cd dist && zip -r "../$archive" . -x '*.map')
 
           if ! unzip -Z1 "$archive" | grep -qx 'manifest.json'; then
             echo "The ZIP package must contain manifest.json at its root."
@@ -106,7 +106,7 @@ jobs:
         run: |
           set -euo pipefail
           archive_name="wupage-${RELEASE_VERSION}-firefox.zip"
-          (cd dist-firefox && zip -r "../release/$archive_name" .)
+          (cd dist-firefox && zip -r "../release/$archive_name" . -x '*.map')
           if ! unzip -Z1 "release/$archive_name" | grep -qx 'manifest.json'; then
             echo "The Firefox ZIP must contain manifest.json at its root."
             exit 1

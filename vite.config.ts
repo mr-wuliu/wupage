@@ -4,39 +4,34 @@ import { build as bundle } from "esbuild";
 import { defineConfig } from "vite";
 import manifest from "./public/manifest.json";
 import { browserManifest } from "./build/manifest";
+import { verifyOcrRuntime } from "./build/ocr/verify";
 
 export default defineConfig(({ mode }) => {
   const firefox = mode === "firefox";
   const outDir = firefox ? "dist-firefox" : "dist";
   const target = firefox ? "firefox154" : "chrome120";
+  const sourcemap = process.env.WUPAGE_SOURCEMAP === "1";
   return {
     plugins: [{
       name: "bundle-local-ocr-runtime",
       async closeBundle() {
+        const runtime = await verifyOcrRuntime(resolve(__dirname));
         // Manifest content scripts are classic scripts. Bundle them independently
         // so shared helpers cannot introduce Rollup's module imports into content.js.
         await writeFile(resolve(__dirname, outDir, "manifest.json"), JSON.stringify(browserManifest(manifest, firefox), null, 2) + "\n");
         await bundle({ entryPoints: ["src/content/index.ts"], outfile: resolve(__dirname, outDir, "content.js"),
-          bundle: true, minify: true, sourcemap: true, format: "iife", platform: "browser", target });
+          bundle: true, minify: true, sourcemap, format: "iife", platform: "browser", target });
         const output = resolve(__dirname, outDir, "ocr-runtime");
         await mkdir(output, { recursive: true });
         await bundle({ entryPoints: ["src/ocr/sandbox.ts"], outfile: resolve(output, "engine.js"), bundle: true, minify: true, format: "iife", platform: "browser", target, external: ["fs", "path"],
+          conditions: ["onnxruntime-web-use-extern-wasm"],
           plugins: [{ name: "ocr-ort-adapter", setup(build) {
             build.onResolve({ filter: /^onnxruntime-web$/ }, () => ({ path: resolve(__dirname, "src/ocr/ort-runtime.ts") }));
-            if (firefox) build.onLoad({ filter: /[\\/]@techstark[\\/]opencv-js[\\/]dist[\\/]opencv\.js$/ }, async ({ path }) => {
-              // AMO cannot parse JavaScript files larger than 5 MB. The SDK embeds
-              // OpenCV's WASM as base64; package the identical bytes separately.
-              const source = await readFile(path, "utf8");
-              const embedded = /"data:application\/octet-stream;base64,([A-Za-z0-9+/=]+)"/g;
-              const matches = [...source.matchAll(embedded)];
-              if (matches.length !== 1) throw new Error("Expected one embedded OpenCV WASM in PaddleOCR.");
-              await writeFile(resolve(output, "opencv.wasm"), Buffer.from(matches[0][1], "base64"));
-              // Emscripten resolves this name against the current engine script.
-              return { contents: source.replace(embedded, '"opencv.wasm"'), loader: "js", resolveDir: resolve(path, "..") };
-            });
+            build.onResolve({ filter: /^@techstark\/opencv-js$/ }, () => ({ path: resolve(runtime, "opencv.js") }));
           } }], define: { "process.env.NODE_ENV": '"production"' } });
-        for (const file of ["ort-wasm-simd-threaded.mjs", "ort-wasm-simd-threaded.wasm"]) {
-          await copyFile(resolve(__dirname, "node_modules/onnxruntime-web/dist", file), resolve(output, file));
+        for (const file of ["opencv.wasm", "ort-wasm-simd-threaded.mjs", "ort-wasm-simd-threaded.wasm",
+          "opencv-LICENSE.txt", "opencv-NOTICES.txt", "onnxruntime-LICENSE.txt", "onnxruntime-NOTICES.txt"]) {
+          await copyFile(resolve(runtime, file), resolve(output, file));
         }
         const bergamotOutput = resolve(__dirname, outDir, "bergamot-runtime");
         await mkdir(bergamotOutput, { recursive: true });
@@ -56,7 +51,7 @@ export default defineConfig(({ mode }) => {
       outDir,
       target,
       emptyOutDir: true,
-      sourcemap: true,
+      sourcemap,
       modulePreload: false,
       rollupOptions: {
         input: {

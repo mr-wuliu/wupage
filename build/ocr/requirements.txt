@@ -1,0 +1,8 @@
+cmake==3.31.6
+ninja==1.11.1.4
+onnx==1.18.0
+numpy==2.4.6
+protobuf==7.36.2
+PyYAML==6.0.2
+flatbuffers==25.2.10
+packaging==25.0

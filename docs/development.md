@@ -38,7 +38,7 @@ npm run dev:firefox    # 监听修改并重新生成 Firefox 构建
 
 在 `about:debugging#/runtime/this-firefox` 中临时加载 `dist-firefox/manifest.json`。源码修改后先完成构建，再点击该页的「重新载入」，并刷新普通网页。临时扩展退出浏览器后失效；正式安装需要 Mozilla 签名。
 
-`public/manifest.json` 是共享配置；`build/manifest.ts` 生成 Firefox 的后台脚本、扩展 ID、最低版本和数据传输声明。版本号保持与共享 Manifest 一致。Firefox 154 提供 OCR 依赖的扩展沙箱；Firefox 构建把 OpenCV 内嵌的 WASM 拆成独立文件，保持字节不变，并避免单个脚本超过 AMO 的 5 MB 解析上限。
+`public/manifest.json` 是共享配置；`build/manifest.ts` 生成 Firefox 的后台脚本、扩展 ID、最低版本和数据传输声明。版本号保持与共享 Manifest 一致。Firefox 154 提供 OCR 依赖的扩展沙箱。两种浏览器均使用专用 OCR 运行库，OpenCV WASM 独立保存，避免将二进制编码到 JavaScript 中。
 
 Firefox 的后台事件页通过隐藏 iframe 托管 OCR 和 Bergamot。仅在模型下载期间发送内部心跳，防止关闭界面后后台空闲卸载；任务结束立即停止。Firefox 的 Bergamot 适配从扩展页面读取随包附带的 WASM 并转交 Worker，支持首次断网启动。Chrome / Edge 继续使用 offscreen 文档与原始 Worker。
 
@@ -94,8 +94,26 @@ npm run build
 
 ### 图片翻译回归验证
 
+OCR 使用 `vendor/ocr/` 内的专用 OpenCV 4.10.0 和 ONNX Runtime 1.30.0。普通 `npm ci` 与扩展构建直接使用这些已编译文件，不要求本机安装 C++ 编译器。构建会校验每个文件的 SHA-256、裁剪配置、SDK 版本和模型固定值；模型或运行库版本更新后必须重新编译，不能直接替换通用 WASM。
+
+专用运行库的源码提交与工具链版本在 `build/ocr/runtime.json`，依赖在 `build/ocr/requirements.txt`。Linux 或 WSL 下重新构建：
+
+```bash
+python3 -m venv .npm-cache/ocr-venv
+. .npm-cache/ocr-venv/bin/activate
+pip install -r build/ocr/requirements.txt
+python3 build/ocr/build.py --work-dir .npm-cache/ocr-build-native --jobs 4
+```
+
+首次构建需要联网获取固定提交的上游源码、Emscripten 4.0.23 及两个 OCR 模型。脚本校验模型大小与摘要，从 ONNX 图生成所需操作清单，保留 ONNX 格式支持。OpenCV 仅保留 `core`、`imgproc` 和 `build/ocr/opencv.config.py` 中的接口，关闭文件系统；ONNX Runtime 保留 SIMD、单线程推理，裁剪模型未用到的操作与扩展功能。浏览器加载器仍使用标准 `ort-wasm-simd-threaded.*` 文件名，但这对文件来自同一次单线程构建。
+
+OpenCV 4.10 的构建文件还会移除旧 Emscripten 的 demangler 选项及文件系统预加载标志，并适配 C++17 和异步工厂包装器。ONNX Runtime 通过操作裁剪与 LTO 缩小体积，保留 `-O3` 优化以兼顾模型推理速度。完整变换由 `build/ocr/build.py` 记录；生成的许可、第三方声明、操作清单与文件摘要随 `vendor/ocr/` 提交。重新生成文件后运行下列真实 OCR 回归，比较识别文字、坐标与运行时间，再提交运行库更新。`npm test` 排除 `.npm-cache/`，避免将下载的上游源码或旧测试资料目录纳入项目单元测试。
+
+生产构建默认不生成源码映射。调试时可设置 `WUPAGE_SOURCEMAP=1` 后构建；PowerShell 使用 `$env:WUPAGE_SOURCEMAP = '1'`。源码映射仅用于本地排查，不属于浏览器执行所需资源。
+
 - 本地视觉回归页：运行开发预览服务后打开 `tests/fixtures/image-preview.html`，使用固定模型结果检查覆盖、切换、缩放与内部滚动，不调用外部 API。
 - `npm run test:ocr`：加载真实扩展，下载并校验公开 OCR 模型到独立测试资料目录，验证沙箱初始化、图片识别、覆盖显示、三次原译图切换、重新打开后的缓存、模型删除和设置持久化。翻译使用本地模拟服务，不使用真实 API 密钥。需要网络下载约 20.5 MB 模型及可选的 Playwright 与 Chromium；报告保存在 `.npm-cache/ocr-flow/`。
+- `npm run test:ocr-runtime`：使用实际沙箱、模型和运行库识别中、英、日文，以及透明底、白字和旋转文字。支持 `PLAYWRIGHT_MODULE`、`PDF_TEST_BROWSER` 和缓存模型目录 `OCR_MODEL_FIXTURE_DIR`。可用 `OCR_BASELINE_DIR` 指向保留的旧构建目录，对比文字及坐标（最多允许 2 像素差异），报告记录初始化与识别用时，保存到 `.npm-cache/ocr-runtime/report.json`。
 - OCR 实测页：先 `npm run build`，再 `node tests/fixtures/ocr-preview-server.mjs`，打开 `http://127.0.0.1:5175`，验证真实下载、安装、识别、状态持久化和删除。仅模拟扩展消息，OCR 模型、沙箱和校验使用生产实现。日文透明文字样例还支持真实翻译，以及使用固定译文的符号覆盖与断句回归。
 - `npm run test:image-resolution`：需要可选的 Playwright 与 Chromium，支持 `PLAYWRIGHT_MODULE` 和 `PDF_TEST_BROWSER` 环境变量。使用只有 viewBox 的 SVG 与固定译文，检查 1、1.25、2 倍屏幕像素密度下的清晰度、放大后重绘与译文复用；未翻译区域逐像素对照直接绘制的 SVG。脚本也接受本地 SVG 路径，报告保存在 `.npm-cache/image-resolution/`。
 

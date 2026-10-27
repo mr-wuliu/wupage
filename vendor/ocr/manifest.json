@@ -1,0 +1,46 @@
+{
+  "inputs": {
+    "build/ocr/runtime.json": "da1cdd346ceba857cb3d00333290e809ee612246b71a6ffc8a2f11411f956a0b",
+    "build/ocr/opencv.config.py": "514e64754977667482094ae2c6f31a9c27ac86a51bd50302c83a1a7ad22e39c6",
+    "build/ocr/build.py": "bf226aaadafe3eb1005d02d94fa9f0465ac0c1b20e57d822293e6654d4c39e49",
+    "build/ocr/requirements.txt": "e8906315d6c5063a33ed93f25e01804e341a456e19a6c7b45fdd92165b376c9d"
+  },
+  "files": {
+    "opencv.js": {
+      "bytes": 63721,
+      "sha256": "76623bc3a35571b22390a822e71a7013d1d143eb02ae3a5beeab0383834c4cac"
+    },
+    "opencv.wasm": {
+      "bytes": 1222424,
+      "sha256": "7e77ad3be9970b85ad744930b0b0cf1065fe872125cc94c0772382e2f5b5b04d"
+    },
+    "ort-wasm-simd-threaded.mjs": {
+      "bytes": 12291,
+      "sha256": "781ae3fd8b3776c6cc39caad076ec39eacdd0c61140743f0a1e7c73b622ef010"
+    },
+    "ort-wasm-simd-threaded.wasm": {
+      "bytes": 6875056,
+      "sha256": "8147bd3f4843dee95441dcfd6a9d6aebb4e1ad92c3fe92aaba56e591d258ccf0"
+    },
+    "opencv-LICENSE.txt": {
+      "bytes": 11358,
+      "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+    },
+    "opencv-NOTICES.txt": {
+      "bytes": 5942,
+      "sha256": "eeb828853a92d02693bc8cdaa0fd86ec633995b9ea6a22be2a4393068e825278"
+    },
+    "onnxruntime-LICENSE.txt": {
+      "bytes": 1073,
+      "sha256": "2f07c72751aed99790b8a4869cf2311df85a860b22ded05fa22803587a48922c"
+    },
+    "onnxruntime-NOTICES.txt": {
+      "bytes": 338088,
+      "sha256": "143764b952fdb1a7c69ce653bfba74a7744d6a8a573bfb73e235fba356c83de3"
+    },
+    "required-operators.config": {
+      "bytes": 406,
+      "sha256": "702041ecf9cd05c4054d13706294c24b2337102d297386b7b103591ebafeff17"
+    }
+  }
+}

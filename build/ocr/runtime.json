@@ -1,0 +1,30 @@
+{
+  "paddleocrVersion": "0.4.2",
+  "opencv": {
+    "version": "4.10.0",
+    "repository": "https://github.com/opencv/opencv.git",
+    "revision": "71d3237a093b60a27601c20e9ee6c3e52154e8b1"
+  },
+  "onnxruntime": {
+    "version": "1.30.0",
+    "repository": "https://github.com/microsoft/onnxruntime.git",
+    "revision": "f2c39fe2f838cf35ce7da92824f5a5e3ee6e88a7"
+  },
+  "emsdk": {
+    "version": "4.0.23",
+    "repository": "https://github.com/emscripten-core/emsdk.git",
+    "revision": "c0bb220cb6e6f4e0fabb6f6db9efd53390ef5e56"
+  },
+  "models": [
+    {
+      "name": "PP-OCRv5_mobile_det",
+      "bytes": 4843520,
+      "sha256": "781056046c9ed77a15c94681605db6a0f62317c2e9cce6931c71da2478d4bc30"
+    },
+    {
+      "name": "PP-OCRv5_mobile_rec",
+      "bytes": 16701440,
+      "sha256": "f7e792bc836f36e7ef895ad47c426d75b0b75b1650caa6d63fe9418441ffba8c"
+    }
+  ]
+}
