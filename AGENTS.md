@@ -17,6 +17,8 @@
 
 推送 `v*` 标签会触发 GitHub Actions：校验 `package.json`、`package-lock.json` 与扩展 Manifest 的版本，执行类型检查和测试，构建扩展，并发布 ZIP 与 SHA-256 校验文件。
 
+Chrome 与 Edge 共用 `npm run build` 生成的 Chromium MV3 构建（`dist/`），分别发布 `wupage-<version>-chrome.zip`、`wupage-<version>-edge.zip` 及各自的 SHA-256 文件。两者 ZIP 根目录均为 Manifest 所在目录，不含 source map；Edge 商店提交流程仍读取 `edge.zip`。
+
 稳定版的三个版本号必须保持一致。以 `v1.1.0` 为例：
 
 ```bash

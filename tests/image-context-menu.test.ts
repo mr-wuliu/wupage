@@ -15,7 +15,7 @@ beforeEach(() => {
   vi.stubGlobal("chrome", {
     runtime: { getURL: (path: string) => `chrome-extension://test/${path}` },
     tabs: { sendMessage: vi.fn(async () => ({ ok: true, data: { started: true } })), create: vi.fn() },
-    contextMenus: { update: vi.fn(async () => {}), create: vi.fn(), onClicked: { addListener: vi.fn() } }
+    contextMenus: { update: vi.fn((_id, _properties, callback) => { callback?.(); }), create: vi.fn(), onClicked: { addListener: vi.fn() } }
   });
 });
 afterEach(() => vi.unstubAllGlobals());
@@ -23,10 +23,15 @@ afterEach(() => vi.unstubAllGlobals());
 describe("image context menu", () => {
   it("registers an image-only menu without duplicating it on worker restart", async () => {
     initImageContextMenu(); await Promise.resolve();
-    expect(chrome.contextMenus.update).toHaveBeenCalledWith(IMAGE_MENU_ID, expect.objectContaining({ contexts: ["image"], documentUrlPatterns: ["http://*/*", "https://*/*"] }));
+    expect(chrome.contextMenus.update).toHaveBeenCalledWith(IMAGE_MENU_ID, expect.objectContaining({ contexts: ["image"], documentUrlPatterns: ["http://*/*", "https://*/*"] }), expect.any(Function));
     expect(chrome.contextMenus.create).not.toHaveBeenCalled();
     expect(chrome.contextMenus.onClicked.addListener).toHaveBeenCalledTimes(1);
-    vi.mocked(chrome.contextMenus.update).mockRejectedValueOnce(new Error("missing"));
+    vi.mocked(chrome.contextMenus.update).mockImplementationOnce((_id, _properties, callback) => {
+      Object.assign(chrome.runtime, { lastError: { message: "missing" } });
+      callback?.();
+      Reflect.deleteProperty(chrome.runtime, "lastError");
+      return undefined as never;
+    });
     initImageContextMenu(); await Promise.resolve();
     expect(chrome.contextMenus.create).toHaveBeenCalledWith(expect.objectContaining({ id: IMAGE_MENU_ID }), expect.any(Function));
   });

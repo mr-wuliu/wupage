@@ -35,13 +35,13 @@
 
 ### 手动安装（Chrome / Edge）
 
-1. 从 [Releases](https://github.com/mr-wuliu/wupage/releases/latest) 下载 `wupage-<version>-edge.zip`。
+1. 从 [Releases](https://github.com/mr-wuliu/wupage/releases/latest) 下载对应浏览器的安装包：Chrome 使用 `wupage-<version>-chrome.zip`，Edge 使用 `wupage-<version>-edge.zip`。
 2. 解压发布包，保留解压目录。
 3. 打开扩展管理页：Chrome 使用 `chrome://extensions`，Edge 使用 `edge://extensions`。
 4. 开启「开发人员模式」，点击「加载已解压的扩展程序」或「加载解压缩的扩展」。
 5. 选择包含 `manifest.json` 的解压目录。
 
-Chrome 与 Edge 使用同一发布包。手动更新时，将新版文件解压到原安装目录并替换旧文件，然后在扩展管理页重新加载扩展。
+Chrome 与 Edge 安装包使用相同的 Chromium 构建；较早版本仅提供的 `edge.zip` 也可用于 Chrome。手动更新时，将新版文件解压到原安装目录并替换旧文件，然后在扩展管理页重新加载扩展。
 
 安装或更新后，刷新已打开的网页。
 
@@ -284,6 +284,7 @@ LLM 返回值应为与输入顺序一致的 JSON 字符串数组。只有一个�
 
 | 现象 | 处理方法 |
 | --- | --- |
+| 设置页语言和服务列表为空、按钮无响应 | 在扩展管理页重新加载 WuPage 后，关闭并重开设置页；仍失败时记录浏览器名称、内核版本、WuPage 版本及扩展卡片中的错误信息 |
 | 点击全文翻译无响应 | 确认当前为普通网页；浏览器设置页和扩展内部页面不支持全文翻译。安装或更新后，刷新页面重试 |
 | 翻译请求失败 | 检查网络、服务地址、密钥和用量限制；在弹窗的 Debug 面板查看错误信息 |
 | 默认翻译服务不可用 | 检查网络，或切换到已配置的其他翻译服务 |

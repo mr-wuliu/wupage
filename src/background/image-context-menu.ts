@@ -9,7 +9,10 @@ export function initImageContextMenu(): void {
     title: "使用 WuPage 翻译图片", contexts: ["image"], documentUrlPatterns: ["http://*/*", "https://*/*"]
   };
   // Menus persist across service-worker restarts; update the existing item first.
-  void chrome.contextMenus.update(IMAGE_MENU_ID, properties).catch(() => {
+  // update() only returns a Promise in Chrome 123+. Keep callback support for
+  // Chromium forks with an older extension API implementation.
+  chrome.contextMenus.update(IMAGE_MENU_ID, properties, () => {
+    if (!chrome.runtime.lastError) return;
     chrome.contextMenus.create({ ...properties, id: IMAGE_MENU_ID }, () => {
       if (chrome.runtime.lastError) console.warn("WuPage image menu:", chrome.runtime.lastError.message);
     });
