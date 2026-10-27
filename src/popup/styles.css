@@ -318,3 +318,10 @@ button[aria-busy="true"]:disabled {
   font-size: 12px;
   color: #526068;
 }
+
+.file-access-instructions {
+  margin: 0 0 8px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: #526068;
+}

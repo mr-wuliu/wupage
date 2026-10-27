@@ -9,9 +9,6 @@ import { initImageContextMenu } from "./image-context-menu";
 import { initializeOllamaCompatibility } from "./ollama-compatibility";
 import { requestLocal } from "./local";
 
-initImageContextMenu();
-void initializeOllamaCompatibility().catch((error: unknown) => console.warn("WuPage Ollama compatibility:", error));
-
 chrome.runtime.onMessage.addListener((request: RuntimeRequest, _sender, sendResponse) => {
   if ("target" in request) return;
   handleMessage(request)
@@ -24,6 +21,15 @@ chrome.runtime.onMessage.addListener((request: RuntimeRequest, _sender, sendResp
 
   return true;
 });
+
+// Auxiliary browser integrations must not prevent settings and translation
+// messages from being handled when a Chromium fork lacks one of these APIs.
+try {
+  initImageContextMenu();
+} catch (error: unknown) {
+  console.warn("WuPage image menu:", error);
+}
+void initializeOllamaCompatibility().catch((error: unknown) => console.warn("WuPage Ollama compatibility:", error));
 
 async function handleMessage(request: RuntimeRequest): Promise<unknown> {
   switch (request.type) {

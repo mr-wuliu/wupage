@@ -7,7 +7,8 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import vm from "node:vm";
 
 const root = path.resolve(fileURLToPath(new URL("..", import.meta.url)));
-const output = path.join(root, ".npm-cache/page-translation");
+const chromeBrowser = process.env.CHROME_TEST_BROWSER;
+const output = path.join(root, chromeBrowser ? ".npm-cache/chrome-translation" : ".npm-cache/page-translation");
 await fs.mkdir(output, { recursive: true });
 // A content script must parse as a classic script even when it reuses helpers
 // also imported by the background worker or the PDF reader.
@@ -52,10 +53,17 @@ await new Promise(resolve => server.listen(0, "127.0.0.1", resolve));
 let context;
 try {
   context = await chromium.launchPersistentContext(path.join(output, `profile-${Date.now()}`), {
-    ...(process.env.PDF_TEST_BROWSER ? { executablePath: process.env.PDF_TEST_BROWSER } : { channel: "chromium" }),
+    ...(chromeBrowser || process.env.PDF_TEST_BROWSER ? { executablePath: chromeBrowser || process.env.PDF_TEST_BROWSER } : { channel: "chromium" }),
     headless: true, ignoreDefaultArgs: ["--disable-extensions"],
-    args: [`--load-extension=${path.join(root, "dist")}`], viewport: { width: 1000, height: 900 }
+    args: chromeBrowser ? ["--enable-unsafe-extension-debugging"] : [`--load-extension=${path.join(root, "dist")}`],
+    viewport: { width: 1000, height: 900 }
   });
+  if (chromeBrowser) {
+    // Branded Chrome loads test extensions through CDP in the isolated profile.
+    const session = await context.browser().newBrowserCDPSession();
+    await session.send("Extensions.loadUnpacked", { path: path.join(root, "dist") });
+    await session.detach();
+  }
   const worker = context.serviceWorkers()[0] || await context.waitForEvent("serviceworker", { timeout: 15000 });
   const control = await context.newPage();
   await control.goto(`chrome-extension://${new URL(worker.url()).host}/options.html`);
@@ -269,7 +277,7 @@ try {
   await message({ type: "CLEAR_TRANSLATION" });
   assert.equal(await page.locator("main").textContent(), "Current message.");
   assert.deepEqual(errors, []);
-  const report = { modes: modeReports, lists: listReports, colors: colorReports, placeholderRecovery: true, paragraphTranslation: true,
+  const report = { browser: context.browser().version(), modes: modeReports, lists: listReports, colors: colorReports, placeholderRecovery: true, paragraphTranslation: true,
     hiddenAndDraftTextExcluded: true, sourceRestored: true, staleResponseDiscarded: true, errors };
   await fs.writeFile(path.join(output, "report.json"), JSON.stringify(report, null, 2));
   console.log("PASS: built MV3 extension; 6 viewport/mode combinations, 6 list layouts, 30 rendered color cases, protected text, drafts, Ctrl-click, source restoration and stale responses");

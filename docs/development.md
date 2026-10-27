@@ -76,6 +76,15 @@ npm run build
 
 ### 网页翻译回归验证
 
+本机 Chrome 可通过 `CHROME_TEST_BROWSER` 指定路径运行同一套网页翻译回归。测试使用独立资料目录、本地网页与模拟服务，不读取日常浏览资料。先运行 `npm run build`，再在 PowerShell 中执行：
+
+```powershell
+$env:CHROME_TEST_BROWSER = 'C:\Program Files\Google\Chrome\Application\chrome.exe'
+npm run test:page
+```
+
+需要可导入的 Playwright（也可用 `PLAYWRIGHT_MODULE` 指定模块路径）。Chrome 通过扩展调试接口加载 `dist/`，报告与截图写入 `.npm-cache/chrome-translation/`。
+
 - 自动翻译由 `src/shared/auto-translation.ts` 归一化并匹配站点规则，`src/content/auto-translation.ts` 在前台 HTML 页面触发现有渐进翻译。语言检测仅使用本机浏览器接口；路由、配置与手动停止会使过期检测结果失效。回归覆盖域名边界、通配与路径、旧设置默认关闭、动态内容、手动停止和单页导航。
 - `npm run test:auto`：构建后加载实际扩展，使用本地网页和模拟翻译服务验证规则保存、窄屏、自动触发、手动恢复原文、单页导航、目标语言跳过和异步加载的正文。报告保存在 `.npm-cache/auto-translation/`。
 - 六个预置在线翻译服务通过 `serviceMode` 区分 `free`（默认）和 `api`，凭据保存在对应配置的 `api` 中。免费分支不读取或发送这些凭据；切换方式会保留已有配置。旧版内置 Azure / Google Cloud 配置在规范化设置时迁移至对应服务商，存在不同凭据时保留独立配置。火山 API 在后台通过 Web Crypto 生成 V4 签名；腾讯 API 使用 TokenHub 的翻译模型。
