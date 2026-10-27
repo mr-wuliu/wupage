@@ -19,7 +19,7 @@ permissions:
 
 jobs:
   check:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -38,10 +38,12 @@ jobs:
           fi
       - name: Install browser regression tools and CJK fonts
         run: |
-          npm install --no-save --package-lock=false playwright@1.56.1
-          npx playwright install --with-deps chromium
+          npm install --prefix .npm-cache/ocr-test-tools --no-save --package-lock=false playwright@1.56.1
+          node .npm-cache/ocr-test-tools/node_modules/playwright/cli.js install --with-deps chromium
           sudo apt-get install -y fonts-noto-cjk
       - run: npm run test:ocr-runtime
+        env:
+          PLAYWRIGHT_MODULE: ${{ github.workspace }}/.npm-cache/ocr-test-tools/node_modules/playwright/index.mjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -51,7 +53,7 @@ jobs:
 
   rebuild:
     if: github.event_name == 'workflow_dispatch'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
