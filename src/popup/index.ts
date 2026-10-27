@@ -4,7 +4,7 @@ import { TRANSLATION_DISPLAY_MODES } from "../shared/display-modes";
 import type { ExtensionSettings } from "../shared/types";
 import "./styles.css";
 import { setImageTranslationToggle, setupOcrControl } from "../shared/ocr-control";
-import { isLikelyPdfUrl } from "../pdf/launch";
+import { getExtensionDetailsUrl, isLikelyPdfUrl, openPdfWorkspaceInNewTab } from "../pdf/launch";
 import { localProviderNotice } from "../shared/local-notice";
 import { enhanceProviderSelect } from "../shared/provider-picker";
 import { normalizeAutoTranslation, setAutoTranslationEnabled } from "../shared/auto-translation";
@@ -16,6 +16,9 @@ const provider = query<HTMLSelectElement>("#provider");
 const translationDisplayMode = query<HTMLSelectElement>("#translationDisplayMode");
 const status = query<HTMLParagraphElement>("#status");
 const pageToggleButton = query<HTMLButtonElement>("#pageToggle");
+const openPdfWorkspaceButton = query<HTMLButtonElement>("#openPdfWorkspace");
+const fileAccessHelp = query<HTMLDivElement>("#fileAccessHelp");
+const openFileAccessSettingsButton = query<HTMLButtonElement>("#openFileAccessSettings");
 const paragraphModeButton = query<HTMLButtonElement>("#paragraphMode");
 const autoTranslationButton = query<HTMLButtonElement>("#autoTranslation");
 const floatingBallButton = query<HTMLButtonElement>("#floatingBall");
@@ -47,6 +50,21 @@ void init().catch((error: unknown) => {
 });
 
 async function init(): Promise<void> {
+  openFileAccessSettingsButton.addEventListener("click", () => {
+    void chrome.tabs.create({ url: getExtensionDetailsUrl(chrome.runtime.id, navigator.userAgent) })
+      .then(() => window.close()).catch((error: unknown) => {
+        setStatus(error instanceof Error ? error.message : String(error));
+      });
+  });
+  // Manual selection works even when file access hides the active tab's URL.
+  openPdfWorkspaceButton.addEventListener("click", () => {
+    void openPdfWorkspaceInNewTab(
+      (properties) => chrome.tabs.create(properties),
+      (path) => chrome.runtime.getURL(path)
+    ).then(() => window.close()).catch((error: unknown) => {
+      setStatus(error instanceof Error ? error.message : String(error));
+    });
+  });
   settings = await sendRuntimeMessage<ExtensionSettings>({ type: "GET_SETTINGS" });
   renderLanguageOptions(sourceLang, settings.sourceLang, SOURCE_LANGUAGES);
   renderLanguageOptions(targetLang, settings.targetLang, TARGET_LANGUAGES);
@@ -68,6 +86,7 @@ async function init(): Promise<void> {
   setImageTranslationToggle(imageTranslationButton, settings.imageTranslationEnabled === true);
   setupOcrControl(imageTranslationButton, () => { settings.imageTranslationEnabled = false; setImageTranslationToggle(imageTranslationButton, false); });
   const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  fileAccessHelp.hidden = Boolean(activeTab?.url);
   activeTabIsPdf = isLikelyPdfUrl(activeTab?.url);
   pageTranslationAvailable = activeTabIsPdf || isSupportedPageUrl(activeTab?.url);
   if (pageTranslationAvailable && !activeTabIsPdf) {
@@ -78,7 +97,9 @@ async function init(): Promise<void> {
     paragraphModeButton.title = "浏览器设置页和扩展内部页面不支持段落模式。";
     pageToggleButton.title = "请切换到普通网页后再翻译。";
     debugButton.title = "请切换到普通网页后再打开 Debug。";
-    setStatus("此页面不支持翻译，请切换到网页或 PDF。");
+    setStatus(activeTab?.url
+      ? "此页面不支持翻译，请切换到网页或 PDF。"
+      : "无法读取当前页面地址。若为本地 PDF，请开启扩展的文件访问权限，或点击“打开 PDF”选择文件。");
   }
   if (activeTabIsPdf) {
     paragraphModeAvailable = false;

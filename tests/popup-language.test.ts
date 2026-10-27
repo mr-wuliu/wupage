@@ -39,6 +39,7 @@ describe("popup language controls", () => {
       runtime: {
         sendMessage,
         openOptionsPage: vi.fn(),
+        id: "test-extension",
         getURL: (path: string) => `chrome-extension://test-extension/${path}`
       },
       tabs: {
@@ -112,6 +113,7 @@ describe("popup language controls", () => {
     const sendTabMessage = vi.fn(async (): Promise<RuntimeResponse> => ({ ok: true }));
     vi.stubGlobal("chrome", {
       runtime: {
+        id: "test-extension",
         sendMessage,
         openOptionsPage: vi.fn(),
         getURL: (path: string) => `chrome-extension://test-extension/${path}`
@@ -119,14 +121,15 @@ describe("popup language controls", () => {
       tabs: {
         query: vi.fn(async () => [{ id: 2, url }]),
         sendMessage: sendTabMessage,
-        create: vi.fn()
+        create: vi.fn(async () => undefined)
       }
     });
 
     await import("../src/popup/index");
     await vi.waitFor(() => {
       expect(query<HTMLElement>("#status").textContent)
-        .toBe("此页面不支持翻译，请切换到网页或 PDF。");
+        .toBe(url ? "此页面不支持翻译，请切换到网页或 PDF。"
+          : "无法读取当前页面地址。若为本地 PDF，请开启扩展的文件访问权限，或点击“打开 PDF”选择文件。");
     });
 
     expect(query<HTMLButtonElement>("#pageToggle").disabled).toBe(true);
@@ -134,8 +137,24 @@ describe("popup language controls", () => {
     expect(query<HTMLButtonElement>("#debug").disabled).toBe(true);
     expect(sendTabMessage).not.toHaveBeenCalled();
 
-    expect(document.querySelector("#openPdf")).toBeNull();
     expect(chrome.tabs.create).not.toHaveBeenCalled();
+    const close = vi.spyOn(window, "close").mockImplementation(() => undefined);
+    expect(query<HTMLElement>("#fileAccessHelp").hidden).toBe(Boolean(url));
+    if (!url) {
+      query<HTMLButtonElement>("#openFileAccessSettings").click();
+      await vi.waitFor(() => expect(chrome.tabs.create).toHaveBeenCalledWith({
+        url: "chrome://extensions/?id=test-extension"
+      }));
+      vi.mocked(chrome.tabs.create).mockClear();
+      await vi.waitFor(() => expect(close).toHaveBeenCalledOnce());
+      close.mockClear();
+    }
+    query<HTMLButtonElement>("#openPdfWorkspace").click();
+    await vi.waitFor(() => expect(chrome.tabs.create).toHaveBeenCalledWith({
+      url: "chrome-extension://test-extension/pdf.html"
+    }));
+    await vi.waitFor(() => expect(close).toHaveBeenCalledOnce());
+    expect(sendTabMessage).not.toHaveBeenCalled();
   });
 
   it("uses the same button to automatically translate a local PDF", async () => {

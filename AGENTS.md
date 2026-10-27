@@ -17,6 +17,8 @@
 
 推送 `v*` 标签会触发 GitHub Actions：校验 `package.json`、`package-lock.json` 与扩展 Manifest 的版本，执行类型检查和测试，构建扩展，并发布 ZIP 与 SHA-256 校验文件。
 
+商店自动提交策略由 `scripts/publish-policy.py` 决定：仅稳定的 `v<major>.<minor>.0`（例如 `v1.4.0`、`v2.0.0`）自动调用已配置的 Edge、Firefox 商店工作流。补丁版本（例如 `v1.3.1`）仍构建全部安装包、创建 GitHub Release 并同步网站，但跳过自动商店提交；预发布版本也不自动提交。需要提交补丁版本时，在对应商店工作流的 **Run workflow** 中手动指定已发布标签；Firefox 需取消 `dry_run` 才实际提交。手动入口不受自动策略限制。
+
 Chrome 与 Edge 共用 `npm run build` 生成的 Chromium MV3 构建（`dist/`），分别发布 `wupage-<version>-chrome.zip`、`wupage-<version>-edge.zip` 及各自的 SHA-256 文件。两者 ZIP 根目录均为 Manifest 所在目录，不含 source map；Edge 商店提交流程仍读取 `edge.zip`。
 
 稳定版的三个版本号必须保持一致。以 `v1.1.0` 为例：
@@ -53,16 +55,16 @@ git push origin main v1.1.0
 
 | 类型 | 名称 | 内容 |
 | --- | --- | --- |
-| Variable | `AMO_ADDON_ID` | `wupage@mr-wuliu.github.io`，与 Firefox Manifest 的 Gecko ID 一致；配置后启用正式版自动提交 |
+| Variable | `AMO_ADDON_ID` | `wupage@mr-wuliu.github.io`，与 Firefox Manifest 的 Gecko ID 一致；配置后启用次版本 / 主版本正式版自动提交 |
 | Secret | `AMO_JWT_ISSUER` | AMO 显示的 JWT issuer / API key |
 | Secret | `AMO_JWT_SECRET` | AMO 显示的 JWT secret / API secret |
 
-- 正式版 GitHub Release 创建后，Firefox 工作流与 Edge 提交、网站同步分别执行；某一个失败不阻止其他流程。未配置 `AMO_ADDON_ID` 时跳过自动提交；配置后缺少密钥会明确报错。预发布版本不提交商店。
+- 符合自动提交策略的 GitHub Release 创建后，Firefox 工作流与 Edge 提交、网站同步分别执行；某一个失败不阻止其他流程。未配置 `AMO_ADDON_ID` 时跳过自动提交；配置后缺少密钥会明确报错。预发布版本不提交商店。
 - 工作流直接下载已有 Release 的 Firefox ZIP、源码 ZIP 及其校验文件，不重新构建或重新打包。检查 SHA-256、Manifest 的版本和 Gecko ID、源码内三个版本及根包版本，以及 `SOURCE_REVISION.txt` 与标签实际 Git 提交的一致性。
 - 提交前通过认证 API 检查现有条目及全部公开渠道版本（包括待审版本）。同版本已公开或待审且有源码时直接跳过，不覆盖文件或修改审核；其他待审版本、已拒绝/禁用版本、缺源码或版本倒退会要求人工处理。首次审核尚未通过时不会提交新版本。
 - 上传 ZIP 后等待 AMO 自动校验通过，再在同一次创建版本请求中上传配套源码和英文审核备注。更新沿用上一版许可证，商店元数据仍在 AMO 后台维护。密钥始终只放在 GitHub Secrets，不得写入仓库、日志或审核备注。
 - 在 GitHub **Actions → Publish to Firefox Add-ons → Run workflow** 输入已有正式版标签可单独试跑或重试。`dry_run` 默认勾选：只验证发布产物；如果两项密钥都存在，还会检查账号权限和现有版本，全程不上传、不修改 AMO。未配置密钥时试跑成功仅表示本地产物检查通过。
-- 确认后取消 `dry_run` 才会实际提交；推送正式版标签触发的自动调用使用实际提交模式。提交请求超时后，先在 AMO 后台确认是否受理；脚本不会自动重发写入请求。重跑会先检查同版本是否已经存在。
+- 确认后取消 `dry_run` 才会实际提交；符合自动提交策略的正式版标签触发的调用使用实际提交模式。提交请求超时后，先在 AMO 后台确认是否受理；脚本不会自动重发写入请求。重跑会先检查同版本是否已经存在。
 - 工作流成功表示已提交或同版本已存在，不代表审核通过。Mozilla 审核、签名和商店上线仍需等待；工作流不会长时间等待人工审核，也不会从签名文件重新生成 Release 的未签名 ZIP。
 - 本地验证发布脚本：`python -B -m unittest discover -s tests -p 'test_publish_*.py'`。校验使用模拟网络，不会接触真实商店。
 
@@ -78,11 +80,11 @@ git push origin main v1.1.0
 
 | 类型 | 名称 | 内容 |
 | --- | --- | --- |
-| Variable | `EDGE_PRODUCT_ID` | 扩展的 Product ID；配置后启用正式版自动提交 |
+| Variable | `EDGE_PRODUCT_ID` | 扩展的 Product ID；配置后启用次版本 / 主版本正式版自动提交 |
 | Secret | `EDGE_CLIENT_ID` | Publish API 提供的 Client ID |
 | Secret | `EDGE_API_KEY` | Publish API 提供的 API Key |
 
-推送正式版 `v*` 标签后：工作流创建 GitHub Release 后，直接调用商店发布工作流，下载该 Release 的原始 ZIP 与 SHA-256 校验文件，验证校验和及 Manifest 版本，上传 ZIP，等待上传成功，再提交微软审核并检查提交结果。使用的是 v1.1 的 API Key 认证（`Authorization: ApiKey ...`、`X-ClientID`），无需配置旧版 Access Token URL 或 Client Secret。
+推送符合自动提交策略的正式版 `v<major>.<minor>.0` 标签后：工作流创建 GitHub Release 后，直接调用商店发布工作流，下载该 Release 的原始 ZIP 与 SHA-256 校验文件，验证校验和及 Manifest 版本，上传 ZIP，等待上传成功，再提交微软审核并检查提交结果。使用的是 v1.1 的 API Key 认证（`Authorization: ApiKey ...`、`X-ClientID`），无需配置旧版 Access Token URL 或 Client Secret。
 
 - 未配置 `EDGE_PRODUCT_ID` 时自动跳过商店提交；配置后缺少凭据会明确报错。预发布版本不提交商店。
 - 商店发布与网站同步分别执行；GitHub Release 已创建时，网站同步失败不会阻止商店提交。

@@ -71,10 +71,17 @@
         <button id="pageToggle" type="button" disabled>翻译全文</button>
       </div>
       <div class="actions">
+        <button id="openPdfWorkspace" type="button" class="secondary">打开 PDF</button>
+      </div>
+      <div class="actions">
         <button id="debug" type="button" class="secondary">Debug</button>
         <button id="clearCache" type="button" class="secondary">清除缓存</button>
       </div>
       <p id="status" role="status"></p>
+      <div id="fileAccessHelp" hidden>
+        <p class="file-access-instructions">在扩展详情中开启「允许访问文件网址」或「允许访问文件 URL」，然后回到 PDF 重新打开 WuPage。</p>
+        <button id="openFileAccessSettings" type="button" class="secondary">打开扩展设置</button>
+      </div>
       <div class="footer-links">
         <button id="openGithub" type="button" class="footer-link">
           <svg viewBox="0 0 24 24" aria-hidden="true">

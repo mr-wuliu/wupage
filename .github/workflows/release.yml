@@ -15,6 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       published: ${{ steps.github-release.outputs.published }}
+      publish_stores: ${{ steps.store-policy.outputs.publish_stores }}
 
     steps:
       - name: Check out repository
@@ -57,6 +58,12 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Select automatic store submissions
+        id: store-policy
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: python3 scripts/publish-policy.py "$RELEASE_TAG" >> "$GITHUB_OUTPUT"
 
       - name: Check types
         run: npm run typecheck
@@ -186,7 +193,7 @@ jobs:
     # A website sync failure must not prevent an already-created release from
     # reaching the store. GITHUB_TOKEN-created releases do not trigger another
     # workflow through release:published, so call the reusable workflow directly.
-    if: ${{ always() && needs.release.outputs.published == 'true' && vars.EDGE_PRODUCT_ID != '' && !contains(github.ref_name, '-') }}
+    if: ${{ always() && needs.release.outputs.published == 'true' && needs.release.outputs.publish_stores == 'true' && vars.EDGE_PRODUCT_ID != '' }}
     uses: ./.github/workflows/publish-edge.yml
     permissions:
       contents: read
@@ -200,7 +207,7 @@ jobs:
     name: Submit release to Firefox Add-ons
     needs: release
     # Both stores run independently once the GitHub Release exists.
-    if: ${{ always() && needs.release.outputs.published == 'true' && vars.AMO_ADDON_ID != '' && !contains(github.ref_name, '-') }}
+    if: ${{ always() && needs.release.outputs.published == 'true' && needs.release.outputs.publish_stores == 'true' && vars.AMO_ADDON_ID != '' }}
     uses: ./.github/workflows/publish-firefox.yml
     permissions:
       contents: read
