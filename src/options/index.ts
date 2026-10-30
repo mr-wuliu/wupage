@@ -21,6 +21,12 @@ import { readRequestTemplate, setupProviderTabs } from "./provider-advanced";
 import { isDoubaoBrowserSupported } from "../shared/doubao";
 import { formatDoubaoStatus, isDoubaoProviderUnavailable, syncDoubaoTargetControls } from "../shared/doubao-ui";
 import { renderUiIcons, uiIconMarkup } from "../shared/ui-icons";
+import {
+  createSettingsBackup,
+  parseSettingsBackup,
+  SETTINGS_BACKUP_MAX_BYTES,
+  settingsBackupFileName
+} from "../shared/settings-backup";
 
 renderUiIcons();
 
@@ -65,6 +71,10 @@ const customLlmFormatField = query<HTMLLabelElement>("#customLlmFormatField");
 const customLlmFormat = query<HTMLSelectElement>("#customLlmFormat");
 const saveButton = query<HTMLButtonElement>("#save");
 const restoreButton = query<HTMLButtonElement>("#restore");
+const exportSettingsButton = query<HTMLButtonElement>("#exportSettings");
+const importSettingsButton = query<HTMLButtonElement>("#importSettings");
+const importSettingsFile = query<HTMLInputElement>("#importSettingsFile");
+const backupStatus = query<HTMLParagraphElement>("#backupStatus");
 const status = query<HTMLParagraphElement>("#status");
 const autoTranslationControls = setupAutoTranslationControls(
   query<HTMLElement>("#autoTranslationSettings"), field => {
@@ -163,6 +173,9 @@ async function init(): Promise<void> {
   });
   saveButton.addEventListener("click", () => { void save().catch(() => {}); });
   restoreButton.addEventListener("click", restoreDefaults);
+  exportSettingsButton.addEventListener("click", exportSettingsBackup);
+  importSettingsButton.addEventListener("click", () => importSettingsFile.click());
+  importSettingsFile.addEventListener("change", () => { void importSettingsBackup(); });
   providerForm.addEventListener("input", invalidateProviderTest);
   providerForm.addEventListener("change", invalidateProviderTest);
   const updateUsageOnEdit = (event: Event): void => {
@@ -876,6 +889,43 @@ async function restoreDefaults(): Promise<void> {
     setStatus("已恢复默认设置。");
   } catch (error) {
     setStatus(error instanceof Error ? error.message : String(error));
+  }
+}
+
+/** Exports what is stored, not the form draft, so a half-edited panel cannot produce a broken file. */
+function exportSettingsBackup(): void {
+  try {
+    if (typeof URL.createObjectURL !== "function") throw new Error("当前浏览器不支持下载文件。");
+    const exportedAt = new Date();
+    const backup = createSettingsBackup(settings, exportedAt);
+    const url = URL.createObjectURL(new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = settingsBackupFileName(exportedAt);
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 0);
+    backupStatus.textContent = `已导出当前设置（${backup.settings.providers.length} 个翻译服务）。`;
+  } catch (error) {
+    backupStatus.textContent = error instanceof Error ? error.message : String(error);
+  }
+}
+
+async function importSettingsBackup(): Promise<void> {
+  const file = importSettingsFile.files?.[0];
+  if (!file) return;
+  try {
+    if (file.size > SETTINGS_BACKUP_MAX_BYTES) throw new Error("导入失败：文件过大，这不是设置备份文件。");
+    settings = parseSettingsBackup(await file.text());
+    editingProviderId = undefined;
+    invalidateProviderTest();
+    await persistSettings(false);
+    render();
+    backupStatus.textContent = `已导入设置（${settings.providers.length} 个翻译服务），当前服务：${getEditingProvider().label}。`;
+    setStatus("已导入设置。");
+  } catch (error) {
+    backupStatus.textContent = error instanceof Error ? error.message : String(error);
+  } finally {
+    importSettingsFile.value = "";
   }
 }
 

@@ -113,6 +113,16 @@
               <textarea id="frameTranslationExcluded" rows="3" spellcheck="false" placeholder="https://example.com/widget/*"></textarea>
               <span class="field-description">每行一个网址规则，* 匹配任意字符。也可写「所在网页规则 =&gt; 嵌入网址规则」，仅排除指定网页中的嵌入内容。</span>
             </label>
+            <fieldset class="performance-group settings-backup">
+              <legend>备份与恢复</legend>
+              <div class="backup-actions">
+                <button id="exportSettings" type="button" class="secondary">导出设置</button>
+                <button id="importSettings" type="button" class="secondary">导入设置</button>
+                <input id="importSettingsFile" type="file" accept="application/json,.json" hidden />
+              </div>
+              <p class="hint">导出的是已保存的设置，文件包含翻译服务密钥，请自行保管；导入会立即覆盖并保存当前设置。</p>
+              <p id="backupStatus" class="hint" role="status" aria-live="polite"></p>
+            </fieldset>
           </section>
 
           <section id="shortcutSettings" class="settings-panel" aria-labelledby="shortcutSettingsTitle" hidden>
