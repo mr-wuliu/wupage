@@ -173,7 +173,7 @@ async function init(): Promise<void> {
   });
   saveButton.addEventListener("click", () => { void save().catch(() => {}); });
   restoreButton.addEventListener("click", restoreDefaults);
-  exportSettingsButton.addEventListener("click", exportSettingsBackup);
+  exportSettingsButton.addEventListener("click", () => { void exportSettingsBackup(); });
   importSettingsButton.addEventListener("click", () => importSettingsFile.click());
   importSettingsFile.addEventListener("change", () => { void importSettingsBackup(); });
   providerForm.addEventListener("input", invalidateProviderTest);
@@ -892,12 +892,20 @@ async function restoreDefaults(): Promise<void> {
   }
 }
 
-/** Exports what is stored, not the form draft, so a half-edited panel cannot produce a broken file. */
-function exportSettingsBackup(): void {
+let exportInFlight = false;
+
+/**
+ * Reads the saved settings again instead of exporting the panel copy: provider actions and the
+ * model dialog move that copy to the form draft, and another entry point may have saved since load.
+ */
+async function exportSettingsBackup(): Promise<void> {
+  if (exportInFlight) return;
+  exportInFlight = true;
   try {
     if (typeof URL.createObjectURL !== "function") throw new Error("当前浏览器不支持下载文件。");
+    const stored = await sendRuntimeMessage<ExtensionSettings>({ type: "GET_SETTINGS" });
     const exportedAt = new Date();
-    const backup = createSettingsBackup(settings, exportedAt);
+    const backup = createSettingsBackup(stored, exportedAt);
     const url = URL.createObjectURL(new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" }));
     const link = document.createElement("a");
     link.href = url;
@@ -907,6 +915,8 @@ function exportSettingsBackup(): void {
     backupStatus.textContent = `已导出当前设置（${backup.settings.providers.length} 个翻译服务）。`;
   } catch (error) {
     backupStatus.textContent = error instanceof Error ? error.message : String(error);
+  } finally {
+    exportInFlight = false;
   }
 }
 

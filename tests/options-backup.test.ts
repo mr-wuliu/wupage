@@ -72,7 +72,7 @@ describe("options settings backup", () => {
   it("downloads the stored settings as a backup file", async () => {
     await mount();
     query<HTMLButtonElement>("#exportSettings").click();
-    expect(downloads).toHaveLength(1);
+    await vi.waitFor(() => expect(downloads).toHaveLength(1));
     expect(downloads[0]).toMatch(/^wupage-settings-\d{8}-\d{4}\.json$/);
     const file = JSON.parse(await blobs[0]!.text()) as {
       app: string; kind: string; version: number; settings: ExtensionSettings;
@@ -103,6 +103,53 @@ describe("options settings backup", () => {
     expect(query<HTMLInputElement>("#chunkSize").value).toBe("777");
     expect(query<HTMLInputElement>("#cacheEnabled").checked).toBe(false);
     expect(query<HTMLElement>("#backupStatus").textContent).toContain("已导入设置");
+  });
+
+  it("exports the saved settings even after the panel copy drifts to the form draft", async () => {
+    await mount();
+    // Provider actions and the model dialog replace the panel copy with readSettingsFromForm(),
+    // so an unsaved edit would reach the file if the export read that copy.
+    query<HTMLInputElement>("#chunkSize").value = "777";
+    Object.defineProperty(HTMLDialogElement.prototype, "showModal", {
+      configurable: true,
+      value(this: HTMLDialogElement): void { this.setAttribute("open", ""); }
+    });
+    Object.defineProperty(HTMLDialogElement.prototype, "close", {
+      configurable: true,
+      value(this: HTMLDialogElement): void { this.removeAttribute("open"); }
+    });
+    query<HTMLButtonElement>("[data-action='manage-model']").click();
+    expect(query<HTMLDialogElement>("#modelDialog").hasAttribute("open")).toBe(true);
+    query<HTMLDialogElement>("#modelDialog").close();
+    expect(stored.chunkSize).toBe(1200);
+
+    query<HTMLButtonElement>("#exportSettings").click();
+    await vi.waitFor(() => expect(blobs).toHaveLength(1));
+    const file = JSON.parse(await blobs[0]!.text()) as { settings: ExtensionSettings };
+    expect(file.settings.chunkSize).toBe(1200);
+    expect(stored.chunkSize).toBe(1200);
+  });
+
+  it("downloads once when the export button is clicked twice", async () => {
+    await mount();
+    const button = query<HTMLButtonElement>("#exportSettings");
+    button.click();
+    button.click();
+    await vi.waitFor(() => expect(downloads).toHaveLength(1));
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(downloads).toHaveLength(1);
+    expect(blobs).toHaveLength(1);
+  });
+
+  it("exports settings another entry point saved after the panel loaded", async () => {
+    await mount();
+    stored = { ...structuredClone(stored), targetLang: "ja", chunkSize: 3200 };
+    query<HTMLInputElement>("#chunkSize").value = "1500";
+    query<HTMLButtonElement>("#exportSettings").click();
+    await vi.waitFor(() => expect(blobs).toHaveLength(1));
+    const file = JSON.parse(await blobs[0]!.text()) as { settings: ExtensionSettings };
+    expect(file.settings.targetLang).toBe("ja");
+    expect(file.settings.chunkSize).toBe(3200);
   });
 
   it("reports why a file cannot be imported and keeps the stored settings", async () => {
