@@ -63,6 +63,8 @@ npm run test:video:firefox
 
 `test:video` 及 `test:video:edge` 使用本地生成的真实视频、WebVTT 与模拟服务，验证功能开关、三种弹窗宽度、播放器入口、预取、外观、seek、容器/原生全屏、文件导入、限额错误和跨域 iframe；另检查关闭后原字幕恢复、已有页面同步移除入口，以及重新开启。`test:video:sites` 将九类站点 URL 路由到本地播放器样本，验证选择器、网站桥接、协议、YouTube 广告/SPA 导航及停止恢复；它证明样本适配，不代表已登录真实网站的验收。两个脚本支持 `PLAYWRIGHT_MODULE`、`PDF_TEST_BROWSER`，视频回归另支持 `CHROME_TEST_BROWSER`、`EDGE_TEST_BROWSER`；报告分别写入 `.npm-cache/video-subtitles/<browser>/`、`.npm-cache/video-sites-regression/`。`test:video:firefox` 通过项目现有 Marionette 工具控制本机 Firefox，使用独立资料目录与本地模拟服务，覆盖跨域播放器关闭、恢复原字幕与重新开启，报告写入 `.npm-cache/video-firefox/`；支持 `FIREFOX_BINARY`。
 
+`node scripts/test-video-mobile.mjs --edge` 在桌面 Edge 中模拟手机视口、粗指针和触摸输入，将 `m.youtube.com` 路由到本地视频样本，验证移动播放器 API、`ytInitialPlayerResponse`、播放器已请求的字幕地址及渲染字幕四条路径。覆盖相对字幕地址、保留 MWEB 授权参数、轻触后显示入口、44px 触摸目标、seek、原生视频全屏和切换视频后的旧数据隔离。去掉 `--edge` 使用 Chromium；支持 `PLAYWRIGHT_MODULE`、`CHROME_TEST_BROWSER`、`EDGE_TEST_BROWSER` 和 `VIDEO_TEST_EXTENSION_DIR`，报告与截图位于 `.npm-cache/video-mobile/<browser>/`。这属于桌面浏览器移动模拟，不替代 Android Edge 真机与真实 YouTube 验收。
+
 `npm run test:video:performance` 使用本地循环视频、持续变化的渲染字幕和模拟服务，记录开启前后的 renderer 任务时间、脚本时间、强制 GC 后的 JS heap、节点与监听器数量，并检查停止后不再请求、移除播放器后清理入口。默认观察 120 秒，可用 `VIDEO_SOAK_SECONDS` 延长至 3600 秒；报告位于 `.npm-cache/video-performance/`。这不是浏览器全部进程的 CPU、内存或真实网站长时间观看验收。
 
 2026-10-29 的 `1.4.1-video-preview.9` 预览包与相同依赖下的 `fa74781`（1.4.1）比较，Chromium 安装文件增加 116,901 B，本地 DEFLATE level 6 ZIP 估计增加 35,977 B（约 35.1 KiB），没有新增依赖或模型。Windows / Chromium 147 的较早渲染字幕构建中，600 秒资源样本完成 1,251 次本地模拟请求，超过会话缓存容量后，后五分钟页面 JS heap 约在 2.96–2.97 MB；全程 heap 净增 237,440 B。多数样本监听器为 137，停止后请求数不再增长，移除播放器后监听器降至 106；renderer 任务时间从关闭时约 0.0040 s/s 到开启时约 0.0087 s/s。上述数字是单一轻量测试页的观察值，不能推导整机占用、网站视频解码表现或总内存预算。

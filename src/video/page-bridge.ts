@@ -1,14 +1,17 @@
 // Runs in the page's MAIN world. No extension APIs, settings or provider credentials.
 import { bilibiliCues, VIDEO_BRIDGE_CHANNEL, youtubeCues, type PageSubtitleTrack } from "./site-cues";
-import { mediaKey } from "./platforms";
+import { mediaKey, YOUTUBE_PLAYER_SELECTOR } from "./platforms";
 import { bilibiliProtoTracks } from "./bilibili-proto";
 import { bilibiliSubtitleUrl } from "./bilibili-url";
 
 interface RemoteTrack extends PageSubtitleTrack { url: string }
-interface YouTubePlayer extends Element {
-  getPlayerResponse?(): { videoDetails?: { videoId?: string }; captions?: { playerCaptionsTracklistRenderer?: { captionTracks?: Array<{
+interface YouTubePlayerResponse {
+  videoDetails?: { videoId?: string }; captions?: { playerCaptionsTracklistRenderer?: { captionTracks?: Array<{
     baseUrl?: string; languageCode?: string; vssId?: string; kind?: string; name?: { simpleText?: string; runs?: Array<{ text?: string }> }
-  }> } } };
+  }> } };
+}
+interface YouTubePlayer extends Element {
+  getPlayerResponse?(): YouTubePlayerResponse | undefined;
   getOption?(module: string, name: string): { vss_id?: string; languageCode?: string } | undefined;
 }
 
@@ -79,17 +82,45 @@ async function readCatalogue(): Promise<{ key: string; tracks: PageSubtitleTrack
   let selected: string | undefined;
   const next: RemoteTrack[] = [];
   if (youtube) {
-    const player = document.querySelector<YouTubePlayer>("#movie_player,.html5-video-player");
-    const response = player?.getPlayerResponse?.();
     const currentId = new URL(location.href).searchParams.get("v") || location.pathname.split("/").at(-1);
-    if (response?.videoDetails?.videoId && response.videoDetails.videoId !== currentId) return { key, tracks: [] };
+    const players = [...document.querySelectorAll<YouTubePlayer>(YOUTUBE_PLAYER_SELECTOR)];
+    let player: YouTubePlayer | undefined;
+    let response: YouTubePlayerResponse | undefined;
+    for (const candidate of players) {
+      try {
+        const value = candidate.getPlayerResponse?.();
+        if (value?.captions && (!value.videoDetails?.videoId || value.videoDetails.videoId === currentId)) {
+          player = candidate; response = value; break;
+        }
+      } catch { /* A replaced player may still be present during mobile navigation. */ }
+    }
+    // Mobile YouTube may expose metadata only through the page's initial response.
+    // Check the video ID on every read: that response can outlive SPA navigation.
+    const initial = (window as Window & { ytInitialPlayerResponse?: YouTubePlayerResponse }).ytInitialPlayerResponse;
+    if (!response && initial?.videoDetails?.videoId === currentId) response = initial;
+    player ??= players.find(candidate => typeof candidate.getOption === "function");
     const current = player?.getOption?.("captions", "track");
     for (const [index, track] of (response?.captions?.playerCaptionsTracklistRenderer?.captionTracks ?? []).slice(0, 200).entries()) {
-      if (!track.baseUrl || !permitted(track.baseUrl, "captions")) continue;
+      const url = track.baseUrl && permitted(track.baseUrl, "captions");
+      if (!url) continue;
       const id = track.vssId || `${track.languageCode}-${index}`;
-      next.push({ id, language: (track.languageCode ?? "auto").slice(0, 32), automatic: track.kind === "asr", url: track.baseUrl,
+      next.push({ id, language: (track.languageCode ?? "auto").slice(0, 32), automatic: track.kind === "asr", url: url.href,
         label: (track.name?.simpleText || track.name?.runs?.map(run => run.text ?? "").join("") || track.languageCode || "字幕").slice(0, 200) });
       if (current?.vss_id === track.vssId || (!selected && current?.languageCode === track.languageCode)) selected = id;
+    }
+    observe(performance.getEntriesByType("resource"));
+    if (!next.length) {
+      // A mobile player can withhold its JS API. Reuse only subtitle requests it
+      // already made for this video, without calling an additional player API.
+      for (const entry of [...resources].reverse()) {
+        const url = permitted(entry.url, "captions");
+        const language = url?.searchParams.get("lang");
+        if (entry.key !== key || !url || url.searchParams.get("v") !== currentId || !language || url.searchParams.has("tlang")) continue;
+        const id = `observed:${language}:${url.searchParams.get("kind") || ""}:${url.searchParams.get("name") || ""}`.slice(0, 128);
+        if (next.some(track => track.id === id)) continue;
+        next.push({ id, language: language.slice(0, 32), label: language.slice(0, 200), automatic: url.searchParams.get("kind") === "asr", url: url.href });
+      }
+      selected = next.find(track => track.language === current?.languageCode)?.id || next[0]?.id;
     }
   } else if (bilibili) {
     observe(performance.getEntriesByType("resource"));
@@ -124,9 +155,8 @@ async function load(id: string): Promise<unknown> {
     observe(performance.getEntriesByType("resource"));
     const observed = [...resources].reverse().find(entry => {
       const candidate = permitted(entry.url, "captions");
-      return entry.key === key && candidate?.searchParams.has("pot") && candidate.searchParams.get("v") === url.searchParams.get("v")
-        && candidate.searchParams.get("lang") === url.searchParams.get("lang")
-        && candidate.searchParams.get("tlang") === url.searchParams.get("tlang");
+      return entry.key === key && candidate && ["v", "lang", "kind", "name", "tlang"].every(name =>
+        (candidate.searchParams.get(name) || "") === (url.searchParams.get(name) || ""));
     });
     if (observed) {
       // Reuse the complete player request instead of mixing tokens and client contexts.

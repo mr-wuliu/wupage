@@ -40,6 +40,24 @@ afterEach(() => {
 });
 
 describe("player subtitle controls", () => {
+  it("reveals controls on touch and keeps them visible after the finger leaves", async () => {
+    await vi.advanceTimersByTimeAsync(2700);
+    const host = document.querySelector('[data-wupage-video]')!;
+    const player = video.parentElement!;
+    expect(host.hasAttribute('data-controls')).toBe(false);
+    const touch = (type: string) => {
+      const event = new Event(type, { bubbles: true });
+      Object.defineProperty(event, 'pointerType', { value: 'touch' });
+      return event;
+    };
+    video.addEventListener('pointerdown', event => event.stopPropagation());
+    video.dispatchEvent(touch('pointerdown'));
+    expect(host.hasAttribute('data-controls')).toBe(true);
+    player.dispatchEvent(touch('pointerleave'));
+    expect(host.hasAttribute('data-controls')).toBe(true);
+    await vi.advanceTimersByTimeAsync(2700);
+    expect(host.hasAttribute('data-controls')).toBe(false);
+  });
   it("follows TED's selected language even when its player keeps the old native track hidden", async () => {
     controller.dispose();
     track.mode = 'hidden';

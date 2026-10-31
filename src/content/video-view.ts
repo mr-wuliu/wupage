@@ -45,6 +45,7 @@ const styles = `
   .offset { width: 100%; height: 32px; border: 1px solid #50615e; border-radius: 6px; background: #233135; color: #fff; padding: 5px 8px; }
   .notice { position: absolute; top: 58px; right: 14px; max-width: min(300px,calc(100% - 28px)); padding: 9px 12px; background: #172024ed; border: 1px solid #ffffff29; border-radius: 8px; color: #e4eeea; font: 12px/1.5 system-ui,sans-serif; pointer-events: auto; }
   @media (prefers-reduced-motion: reduce) { .toolbar { transition: none; } }
+  @media (pointer: coarse) { .toolbar button { min-width: 44px; min-height: 44px; } }
 `;
 
 export class VideoView {

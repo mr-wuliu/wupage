@@ -10,8 +10,9 @@ export interface VideoPlatform {
 }
 
 /** Site selectors are deliberately separate from scheduling and subtitle rendering. */
+export const YOUTUBE_PLAYER_SELECTOR = "#movie_player,.html5-video-player,#player-container-id,#player";
 export const VIDEO_PLATFORMS: VideoPlatform[] = [
-  { id: "youtube", label: "YouTube", hosts: ["youtube.com", "youtube-nocookie.com"], player: "#movie_player,.html5-video-player",
+  { id: "youtube", label: "YouTube", hosts: ["youtube.com", "youtube-nocookie.com"], player: YOUTUBE_PLAYER_SELECTOR,
     captions: ".ytp-caption-window-container", lines: ".caption-visual-line", toggle: ".ytp-subtitles-button", bridge: true },
   { id: "bilibili", label: "哔哩哔哩", hosts: ["bilibili.com"], player: ".bpx-player-container,.bilibili-player-video-wrap",
     captions: ".bili-subtitle-x-subtitle-panel-major-group,.bpx-player-subtitle-panel,.bilibili-player-video-subtitle",
@@ -55,7 +56,8 @@ export function queryVideoRoots(root: Document | ShadowRoot = document, observe?
 }
 
 export function playerContainer(video: HTMLVideoElement, platform = videoPlatform()): HTMLElement {
-  const selected = platform && video.closest<HTMLElement>(platform.player);
+  const selected = (platform?.id === "youtube" && video.closest<HTMLElement>("#player-container-id"))
+    || (platform && video.closest<HTMLElement>(platform.player));
   if (selected && selected !== video) {
     let accessible: HTMLElement | undefined = selected;
     while (accessible?.closest('[aria-hidden="true"]')) {

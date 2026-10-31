@@ -6,6 +6,13 @@ import { normalizeVideoTranslation, sameVideoLanguage } from "../src/shared/vide
 
 afterEach(() => { document.body.replaceChildren(); vi.restoreAllMocks(); });
 describe("site subtitle data", () => {
+  it("keeps YouTube mobile caption siblings inside the player scope", () => {
+    document.body.innerHTML = '<div id="player-container-id"><div id="player" style="position:relative"><video></video></div><div class="ytp-caption-window-container"><span class="caption-visual-line">Mobile caption</span></div></div>';
+    vi.spyOn(HTMLElement.prototype, 'getClientRects').mockReturnValue([new DOMRect(0, 0, 360, 200)] as unknown as DOMRectList);
+    const container = playerContainer(document.querySelector('video')!, VIDEO_PLATFORMS[0]);
+    expect(container).toBe(document.querySelector('#player-container-id'));
+    expect(renderedCaption(container, VIDEO_PLATFORMS[0])).toBe('Mobile caption');
+  });
   it("places controls outside Vimeo's accessibility-hidden picture wrapper", () => {
     document.body.innerHTML = '<div id="player" class="player"><div class="vp-video-wrapper" aria-hidden="true"><video></video></div><div class="vp-captions">Current source</div></div>';
     expect(playerContainer(document.querySelector('video')!, VIDEO_PLATFORMS.find(p => p.id === 'vimeo'))).toBe(document.querySelector('#player'));

@@ -78,7 +78,10 @@ export class PlayerSubtitleController {
     container.append(this.nativeStyle, this.view.host);
     this.on(container, "pointermove", () => this.showControls());
     this.on(container, "pointerenter", () => this.showControls());
-    this.on(container, "pointerleave", () => { if (!this.view.panelOpen) this.view.setControls(false); });
+    this.on(container, "pointerdown", () => this.showControls(), true);
+    this.on(container, "pointerleave", event => {
+      if ((event as PointerEvent).pointerType !== "touch" && !this.view.panelOpen) this.view.setControls(false);
+    });
     this.on(video, "timeupdate", () => this.tick()); this.on(video, "pause", () => this.tick()); this.on(video, "playing", () => this.tick());
     this.on(video, "seeking", () => { this.suppressUntil = Date.now() + 160; this.live?.reset(); this.clearCaption(); this.timeline?.update(video.currentTime - this.offset); });
     this.on(video, "seeked", () => { this.suppressUntil = Date.now() + 100; this.clearCaption(); });
@@ -119,8 +122,8 @@ export class PlayerSubtitleController {
   }
   open(): void { this.showControls(); if (!this.enabled) void this.start(); else this.view.setPanel(true); }
 
-  private on(target: EventTarget, type: string, callback: EventListener): void {
-    target.addEventListener(type, callback); this.cleanups.push(() => target.removeEventListener(type, callback));
+  private on(target: EventTarget, type: string, callback: EventListener, capture = false): void {
+    target.addEventListener(type, callback, capture); this.cleanups.push(() => target.removeEventListener(type, callback, capture));
   }
 
   private showControls(): void {

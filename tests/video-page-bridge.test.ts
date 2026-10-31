@@ -77,3 +77,40 @@ it("keeps Bilibili metadata authenticated but omits cookies on signed caption CD
   expect(fetchMock.mock.calls[1][1]?.credentials).toBe('omit');
   expect(String(fetchMock.mock.calls[1][0])).toBe('https://aisubtitle.hdslb.com/bfs/subtitle/fixture.json?auth_key=fixture');
 });
+
+it.each(['mobile player', 'initial response', 'observed request'])("loads YouTube mobile captions from %s with relative URLs and the complete mobile client context", async source => {
+  vi.resetModules();
+  vi.stubGlobal('location', new URL('https://m.youtube.com/watch?v=mobile'));
+  document.body.innerHTML = '<div id="player-container-id"><div id="player"><video></video></div></div>';
+  const response = { videoDetails: { videoId: 'mobile' }, captions: { playerCaptionsTracklistRenderer: { captionTracks: [
+    { baseUrl: '/api/timedtext?v=mobile&lang=en&kind=asr', languageCode: 'en', vssId: 'a.en', kind: 'asr' }
+  ] } } };
+  if (source === 'mobile player') Object.assign(document.querySelector('#player')!, { getPlayerResponse: () => response });
+  if (source === 'initial response') vi.stubGlobal('ytInitialPlayerResponse', response);
+  const authorized = 'https://m.youtube.com/api/timedtext?v=mobile&lang=en&kind=asr&c=MWEB&signature=mobile-signature&fmt=json3';
+  vi.stubGlobal('performance', { getEntriesByType: () => [{ startTime: 1, name: authorized },
+    { startTime: 2, name: authorized.replace('kind=asr', 'name=manual') }] });
+  const fetchMock = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => new Response(JSON.stringify({ events: [{ tStartMs: 0, dDurationMs: 2000, segs: [{ utf8: 'Mobile captions' }] }] })));
+  vi.stubGlobal('fetch', fetchMock);
+  let listener!: EventListener;
+  vi.spyOn(window, 'addEventListener').mockImplementation((type, callback) => { if (type === 'message') listener = callback as EventListener; });
+  const post = vi.spyOn(window, 'postMessage').mockImplementation(() => {});
+  await import('../src/video/page-bridge');
+  const request = async (action: string, track?: string) => {
+    listener(new MessageEvent('message', { source: window, origin: location.origin,
+      data: { channel: VIDEO_BRIDGE_CHANNEL, direction: 'request', id: 'wp-mobile', action, track } }));
+    for (let i = 0; i < 40; i++) await Promise.resolve();
+    return post.mock.calls.at(-1)?.[0];
+  };
+  const catalogue = await request('catalogue');
+  if (source === 'observed request') expect(catalogue.data.selected).toContain('manual');
+  const track = catalogue.data.tracks.find((entry: { language: string; automatic?: boolean }) => entry.language === 'en' && entry.automatic);
+  expect(track).toBeDefined();
+  expect((await request('load', track.id)).data.cues[0].text).toBe('Mobile captions');
+  expect(String(fetchMock.mock.calls[0][0])).toBe(authorized);
+  expect(fetchMock.mock.calls[0][1]).toMatchObject({ credentials: 'include', redirect: 'error' });
+
+  vi.stubGlobal('location', new URL('https://m.youtube.com/watch?v=next'));
+  expect((await request('catalogue')).data.tracks).toEqual([]);
+  expect(fetchMock).toHaveBeenCalledTimes(1);
+});
