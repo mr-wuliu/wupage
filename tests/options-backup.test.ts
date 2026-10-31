@@ -25,6 +25,12 @@ describe("options settings backup", () => {
     document.close();
     stored = structuredClone(DEFAULT_SETTINGS);
     stored.activeProviderId = "deepseek";
+    // A stored key in both shapes: a provider field and a service-mode api block.
+    stored.providers = stored.providers.map((provider) => provider.id === "deepseek"
+      ? { ...provider, apiKey: "sk-deepseek-secret" } as typeof provider
+      : provider.id === "microsoft-web-translate"
+        ? { ...provider, serviceMode: "api" as const, api: { apiKey: "azure-secret" } } as typeof provider
+        : provider);
     vi.stubGlobal("chrome", { runtime: {
       sendMessage: async (request: RuntimeRequest): Promise<RuntimeResponse> => {
         if (request.type === "GET_SETTINGS") return { ok: true, data: structuredClone(stored) };
@@ -91,6 +97,68 @@ describe("options settings backup", () => {
     expect(file.settings.activeProviderId).toBe("deepseek");
     expect(file.settings.providers).toHaveLength(stored.providers.length);
     expect(query<HTMLElement>("#backupStatus").textContent).toContain("已导出当前设置");
+  });
+
+  it("leaves every key out of an export unless the user opts in", async () => {
+    // The reported risk: exporting used to write the keys into a file and said so only in a hint.
+    await mount();
+    expect(query<HTMLInputElement>("#backupIncludesKeys").checked).toBe(false);
+    query<HTMLButtonElement>("#exportSettings").click();
+    await vi.waitFor(() => expect(blobs).toHaveLength(1));
+    const text = await blobs[0]!.text();
+    expect(text).not.toContain("sk-deepseek-secret");
+    expect(text).not.toContain("azure-secret");
+    const file = JSON.parse(text) as { includesKeys: boolean; settings: ExtensionSettings };
+    expect(file.includesKeys).toBe(false);
+    // The services themselves must survive the strip, not disappear with their keys.
+    expect(file.settings.providers).toHaveLength(stored.providers.length);
+    expect(file.settings.activeProviderId).toBe("deepseek");
+    expect(query<HTMLElement>("#backupStatus").textContent).toContain("未包含翻译服务密钥");
+  });
+
+  it("writes the keys when the user turns the option on", async () => {
+    await mount();
+    query<HTMLInputElement>("#backupIncludesKeys").checked = true;
+    query<HTMLButtonElement>("#exportSettings").click();
+    await vi.waitFor(() => expect(blobs).toHaveLength(1));
+    const text = await blobs[0]!.text();
+    expect(text).toContain("sk-deepseek-secret");
+    expect(text).toContain("azure-secret");
+    expect((JSON.parse(text) as { includesKeys: boolean }).includesKeys).toBe(true);
+    expect(query<HTMLElement>("#backupStatus").textContent).toContain("文件包含翻译服务密钥");
+  });
+
+  it("keeps the stored keys when importing a file that carries none", async () => {
+    // Restoring a key-less backup on the same machine must not blank the keys already stored.
+    await mount();
+    query<HTMLButtonElement>("#exportSettings").click();
+    await vi.waitFor(() => expect(blobs).toHaveLength(1));
+    const exported = await blobs[0]!.text();
+    await vi.waitFor(() => expect(query<HTMLElement>("#backupStatus").textContent).toContain("已导出当前设置"));
+
+    await chooseFile(exported);
+    await vi.waitFor(() => expect(query<HTMLElement>("#status").textContent).toBe("已导入设置。"));
+    const deepseek = stored.providers.find((provider) => provider.id === "deepseek");
+    expect((deepseek as unknown as Record<string, unknown>).apiKey).toBe("sk-deepseek-secret");
+    const microsoft = stored.providers.find((provider) => provider.id === "microsoft-web-translate");
+    expect((microsoft as unknown as Record<string, unknown>).api).toMatchObject({ apiKey: "azure-secret" });
+    expect(query<HTMLElement>("#backupStatus").textContent).toContain("本机已保存的密钥保持原样");
+  });
+
+  it("replaces the stored keys when importing a file that carries them", async () => {
+    await mount();
+    const incoming = normalizeSettings({
+      ...structuredClone(stored),
+      providers: stored.providers.map((provider) => provider.id === "deepseek"
+        ? { ...provider, apiKey: "sk-from-file" } as typeof provider : provider)
+    });
+    await chooseFile(JSON.stringify({
+      app: "wupage", kind: "settings", version: 1, includesKeys: true, settings: incoming
+    }));
+    await vi.waitFor(() => expect(query<HTMLElement>("#status").textContent).toBe("已导入设置。"));
+    const deepseek = stored.providers.find((provider) => provider.id === "deepseek");
+    expect((deepseek as unknown as Record<string, unknown>).apiKey).toBe("sk-from-file");
+    expect(query<HTMLElement>("#backupStatus").textContent).not.toContain("本机已保存的密钥保持原样");
   });
 
   it("imports a backup over the stored settings and refreshes the form", async () => {
