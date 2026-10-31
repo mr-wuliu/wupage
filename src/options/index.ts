@@ -6,6 +6,7 @@ import { sendRuntimeMessage } from "../shared/messaging";
 import type { DoubaoStatus, ExtensionSettings, ProviderConfig, TranslationApiOptions } from "../shared/types";
 import { supportsServiceMode, translationApiOptions } from "../shared/translation-service";
 import "./styles.css";
+import type { OcrStatus } from "../shared/ocr";
 import { setImageTranslationToggle, setupOcrControl } from "../shared/ocr-control";
 import { setupLocalModelControl } from "../local/control";
 import { ensureProviderIconStyles, providerIconMarkup } from "../shared/provider-icons";
@@ -21,6 +22,13 @@ import { readRequestTemplate, setupProviderTabs } from "./provider-advanced";
 import { isDoubaoBrowserSupported } from "../shared/doubao";
 import { formatDoubaoStatus, isDoubaoProviderUnavailable, syncDoubaoTargetControls } from "../shared/doubao-ui";
 import { renderUiIcons, uiIconMarkup } from "../shared/ui-icons";
+import {
+  createSettingsBackup,
+  mergeStoredKeys,
+  parseSettingsBackup,
+  SETTINGS_BACKUP_MAX_BYTES,
+  settingsBackupFileName
+} from "../shared/settings-backup";
 
 renderUiIcons();
 
@@ -65,6 +73,11 @@ const customLlmFormatField = query<HTMLLabelElement>("#customLlmFormatField");
 const customLlmFormat = query<HTMLSelectElement>("#customLlmFormat");
 const saveButton = query<HTMLButtonElement>("#save");
 const restoreButton = query<HTMLButtonElement>("#restore");
+const exportSettingsButton = query<HTMLButtonElement>("#exportSettings");
+const importSettingsButton = query<HTMLButtonElement>("#importSettings");
+const importSettingsFile = query<HTMLInputElement>("#importSettingsFile");
+const backupIncludesKeys = query<HTMLInputElement>("#backupIncludesKeys");
+const backupStatus = query<HTMLParagraphElement>("#backupStatus");
 const status = query<HTMLParagraphElement>("#status");
 const autoTranslationControls = setupAutoTranslationControls(
   query<HTMLElement>("#autoTranslationSettings"), field => {
@@ -176,6 +189,9 @@ async function init(): Promise<void> {
     void save().catch(() => {});
   });
   restoreButton.addEventListener("click", restoreDefaults);
+  exportSettingsButton.addEventListener("click", () => { void exportSettingsBackup(); });
+  importSettingsButton.addEventListener("click", () => importSettingsFile.click());
+  importSettingsFile.addEventListener("change", () => { void importSettingsBackup(); });
   providerForm.addEventListener("input", invalidateProviderTest);
   providerForm.addEventListener("change", invalidateProviderTest);
   const updateUsageOnEdit = (event: Event): void => {
@@ -832,8 +848,9 @@ async function save(showSavedStatus = true): Promise<void> {
   }
 }
 
-async function persistSettings(showSavedStatus: boolean): Promise<void> {
-  await sendRuntimeMessage({ type: "SAVE_SETTINGS", settings });
+/** Commits the panel state only after the runtime accepted the settings. */
+async function persistSettings(showSavedStatus: boolean, next: ExtensionSettings = settings): Promise<void> {
+  await sendRuntimeMessage({ type: "SAVE_SETTINGS", settings: next });
   settings = await sendRuntimeMessage<ExtensionSettings>({ type: "GET_SETTINGS" });
   if (showSavedStatus) setStatus("已保存。", 1200);
 }
@@ -890,6 +907,94 @@ async function restoreDefaults(): Promise<void> {
     setStatus("已恢复默认设置。");
   } catch (error) {
     setStatus(error instanceof Error ? error.message : String(error));
+  }
+}
+
+let exportInFlight = false;
+
+/**
+ * Reads the saved settings again instead of exporting the panel copy: provider actions and the
+ * model dialog move that copy to the form draft, and another entry point may have saved since load.
+ * Keys are left out unless the user opted in for this export, so a file that leaves the browser
+ * cannot leak a translation key by default.
+ */
+async function exportSettingsBackup(): Promise<void> {
+  if (exportInFlight) return;
+  exportInFlight = true;
+  try {
+    if (typeof URL.createObjectURL !== "function") throw new Error("当前浏览器不支持下载文件。");
+    const includesKeys = backupIncludesKeys.checked;
+    const stored = await sendRuntimeMessage<ExtensionSettings>({ type: "GET_SETTINGS" });
+    const exportedAt = new Date();
+    const backup = createSettingsBackup(stored, exportedAt, { includesKeys });
+    const url = URL.createObjectURL(new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = settingsBackupFileName(exportedAt);
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 0);
+    const services = `（${backup.settings.providers.length} 个翻译服务）`;
+    backupStatus.textContent = includesKeys
+      ? `已导出当前设置${services}，文件包含翻译服务密钥，请妥善保管。`
+      : `已导出当前设置${services}，未包含翻译服务密钥。`;
+  } catch (error) {
+    backupStatus.textContent = error instanceof Error ? error.message : String(error);
+  } finally {
+    exportInFlight = false;
+  }
+}
+
+/**
+ * Reads the model state before saving: SAVE_SETTINGS rejects image translation without the model,
+ * and an import cannot carry the model, so the toggle has to be checked against this browser.
+ */
+async function ocrModelInstalled(): Promise<boolean> {
+  try {
+    return (await sendRuntimeMessage<OcrStatus>({ type: "GET_OCR_STATUS" })).state === "installed";
+  } catch {
+    // An unreadable model state is treated as missing: the toggle can be turned back on later,
+    // while a rejected save would drop the providers and keys along with it.
+    return false;
+  }
+}
+
+/**
+ * The panel state is replaced only after the runtime stored the file, so a rejected save leaves the
+ * old settings, the provider selection and the form untouched.
+ */
+async function importSettingsBackup(): Promise<void> {
+  const file = importSettingsFile.files?.[0];
+  if (!file) return;
+  try {
+    if (file.size > SETTINGS_BACKUP_MAX_BYTES) throw new Error("导入失败：文件过大，这不是设置备份文件。");
+    const parsed = parseSettingsBackup(await file.text());
+    // A file exported without keys holds blanks, not a request to clear this browser's copy.
+    // Keep the stored key for every provider the file left blank, so restoring a key-less
+    // backup on the same machine does not silently break the services it just restored.
+    const { settings: incoming, restoredKeys } = parsed.includesKeys
+      ? { settings: parsed.settings, restoredKeys: 0 }
+      : mergeStoredKeys(parsed.settings, await sendRuntimeMessage<ExtensionSettings>({ type: "GET_SETTINGS" }));
+    // The model lives in this browser's cache, not in the file, so a backup taken where it was
+    // installed cannot restore the toggle. SAVE_SETTINGS rejects the whole write in that case and
+    // the providers and keys would be lost with it, so keep the rest and leave the toggle off.
+    const missingModel = incoming.imageTranslationEnabled && !await ocrModelInstalled();
+    const restored = missingModel ? { ...incoming, imageTranslationEnabled: false } : incoming;
+    await persistSettings(false, restored);
+    editingProviderId = undefined;
+    invalidateProviderTest();
+    render();
+    const summary = `已导入设置（${settings.providers.length} 个翻译服务），当前服务：${getEditingProvider().label}。`;
+    const notes = [
+      parsed.includesKeys ? "" : "文件不含密钥，本机已保存的密钥保持原样。",
+      restoredKeys > 0 ? `已保留 ${restoredKeys} 个服务的本机密钥。` : "",
+      missingModel ? "本机未安装 OCR 模型，图片翻译保持关闭，装好模型后可在设置里开启。" : ""
+    ].filter(Boolean).join("");
+    backupStatus.textContent = notes ? `${summary}${notes}` : summary;
+    setStatus("已导入设置。");
+  } catch (error) {
+    backupStatus.textContent = error instanceof Error ? error.message : String(error);
+  } finally {
+    importSettingsFile.value = "";
   }
 }
 

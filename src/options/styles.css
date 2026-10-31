@@ -772,6 +772,24 @@ button.auto-translation-help-trigger:focus-visible { outline: 2px solid var(--wp
   margin: 0;
 }
 
+.backup-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.backup-keys-toggle {
+  margin-bottom: 10px;
+}
+
+#backupStatus {
+  overflow-wrap: anywhere;
+}
+
+#backupStatus:empty {
+  display: none;
+}
+
 #providerForm {
   display: grid;
   gap: 14px;
