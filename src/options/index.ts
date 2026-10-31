@@ -24,6 +24,7 @@ import { formatDoubaoStatus, isDoubaoProviderUnavailable, syncDoubaoTargetContro
 import { renderUiIcons, uiIconMarkup } from "../shared/ui-icons";
 import {
   createSettingsBackup,
+  mergeStoredKeys,
   parseSettingsBackup,
   SETTINGS_BACKUP_MAX_BYTES,
   settingsBackupFileName
@@ -75,6 +76,7 @@ const restoreButton = query<HTMLButtonElement>("#restore");
 const exportSettingsButton = query<HTMLButtonElement>("#exportSettings");
 const importSettingsButton = query<HTMLButtonElement>("#importSettings");
 const importSettingsFile = query<HTMLInputElement>("#importSettingsFile");
+const backupIncludesKeys = query<HTMLInputElement>("#backupIncludesKeys");
 const backupStatus = query<HTMLParagraphElement>("#backupStatus");
 const status = query<HTMLParagraphElement>("#status");
 const autoTranslationControls = setupAutoTranslationControls(
@@ -899,22 +901,28 @@ let exportInFlight = false;
 /**
  * Reads the saved settings again instead of exporting the panel copy: provider actions and the
  * model dialog move that copy to the form draft, and another entry point may have saved since load.
+ * Keys are left out unless the user opted in for this export, so a file that leaves the browser
+ * cannot leak a translation key by default.
  */
 async function exportSettingsBackup(): Promise<void> {
   if (exportInFlight) return;
   exportInFlight = true;
   try {
     if (typeof URL.createObjectURL !== "function") throw new Error("当前浏览器不支持下载文件。");
+    const includesKeys = backupIncludesKeys.checked;
     const stored = await sendRuntimeMessage<ExtensionSettings>({ type: "GET_SETTINGS" });
     const exportedAt = new Date();
-    const backup = createSettingsBackup(stored, exportedAt);
+    const backup = createSettingsBackup(stored, exportedAt, { includesKeys });
     const url = URL.createObjectURL(new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" }));
     const link = document.createElement("a");
     link.href = url;
     link.download = settingsBackupFileName(exportedAt);
     link.click();
     setTimeout(() => URL.revokeObjectURL(url), 0);
-    backupStatus.textContent = `已导出当前设置（${backup.settings.providers.length} 个翻译服务）。`;
+    const services = `（${backup.settings.providers.length} 个翻译服务）`;
+    backupStatus.textContent = includesKeys
+      ? `已导出当前设置${services}，文件包含翻译服务密钥，请妥善保管。`
+      : `已导出当前设置${services}，未包含翻译服务密钥。`;
   } catch (error) {
     backupStatus.textContent = error instanceof Error ? error.message : String(error);
   } finally {
@@ -945,7 +953,13 @@ async function importSettingsBackup(): Promise<void> {
   if (!file) return;
   try {
     if (file.size > SETTINGS_BACKUP_MAX_BYTES) throw new Error("导入失败：文件过大，这不是设置备份文件。");
-    const incoming = parseSettingsBackup(await file.text());
+    const parsed = parseSettingsBackup(await file.text());
+    // A file exported without keys holds blanks, not a request to clear this browser's copy.
+    // Keep the stored key for every provider the file left blank, so restoring a key-less
+    // backup on the same machine does not silently break the services it just restored.
+    const { settings: incoming, restoredKeys } = parsed.includesKeys
+      ? { settings: parsed.settings, restoredKeys: 0 }
+      : mergeStoredKeys(parsed.settings, await sendRuntimeMessage<ExtensionSettings>({ type: "GET_SETTINGS" }));
     // The model lives in this browser's cache, not in the file, so a backup taken where it was
     // installed cannot restore the toggle. SAVE_SETTINGS rejects the whole write in that case and
     // the providers and keys would be lost with it, so keep the rest and leave the toggle off.
@@ -956,9 +970,12 @@ async function importSettingsBackup(): Promise<void> {
     invalidateProviderTest();
     render();
     const summary = `已导入设置（${settings.providers.length} 个翻译服务），当前服务：${getEditingProvider().label}。`;
-    backupStatus.textContent = missingModel
-      ? `${summary}本机未安装 OCR 模型，图片翻译保持关闭，装好模型后可在设置里开启。`
-      : summary;
+    const notes = [
+      parsed.includesKeys ? "" : "文件不含密钥，本机已保存的密钥保持原样。",
+      restoredKeys > 0 ? `已保留 ${restoredKeys} 个服务的本机密钥。` : "",
+      missingModel ? "本机未安装 OCR 模型，图片翻译保持关闭，装好模型后可在设置里开启。" : ""
+    ].filter(Boolean).join("");
+    backupStatus.textContent = notes ? `${summary}${notes}` : summary;
     setStatus("已导入设置。");
   } catch (error) {
     backupStatus.textContent = error instanceof Error ? error.message : String(error);

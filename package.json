@@ -55,6 +55,8 @@
     "test:scientific:firefox": "node scripts/test-scientific-page.mjs --firefox",
     "test:scientific:edge": "node scripts/test-scientific-page.mjs --edge",
     "test:settings": "node scripts/test-settings-initialization.mjs",
+    "test:settings-backup": "node scripts/test-settings-backup.mjs",
+    "test:settings-backup:edge": "node scripts/test-settings-backup.mjs --edge",
     "test:settings-layout": "node scripts/test-settings-layout.mjs",
     "test:settings-layout:edge": "node scripts/test-settings-layout.mjs --edge",
     "test:settings-layout:firefox": "node scripts/test-settings-layout.mjs --firefox",
