@@ -6,6 +6,7 @@ import { sendRuntimeMessage } from "../shared/messaging";
 import type { DoubaoStatus, ExtensionSettings, ProviderConfig, TranslationApiOptions } from "../shared/types";
 import { supportsServiceMode, translationApiOptions } from "../shared/translation-service";
 import "./styles.css";
+import type { OcrStatus } from "../shared/ocr";
 import { setImageTranslationToggle, setupOcrControl } from "../shared/ocr-control";
 import { setupLocalModelControl } from "../local/control";
 import { ensureProviderIconStyles, providerIconMarkup } from "../shared/provider-icons";
@@ -831,8 +832,9 @@ async function save(showSavedStatus = true): Promise<void> {
   }
 }
 
-async function persistSettings(showSavedStatus: boolean): Promise<void> {
-  await sendRuntimeMessage({ type: "SAVE_SETTINGS", settings });
+/** Commits the panel state only after the runtime accepted the settings. */
+async function persistSettings(showSavedStatus: boolean, next: ExtensionSettings = settings): Promise<void> {
+  await sendRuntimeMessage({ type: "SAVE_SETTINGS", settings: next });
   settings = await sendRuntimeMessage<ExtensionSettings>({ type: "GET_SETTINGS" });
   if (showSavedStatus) setStatus("已保存。");
 }
@@ -920,17 +922,43 @@ async function exportSettingsBackup(): Promise<void> {
   }
 }
 
+/**
+ * Reads the model state before saving: SAVE_SETTINGS rejects image translation without the model,
+ * and an import cannot carry the model, so the toggle has to be checked against this browser.
+ */
+async function ocrModelInstalled(): Promise<boolean> {
+  try {
+    return (await sendRuntimeMessage<OcrStatus>({ type: "GET_OCR_STATUS" })).state === "installed";
+  } catch {
+    // An unreadable model state is treated as missing: the toggle can be turned back on later,
+    // while a rejected save would drop the providers and keys along with it.
+    return false;
+  }
+}
+
+/**
+ * The panel state is replaced only after the runtime stored the file, so a rejected save leaves the
+ * old settings, the provider selection and the form untouched.
+ */
 async function importSettingsBackup(): Promise<void> {
   const file = importSettingsFile.files?.[0];
   if (!file) return;
   try {
     if (file.size > SETTINGS_BACKUP_MAX_BYTES) throw new Error("导入失败：文件过大，这不是设置备份文件。");
-    settings = parseSettingsBackup(await file.text());
+    const incoming = parseSettingsBackup(await file.text());
+    // The model lives in this browser's cache, not in the file, so a backup taken where it was
+    // installed cannot restore the toggle. SAVE_SETTINGS rejects the whole write in that case and
+    // the providers and keys would be lost with it, so keep the rest and leave the toggle off.
+    const missingModel = incoming.imageTranslationEnabled && !await ocrModelInstalled();
+    const restored = missingModel ? { ...incoming, imageTranslationEnabled: false } : incoming;
+    await persistSettings(false, restored);
     editingProviderId = undefined;
     invalidateProviderTest();
-    await persistSettings(false);
     render();
-    backupStatus.textContent = `已导入设置（${settings.providers.length} 个翻译服务），当前服务：${getEditingProvider().label}。`;
+    const summary = `已导入设置（${settings.providers.length} 个翻译服务），当前服务：${getEditingProvider().label}。`;
+    backupStatus.textContent = missingModel
+      ? `${summary}本机未安装 OCR 模型，图片翻译保持关闭，装好模型后可在设置里开启。`
+      : summary;
     setStatus("已导入设置。");
   } catch (error) {
     backupStatus.textContent = error instanceof Error ? error.message : String(error);

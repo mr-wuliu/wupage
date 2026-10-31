@@ -11,8 +11,12 @@ describe("options settings backup", () => {
   let stored: ExtensionSettings;
   let blobs: Blob[];
   let downloads: string[];
+  let ocrState: "installed" | "missing";
+  let saveFailures: number;
 
   beforeEach(() => {
+    ocrState = "installed";
+    saveFailures = 0;
     vi.resetModules();
     blobs = [];
     downloads = [];
@@ -24,9 +28,15 @@ describe("options settings backup", () => {
     vi.stubGlobal("chrome", { runtime: {
       sendMessage: async (request: RuntimeRequest): Promise<RuntimeResponse> => {
         if (request.type === "GET_SETTINGS") return { ok: true, data: structuredClone(stored) };
-        if (request.type === "SAVE_SETTINGS") stored = normalizeSettings(request.settings);
+        if (request.type === "SAVE_SETTINGS") {
+          if (saveFailures > 0) {
+            saveFailures -= 1;
+            return { ok: false, error: "请先点击图片翻译旁的扳手安装 OCR 模型。" };
+          }
+          stored = normalizeSettings(request.settings);
+        }
         if (request.type === "GET_OCR_STATUS") {
-          return { ok: true, data: { state: "installed", downloaded: 100, total: 100 } };
+          return { ok: true, data: { state: ocrState, downloaded: 100, total: 100 } };
         }
         return { ok: true };
       }
@@ -150,6 +160,53 @@ describe("options settings backup", () => {
     const file = JSON.parse(await blobs[0]!.text()) as { settings: ExtensionSettings };
     expect(file.settings.targetLang).toBe("ja");
     expect(file.settings.chunkSize).toBe(3200);
+  });
+
+  it("restores the rest of a backup when the target has no OCR model", async () => {
+    await mount();
+    ocrState = "missing";
+    const incoming = normalizeSettings({
+      ...structuredClone(DEFAULT_SETTINGS),
+      activeProviderId: "deepseek",
+      targetLang: "ja",
+      chunkSize: 777,
+      imageTranslationEnabled: true
+    });
+    await chooseFile(JSON.stringify({ app: "wupage", kind: "settings", version: 1, settings: incoming }));
+    await vi.waitFor(() => expect(query<HTMLElement>("#status").textContent).toBe("已导入设置。"));
+    // The toggle cannot survive without the model, but the services and keys must still arrive.
+    expect(stored.imageTranslationEnabled).toBe(false);
+    expect(stored.targetLang).toBe("ja");
+    expect(stored.chunkSize).toBe(777);
+    expect(stored.providers).toHaveLength(incoming.providers.length);
+    expect(query<HTMLInputElement>("#imageTranslationEnabled").checked).toBe(false);
+    expect(query<HTMLElement>("#backupStatus").textContent).toContain("未安装 OCR 模型");
+  });
+
+  it("keeps the panel and storage untouched when saving an import fails", async () => {
+    await mount();
+    const before = structuredClone(stored);
+    saveFailures = 1;
+    const incoming = normalizeSettings({
+      ...structuredClone(DEFAULT_SETTINGS),
+      activeProviderId: "deepseek",
+      targetLang: "ja",
+      chunkSize: 777
+    });
+    incoming.providers.push({
+      type: "openai-compatible", id: "imported-service", label: "Imported", baseURL: "https://example.invalid/v1",
+      apiKey: "sk-imported", model: "gpt-4o-mini", systemPrompt: "translate"
+    });
+    await chooseFile(JSON.stringify({ app: "wupage", kind: "settings", version: 1, settings: incoming }));
+    await vi.waitFor(() => expect(query<HTMLElement>("#backupStatus").textContent).toContain("OCR 模型"));
+    expect(stored).toEqual(before);
+    expect((stored.providers ?? []).some((provider) => provider.id === "imported-service")).toBe(false);
+
+    // The failed import must not leak into the next ordinary save either.
+    query<HTMLButtonElement>("#save").click();
+    await vi.waitFor(() => expect(query<HTMLElement>("#status").textContent).toBe("已保存。"));
+    expect(stored.providers.some((provider) => provider.id === "imported-service")).toBe(false);
+    expect(stored.targetLang).toBe(before.targetLang);
   });
 
   it("reports why a file cannot be imported and keeps the stored settings", async () => {
