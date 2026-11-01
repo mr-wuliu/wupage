@@ -86,6 +86,12 @@ const TRANSLATION_TARGET_ATTR = "data-wupage-translation-target";
 const REPLACED_SOURCE_CLASS = "wupage-replaced-source";
 const STABLE_REPLACEMENT_CLASS = "wupage-stable-replacement";
 const STABLE_SOURCE_CLASS = "wupage-stable-source";
+// Playback labels share compact-control markup with ordinary navigation, but
+// adding bilingual text to these fixed-size rows can cover neighboring buttons.
+const VIDEO_CONTROL_SELECTOR = [
+  "video", "audio", "[data-testid='videoPlayer']", "[data-testid='videoComponent']",
+  ".ytp-chrome-bottom", ".ytp-chrome-top", ".vjs-control-bar", ".plyr__controls", ".jw-controlbar"
+].join(",");
 const SKIP_TAGS = new Set([
   "SCRIPT",
   "STYLE",
@@ -2007,6 +2013,7 @@ function decideSkipElement(
 ): boolean {
   if (isLegacyScientificEquation(element)) return true;
   if (element.closest(`.${TRANSLATION_CLASS},kbd,samp`)) return true;
+  if (element.closest(VIDEO_CONTROL_SELECTOR)) return true;
   if (element.closest(videoPlatform()?.captions ?? ".vjs-text-track-display,.plyr__captions,.jw-captions")) return true;
   if (element.closest(REDDIT_METADATA_SELECTOR)) return true;
   if (isInsideCodeBlock(element)) return false;

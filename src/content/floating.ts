@@ -183,6 +183,7 @@ export function initFloatingBall(): void {
   document.addEventListener("click", handleDocumentClick, true);
   window.addEventListener("resize", () => keepPositionInViewport(button));
   window.addEventListener("scroll", updateHighlight, { passive: true });
+  document.addEventListener("fullscreenchange", applyFloatingBallVisibility);
   document.addEventListener("click", closeMenuOnOutsideClick, true);
   document.addEventListener("keydown", (event) => {
     if (!shortcutEnabled["dismiss-overlays"] || !matchesLocalShortcut(event, localShortcuts["dismiss-overlays"])) return;
@@ -540,7 +541,7 @@ function updateHighlight(): void {
 function openMenu(): void {
   cancelMenuOpen();
   cancelMenuClose();
-  if (dragging || !floatingBallEnabled) return;
+  if (dragging || !floatingBallEnabled || document.fullscreenElement) return;
   const menu = document.getElementById("wupage-floating-menu");
   const button = document.getElementById(FLOATING_ID);
   if (!menu || !button) return;
@@ -808,6 +809,7 @@ function setButtonPosition(button: HTMLElement, left: number, top: number): void
 }
 
 function setMenuOpen(menu: HTMLElement, open: boolean): void {
+  open = open && floatingBallEnabled && !document.fullscreenElement;
   cancelMenuOpen();
   cancelMenuClose();
   if (!open) cancelLongPress();
@@ -1326,10 +1328,13 @@ async function syncFloatingBallFromSettings(): Promise<void> {
 function applyFloatingBallVisibility(): void {
   const hitbox = document.getElementById(FLOATING_HITBOX_ID);
   const menu = document.getElementById("wupage-floating-menu");
+  const visible = floatingBallEnabled && !document.fullscreenElement;
   if (hitbox) {
-    hitbox.hidden = !floatingBallEnabled || hitbox.dataset.positionReady !== "true";
+    hitbox.hidden = !visible || hitbox.dataset.positionReady !== "true";
   }
-  if (!floatingBallEnabled) {
+  if (!visible) {
+    cancelMenuOpen();
+    cancelLongPress();
     if (menu) setMenuOpen(menu, false);
     setActiveParagraph(null);
   }

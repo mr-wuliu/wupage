@@ -122,6 +122,57 @@ describe("floating translation interactions", () => {
     expect(query("#wupage-floating-ball").getAttribute("aria-expanded")).toBe("false");
   });
 
+  it.each(["html", "body", "div", "video"])("hides the page floating controls during %s fullscreen and restores them on exit", (tag) => {
+    vi.useFakeTimers();
+    const player = document.createElement("div"); player.innerHTML = "<video></video>"; document.body.append(player);
+    const fullscreen = tag === "div" ? player : document.querySelector(tag)!;
+    const previous = Object.getOwnPropertyDescriptor(document, "fullscreenElement");
+    const menu = hover(); vi.advanceTimersByTime(500);
+    expect(menu.hidden).toBe(false);
+    try {
+      Object.defineProperty(document, "fullscreenElement", { configurable: true, value: fullscreen });
+      document.dispatchEvent(new Event("fullscreenchange"));
+      expect(query<HTMLElement>("#wupage-floating-hitbox").hidden).toBe(true);
+      expect(menu.hidden).toBe(true);
+      expect(query("#wupage-floating-ball").getAttribute("aria-expanded")).toBe("false");
+      // Storage updates and a focused button must not reopen an invisible menu.
+      storageChanged({ [SETTINGS_KEY]: { newValue: stored } }, "local");
+      query("#wupage-floating-ball").dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }));
+      vi.advanceTimersByTime(600);
+      expect(query<HTMLElement>("#wupage-floating-hitbox").hidden).toBe(true);
+      expect(menu.hidden).toBe(true);
+      expect(stored.floatingBallEnabled).toBe(true);
+      expect(vi.mocked(sendRuntimeRequest).mock.calls.some(([request]) => request.type === "SAVE_SETTINGS")).toBe(false);
+    } finally {
+      if (previous) Object.defineProperty(document, "fullscreenElement", previous);
+      else Reflect.deleteProperty(document, "fullscreenElement");
+      document.dispatchEvent(new Event("fullscreenchange"));
+    }
+    expect(query<HTMLElement>("#wupage-floating-hitbox").hidden).toBe(false);
+    expect(menu.hidden).toBe(true);
+    hover(); vi.advanceTimersByTime(500); expect(menu.hidden).toBe(false);
+  });
+
+  it("cancels a pending hover on fullscreen entry and preserves a disabled ball on exit", () => {
+    vi.useFakeTimers();
+    const menu = hover(); vi.advanceTimersByTime(250);
+    const previous = Object.getOwnPropertyDescriptor(document, "fullscreenElement");
+    try {
+      Object.defineProperty(document, "fullscreenElement", { configurable: true, value: document.documentElement });
+      document.dispatchEvent(new Event("fullscreenchange"));
+      vi.advanceTimersByTime(600);
+      expect(menu.hidden).toBe(true);
+      stored.floatingBallEnabled = false;
+      storageChanged({ [SETTINGS_KEY]: { newValue: stored } }, "local");
+    } finally {
+      if (previous) Object.defineProperty(document, "fullscreenElement", previous);
+      else Reflect.deleteProperty(document, "fullscreenElement");
+      document.dispatchEvent(new Event("fullscreenchange"));
+    }
+    expect(query<HTMLElement>("#wupage-floating-hitbox").hidden).toBe(true);
+    expect(menu.hidden).toBe(true);
+  });
+
   it("cancels opening on leave and waits a full delay on the next hover", () => {
     vi.useFakeTimers();
     const menu = hover();

@@ -33,6 +33,8 @@
     "test:video": "node scripts/test-video-subtitles.mjs",
     "test:video:edge": "node scripts/test-video-subtitles.mjs --edge",
     "test:video:sites": "node scripts/test-video-sites.mjs",
+    "test:video:x-layout": "node scripts/test-x-video-layout.mjs",
+    "test:video:x-layout:edge": "node scripts/test-x-video-layout.mjs --edge",
     "test:video:firefox": "node scripts/test-video-firefox.mjs",
     "test:video:performance": "node scripts/test-video-performance.mjs",
     "test:shortcuts": "node scripts/test-shortcuts.mjs",

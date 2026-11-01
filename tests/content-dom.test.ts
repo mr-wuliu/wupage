@@ -24,6 +24,35 @@ import {
 import { injectContentStyles } from "../src/content/styles";
 
 describe("content DOM translation extraction", () => {
+  it.each(["videoPlayer", "videoComponent"])("keeps X %s controls out of page and paragraph translation", (testId) => {
+    document.body.innerHTML = `<main><article>
+      <div data-testid="tweetText">Watch this portrait video.</div>
+      <div data-testid="${testId}"><video>Video playback is unavailable.</video>
+        <div role="slider"><span>Seek to a different time</span></div>
+        <div role="button"><span>Playback speed</span></div>
+        <button><span>Picture in picture</span></button>
+        <div><span>Video settings</span></div>
+      </div>
+    </article></main>`;
+    stubLayout();
+    const player = document.querySelector(`[data-testid="${testId}"]`)!;
+    const original = player.innerHTML;
+    expect(collectParagraphTextSegments(player).map(segment => segment.text)).toEqual([]);
+    const segments = collectTextSegments();
+    expect(segments.map(segment => segment.text)).toEqual(["Watch this portrait video."]);
+    renderTranslations(segments.map(({ id }) => ({ id, text: "看看这段竖屏视频。" })));
+    expect(player.innerHTML).toBe(original);
+  });
+
+  it.each(["ytp-chrome-bottom", "ytp-chrome-top", "vjs-control-bar", "plyr__controls", "jw-controlbar"])
+    ("leaves %s playback controls unchanged while translating surrounding prose", (className) => {
+      document.body.innerHTML = `<main><p>A description of the video.</p><div class="${className}">
+        <button><span>Playback speed</span></button><span>Video settings</span>
+      </div></main>`;
+      stubLayout();
+      expect(collectTextSegments().map(segment => segment.text)).toEqual(["A description of the video."]);
+    });
+
   it('keeps Udemy native captions out of page translation before subtitle translation starts', () => {
     vi.stubGlobal('location', new URL('https://www.udemy.com/course/fixture/'));
     try {

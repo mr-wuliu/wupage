@@ -47,6 +47,8 @@
 
 全屏容器沿用覆盖层，视频元素原生全屏使用临时双语 TextTrack。嵌入帧向后台登记视频可用性，显式打开请求由后台定位对应帧，避免在没有视频的顶层页面打开空面板。弹窗的「视频字幕」是功能区全宽开关，保存 `videoTranslation.enabled`，旧配置默认开启；关闭后各文档释放播放器控制器并恢复原字幕，后台取消在途字幕请求并拒绝新请求。首次读取与历史缓存恢复均使用最新设置，重新开启时恢复发现，保留字幕外观与网站自动开启偏好。原生网页字幕和扩展 UI 均排除于全文翻译的扫描范围。原生字幕轨被网站关闭、替换或切到其他显示轨道时，自动模式会重新选择可用轨道并取消旧任务；Bilibili 的自动选择读取网站字幕语言控件。Vimeo 的字幕控件挂在完整播放器内，避免受到画面内层 aria-hidden 的影响。
 
+全文和段落翻译跳过 X 的 `videoPlayer` / `videoComponent`、媒体元素与常见播放器控制栏，避免将译文插入固定尺寸的播放按钮。页面翻译悬浮球和菜单在全屏期间隐藏，并取消待触发的悬停或长按；退出全屏后按原有开关恢复，不修改保存的设置。构建后运行 `npm run test:video:x-layout`（Edge 使用 `npm run test:video:x-layout:edge`），通过本地竖屏视频与模拟服务检查 240 / 320 / 390px 播放器、三种翻译模式、按钮间距与实际点击，以及播放器、HTML、Body 和原生视频全屏。支持 `PLAYWRIGHT_MODULE`、`CHROME_TEST_BROWSER` 和 `EDGE_TEST_BROWSER`，截图和报告位于 `.npm-cache/x-video-layout/<browser>/`；样本回归不替代真实 X 页面验收。
+
 本地与商店版同时安装时，可运行 `npm run build:video-preview`，再在 Chrome / Edge 的扩展管理页加载生成的 `dist-video-preview/`。这个构建显示为「WuPage 视频字幕预览版」，工具栏图标悬停也使用该名称；打开它的弹窗应能看到「视频字幕」按钮。更新后重新加载此扩展并刷新视频页。普通 `npm run build` 仍向 `dist/` 生成正式名称的构建；预览输出目录独立，名称与 `version_name` 仅用于本地识别，不改变版本号或发布配置。浏览器回归可用 `VIDEO_TEST_EXTENSION_DIR=dist-video-preview` 指定预览构建。
 
 验证命令：
