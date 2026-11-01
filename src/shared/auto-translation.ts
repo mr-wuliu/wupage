@@ -1,4 +1,5 @@
 import type { AutoTranslationSettings, AutoTranslationSite } from "./types";
+import { randomId } from "./random-id";
 
 export const AUTO_TRANSLATION_PRESETS = [
   { domain: "github.com", label: "GitHub" },
@@ -165,7 +166,7 @@ export function addAutoTranslationWebsite(value: unknown, address: string | unde
     const { removedPresetSites: _removed, ...retained } = settings;
     return { ...retained, presetSites: [...settings.presetSites, pattern], ...(removed?.length ? { removedPresetSites: removed } : {}) };
   }
-  return { ...settings, customSites: [...settings.customSites, { id: `site-${crypto.randomUUID()}`, pattern, enabled: true }] };
+  return { ...settings, customSites: [...settings.customSites, { id: `site-${randomId()}`, pattern, enabled: true }] };
 }
 
 export function excludeAutoTranslationWebsite(value: unknown, address: string | undefined): AutoTranslationSettings {

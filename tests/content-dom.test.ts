@@ -23,6 +23,105 @@ import {
 } from "../src/content/dom";
 import { injectContentStyles } from "../src/content/styles";
 
+describe("host content boundaries", () => {
+  it.each([[false, false], [true, false], [false, true], [true, true]])("restores temporarily detached rows before forgetting their source, pending=%s, fragment=%s", (pending, fragment) => {
+    document.body.innerHTML = '<main><section><p>Read <code>guide()</code> carefully.</p><input placeholder="Search rows"></section></main>';
+    stubLayout();
+    const row = document.querySelector("section")!;
+    const original = row.innerHTML;
+    const segments = collectTextSegments();
+    if (pending) renderTranslationPlaceholders(segments);
+    else renderTranslations(segments.map(segment => ({ id: segment.id, text: `译文：${segment.text}` })), "replace");
+    row.remove();
+    if (fragment) document.createElement("template").content.append(row);
+    clearTranslations();
+    document.querySelector("main")!.append(row);
+    expect(row.innerHTML).toBe(original);
+    expect(collectAdditionalTextSegments(row).map(segment => segment.text)).toContain("Read ⟪WUPAGE0⟫ carefully.");
+  });
+  it("keeps source text when site CSS makes the generated replacement invisible", () => {
+    document.body.innerHTML = "<main><p>Original paragraph.</p></main>";
+    stubLayout("", { style: element => element.classList.contains("wupage-translation") ? { display: "none" } : {} });
+    const [segment] = collectTextSegments();
+    renderTranslations([{ id: segment.id, text: "译文段落。" }], "replace");
+    expect(document.querySelector("p")!.textContent).toBe("Original paragraph.");
+    expect(document.querySelector(".wupage-translation")).toBeNull();
+  });
+  it.each(["code", "math", "brand"])("invalidates active replacements when protected %s changes", kind => {
+    const inline = kind === "code" ? '<code id="protected">oldName()</code>'
+      : kind === "math" ? '<math id="protected"><mi>alpha</mi></math>'
+      : '<span id="protected" translate="no">OldBrand</span>';
+    document.body.innerHTML = `<main><p>Read ${inline} before continuing.</p></main>`;
+    stubLayout();
+    const [segment] = collectTextSegments();
+    renderTranslations([{ id: segment.id, text: "请先阅读 ⟪WUPAGE0⟫。" }], "replace");
+    // Our own visibility class must not make every response invalidate itself.
+    expect(invalidateStaleSegments()).toEqual([]);
+    const source = document.querySelector("#protected")!;
+    (source.querySelector("mi") ?? source).firstChild!.textContent = "UpdatedSource";
+    expect(invalidateStaleSegments()).toContain(segment.id);
+    expect(document.querySelector(".wupage-translation")).toBeNull();
+    expect(source.classList.contains("wupage-replaced-source")).toBe(false);
+    expect(document.querySelector("p")!.textContent).toBe("Read UpdatedSource before continuing.");
+  });
+  it.each(["", "true", "plaintext-only"])("never collects code comments or controls inside contenteditable=%s", value => {
+    document.body.innerHTML = `<main><p>Published article.</p><div contenteditable="${value}">
+      <pre><code>// Unsent private draft</code></pre><button><span>Draft action</span></button>
+      </div><div role="textbox"><code># Another private draft</code></div></main>`;
+    stubLayout();
+    expect(collectTextSegments().map(segment => segment.text)).toEqual(["Published article."]);
+    expect(collectParagraphTextSegments(document.querySelector("pre")!)).toEqual([]);
+  });
+
+  it("preserves opted-out inline content with protected markers across display modes", () => {
+    document.body.innerHTML = `<main><p>Install <span translate="NO">PrivateProduct</span> before proceeding.</p>
+      <p class="notranslate">Do not translate this paragraph.</p><input translate="no" placeholder="Private placeholder"></main>`;
+    stubLayout();
+    const original = document.querySelector("main")!.innerHTML;
+    const segments = collectTextSegments();
+    expect(segments.map(segment => segment.text)).toEqual(["Install ⟪WUPAGE0⟫ before proceeding."]);
+    renderTranslations([{ id: segments[0].id, text: "请先安装 ⟪WUPAGE0⟫。" }], "replace");
+    expect(document.querySelector(".wupage-translation [translate]")?.textContent).toBe("PrivateProduct");
+    for (const mode of ["bilingual", "bilingual-accent", "replace"] as const) {
+      setTranslationDisplayMode(mode);
+      expect(document.querySelector(".wupage-translation")?.textContent).toBe("请先安装 PrivateProduct。");
+    }
+    clearTranslations();
+    expect(document.querySelector("main")!.innerHTML).toBe(original);
+  });
+
+  it("honors explicit translate=yes within a translate=no region", () => {
+    document.body.innerHTML = `<main translate="NO"><p>Leave this paragraph alone.</p>
+      <p translate="yes">Translate this paragraph.</p><p translate="invalid">Inherited exclusion.</p></main>`;
+    stubLayout();
+    expect(collectTextSegments().map(segment => segment.text)).toEqual(["Translate this paragraph."]);
+  });
+
+  it("preserves inline MathML while leaving standalone math and SVG graphics alone", () => {
+    document.body.innerHTML = `<main><p>Use <math><mi>alpha</mi><mo>+</mo><mi>beta</mi></math> to continue.</p>
+      <math><mi>gamma</mi></math><svg><text>Diagram label</text></svg></main>`;
+    stubLayout();
+    const original = document.querySelector("main")!.innerHTML;
+    const segments = collectTextSegments();
+    expect(segments.map(segment => segment.text)).toEqual(["Use ⟪WUPAGE0⟫ to continue."]);
+    renderTranslations([{ id: segments[0].id, text: "使用 ⟪WUPAGE0⟫ 继续。" }], "replace");
+    expect(document.querySelector(".wupage-translation math")?.textContent).toBe("alpha+beta");
+    clearTranslations();
+    expect(document.querySelector("main")!.innerHTML).toBe(original);
+  });
+
+  it("restores source text when a translated paragraph becomes an editor or opts out", () => {
+    document.body.innerHTML = "<main><p>Published paragraph.</p></main>";
+    stubLayout();
+    const [segment] = collectTextSegments();
+    renderTranslations([{ id: segment.id, text: "已发布段落。" }], "replace");
+    segment.element.setAttribute("contenteditable", "true");
+    expect(invalidateStaleSegments()).toContain(segment.id);
+    expect(segment.element.textContent).toBe("Published paragraph.");
+    expect(collectAdditionalTextSegments(segment.element)).toEqual([]);
+  });
+});
+
 describe("content DOM translation extraction", () => {
   it("skips protected tags when the document exposes lowercase tag names", () => {
     document.body.innerHTML = '<p>Readable article paragraph.</p><kbd>Skipped keyboard contents</kbd><samp>Skipped sample output</samp>';

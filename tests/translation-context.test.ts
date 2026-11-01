@@ -9,6 +9,14 @@ afterEach(() => {
 });
 
 describe("translation context", () => {
+  it("does not send opted-out text, SVG labels or editor comments as context", () => {
+    document.body.innerHTML = `<main><p>Visible article.</p><p translate="no">Private account name.</p>
+      <p class="notranslate">Private product name.</p><svg><text>Diagram label</text></svg>
+      <div contenteditable="plaintext-only"><code>// Private draft</code></div></main>`;
+    const context = buildTranslationContext();
+    expect(context).toContain("Visible article.");
+    for (const text of ["Private account", "Private product", "Diagram label", "Private draft"]) expect(context).not.toContain(text);
+  });
   it("retains local context near the end of a long document", () => {
     document.body.innerHTML = `<main><p>${"Unrelated introduction. ".repeat(200)}</p>
       <h2>Statistics</h2><p>Variance measures the spread of a probability distribution.</p>

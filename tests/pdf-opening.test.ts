@@ -2,7 +2,7 @@
 
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from "vitest";
 vi.mock("../src/pdf/font-control", () => ({ setupPdfFontControl: () => ({
   prepareExport: async () => ({}), setExporting: vi.fn(), cancel: vi.fn()
 }) }));
@@ -13,9 +13,9 @@ const { getDocument } = vi.hoisted(() => ({ getDocument: vi.fn() }));
 vi.mock("pdfjs-dist", () => ({ GlobalWorkerOptions: {}, OPS: {}, TextLayer: vi.fn(), getDocument }));
 
 describe("PDF source opening", () => {
-  let fileAccess: ReturnType<typeof vi.fn>;
-  let fetchPdf: ReturnType<typeof vi.fn>;
-  let sendMessage: ReturnType<typeof vi.fn>;
+  let fileAccess: Mock<() => Promise<boolean>>;
+  let fetchPdf: Mock<typeof fetch>;
+  let sendMessage: Mock<(request: RuntimeRequest) => Promise<RuntimeResponse>>;
   const fileUrl = "file:///C:/Reports/Annual%20report.pdf#page=2";
 
   beforeEach(() => {
@@ -75,6 +75,51 @@ describe("PDF source opening", () => {
   function translated(): boolean {
     return sendMessage.mock.calls.some(([request]) => (request as RuntimeRequest).type === "TRANSLATE_BATCH");
   }
+
+  function submitUrl(url: string): void {
+    document.querySelector<HTMLInputElement>("#pdfUrl")!.value = url;
+    document.querySelector("#urlForm")!.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+  }
+
+  it("does not let an older download replace the document opened afterward", async () => {
+    let finish!: (response: Response) => void;
+    let oldSignal: AbortSignal | undefined;
+    fetchPdf.mockImplementationOnce((_url, init) => {
+      oldSignal = init!.signal!;
+      return new Promise<Response>(resolve => { finish = resolve; });
+    });
+    await launch("https://example.com/slow.pdf", false);
+    await vi.waitFor(() => expect(fetchPdf).toHaveBeenCalledOnce());
+    submitUrl("https://example.com/new.pdf");
+    await vi.waitFor(() => expect(document.querySelector("#documentName")?.textContent).toBe("new.pdf"));
+    expect(oldSignal!.aborted).toBe(true);
+    finish(new Response("%PDF-old", { headers: { "content-type": "application/pdf" } }));
+    await new Promise(resolve => setTimeout(resolve, 30));
+    expect(document.querySelector("#documentName")?.textContent).toBe("new.pdf");
+    expect(getDocument).toHaveBeenCalledOnce();
+  });
+
+  it("ignores a late parser result without clearing the newer document", async () => {
+    const normal = getDocument.getMockImplementation()!();
+    const proxy = await normal.promise;
+    let finish!: (value: typeof proxy) => void;
+    const old = { promise: new Promise<typeof proxy>(resolve => { finish = resolve; }), destroy: vi.fn(async () => undefined) };
+    getDocument.mockReturnValueOnce(old);
+    await launch("https://example.com/old.pdf", false);
+    await vi.waitFor(() => expect(getDocument).toHaveBeenCalledOnce());
+    submitUrl("https://example.com/latest.pdf");
+    await vi.waitFor(() => expect(document.querySelector("#documentName")?.textContent).toBe("latest.pdf"));
+    finish(proxy);
+    await new Promise(resolve => setTimeout(resolve, 30));
+    expect(document.querySelector("#documentName")?.textContent).toBe("latest.pdf");
+    expect(document.querySelector("#pages")?.children.length).toBe(1);
+  });
+
+  it("opens valid PDF URLs whose file names contain a literal percent sign", async () => {
+    await launch("https://example.com/report%complete.pdf", false);
+    await vi.waitFor(() => expect(document.querySelector("#documentName")?.textContent).toBe("report%complete.pdf"));
+    expect(getDocument).toHaveBeenCalledOnce();
+  });
 
   async function mockDocumentPages(count: number): Promise<void> {
     const documentProxy = await getDocument.getMockImplementation()!().promise;
@@ -137,8 +182,7 @@ describe("PDF source opening", () => {
     const original = sendMessage.getMockImplementation()!;
     sendMessage.mockImplementation((request: RuntimeRequest) => request.type === "TRANSLATE_BATCH" && gates.length < 2
       ? new Promise<RuntimeResponse>((resolve) => gates.push(resolve)) : original(request));
-    const requests = () => sendMessage.mock.calls.filter(([request]) => request.type === "TRANSLATE_BATCH")
-      .map(([request]) => request.texts[0]);
+    const requests = () => sendMessage.mock.calls.flatMap(([request]) => request.type === "TRANSLATE_BATCH" ? [request.texts[0]] : []);
     await launch(fileUrl);
     await vi.waitFor(() => expect(requests()).toEqual(["Page 10 contents.", "Page 9 contents."]));
     readingPage = 20;
@@ -178,8 +222,8 @@ describe("PDF source opening", () => {
       if (request.type === "GET_SETTINGS") return Promise.resolve({ ok: true, data: structuredClone(stored) });
       return original(request);
     });
-    const requests = () => sendMessage.mock.calls.filter(([request]) => request.type === "TRANSLATE_BATCH")
-      .map(([request]) => Number(/Page (\d+)/u.exec(request.texts[0])![1]));
+    const requests = () => sendMessage.mock.calls.flatMap(([request]) => request.type === "TRANSLATE_BATCH"
+      ? [Number(/Page (\d+)/u.exec(request.texts[0])![1])] : []);
     await launch(fileUrl, false);
     const button = document.querySelector<HTMLButtonElement>("#translateDocument")!;
     await vi.waitFor(() => expect(button.disabled).toBe(false));
@@ -265,8 +309,7 @@ describe("PDF source opening", () => {
       }
       return original(request);
     });
-    const requests = () => sendMessage.mock.calls.filter(([request]) => request.type === "TRANSLATE_BATCH")
-      .map(([request]) => request.texts[0]);
+    const requests = () => sendMessage.mock.calls.flatMap(([request]) => request.type === "TRANSLATE_BATCH" ? [request.texts[0]] : []);
     await launch(fileUrl, !forDownload);
     if (forDownload) {
       const download = document.querySelector<HTMLButtonElement>("#downloadDocument")!;

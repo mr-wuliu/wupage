@@ -19,6 +19,7 @@ import { getEffectiveProviderPerformance, isLlmProvider } from "../shared/perfor
 import { ProviderError } from "../shared/errors";
 import { DocumentViewport } from "./document-viewport";
 import { invalidatePendingDocumentTranslations } from "./translation-lifecycle";
+import { composedParent, mutationElement, onTranslationRoot, translationRoots } from "./dom-roots";
 
 const VIEWPORT_MARGIN_RATIO = 0.75;
 const MIN_VIEWPORT_MARGIN = 240;
@@ -34,6 +35,7 @@ const EXTENSION_OWNED_SELECTOR = [
   "#wupage-video-panel",
   "#wupage-video-overlay",
   ".wupage-translation",
+  "#wupage-translation-style",
   "#wupage-floating-hitbox",
   "#wupage-floating-menu",
   "#wupage-debug-panel",
@@ -68,6 +70,7 @@ interface TranslationSession {
   initialResolved: boolean;
   resolveInitial: (result: PageTranslationResult) => void;
   observer: MutationObserver;
+  unobserveRoots?: () => void;
   viewport: DocumentViewport;
   initializing: boolean;
   dynamicRoots: Set<Element>;
@@ -205,7 +208,7 @@ export async function startLocalPageTranslation(settings: ExtensionSettings, reu
   let entries = new Map<string, SegmentEntry>();
   if (canRestore) {
     handleDynamicContent(saved, saved.observer.takeRecords());
-    saved.observer.disconnect();
+    disconnectPageObserver(saved);
     suspendedSession = null;
     const stale = new Set(invalidateStaleSegments([...saved.changedRoots]));
     entries = new Map([...saved.entries].filter(([id, entry]) => !stale.has(id) && entry.segment.element.isConnected)
@@ -296,7 +299,7 @@ function clearPageTranslationState(): void {
   cancelPendingScan();
   invalidatePendingDocumentTranslations();
   cancelActiveSession();
-  suspendedSession?.observer.disconnect();
+  if (suspendedSession) disconnectPageObserver(suspendedSession);
   suspendedSession = null;
   clearTranslations();
 }
@@ -323,7 +326,7 @@ export function hideLocalPageTranslation(explicitStop = true): void {
     return;
   }
   cancelActiveSession();
-  suspendedSession?.observer.disconnect();
+  if (suspendedSession) disconnectPageObserver(suspendedSession);
   suspendedSession = session;
   preserveViewportPosition(hideTranslations, session ? [...session.entries.values()].map((entry) => entry.segment) : []);
   if (session) observePage(session);
@@ -341,13 +344,22 @@ function getTranslationIdentity(settings: ExtensionSettings): string {
 }
 
 function observePage(session: TranslationSession): void {
-  session.observer.observe(document.body, {
+  const options = {
     childList: true,
     subtree: true,
     characterData: true,
     attributes: true,
-    attributeFilter: ["class", "style", "hidden", "aria-hidden", "placeholder", "alt", "open"]
-  });
+    attributeFilter: ["class", "style", "hidden", "aria-hidden", "placeholder", "alt", "open", "translate", "contenteditable", "role"]
+  };
+  for (const root of translationRoots()) session.observer.observe(root, options);
+  session.unobserveRoots?.();
+  session.unobserveRoots = onTranslationRoot(root => session.observer.observe(root, options));
+}
+
+function disconnectPageObserver(session: TranslationSession): void {
+  session.observer.disconnect();
+  session.unobserveRoots?.();
+  session.unobserveRoots = undefined;
 }
 
 export function getPageTranslationDisplayMode(fallback: TranslationDisplayMode): TranslationDisplayMode {
@@ -479,7 +491,7 @@ async function runBatch(session: TranslationSession, segments: TextSegment[]): P
       session.firstErrorCode ??= error.errorCode;
       if (error.retryAfterMs !== undefined) session.retryAt = Date.now() + error.retryAfterMs;
       if (["login-required", "rate-limited", "service-rejected", "permission-required",
-        "unsupported-browser", "unsupported-language", "protocol-changed"].includes(error.errorCode)) {
+        "unsupported-browser", "unsupported-language", "protocol-changed", "service-unavailable"].includes(error.errorCode)) {
         session.providerPaused = true;
         session.queue = [];
         for (const entry of session.entries.values()) {
@@ -540,7 +552,7 @@ function scheduleViewportRefresh(scope: ViewportRescanScope): void {
 function handleDynamicContent(session: TranslationSession, mutations: MutationRecord[]): void {
   if (!isActive(session) && suspendedSession !== session) return;
   for (const mutation of mutations) {
-    const target = mutation.target instanceof Element ? mutation.target : mutation.target.parentElement;
+    const target = mutationElement(mutation.target);
     if (!target || isExtensionOwned(target)) continue;
     if (mutation.type === "characterData") {
       session.dynamicRoots.add(target);
@@ -650,7 +662,7 @@ function preserveViewportPosition(mutate: () => void, segments: TextSegment[] = 
       if (!containers.has(ancestor) && (ancestor.scrollTop || ancestor.scrollLeft)) {
         containers.set(ancestor, { left: ancestor.scrollLeft, top: ancestor.scrollTop });
       }
-      ancestor = ancestor.parentElement;
+      ancestor = composedParent(ancestor);
     }
   }
   mutate();
@@ -740,7 +752,7 @@ function cancelActiveSession(): void {
   if (!session) return;
   session.scanController.abort();
   session.refreshRoots.clear();
-  session.observer.disconnect();
+  disconnectPageObserver(session);
   session.viewport.disconnect();
   session.dynamicRoots.clear();
   session.changedRoots.clear();

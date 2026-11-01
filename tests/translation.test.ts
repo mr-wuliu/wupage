@@ -108,6 +108,30 @@ describe("contextual machine translation", () => {
 });
 
 describe("LLM provider queue", () => {
+  it("keeps imported provider IDs separate from the global limiter", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ choices: [{ message: { content: '["译文"]' } }] }))));
+    await expect(translateWithSettings(createLlmSettings("__wupage_global__", 1), {
+      texts: ["Hello"], targetLang: "zh-CN"
+    })).resolves.toMatchObject({ translations: ["译文"] });
+  });
+
+  it("stops scheduling remaining groups after one worker fails", async () => {
+    let finish!: (response: Response) => void;
+    const fetch = vi.fn(async (_url: string, init: RequestInit) => {
+      const { texts } = JSON.parse(JSON.parse(String(init.body)).messages.at(-1).content) as { texts: string[] };
+      if (texts[0].startsWith("first")) return new Response("Invalid credentials", { status: 401 });
+      return new Promise<Response>(resolve => { finish = resolve; });
+    });
+    vi.stubGlobal("fetch", fetch);
+    const settings = createLlmSettings("stop-on-failure", 2);
+    const request = translateWithSettings(settings, {
+      texts: ["first", "second", "third", "fourth"].map(text => `${text} ${"a".repeat(3190)}`), targetLang: "zh-CN"
+    });
+    await expect(request).rejects.toMatchObject({ errorCode: "login-required" });
+    finish(new Response(JSON.stringify({ choices: [{ message: { content: '["成功完成的并行结果"]' } }] })));
+    await new Promise(resolve => setTimeout(resolve, 20));
+    expect(fetch).toHaveBeenCalledTimes(2);
+  });
   it("serves an explicit request before queued page prefetch without interrupting running work", async () => {
     const order: string[] = [];
     let finish!: () => void;

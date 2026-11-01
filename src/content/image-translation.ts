@@ -2,6 +2,7 @@ import type { ExtensionSettings, ImageTextRegion, TranslateImageResponse } from 
 import { SETTINGS_KEY } from "../shared/defaults";
 import { hasRuntimeContext, sendRuntimeRequest } from "./runtime";
 import { getImageRasterSize, renderImageTranslation } from "./image-rendering";
+import { isNonProseElement, isTranslationOptedOut } from "./content-policy";
 
 interface ImageEntry {
   image: HTMLImageElement;
@@ -27,6 +28,7 @@ const SOURCE_STYLE_ID = "wupage-image-source-style";
 const maskedSources = new Map<HTMLElement, string | null>();
 const entries = new Map<HTMLImageElement, ImageEntry>();
 let host: HTMLDivElement | undefined;
+let sourceStyle: HTMLStyleElement | undefined;
 let root: ShadowRoot | undefined;
 let enabled = false;
 let observer: MutationObserver | undefined;
@@ -85,7 +87,7 @@ export function setImageTranslationEnabled(value: boolean): void {
     scanTimer = undefined; frame = undefined;
     entries.forEach((entry) => { entry.generation += 1; });
     entries.clear(); host?.remove(); host = undefined; root = undefined;
-    document.getElementById(SOURCE_STYLE_ID)?.remove();
+    sourceStyle?.remove(); sourceStyle = undefined;
     return;
   }
   createHost();
@@ -93,8 +95,8 @@ export function setImageTranslationEnabled(value: boolean): void {
     if (records.some((record) => record.target !== host
       && !(record.target instanceof Element && record.target.closest(`#${HOST_ID},.wupage-translation`)))) scheduleScan();
   });
-  observer.observe(document.body, { subtree: true, childList: true, attributes: true,
-    attributeFilter: ["src", "srcset", "sizes", "width", "height", "style", "class", "hidden"] });
+  observer.observe(document.documentElement, { subtree: true, childList: true, attributes: true,
+    attributeFilter: ["src", "srcset", "sizes", "width", "height", "style", "class", "hidden", "translate", "contenteditable", "role"] });
   if (typeof ResizeObserver !== "undefined") resizeObserver = new ResizeObserver(scheduleLayout);
   window.addEventListener("scroll", scheduleLayout, { capture: true, passive: true });
   window.addEventListener("resize", scheduleScan, { passive: true });
@@ -107,7 +109,7 @@ export function setImageTranslationEnabled(value: boolean): void {
 }
 
 function createHost(): void {
-  const sourceStyle = document.createElement("style");
+  sourceStyle = document.createElement("style");
   sourceStyle.id = SOURCE_STYLE_ID;
   sourceStyle.textContent = `
     img[${SOURCE_MASK_ATTR}="image"]{clip-path:inset(50%)!important}
@@ -142,8 +144,10 @@ function scheduleScan(): void {
 
 function scanImages(): void {
   if (!enabled || !root) return;
+  if (host && !host.isConnected) document.documentElement.append(host);
+  if (sourceStyle && !sourceStyle.isConnected) document.documentElement.append(sourceStyle);
   for (const [image, entry] of entries) {
-    if (!image.isConnected || entry.source !== imageSource(image)) {
+    if (!image.isConnected || entry.source !== imageSource(image) || isNonProseElement(image) || isTranslationOptedOut(image)) {
       entry.generation += 1; entry.button.remove(); entry.status.remove(); entry.canvas?.remove();
       resizeObserver?.unobserve(image); entries.delete(image);
     }
@@ -151,7 +155,7 @@ function scanImages(): void {
   for (const image of document.images) {
     if (entries.has(image) || !imageSource(image) || !image.complete || !image.naturalWidth
       || image.naturalWidth < 80 || image.naturalHeight < 40
-      || image.closest("[contenteditable='true'],.wupage-translation")) continue;
+      || isNonProseElement(image) || isTranslationOptedOut(image) || image.closest(".wupage-translation")) continue;
     createEntry(image);
   }
   updateLayout();
@@ -200,6 +204,7 @@ export async function translateContextImage(srcUrl: string): Promise<{ started: 
       image = candidates[0];
     }
     if (!image) throw new Error("未找到这张图片，请等待图片加载完成后重新右键翻译。");
+    if (isNonProseElement(image) || isTranslationOptedOut(image)) throw new Error("此图片位于编辑区或禁止翻译区域。");
     if (!image.complete || !image.naturalWidth) throw new Error("图片尚未加载完成，请稍后重试。");
     const entry = createEntry(image);
     entry.manual = true;
@@ -303,6 +308,7 @@ function updateLayout(): void {
   // Read the site's real styles before applying our pixel-only masks. In
   // particular, background presentations must remain discoverable next frame.
   restoreSourcePixels();
+  if (!host?.isConnected) return;
   const replacements: HTMLElement[] = [];
   for (const entry of entries.values()) {
     const { image, button, status, canvas } = entry;
@@ -313,7 +319,7 @@ function updateLayout(): void {
     const rect = presentation.getBoundingClientRect();
     let left = Math.max(0, rect.left), top = Math.max(0, rect.top);
     let right = Math.min(window.innerWidth, rect.right), bottom = Math.min(window.innerHeight, rect.bottom);
-    let hidden = !image.isConnected || imageSource(image) !== entry.source
+    let hidden = !image.isConnected || imageSource(image) !== entry.source || isNonProseElement(image) || isTranslationOptedOut(image)
       || rect.width < (entry.manual ? 1 : 80) || rect.height < (entry.manual ? 1 : 40);
     if (hidden || right - left < 30 || bottom - top < 30) {
       button.hidden = true; status.hidden = true; if (canvas) canvas.hidden = true;
@@ -398,7 +404,8 @@ async function translateImage(entry: ImageEntry): Promise<void> {
   }
   const generation = ++entry.generation;
   const current = () => enabled && entry.generation === generation && entry.image.isConnected
-    && imageSource(entry.image) === entry.source && entries.get(entry.image) === entry;
+    && imageSource(entry.image) === entry.source && entries.get(entry.image) === entry
+    && !isNonProseElement(entry.image) && !isTranslationOptedOut(entry.image);
   entry.busy = true; entry.button.disabled = true; entry.button.textContent = "…";
   entry.status.textContent = "正在识别并翻译图片文字…"; updateLayout();
   try {

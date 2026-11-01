@@ -1,11 +1,20 @@
 // @vitest-environment jsdom
 
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { injectContentStyles } from "../src/content/styles";
 
 describe("content translation styles", () => {
   afterEach(() => {
     document.querySelector("#wupage-translation-style")?.remove();
+  });
+
+  it("repairs removed or overwritten styles after a host refresh", async () => {
+    injectContentStyles();
+    const original = document.querySelector("#wupage-translation-style")!.textContent;
+    document.querySelector("#wupage-translation-style")!.remove();
+    await vi.waitFor(() => expect(document.querySelector("#wupage-translation-style")?.textContent).toBe(original));
+    document.querySelector("#wupage-translation-style")!.textContent = "";
+    await vi.waitFor(() => expect(document.querySelector("#wupage-translation-style")?.textContent).toBe(original));
   });
 
   it("inherits source colors in every translation text mode", () => {

@@ -1,3 +1,4 @@
+import { composedContains, onTranslationRoot, translationRoots } from "./dom-roots";
 const TYPOGRAPHY = [
   "font-family", "font-size", "font-weight", "font-style", "font-stretch", "font-variant",
   "line-height", "letter-spacing", "word-spacing", "text-transform", "text-align"
@@ -10,6 +11,7 @@ const observed = new Set<Element>();
 let resizeObserver: ResizeObserver | undefined;
 let mutationObserver: MutationObserver | undefined;
 let refreshTimer: number | undefined;
+let unobserveRoots: (() => void) | undefined;
 
 function copyTypography(output: HTMLElement, source: Element): void {
   const style = window.getComputedStyle(source);
@@ -52,12 +54,14 @@ export function linkTranslationTypography(output: HTMLElement, source: Element):
         const target = record.target;
         // Our own style updates must not schedule another measurement cycle.
         return target instanceof Element && !target.closest(".wupage-translation,.wupage-translation-pending")
-          && [...sources.values()].some(source => target.contains(source));
+          && [...sources.values()].some(source => composedContains(target, source));
       })) scheduleRefresh();
     });
-    mutationObserver.observe(document.documentElement, {
+    const options = {
       subtree: true, childList: true, attributes: true, attributeFilter: ["style", "class", "dir", "lang", "hidden"]
-    });
+    };
+    for (const root of translationRoots()) mutationObserver.observe(root, options);
+    unobserveRoots = onTranslationRoot(root => mutationObserver?.observe(root, options));
     if (typeof ResizeObserver !== "undefined") resizeObserver = new ResizeObserver(scheduleRefresh);
     window.addEventListener("resize", scheduleRefresh);
     document.fonts?.addEventListener("loadingdone", scheduleRefresh);
@@ -69,6 +73,7 @@ export function clearTranslationTypography(): void {
   if (refreshTimer !== undefined) window.clearTimeout(refreshTimer);
   refreshTimer = undefined;
   mutationObserver?.disconnect();
+  unobserveRoots?.(); unobserveRoots = undefined;
   resizeObserver?.disconnect();
   mutationObserver = undefined;
   resizeObserver = undefined;

@@ -1,3 +1,4 @@
+import { anySignal } from "../shared/abort";
 import metadata from "../../public/pdf-fonts/font-metadata.json";
 
 export const PDF_FONT = metadata.font;
@@ -32,7 +33,7 @@ export async function installPdfFont(signal: AbortSignal, onProgress: (downloade
     const installed = await readPdfFont();
     if (installed) return installed;
     const response = await fetch(PDF_FONT.source, { credentials: "omit", cache: "no-store",
-      signal: AbortSignal.any([signal, AbortSignal.timeout(180_000)]) });
+      signal: anySignal([signal, AbortSignal.timeout(180_000)]) });
     if (!response.ok || !response.body) throw new Error(`字体包下载失败（${response.status}），可重试或直接导出。`);
     const bytes = new Uint8Array(PDF_FONT.bytes);
     const reader = response.body.getReader();

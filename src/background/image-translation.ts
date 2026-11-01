@@ -31,7 +31,7 @@ export async function translateImageWithSettings(settings: ExtensionSettings, re
     ...(provider.type === "doubao-web" ? { doubaoProtocolVersion: DOUBAO_PROTOCOL_VERSION, translateService: "1" } : {}), ...request }));
   const key = `${CACHE_PREFIX}image.${digest}`;
   if (settings.cacheEnabled) {
-    const stored = (await chrome.storage.local.get(key))[key];
+    const stored = (await chrome.storage.local.get(key).catch(() => ({} as Record<string, unknown>)))[key];
     if (stored) {
       try {
         const regions = parseImageRegions(JSON.stringify(stored)).map((region) => ({ ...region, sampleColors: true }));
@@ -72,12 +72,16 @@ export async function loadImageData(url: string): Promise<{ dataUrl: string }> {
   const parsed = new URL(url);
   if (!/^https?:$/.test(parsed.protocol) || parsed.username || parsed.password) throw new Error("无法读取此图片地址。");
   const response = await fetch(url, { credentials: "include", signal: AbortSignal.timeout(20_000) });
-  if (!response.ok) throw new Error(`无法读取图片 (${response.status})，请确认图片已加载并且可以访问。`);
-  if (Number(response.headers.get("content-length")) > MAX_IMAGE_BYTES) throw new Error("图片过大，请使用 12 MB 以内的图片。");
+  const rejectResponse = (message: string): never => {
+    void response.body?.cancel().catch(() => undefined);
+    throw new Error(message);
+  };
+  if (!response.ok) rejectResponse(`无法读取图片 (${response.status})，请确认图片已加载并且可以访问。`);
+  if (Number(response.headers.get("content-length")) > MAX_IMAGE_BYTES) rejectResponse("图片过大，请使用 12 MB 以内的图片。");
   const mime = response.headers.get("content-type")?.split(";")[0].trim().toLowerCase();
   // The content script decodes the downloaded image and rasterizes it to PNG
   // before OCR. Accept AVIF covers served by sites such as Bilibili as well.
-  if (!mime || !["image/png", "image/jpeg", "image/webp", "image/gif", "image/avif"].includes(mime)) throw new Error("图片格式不支持，或图片地址返回了登录页面。");
+  if (!mime || !["image/png", "image/jpeg", "image/webp", "image/gif", "image/avif"].includes(mime)) rejectResponse("图片格式不支持，或图片地址返回了登录页面。");
   if (!response.body) throw new Error("图片内容为空。");
   const reader = response.body.getReader();
   const chunks: Uint8Array[] = [];
@@ -90,7 +94,7 @@ export async function loadImageData(url: string): Promise<{ dataUrl: string }> {
       if (length > MAX_IMAGE_BYTES) throw new Error("图片过大，请使用 12 MB 以内的图片。");
       chunks.push(value);
     }
-  } finally { await reader.cancel(); }
+  } finally { await reader.cancel().catch(() => undefined); reader.releaseLock(); }
   const bytes = new Uint8Array(length);
   let offset = 0;
   for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.length; }

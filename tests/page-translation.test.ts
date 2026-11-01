@@ -87,6 +87,37 @@ describe("viewport page translation", () => {
     return image;
   }
 
+  it("continues translating after the host replaces document.body", async () => {
+    document.body.innerHTML = "<main><p>Old document body.</p></main>";
+    translateNormally();
+    await startPageTranslation(settings);
+    const next = document.createElement("body");
+    next.innerHTML = "<main><p>Replacement document body.</p></main>";
+    document.body.replaceWith(next);
+    await vi.waitFor(() => expect(next.querySelector(".wupage-translation")?.textContent).toBe("译文：Replacement document body."));
+    hidePageTranslation();
+    expect(next.textContent).toBe("Replacement document body.");
+  });
+
+  it("tracks new and changed content inside nested open components", async () => {
+    document.body.innerHTML = '<main><article-card></article-card></main>';
+    const root = document.querySelector("article-card")!.attachShadow({ mode: "open" });
+    root.innerHTML = '<p>Original component paragraph.</p>';
+    translateNormally();
+    await startPageTranslation(settings);
+    expect(root.querySelector(".wupage-translation")?.textContent).toBe("译文：Original component paragraph.");
+    root.querySelector("p")!.textContent = "Updated component paragraph.";
+    await vi.waitFor(() => expect(root.querySelector(".wupage-translation")?.textContent).toBe("译文：Updated component paragraph."));
+    const child = document.createElement("nested-card");
+    const nested = child.attachShadow({ mode: "open" });
+    nested.innerHTML = '<p>New nested component paragraph.</p>';
+    root.append(child);
+    await vi.waitFor(() => expect(nested.querySelector(".wupage-translation")?.textContent).toBe("译文：New nested component paragraph."));
+    hidePageTranslation();
+    expect(root.querySelector("p")!.textContent).toBe("Updated component paragraph.");
+    expect(nested.querySelector("p")!.textContent).toBe("New nested component paragraph.");
+  });
+
   it.each(["replace", "bilingual", "bilingual-accent"] as const)("restores saved %s translations without new requests", async (translationDisplayMode) => {
     document.body.innerHTML = `<main><p>Read <code>guide()</code> carefully.</p><input placeholder="Search documents"></main>`;
     const original = document.querySelector("main")!.textContent;
@@ -540,10 +571,10 @@ describe("viewport page translation", () => {
   it("discovers image text when loading creates its first rendered area", async () => {
     const image = mountImageText();
     let loaded = false;
-    const originalRect = image.getBoundingClientRect.bind(image);
-    vi.spyOn(image, "getBoundingClientRect").mockImplementation(() => loaded
-      ? originalRect()
-      : { width: 0, height: 0 } as DOMRect);
+    const originalRect = vi.mocked(Element.prototype.getBoundingClientRect).getMockImplementation()!;
+    vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(function (this: Element) {
+      return this !== image || loaded ? originalRect.call(this) : { width: 0, height: 0 } as DOMRect;
+    });
     translateNormally();
     await startPageTranslation(settings);
     expect(sendRuntimeRequest).not.toHaveBeenCalled();

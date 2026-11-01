@@ -38,6 +38,37 @@ afterEach(() => {
 });
 
 describe("image translation controls", () => {
+  it.each(['contenteditable=""', 'contenteditable="plaintext-only"', 'role="textbox"', 'translate="no"', 'class="notranslate"'])
+    ("excludes images in %s", async attribute => {
+      const image = document.querySelector("img")!;
+      const wrapper = document.createElement("div"); wrapper.innerHTML = `<div ${attribute}></div>`;
+      document.body.append(wrapper); wrapper.firstElementChild!.append(image);
+      setImageTranslationEnabled(true);
+      expect(shadow().querySelector("button")).toBeNull();
+      expect(sendRuntimeRequest).not.toHaveBeenCalled();
+    });
+
+  it("reconnects image controls after the host removes their container or replaces the body", async () => {
+    setImageTranslationEnabled(true);
+    document.querySelector("#wupage-image-tools")!.remove();
+    await vi.waitFor(() => expect(document.querySelector("#wupage-image-tools")).not.toBeNull());
+    const next = document.createElement("body");
+    const image = document.createElement("img"); image.src = "https://example.com/new.png";
+    Object.defineProperties(image, { complete: { value: true }, naturalWidth: { value: 800 }, naturalHeight: { value: 400 } });
+    const previous = button();
+    next.append(image); document.body.replaceWith(next);
+    await vi.waitFor(() => { expect(shadow().querySelectorAll("button")).toHaveLength(1); expect(button()).not.toBe(previous); });
+    button().click();
+    await vi.waitFor(() => expect(shadow().querySelector("canvas")).not.toBeNull());
+  });
+
+  it("removes an image result when its source becomes an editor", async () => {
+    setImageTranslationEnabled(true); button().click();
+    await vi.waitFor(() => expect(shadow().querySelector("canvas")).not.toBeNull());
+    document.body.setAttribute("contenteditable", "plaintext-only");
+    await vi.waitFor(() => expect(shadow().querySelector("canvas")).toBeNull());
+    document.body.removeAttribute("contenteditable");
+  });
   it("draws small-intrinsic SVGs at screen resolution and redraws on enlargement without retranslating", async () => {
     const image = document.createElement("img"); image.src = "https://example.com/diagram.svg";
     Object.defineProperties(image, { complete: { value: true }, naturalWidth: { value: 300 }, naturalHeight: { value: 130 } });
@@ -293,7 +324,11 @@ describe("image translation controls", () => {
     document.documentElement.style.overflow = "hidden";
     document.documentElement.style.overflowX = "hidden";
     document.documentElement.style.overflowY = "hidden";
-    vi.spyOn(document.documentElement, "getBoundingClientRect").mockReturnValue({ left: 0, top: -2100, right: 1024, bottom: -1332, width: 1024, height: 768 } as DOMRect);
+    vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(function (this: Element) {
+      return this === document.documentElement
+        ? { left: 0, top: -2100, right: 1024, bottom: -1332, width: 1024, height: 768 } as DOMRect
+        : { top: 20, left: 20, right: 420, bottom: 220, width: 400, height: 200 } as DOMRect;
+    });
     Object.defineProperty(document, "elementFromPoint", { configurable: true, value: () => image });
     setImageTranslationEnabled(true);
     expect(button().hidden).toBe(true);

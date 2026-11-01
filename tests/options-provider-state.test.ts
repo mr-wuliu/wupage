@@ -2,14 +2,14 @@
 
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from "vitest";
 import { DEFAULT_SETTINGS } from "../src/shared/defaults";
 import { normalizeSettings } from "../src/shared/settings";
 import type { ExtensionSettings, RuntimeRequest, RuntimeResponse } from "../src/shared/types";
 
 describe("options provider model and test state", () => {
   let stored: ExtensionSettings;
-  let testService: ReturnType<typeof vi.fn>;
+  let testService: Mock<(providerId?: string) => Promise<RuntimeResponse>>;
 
   beforeEach(() => {
     vi.resetModules();

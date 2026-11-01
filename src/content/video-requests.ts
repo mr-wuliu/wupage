@@ -1,10 +1,11 @@
 import { sendRuntimeRequest } from "./runtime";
 import type { ExtensionSettings, TranslateBatchResponse } from "../shared/types";
 import { sameVideoLanguage } from "../shared/video";
+import { randomId } from "../shared/random-id";
 
 let nextRequest = 0;
 export class VideoRequests {
-  readonly id = crypto.randomUUID();
+  readonly id = randomId();
   constructor(private settings: ExtensionSettings, private language: string) {}
 
   async translate(texts: string[], signal?: AbortSignal): Promise<string[]> {

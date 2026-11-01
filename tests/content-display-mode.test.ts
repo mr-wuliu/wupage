@@ -4,6 +4,9 @@ import { DEFAULT_SETTINGS, SETTINGS_KEY } from "../src/shared/defaults";
 import { initFloatingBall } from "../src/content/floating";
 import { initImageTranslation } from "../src/content/image-translation";
 import { setupAppearance } from "../src/shared/appearance-runtime";
+import { initSelectionTranslation } from "../src/content/selection-translation";
+import { initKeyboardShortcuts } from "../src/content/keyboard-shortcuts";
+import { initVideoSubtitles } from "../src/content/video-subtitles";
 
 const { updateSettings, getPageState, hasTranslations } = vi.hoisted(() => ({
   updateSettings: vi.fn(), getPageState: vi.fn(), hasTranslations: vi.fn()
@@ -29,6 +32,20 @@ vi.mock("../src/content/runtime", () => ({ addRuntimeMessageListener: vi.fn(), s
 
 describe("saved page settings updates", () => {
   afterEach(() => { vi.unstubAllGlobals(); vi.clearAllMocks(); vi.resetModules(); });
+
+  it("keeps other features and settings listeners available when an auxiliary feature throws", async () => {
+    vi.stubGlobal("chrome", { storage: { onChanged: { addListener: vi.fn() } } });
+    const warning = vi.spyOn(console, "warn").mockImplementation(() => {});
+    vi.mocked(initImageTranslation).mockImplementationOnce(() => { throw new Error("Image feature unavailable"); });
+    await import("../src/content/index");
+    expect(initFloatingBall).toHaveBeenCalledOnce();
+    expect(initSelectionTranslation).toHaveBeenCalledOnce();
+    expect(initKeyboardShortcuts).toHaveBeenCalledOnce();
+    expect(initVideoSubtitles).toHaveBeenCalledOnce();
+    expect(chrome.storage.onChanged.addListener).toHaveBeenCalledOnce();
+    expect(warning).toHaveBeenCalledOnce();
+    warning.mockRestore();
+  });
 
   it.each(["image/svg+xml", "application/xml"] as const)("does not initialize page UI or settings observers in %s", async contentType => {
     const xml = new DOMParser().parseFromString(contentType === "image/svg+xml" ? '<svg xmlns="http://www.w3.org/2000/svg"/>' : '<document/>', contentType);

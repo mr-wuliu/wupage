@@ -14,7 +14,7 @@ beforeEach(() => {
   vi.useFakeTimers();
   vi.stubGlobal("chrome", { storage: { onChanged: { addListener: (listener: typeof changed) => { changed = listener; }, removeListener: vi.fn() } } });
   vi.mocked(sendRuntimeRequest).mockImplementation(async request => request.type === "GET_SETTINGS" ? structuredClone(DEFAULT_SETTINGS) : null);
-  vi.mocked(PlayerSubtitleController).mockImplementation((video, container) => {
+  vi.mocked(PlayerSubtitleController).mockImplementation(function (video, container) {
     const player = {
       video, container, enabled: false, get connected() { return video.isConnected; },
       get wantsTranslation() { return player.enabled; },
@@ -94,7 +94,9 @@ it("opens the main paused video rather than a small autoplay preview", () => {
   document.body.innerHTML = '<div><video id="main"></video></div><div><video id="preview"></video></div>';
   const preview = document.querySelector<HTMLVideoElement>('#preview')!;
   Object.defineProperty(preview, 'paused', { value: false });
-  vi.spyOn(preview, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, 0, 240, 135));
+  vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+    return this === preview ? new DOMRect(0, 0, 240, 135) : new DOMRect(0, 0, 640, 360);
+  });
   manager = new VideoSubtitleManager(); manager.open();
   const player = vi.mocked(PlayerSubtitleController).mock.results.find(result => result.value.video.id === 'main')!.value;
   expect(player.open).toHaveBeenCalledOnce();
@@ -104,8 +106,10 @@ it("replaces inactive offscreen controllers when scrolling a long video feed", a
   document.body.innerHTML = Array.from({ length: 13 }, (_, index) => `<div><video id="video-${index}"></video></div>`).join('');
   const videos = [...document.querySelectorAll('video')];
   let scrolled = false;
-  for (const [index, video] of videos.entries()) vi.spyOn(video, 'getBoundingClientRect').mockImplementation(() =>
-    new DOMRect(0, scrolled ? index === 12 ? 0 : -1000 : index * 400, 640, 360));
+  vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+    const index = videos.indexOf(this as HTMLVideoElement);
+    return new DOMRect(0, scrolled ? index === 12 ? 0 : -1000 : index * 400, 640, 360);
+  });
   manager = new VideoSubtitleManager();
   expect(PlayerSubtitleController).toHaveBeenCalledTimes(12);
   expect(vi.mocked(PlayerSubtitleController).mock.calls.some(([video]) => video === videos[12])).toBe(false);

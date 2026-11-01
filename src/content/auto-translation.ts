@@ -4,6 +4,7 @@ import type { ExtensionSettings } from "../shared/types";
 import { hasPageTranslations } from "./dom";
 import { getPageTranslationState, hidePageTranslation, loadPageTranslationSettings, startPageTranslation, subscribePageTranslationState } from "./page-translation";
 import { sendRuntimeRequest } from "./runtime";
+import { isNonProseElement, isTranslationOptedOut } from "./content-policy";
 
 interface AutoTranslationDependencies {
   loadSettings: () => Promise<ExtensionSettings>;
@@ -213,7 +214,7 @@ function pageText(): string {
   while (walker.nextNode() && output.length < 6000) {
     const node = walker.currentNode;
     const parent = node.parentElement;
-    if (!parent || parent.closest(SKIP_TEXT) || !node.textContent?.trim()) continue;
+    if (!parent || parent.closest(SKIP_TEXT) || isNonProseElement(parent) || isTranslationOptedOut(parent) || !node.textContent?.trim()) continue;
     if (textVisible(parent)) output += `${node.textContent}\n`;
   }
   return output.slice(0, 6000).trim();

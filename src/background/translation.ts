@@ -1,3 +1,4 @@
+import { anySignal } from "../shared/abort";
 import { CACHE_PREFIX } from "../shared/defaults";
 import { sha256 } from "../shared/hash";
 import { getEffectiveProviderPerformance, isLlmProvider } from "../shared/performance";
@@ -18,7 +19,8 @@ import { DOUBAO_PROTOCOL_VERSION } from "../shared/doubao";
 import { withDoubaoDeadline } from "./doubao";
 import { detectSourceLanguage } from "./source-language";
 
-const providerLimiters = new Map<string, ProviderLimiter>();
+const GLOBAL_LIMITER = Symbol("global-translation-limiter");
+const providerLimiters = new Map<string | symbol, ProviderLimiter>();
 const debugTasks: TranslationDebugTask[] = [];
 let nextDebugTaskId = 1;
 const MAX_DEBUG_TASKS = 100;
@@ -48,7 +50,7 @@ export async function translateWithSettings(
 
   if (providerConfig.type === "doubao-web") {
     return withDoubaoDeadline(async (deadlineSignal) => {
-      const requestSignal = signal ? AbortSignal.any([signal, deadlineSignal]) : deadlineSignal;
+      const requestSignal = signal ? anySignal([signal, deadlineSignal]) : deadlineSignal;
       let sourceLang = request.sourceLang ?? "auto";
       if (sourceLang === "auto" && request.texts.length) {
         const detected = await detectSourceLanguage(request.texts, requestSignal);
@@ -184,7 +186,7 @@ async function runProviderTask(
     signal?.throwIfAborted();
     debugTask.status = "succeeded";
     debugTask.finishedAt = Date.now();
-    debugTask.translatedTexts = result;
+    debugTask.translatedTexts = result.map(truncateDebugText);
     return result;
   } catch (error) {
     debugTask.status = "failed";
@@ -230,7 +232,7 @@ function truncateDebugText(text: string): string {
 }
 
 async function acquireProviderSlot(
-  key: string,
+  key: string | symbol,
   maxConcurrency: number,
   debugTask: TranslationDebugTask,
   signal?: AbortSignal,
@@ -279,7 +281,7 @@ async function acquireTaskSlots(
   );
   try {
     const releaseGlobal = await acquireProviderSlot(
-      "__wupage_global__",
+      GLOBAL_LIMITER,
       Math.max(1, globalConcurrency),
       debugTask,
       signal,
@@ -295,7 +297,7 @@ async function acquireTaskSlots(
   }
 }
 
-function getProviderLimiter(key: string): ProviderLimiter {
+function getProviderLimiter(key: string | symbol): ProviderLimiter {
   const existing = providerLimiters.get(key);
   if (existing) return existing;
   const limiter: ProviderLimiter = {
@@ -357,12 +359,14 @@ async function runBatches(
   const groups = groupTexts(texts, maxChars, maxItems);
   const results: string[][] = Array(groups.length);
   let cursor = 0;
+  let failed = false;
 
   async function worker(): Promise<void> {
-    while (cursor < groups.length) {
+    while (!failed && cursor < groups.length) {
       const index = cursor;
       cursor += 1;
-      results[index] = await translate(groups[index]);
+      try { results[index] = await translate(groups[index]); }
+      catch (error) { failed = true; throw error; }
     }
   }
 

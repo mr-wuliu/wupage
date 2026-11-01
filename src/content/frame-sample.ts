@@ -1,5 +1,6 @@
 /** A bounded local language sample, never an implicit translation request. */
 import { frameIsRendered } from "./frame-visibility";
+import { isNonProseElement, isTranslationOptedOut } from "./content-policy";
 export function sampleDocumentText(): string {
   if (!frameIsRendered() || !document.body || !["text/html", "application/xhtml+xml"].includes(document.contentType)) return "";
   const excluded = "script,style,noscript,textarea,input,select,button,pre,code,nav,header,footer,aside,[hidden],[aria-hidden='true'],[contenteditable]:not([contenteditable='false']),[id^='wupage-'],.wupage-translation";
@@ -8,7 +9,7 @@ export function sampleDocumentText(): string {
   let visited = 0;
   while (walker.nextNode() && text.length < 3000 && visited++ < 12000) {
     const parent = walker.currentNode.parentElement;
-    if (!parent || parent.closest(excluded)) continue;
+    if (!parent || parent.closest(excluded) || isNonProseElement(parent) || isTranslationOptedOut(parent)) continue;
     let rendered = true;
     for (let element: Element | null = parent; element; element = element.parentElement) {
       const style = getComputedStyle(element);

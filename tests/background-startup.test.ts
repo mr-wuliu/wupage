@@ -5,6 +5,27 @@ import type { ExtensionSettings, RuntimeRequest, RuntimeResponse } from "../src/
 afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); vi.resetModules(); vi.doUnmock("../src/ocr/model-store"); });
 
 describe("background startup compatibility", () => {
+  it("keeps ordinary settings and translation available when the OCR cache cannot be checked", async () => {
+    vi.doMock("../src/ocr/model-store", async () => ({ ...await vi.importActual("../src/ocr/model-store"),
+      installedRevision: vi.fn().mockRejectedValue(new Error("Cache unavailable")) }));
+    const stored = { [SETTINGS_KEY]: { ...structuredClone(DEFAULT_SETTINGS), imageTranslationEnabled: true } };
+    const addListener = vi.fn();
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    vi.stubGlobal("chrome", { runtime: { onMessage: { addListener } }, storage: { local: {
+      get: async () => structuredClone(stored), set: vi.fn()
+    } } });
+    await import("../src/background/index");
+    const response = await new Promise<RuntimeResponse>(resolve => addListener.mock.calls[0][0]({ type: "GET_SETTINGS" }, {}, resolve));
+    expect(response).toMatchObject({ ok: true, data: { imageTranslationEnabled: true, targetLang: "zh-CN" } });
+    expect(chrome.storage.local.set).not.toHaveBeenCalled();
+    const saved = await new Promise<RuntimeResponse>(resolve => addListener.mock.calls[0][0]({
+      type: "SAVE_SETTINGS", settings: { ...stored[SETTINGS_KEY], targetLang: "ja" }
+    }, {}, resolve));
+    expect(saved.ok).toBe(true);
+    expect(chrome.storage.local.set).toHaveBeenCalledWith(expect.objectContaining({
+      [SETTINGS_KEY]: expect.objectContaining({ targetLang: "ja", imageTranslationEnabled: true })
+    }));
+  });
   it.each(["installed", undefined])("keeps changes saved during an OCR model check (%s)", async (modelRevision) => {
     let finish!: (revision: string | undefined) => void;
     const check = vi.fn(() => new Promise<string | undefined>(resolve => { finish = resolve; }));

@@ -76,6 +76,19 @@ describe("LaTeX2HTML article translation", () => {
     expect(document.querySelector('.mathdisplay .wupage-translation')).toBeNull();
   });
 
+  it("keeps protected citation text intact and invalidates a citation updated by the host", () => {
+    document.body.innerHTML = `<p>Read the model in <a href="#ref">12</a> before continuing.</p>`;
+    const citation = document.querySelector("a")!;
+    const [segment] = collectTextSegments();
+    renderTranslations([{ id: segment.id, text: `译文 ${segment.text}` }], "replace");
+    expect(citation.textContent).toBe("12");
+    expect(invalidateStaleSegments()).toEqual([]);
+    citation.firstChild!.textContent = "13";
+    expect(invalidateStaleSegments()).toContain(segment.id);
+    expect(citation.textContent).toBe("13");
+    expect(document.querySelector(".wupage-translation")).toBeNull();
+  });
+
   it("does not copy hidden math into the output or confuse ordinary image descriptions with formulas", () => {
     document.body.innerHTML = `<p>A visible paragraph ${formula("x").replace('class="MATH"', 'class="MATH" style="display:none"')} remains readable.</p><p><span class="MATH"><img alt="${'A descriptive caption is ordinary prose. '.repeat(3)}"></span></p>`;
     const segments = collectTextSegments();

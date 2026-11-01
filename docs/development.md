@@ -22,6 +22,10 @@
 
 ### 卡片与列表的排版边界
 
+`src/content/dom-roots.ts` 登记开放式 Shadow Root。正文扫描沿组件树增量发现内容，分组与插入仍保持在各自 DOM 树中；可见性、禁止翻译及编辑区边界沿宿主继承。文档会话同时观察已发现的组件，统一处理更新、显示模式与恢复原文；段落点击使用事件的原始组件目标。封闭组件和绘制到 Canvas 的文字不通过普通正文采集处理。
+
+扩展样式在文档与组件内部独立安装，遭删除或覆盖后延迟恢复，避免同步循环。网页样式令译文不可见时撤销该片段的替换，保留原文。图片控件与正文监听均能处理整个 Body 被替换的情况。`test:resilience` 的三浏览器矩阵包含嵌套组件、控件交互、样式恢复、编辑区过滤和逐字还原；对应单元测试见 `shadow-content.test.ts`、`content-styles.test.ts` 和 `image-ui.test.ts`。
+
 正文分组遵守嵌套段落、Flex / Grid 单元和行内块字段的边界。同一文本节点只属于一个分组；包含多个阅读区域的列表项不合并为整段译文。段落处于布局单元中时，译文与加载占位保留在该单元内，避免增加横向布局项。独立数字不单独翻译，句子中的数字随完整句子处理。
 
 构建后运行 `npm run test:profile-layout`、`npm run test:profile-layout:firefox` 和 `npm run test:profile-layout:edge`，使用独立 Chrome、Firefox、Edge 配置和本地模拟服务验证宽窄窗口、三种显示模式、卡片宽度、译文边界、描述去重、数字位置和原文节点恢复。环境变量与框架回归相同；直接运行 `node scripts/test-profile-layout.mjs --live`（可加 `--firefox` 或 `--edge`）还会验证 GitHub 个人页。报告与截图按浏览器分别保存在 `.npm-cache/profile-layout/` 下。原有紧凑控件、动态内容和富文本链接回归也可通过 `npm run test:cards:edge` 在 Edge 中执行，产物保存在 `.npm-cache/card-layout/edge/`。
@@ -204,6 +208,8 @@ npm run test:page
 ```
 
 需要可导入的 Playwright（也可用 `PLAYWRIGHT_MODULE` 指定模块路径）。Chrome 通过扩展调试接口加载 `dist/`，报告与截图写入 `.npm-cache/chrome-translation/`。
+
+`npm run test:resilience`、`npm run test:resilience:edge`、`npm run test:resilience:firefox` 使用独立浏览器配置和本机模拟 LLM，检查 1200px / 390px 下三种显示模式、原文与控件恢复、编辑区和禁止翻译内容排除、MathML 保护、受保护代码更新、整体 Body 替换、严格 CSP / Trusted Types、限流暂停与明确重试，以及已收到响应头后取消卡住的正文并恢复队列。先构建对应的 `dist/` 或 `dist-firefox/`；环境变量与其他浏览器回归相同。报告和截图写入 `.npm-cache/resilience/<browser>/`，不调用真实翻译或付费接口。Firefox 测试工具只为独立测试进程启用自动化系统访问。
 
 - 自动翻译由 `src/shared/auto-translation.ts` 归一化并匹配站点规则，`src/content/auto-translation.ts` 在前台 HTML 页面触发现有渐进翻译。弹窗和悬浮菜单的「＋」复用站点添加逻辑，只从 HTTP/HTTPS 地址提取域名和非默认端口，不保留路径、查询参数或片段；已有整站规则会复用，同站点的已停用规则会启用。「✓」再次点击后将当前域名写入可选的 `excludedSites`，优先于站点及语言规则；保留正向规则以继续服务其他子域名，重新加入时清除该域名的排除。设置页草稿读写保留排除项，并可单独取消排除。语言检测仅使用本机浏览器接口；路由、配置与手动停止会使过期检测结果失效。回归覆盖域名边界、通配与路径、旧设置默认关闭、动态内容、手动停止和单页导航。
 - `npm run test:auto`：构建后加载实际扩展，使用本地网页和模拟翻译服务验证规则保存、窄屏、自动触发、手动恢复原文、单页导航、目标语言跳过和异步加载的正文；另检查弹窗和悬浮菜单加入、排除及重新加入当前网站、重复规则限制、设置页持久化与保存后保留排除项、排除优先于语言规则且刷新后有效，以及新增站点立即触发翻译。报告保存在 `.npm-cache/auto-translation/`。

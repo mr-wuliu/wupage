@@ -1,3 +1,4 @@
+import { composedContains, composedParent } from "./dom-roots";
 const MIN_RENDERED_SIZE = 1;
 const SAMPLE_INSET = 1;
 
@@ -122,7 +123,7 @@ function isElementTreeRendered(
   ) {
     return false;
   }
-  const parent = element.parentElement;
+  const parent = composedParent(element);
   if (!parent) return true;
   const cachedParent = cache?.get(parent);
   if (cachedParent !== undefined) return cachedParent;
@@ -198,7 +199,7 @@ function clipToHiddenAncestors(
       const bounds = readElementRects(ancestor)[0] ?? ancestor.getBoundingClientRect();
       visibleRect = intersectOnAxes(visibleRect, bounds, clipsX, clipsY);
     }
-    ancestor = ancestor.parentElement;
+    ancestor = composedParent(ancestor);
   }
   return visibleRect;
 }
@@ -208,7 +209,8 @@ function isVisibleAtSamplePoint(rect: RectLike, host: Element): boolean {
   if (document.defaultView?.getComputedStyle(host).pointerEvents === "none") {
     return true;
   }
-  const hitTest = document.elementFromPoint?.bind(document);
+  const root = host.getRootNode() as Document | ShadowRoot;
+  const hitTest = root.elementFromPoint?.bind(root) ?? document.elementFromPoint?.bind(document);
   if (!hitTest) return true;
 
   const left = Math.min(rect.right, rect.left + SAMPLE_INSET);
@@ -230,7 +232,7 @@ function isVisibleAtSamplePoint(rect: RectLike, host: Element): boolean {
     const hit = hitTest(x, y);
     if (!hit) continue;
     producedHit = true;
-    if (hit === host || host.contains(hit) || hit.contains(host)) return true;
+    if (hit === host || composedContains(host, hit) || composedContains(hit, host)) return true;
   }
   // Some embedded documents return null from hit testing while still laying
   // out text. Do not turn that browser limitation into missing translations.

@@ -237,7 +237,7 @@ function subscribeToPositionChanges(button: HTMLElement): void {
 
 function handleParagraphPreview(event: MouseEvent): void {
   if (!paragraphMode || !shortcutEnabled["paragraph-click"]) return;
-  const target = event.target instanceof Element ? event.target : null;
+  const target = event.composedPath().find(node => node instanceof Element) as Element | undefined;
   if (!target || target.closest(`#${FLOATING_ID}, #${FLOATING_HITBOX_ID}, #wupage-floating-menu, .wupage-translation`)) {
     return;
   }
@@ -266,7 +266,7 @@ async function translateActiveParagraph(): Promise<void> {
 
 function handleDocumentClick(event: MouseEvent): void {
   if (!paragraphMode || !shortcutEnabled["paragraph-click"] || !matchesParagraphClick(event, localShortcuts["paragraph-click"])) return;
-  const target = event.target instanceof Element ? event.target : null;
+  const target = event.composedPath().find(node => node instanceof Element) as Element | undefined;
   if (!target || target.closest(`#${FLOATING_ID}, #${FLOATING_HITBOX_ID}, .wupage-translation`)) return;
   if (target.closest("#wupage-floating-menu")) return;
 

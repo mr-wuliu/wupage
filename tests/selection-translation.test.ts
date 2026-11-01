@@ -41,6 +41,15 @@ afterEach(() => {
 });
 
 describe("selection dictionary UI", () => {
+  it("rejects a selection that crosses an editor even when both endpoints are ordinary prose", () => {
+    document.body.innerHTML = '<main><p id="start">Public introduction.</p><div contenteditable="plaintext-only">Private unsent draft.</div><p id="end">Public conclusion.</p></main>';
+    const range = document.createRange();
+    range.setStart(document.querySelector("#start")!.firstChild!, 0);
+    range.setEnd(document.querySelector("#end")!.firstChild!, 18);
+    window.getSelection()!.removeAllRanges(); window.getSelection()!.addRange(range);
+    expect(() => controller.openFromShortcut()).toThrow("输入框和编辑区");
+    expect(sendRuntimeRequest).not.toHaveBeenCalled();
+  });
   it("applies custom submission and dismissal immediately without intercepting normal editor input", async () => {
     await show(); open(); await vi.waitFor(() => expect(card().hidden).toBe(false));
     controller.updateShortcuts(undefined, { "selection-submit": "Alt+Enter", "dismiss-overlays": "Alt+Escape" });

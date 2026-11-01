@@ -52,22 +52,27 @@ addRuntimeMessageListener((request: RuntimeRequest, _sender, sendResponse) => {
 if (supported) initializeContent();
 
 function initializeContent(): void {
-  injectContentStyles();
-  if (chrome.runtime?.id && typeof chrome.runtime.onMessage?.addListener === "function") installFrameRuntime(createDocumentKey(), { top: true });
-  const appearance = setupAppearance(undefined, { extensionPage: false, onChange: scheme => {
-    refreshTranslationColors({ light: scheme.colors["translation-light"], dark: scheme.colors["translation-dark"] });
-  } });
+  initializeFeature("styles", injectContentStyles);
+  if (chrome.runtime?.id && typeof chrome.runtime.onMessage?.addListener === "function") {
+    initializeFeature("frames", () => installFrameRuntime(createDocumentKey(), { top: true }));
+  }
+  let appearance: ReturnType<typeof setupAppearance> | undefined;
+  initializeFeature("appearance", () => {
+    appearance = setupAppearance(undefined, { extensionPage: false, onChange: scheme => {
+      refreshTranslationColors({ light: scheme.colors["translation-light"], dark: scheme.colors["translation-dark"] });
+    } });
+  });
   // Ignore an older initial read if the user saves a newer appearance while it is pending.
   let appearanceRevision = 0;
   void sendRuntimeRequest<ExtensionSettings>({ type: "GET_SETTINGS" }).then(settings => {
-    if (!appearanceRevision) appearance.update(settings.appearance);
+    if (!appearanceRevision) appearance?.update(settings.appearance);
   }).catch(() => undefined);
-  initFloatingBall();
-  initImageTranslation();
-  initAutoTranslation();
-  initSelectionTranslation();
-  initKeyboardShortcuts(executeTranslationShortcut);
-  initVideoSubtitles();
+  initializeFeature("floating controls", initFloatingBall);
+  initializeFeature("image translation", initImageTranslation);
+  initializeFeature("automatic translation", initAutoTranslation);
+  initializeFeature("selection translation", initSelectionTranslation);
+  initializeFeature("shortcuts", () => initKeyboardShortcuts(executeTranslationShortcut));
+  initializeFeature("video subtitles", initVideoSubtitles);
 
   // One listener for the saved settings: the appearance revision and the page
   // translation settings must observe the same change, in the same order.
@@ -79,6 +84,11 @@ function initializeContent(): void {
     const settings = change.newValue as ExtensionSettings | undefined;
     if (settings) updatePageTranslationSettings(settings);
   });
+}
+
+function initializeFeature(name: string, initialize: () => unknown): void {
+  try { initialize(); }
+  catch (error) { console.warn(`WuPage ${name} initialization:`, error); }
 }
 
 async function handleMessage(request: RuntimeRequest): Promise<unknown> {

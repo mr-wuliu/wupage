@@ -2,7 +2,7 @@
 
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from "vitest";
 import { DEFAULT_SETTINGS } from "../src/shared/defaults";
 import type { RuntimeRequest, RuntimeResponse } from "../src/shared/types";
 
@@ -24,7 +24,7 @@ vi.mock("../src/pdf/export", async (importOriginal) => ({
 }));
 
 describe("PDF full document download", () => {
-  let sendMessage: ReturnType<typeof vi.fn>;
+  let sendMessage: Mock<(request: RuntimeRequest) => Promise<RuntimeResponse>>;
   let stored: typeof DEFAULT_SETTINGS;
 
   beforeEach(() => {

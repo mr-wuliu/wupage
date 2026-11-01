@@ -1,4 +1,6 @@
 import { isDivProseBlock, READABLE_ROOT_SELECTOR } from "./readable-content";
+import { isNonProseElement, isTranslationOptedOut } from "./content-policy";
+import { composedParent } from "./dom-roots";
 
 const CONTEXT_BLOCK_SELECTOR = [
   "h1",
@@ -111,6 +113,7 @@ function findReadableRoot(focusElements: Element[]): Element | null {
   for (const focus of focusElements) {
     const root = focus.closest(READABLE_ROOT_SELECTOR);
     if (root) return root;
+    if (focus.getRootNode() instanceof ShadowRoot) return focus.parentElement ?? focus;
   }
   return document.querySelector(READABLE_ROOT_SELECTOR);
 }
@@ -121,11 +124,13 @@ function createContextFilter(): (element: Element) => boolean {
     const cached = cache.get(element);
     if (cached !== undefined) return cached;
     const style = window.getComputedStyle(element);
-    const result = !element.matches(`${EXTENSION_OWNED_SELECTOR},nav,[role='navigation'],[aria-hidden='true'],[hidden],`
+    const parent = composedParent(element);
+    const result = !isNonProseElement(element) && !isTranslationOptedOut(element)
+      && !element.matches(`${EXTENSION_OWNED_SELECTOR},nav,[role='navigation'],[aria-hidden='true'],[hidden],`
       + "[contenteditable]:not([contenteditable='false']),textarea,input,script,style,noscript")
       && style.display !== "none" && style.visibility !== "hidden" && style.visibility !== "collapse"
       && style.contentVisibility !== "hidden" && style.opacity !== "0"
-      && (!element.parentElement || eligible(element.parentElement));
+      && (!parent || eligible(parent));
     cache.set(element, result);
     return result;
   };

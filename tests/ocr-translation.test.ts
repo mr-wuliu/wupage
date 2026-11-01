@@ -27,6 +27,13 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe("local OCR image translation", () => {
+  it("keeps image translation working when cache reads and writes fail", async () => {
+    vi.spyOn(chrome.storage.local, "get").mockRejectedValue(new Error("Storage unavailable"));
+    vi.spyOn(chrome.storage.local, "set").mockRejectedValue(new Error("Quota exceeded"));
+    const result = await translateImageWithSettings(settings, request);
+    expect(result.regions[0].translation).toBe("缓存性能");
+    expect(result.cached).toBe(false);
+  });
   it("translates only OCR text with fixed positions, including with a text-only provider", async () => {
     const result = await translateImageWithSettings(settings, request);
     expect(result.regions).toHaveLength(1);

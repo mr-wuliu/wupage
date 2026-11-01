@@ -12,6 +12,9 @@
     "dev": "vite build --watch",
     "test": "vitest run --exclude \"**/.npm-cache/**\"",
     "test:page": "node scripts/test-page-translation.mjs",
+    "test:resilience": "node scripts/test-resilience.mjs",
+    "test:resilience:edge": "node scripts/test-resilience.mjs --edge",
+    "test:resilience:firefox": "node scripts/test-resilience.mjs --firefox",
     "test:cards": "node scripts/test-card-layout.mjs",
     "test:cards:edge": "node scripts/test-card-layout.mjs --edge",
     "test:profile-layout": "node scripts/test-profile-layout.mjs",
@@ -87,8 +90,8 @@
     "esbuild": "0.28.1",
     "jsdom": "^29.1.1",
     "typescript": "^5.9.3",
-    "vite": "^7.0.5",
-    "vitest": "^3.2.4"
+    "vite": "7.3.7",
+    "vitest": "4.1.12"
   },
   "dependencies": {
     "@browsermt/bergamot-translator": "0.4.9",
@@ -96,6 +99,6 @@
     "@pdf-lib/fontkit": "1.1.1",
     "onnxruntime-web": "1.30.0",
     "pdf-lib": "^1.17.1",
-    "pdfjs-dist": "^6.1.200"
+    "pdfjs-dist": "6.2.108"
   }
 }

@@ -43,6 +43,17 @@ describe("document session control ordering", () => {
   afterEach(() => { vi.clearAllTimers(); vi.useRealTimers(); vi.restoreAllMocks(); vi.resetAllMocks(); vi.unstubAllGlobals(); });
   const controls = () => f.configure.mock.calls.at(-1)![0] as PageTranslationCoordinator;
 
+  it("clears pending activity after registration fails and permits a later retry", async () => {
+    f.send.mockRejectedValueOnce(new Error("Background unavailable"));
+    installFrameRuntime("document", { top: true });
+    f.send.mockRejectedValueOnce(new Error("Background unavailable"));
+    f.send.mockRejectedValueOnce(new Error("Background unavailable"));
+    await expect(controls().start(DEFAULT_SETTINGS, true)).rejects.toThrow("Background unavailable");
+    expect(controls().state().active).toBe(false);
+    await controls().start(DEFAULT_SETTINGS, true);
+    expect(controls().state().active).toBe(true);
+  });
+
   it("does not send an obsolete stop after registration and a newer start", async () => {
     const registration = deferred<FrameSessionSnapshot>();
     f.send.mockImplementationOnce(() => registration.promise);

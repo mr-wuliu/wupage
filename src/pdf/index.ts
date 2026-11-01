@@ -1,3 +1,4 @@
+import { anySignal } from "../shared/abort";
 import {
   GlobalWorkerOptions,
   OPS,
@@ -142,6 +143,19 @@ let renderObserver: IntersectionObserver | undefined;
 let pendingSource: { url: string; autoTranslate: boolean } | undefined;
 let translationSession: PdfTranslationSession | undefined;
 let translationScrollTimer: number | undefined;
+let opening: AbortController | undefined;
+
+function beginOpen(): AbortController {
+  opening?.abort();
+  opening = new AbortController();
+  cancelTranslationSession();
+  translationRun++;
+  return opening;
+}
+
+function assertCurrentOpen(operation: AbortController): void {
+  operation.signal.throwIfAborted();
+}
 
 void init();
 
@@ -218,6 +232,7 @@ function bindEvents(): void {
   window.addEventListener("scroll", scheduleReadingTranslation, { passive: true });
   window.addEventListener("resize", scheduleReadingTranslation);
   window.addEventListener("pagehide", () => {
+    opening?.abort();
     cancelTranslationSession();
     translationRun += 1;
     window.removeEventListener("scroll", scheduleReadingTranslation);
@@ -244,24 +259,28 @@ async function openLocalPdf(file: File): Promise<void> {
     showStatus("请选择 PDF 文件。", "error");
     return;
   }
+  const operation = beginOpen();
   try {
     const autoTranslate = pendingSource?.autoTranslate ?? getPdfLaunchOptions(window.location.href).autoTranslate;
-    await loadPdf(await file.arrayBuffer(), file.name, autoTranslate);
-    pendingSource = undefined;
+    const data = await file.arrayBuffer();
+    assertCurrentOpen(operation);
+    await loadPdf(data, file.name, autoTranslate, operation);
+    if (opening === operation) pendingSource = undefined;
   } catch (error) {
-    handleOpenError(error);
+    if (!operation.signal.aborted) handleOpenError(error);
   }
 }
 
 async function openRequestedPdf(value: string, autoTranslate = getPdfLaunchOptions(window.location.href).autoTranslate): Promise<void> {
+  const operation = beginOpen();
   pendingSource = { url: value, autoTranslate };
-  const opened = await openPdfUrl(value, autoTranslate);
-  if (opened) {
+  const opened = await openPdfUrl(value, autoTranslate, operation);
+  if (opened && opening === operation) {
     pendingSource = undefined;
   }
 }
 
-async function openPdfUrl(value: string, autoTranslate: boolean): Promise<boolean> {
+async function openPdfUrl(value: string, autoTranslate: boolean, operation: AbortController): Promise<boolean> {
   let url: URL;
   try {
     url = new URL(value);
@@ -277,34 +296,42 @@ async function openPdfUrl(value: string, autoTranslate: boolean): Promise<boolea
 
   fileAccessNotice.hidden = true;
   try {
-    if (local && (!hasExtensionRuntime() || (chrome.extension.isAllowedFileSchemeAccess && !await chrome.extension.isAllowedFileSchemeAccess()))) {
+    const fileAccess = !local || hasExtensionRuntime()
+      && (!chrome.extension.isAllowedFileSchemeAccess || await chrome.extension.isAllowedFileSchemeAccess());
+    assertCurrentOpen(operation);
+    if (!fileAccess) {
       fileAccessNotice.hidden = false;
       fileAccessSettingsButton.hidden = !hasExtensionRuntime();
       showStatus("请允许访问文件网址后重试，或直接选择这份 PDF 文件。", "info", true);
       return false;
     }
     showLoading(local ? "正在读取本地 PDF" : "正在下载 PDF", local ? "正在读取本地文档…" : "正在读取在线文档…");
-    const response = await fetchWithTimeout(url.toString(), PDF_DOWNLOAD_TIMEOUT_MS);
+    assertCurrentOpen(operation);
+    const response = await fetchWithTimeout(url.toString(), PDF_DOWNLOAD_TIMEOUT_MS, operation.signal);
     if (!response.ok) throw new Error(`读取失败（HTTP ${response.status}）`);
     const contentType = response.headers.get("content-type") ?? "";
     if (contentType && !contentType.includes("pdf") && !url.pathname.toLowerCase().endsWith(".pdf")) {
       throw new Error("该地址返回的内容不是 PDF 文件。");
     }
-    const name = decodeURIComponent(url.pathname.split("/").pop() || (local ? "本地文档.pdf" : "在线文档.pdf"));
+    const rawName = url.pathname.split("/").pop() || (local ? "本地文档.pdf" : "在线文档.pdf");
+    let name = rawName;
+    try { name = decodeURIComponent(rawName); } catch { /* Literal percent signs are valid in remote file names. */ }
     const data = await withTimeout(
       response.arrayBuffer(),
       PDF_DOWNLOAD_TIMEOUT_MS,
       "PDF 文件读取"
     );
-    await loadPdf(data, name, autoTranslate);
+    assertCurrentOpen(operation);
+    await loadPdf(data, name, autoTranslate, operation);
     return true;
   } catch (error) {
-    handleOpenError(error);
+    if (!operation.signal.aborted) handleOpenError(error);
     return false;
   }
 }
 
-async function loadPdf(data: ArrayBuffer, name: string, autoTranslate: boolean): Promise<void> {
+async function loadPdf(data: ArrayBuffer, name: string, autoTranslate: boolean, operation: AbortController): Promise<void> {
+  assertCurrentOpen(operation);
   fontControl.cancel();
   fileAccessNotice.hidden = true;
   showLoading("正在打开 PDF", "正在读取文档结构…");
@@ -316,9 +343,11 @@ async function loadPdf(data: ArrayBuffer, name: string, autoTranslate: boolean):
     page.originalTextLayerObserver?.disconnect();
     page.translationLayerObserver?.disconnect();
   });
-  await pdfLoadingTask?.destroy();
+  const previousTask = pdfLoadingTask;
   pdfDocument = undefined;
   pdfLoadingTask = undefined;
+  await previousTask?.destroy();
+  assertCurrentOpen(operation);
   pageStates = [];
   documentContext = { context: "", abbreviations: new Map() };
   renderedPages = new Set();
@@ -331,13 +360,15 @@ async function loadPdf(data: ArrayBuffer, name: string, autoTranslate: boolean):
   let documentProxy: PDFDocumentProxy;
   try {
     documentProxy = await withTimeout(task.promise, PDF_OPEN_TIMEOUT_MS, "PDF 解析");
+    assertCurrentOpen(operation);
   } catch (error) {
     await task.destroy();
-    pdfLoadingTask = undefined;
+    if (pdfLoadingTask === task) pdfLoadingTask = undefined;
     throw error;
   }
   pdfDocument = documentProxy;
   const optionalContent = await documentProxy.getOptionalContentConfig?.({ intent: "display" });
+  assertCurrentOpen(operation);
   currentDocumentName = cleanFileName(name);
   documentName.textContent = currentDocumentName;
   updateTranslationScopeControl();
@@ -352,13 +383,16 @@ async function loadPdf(data: ArrayBuffer, name: string, autoTranslate: boolean):
   let parsedCount = 0;
   async function parseWorker(): Promise<void> {
     while (parseCursor <= documentProxy.numPages) {
+      assertCurrentOpen(operation);
       const pageNumber = parseCursor;
       parseCursor += 1;
       const page = await documentProxy.getPage(pageNumber);
       const textContent = await page.getTextContent();
+      assertCurrentOpen(operation);
       // The fallback CSS family hides the distinction between prose and math
       // fonts. Load the real font metadata before identifying formula runs.
       const operators = await page.getOperatorList?.();
+      assertCurrentOpen(operation);
       const visibleItems = filterVisiblePdfText(textContent.items, operators, OPS, optionalContent);
       const fonts = new Map(Object.keys(textContent.styles).flatMap((name) =>
         page.commonObjs?.has(name) ? [[name, page.commonObjs.get(name)] as const] : []
@@ -397,10 +431,10 @@ async function loadPdf(data: ArrayBuffer, name: string, autoTranslate: boolean):
       Math.min(300_000, Math.max(60_000, documentProxy.numPages * 2_000)),
       "PDF 文本提取"
     );
+    assertCurrentOpen(operation);
   } catch (error) {
     await task.destroy();
-    pdfDocument = undefined;
-    pdfLoadingTask = undefined;
+    if (pdfLoadingTask === task) { pdfDocument = undefined; pdfLoadingTask = undefined; }
     throw error;
   }
   documentContext = preparePdfDocument(parsedPages.map(({ page, blocks, textContent }) => {
@@ -1244,22 +1278,15 @@ function hasExtensionRuntime(): boolean {
   return typeof chrome !== "undefined" && Boolean(chrome.runtime?.id);
 }
 
-async function fetchWithTimeout(url: string, timeoutMs: number): Promise<Response> {
-  const controller = new AbortController();
-  const timer = window.setTimeout(
-    () => controller.abort(new DOMException("PDF download timed out.", "TimeoutError")),
-    timeoutMs
-  );
+async function fetchWithTimeout(url: string, timeoutMs: number, source: AbortSignal): Promise<Response> {
+  const signal = anySignal([source, AbortSignal.timeout(timeoutMs)]);
   try {
-    return await fetch(url, { signal: controller.signal });
+    return await fetch(url, { signal });
   } catch (error) {
-    if (controller.signal.reason instanceof DOMException
-      && controller.signal.reason.name === "TimeoutError") {
+    if (signal.reason instanceof DOMException && signal.reason.name === "TimeoutError") {
       throw new Error(`PDF 下载超过 ${Math.round(timeoutMs / 1000)} 秒，请检查网络或改用本地文件。`);
     }
     throw error;
-  } finally {
-    window.clearTimeout(timer);
   }
 }
 

@@ -96,10 +96,10 @@ export function installFrameRuntime(documentKey: string, options: { top: boolean
         const version = ++intent;
         desiredActive = true;
         if (snapshot) { snapshot = { ...snapshot, active: true, state: { ...snapshot.state, active: true } }; notifyCoordinatedPageState(); }
-        await initial;
-        if (!registered) await register();
-        if (version !== intent) return { ...emptyDocumentState(), cancelled: true };
         try {
+          await initial;
+          if (!registered) await register();
+          if (version !== intent) return { ...emptyDocumentState(), cancelled: true };
           const value = await sendRuntimeRequest<FrameSessionSnapshot>({ type: "FRAME_SESSION_ACTION", action: "start", reuseResults });
           if (version !== intent) return { ...emptyDocumentState(), cancelled: true };
           desiredActive = undefined; updateSnapshot(value); notifyCoordinatedPageState();

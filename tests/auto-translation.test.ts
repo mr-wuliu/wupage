@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from "vitest";
 import { initAutoTranslation } from "../src/content/auto-translation";
 import { DEFAULT_SETTINGS } from "../src/shared/defaults";
 import type { AutoTranslationSettings, ExtensionSettings } from "../src/shared/types";
@@ -9,9 +9,9 @@ describe("automatic page translation", () => {
   let active: boolean;
   let notify: (event?: "stopped") => void;
   let storage: (changes: Record<string, chrome.storage.StorageChange>, area: string) => void;
-  let start: ReturnType<typeof vi.fn>;
-  let stop: ReturnType<typeof vi.fn>;
-  let detect: ReturnType<typeof vi.fn>;
+  let start: Mock<(settings: ExtensionSettings) => Promise<void>>;
+  let stop: Mock<() => void>;
+  let detect: Mock<(text: string) => Promise<{ languages: Array<{ language: string; percentage: number }> }>>;
   let dispose: (() => void) | undefined;
 
   beforeEach(() => {

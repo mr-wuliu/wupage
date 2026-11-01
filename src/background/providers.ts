@@ -1,3 +1,4 @@
+import { anySignal } from "../shared/abort";
 import type {
   AnthropicCompatibleConfig,
   DeepSeekConfig,
@@ -27,11 +28,13 @@ import { signVolcengineTranslation } from "./volcengine-signing";
 import { applyRequestTemplate, defaultLlmRequest, requestTemplateContext, validateRequestTemplate } from "../shared/request-template";
 import { DoubaoProvider } from "./doubao";
 import { alignGoogleContext, googleContextSource } from "./google-context";
+import { ProviderError } from "../shared/errors";
 
 const GOOGLE_WEB_REQUEST_CONCURRENCY = 4;
 const WEB_TRANSLATION_TIMEOUT_MS = 20_000;
 const API_TRANSLATION_TIMEOUT_MS = 45_000;
 const LLM_TRANSLATION_TIMEOUT_MS = 90_000;
+const MAX_TRANSLATION_RESPONSE_BYTES = 4 * 1024 * 1024;
 
 export async function translateImageRegions(
   config: ProviderConfig,
@@ -81,7 +84,7 @@ Estimate the original text color and the local background color behind the text.
       }, config);
       if (!response.ok) {
         if (best?.regions.length) return best;
-        throw new Error(`图片翻译请求失败 (${response.status})。请确认当前模型支持图片输入。${await readErrorBody(response)}`);
+        throw httpResponseError(response, `图片翻译请求失败 (${response.status})。请确认当前模型支持图片输入。${await readErrorBody(response)}`);
       }
       const payload = await readJsonResponse<OpenAIChatResponse>(response, "Image translation");
       try {
@@ -162,7 +165,7 @@ class GoogleWebTranslateProvider implements TranslatorProvider {
       endpoint.searchParams.set("q", text);
 
       const response = await fetchWithTimeout(endpoint.toString(), { signal }, WEB_TRANSLATION_TIMEOUT_MS);
-      if (!response.ok) throw new Error(`Google Web Translate request failed: ${response.status}`);
+      if (!response.ok) throw httpResponseError(response, `Google Web Translate request failed: ${response.status}`);
       return readJsonResponse<GoogleWebTranslateResponse>(response, "Google Web Translate");
     };
     let aligned: Array<string | undefined> = request.texts.map(() => undefined);
@@ -214,7 +217,7 @@ class MicrosoftWebTranslateProvider implements TranslatorProvider {
       body: JSON.stringify(prepared.map((item) => item.text)),
       signal
     }, WEB_TRANSLATION_TIMEOUT_MS);
-    if (!response.ok) throw new Error(`Microsoft 免费翻译请求失败 (${response.status})。请稍后重试或切换翻译服务。`);
+    if (!response.ok) throw httpResponseError(response, `Microsoft 免费翻译请求失败 (${response.status})。请稍后重试或切换翻译服务。`);
     const payload = await readJsonResponse<MicrosoftTranslateResponse>(response, "Microsoft Web Translate");
     if (!Array.isArray(payload) || payload.length !== request.texts.length) {
       throw new TranslationResponseError("Microsoft Web Translate response count does not match source text count.");
@@ -344,7 +347,7 @@ class CloudTranslationProvider implements TranslatorProvider {
   private async request<T>(url: string, headers: Record<string, string>, body: unknown, signal?: AbortSignal): Promise<T> {
     signal?.throwIfAborted();
     const response = await fetchWithTimeout(url, { method: "POST", headers, body: JSON.stringify(body), credentials: "omit", redirect: "error", signal }, API_TRANSLATION_TIMEOUT_MS);
-    if (!response.ok) throw new Error(`${this.label} API 请求失败 (${response.status})，请检查凭据、额度或使用方式。`);
+    if (!response.ok) throw httpResponseError(response, `${this.label} API 请求失败 (${response.status})，请检查凭据、额度或使用方式。`);
     return readJsonResponse<T>(response, this.label);
   }
 }
@@ -413,7 +416,7 @@ class PublicTranslationProvider implements TranslatorProvider {
     const response = await fetchWithTimeout(url, { ...init, credentials: "omit", signal }, WEB_TRANSLATION_TIMEOUT_MS);
     if (!response.ok) {
       if (this.config.type === "mymemory" && response.status === 429) throw this.myMemoryQuotaError();
-      throw new Error(`${this.label} 请求失败 (${response.status})，请稍后重试或切换服务。`);
+      throw httpResponseError(response, `${this.label} 请求失败 (${response.status})，请稍后重试或切换服务。`);
     }
     return readJsonResponse<T>(response, this.label);
   }
@@ -462,9 +465,9 @@ class PublicTranslationProvider implements TranslatorProvider {
   }
 
   private myMemoryQuotaError(): Error {
-    return new Error(this.config.serviceMode === "api"
+    return new ProviderError(this.config.serviceMode === "api"
       ? "MyMemory API 额度已用完，请检查 RapidAPI 订阅或切换服务。"
-      : "MyMemory 免费额度已用完，请次日重试或切换服务。");
+      : "MyMemory 免费额度已用完，请次日重试或切换服务。", "rate-limited");
   }
 }
 
@@ -549,7 +552,7 @@ class MicrosoftTranslatorProvider implements TranslatorProvider {
       body: JSON.stringify(request.texts.map((text) => ({ Text: text })))
     }, API_TRANSLATION_TIMEOUT_MS);
 
-    if (!response.ok) throw new Error(`Microsoft Translator request failed: ${response.status}`);
+    if (!response.ok) throw httpResponseError(response, `Microsoft Translator request failed: ${response.status}`);
     const payload = await readJsonResponse<MicrosoftTranslateResponse>(
       response,
       "Microsoft Translator"
@@ -611,7 +614,7 @@ class GoogleCloudTranslationProvider implements TranslatorProvider {
       body: JSON.stringify(body)
     }, API_TRANSLATION_TIMEOUT_MS);
 
-    if (!response.ok) throw new Error(`Google Cloud Translation request failed: ${response.status}`);
+    if (!response.ok) throw httpResponseError(response, `Google Cloud Translation request failed: ${response.status}`);
     const payload = await readJsonResponse<GoogleTranslateResponse>(
       response,
       "Google Cloud Translation"
@@ -680,7 +683,7 @@ class OpenAICompatibleProvider implements TranslatorProvider {
       const hint = response.status !== 403 ? "" : ollama
         ? " Ollama 兼容已开启，请检查 API Key、服务端权限或反向代理配置。"
         : " 如果使用 Ollama，请在服务设置中开启“Ollama 兼容”；仍失败时检查服务端权限或 OLLAMA_ORIGINS。";
-      throw new Error(`LLM request failed: ${response.status} ${response.statusText}. ${await readErrorBody(response)}${hint}`);
+      throw httpResponseError(response, `LLM request failed: ${response.status} ${response.statusText}. ${await readErrorBody(response)}${hint}`);
     }
     const payload = await readJsonResponse<OpenAIChatResponse>(response, "LLM provider");
     const content = payload.choices?.[0]?.message?.content;
@@ -734,7 +737,7 @@ class AnthropicCompatibleProvider implements TranslatorProvider {
       body: JSON.stringify(prepared.body)
     });
     if (!response.ok) {
-      throw new Error(
+      throw httpResponseError(response,
         `LLM request failed: ${response.status} ${response.statusText}. ${await readErrorBody(response)}`
       );
     }
@@ -812,7 +815,7 @@ class HttpTemplateProvider implements TranslatorProvider {
           : undefined
     }, API_TRANSLATION_TIMEOUT_MS);
 
-    if (!response.ok) throw new Error(`HTTP template request failed: ${response.status}`);
+    if (!response.ok) throw httpResponseError(response, `HTTP template request failed: ${response.status}`);
     const payload = await readJsonResponse<unknown>(response, "HTTP template provider");
     const translations = readPath(payload, this.config.responsePath);
     if (!Array.isArray(translations) || !translations.every((item) => typeof item === "string")) {
@@ -829,8 +832,8 @@ function parseTranslationArray(content: string, expectedLength: number): string[
   if (typeof content !== "string") throw new TranslationResponseError("LLM response did not include text content.");
   const trimmed = stripCodeFence(content.trim());
   if (looksLikeHtmlDocument(trimmed)) {
-    throw new Error(
-      "LLM response contained an HTML page instead of translations. Check the provider Base URL."
+    throw new ProviderError(
+      "LLM response contained an HTML page instead of translations. Check the provider Base URL.", "protocol-changed"
     );
   }
   let parsed: unknown;
@@ -880,11 +883,18 @@ async function fetchWithLlmRetry(url: string, init: RequestInit, config?: Provid
 }
 
 async function fetchLlmWithRetry(url: string, init: RequestInit): Promise<Response> {
+  const deadline = Date.now() + LLM_TRANSLATION_TIMEOUT_MS;
   for (let attempt = 0; attempt < 4; attempt += 1) {
-    const response = await fetchWithTimeout(url, init, LLM_TRANSLATION_TIMEOUT_MS);
+    init.signal?.throwIfAborted();
+    const response = await fetchWithTimeout(url, init, Math.max(1, deadline - Date.now()));
     if (response.status !== 429 && response.status !== 503) return response;
     if (attempt === 3) return response;
-    await delay(readRetryDelay(response, attempt));
+    const retryDelay = readRetryDelay(response, attempt);
+    // An hours-long Retry-After must pause the session rather than occupy a
+    // concurrency slot indefinitely. A retry also shares the original deadline.
+    if (retryDelay > 30_000 || Date.now() + retryDelay >= deadline) return response;
+    await response.body?.cancel().catch(() => undefined);
+    await delay(retryDelay, init.signal);
   }
   throw new Error("LLM request retry loop exited unexpectedly.");
 }
@@ -894,26 +904,20 @@ async function fetchWithTimeout(
   init: RequestInit,
   timeoutMs: number
 ): Promise<Response> {
-  const controller = new AbortController();
-  const sourceSignal = init.signal;
-  const abortFromSource = (): void => controller.abort(sourceSignal?.reason);
-  if (sourceSignal?.aborted) abortFromSource();
-  else sourceSignal?.addEventListener("abort", abortFromSource, { once: true });
-  const timer = globalThis.setTimeout(
-    () => controller.abort(new DOMException("Translation request timed out.", "TimeoutError")),
-    timeoutMs
-  );
+  // fetch resolves at headers. Keep both signals alive through json()/text(),
+  // otherwise a stalled body occupies the provider/global queue forever.
+  const timeout = AbortSignal.timeout(timeoutMs);
+  const signal = init.signal ? anySignal([init.signal, timeout]) : timeout;
   try {
-    return await fetch(url, { ...init, signal: controller.signal });
+    return await fetch(url, { ...init, signal });
   } catch (error) {
-    if (controller.signal.reason instanceof DOMException
-      && controller.signal.reason.name === "TimeoutError") {
-      throw new Error(`Translation request timed out after ${Math.round(timeoutMs / 1000)} seconds.`);
+    if (signal.reason instanceof DOMException && signal.reason.name === "TimeoutError") {
+      throw new ProviderError(`Translation request timed out after ${Math.round(timeoutMs / 1000)} seconds.`, "service-unavailable");
+    }
+    if (!signal.aborted && error instanceof TypeError) {
+      throw new ProviderError("Cannot connect to the translation service. Check your connection and provider endpoint, then retry.", "service-unavailable");
     }
     throw error;
-  } finally {
-    globalThis.clearTimeout(timer);
-    sourceSignal?.removeEventListener("abort", abortFromSource);
   }
 }
 
@@ -924,11 +928,13 @@ async function mapWithConcurrency<T, R>(
 ): Promise<R[]> {
   const output = Array<R>(values.length);
   let cursor = 0;
+  let failed = false;
   async function worker(): Promise<void> {
-    while (cursor < values.length) {
+    while (!failed && cursor < values.length) {
       const index = cursor;
       cursor += 1;
-      output[index] = await mapper(values[index], index);
+      try { output[index] = await mapper(values[index], index); }
+      catch (error) { failed = true; throw error; }
     }
   }
   await Promise.all(
@@ -948,12 +954,29 @@ function readRetryDelay(response: Response, attempt: number): number {
   return 1000 * 2 ** attempt;
 }
 
-function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => globalThis.setTimeout(resolve, ms));
+function httpResponseError(response: Response, message: string): Error {
+  // Most providers do not consume an error body. Release it before pausing.
+  if (!response.bodyUsed) void response.body?.cancel().catch(() => undefined);
+  const code = response.status === 429 ? "rate-limited"
+    : response.status === 401 ? "login-required"
+    : response.status === 403 ? "permission-required"
+    : response.status >= 500 ? "service-unavailable"
+    : response.status >= 400 ? "service-rejected" : undefined;
+  return code ? new ProviderError(message, code,
+    response.status === 429 ? readRetryDelay(response, 0) : undefined) : new Error(message);
+}
+
+function delay(ms: number, signal?: AbortSignal | null): Promise<void> {
+  signal?.throwIfAborted();
+  return new Promise((resolve, reject) => {
+    const abort = () => { clearTimeout(timer); reject(signal!.reason); };
+    const timer = globalThis.setTimeout(() => { signal?.removeEventListener("abort", abort); resolve(); }, ms);
+    signal?.addEventListener("abort", abort, { once: true });
+  });
 }
 
 async function readErrorBody(response: Response): Promise<string> {
-  const text = await response.text().catch(() => "");
+  const text = await readResponseText(response).catch(() => "");
   if (!text) return "";
   if (looksLikeHtmlDocument(text)) {
     return "The server returned an HTML page. Check the provider Base URL or endpoint.";
@@ -961,7 +984,7 @@ async function readErrorBody(response: Response): Promise<string> {
   try {
     const parsed = JSON.parse(text) as unknown;
     const message = readErrorMessage(parsed);
-    return message ? String(message) : text.slice(0, 400);
+    return (message ? String(message) : text).slice(0, 400);
   } catch {
     return text.slice(0, 400);
   }
@@ -970,18 +993,50 @@ async function readErrorBody(response: Response): Promise<string> {
 async function readJsonResponse<T>(response: Response, providerLabel: string): Promise<T> {
   const contentType = response.headers?.get?.("content-type") ?? "";
   if (/\btext\/html\b/i.test(contentType)) {
-    throw new Error(
-      `${providerLabel} returned an HTML page instead of JSON. Check the provider Base URL or endpoint.`
+    void response.body?.cancel().catch(() => undefined);
+    throw new ProviderError(
+      `${providerLabel} returned an HTML page instead of JSON. Check the provider Base URL or endpoint.`, "protocol-changed"
     );
   }
 
   try {
-    return await response.json() as T;
-  } catch {
-    throw new Error(
-      `${providerLabel} response was not valid JSON. Check the provider Base URL or endpoint.`
+    // Empty-body responses still use the browser's ordinary JSON error. Stream
+    // nonempty bodies with a byte budget before allocating/parsing their text.
+    return response.body ? JSON.parse(await readResponseText(response)) as T : await response.json() as T;
+  } catch (error) {
+    if (error instanceof ProviderError) throw error;
+    if (error instanceof Error && error.name === "AbortError") throw error;
+    if (error instanceof Error && (error.name === "TimeoutError" || error instanceof TypeError)) {
+      const failure = new ProviderError("The translation response was interrupted. Check your connection and retry.", "service-unavailable");
+      failure.name = error.name;
+      throw failure;
+    }
+    throw new ProviderError(
+      `${providerLabel} response was not valid JSON. Check the provider Base URL or endpoint.`, "protocol-changed"
     );
   }
+}
+
+async function readResponseText(response: Response): Promise<string> {
+  const reader = response.body?.getReader();
+  if (!reader) return response.text();
+  const decoder = new TextDecoder();
+  let bytes = 0;
+  let text = "";
+  try {
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) return text + decoder.decode();
+      bytes += value.byteLength;
+      if (bytes > MAX_TRANSLATION_RESPONSE_BYTES) {
+        throw new ProviderError("Translation response is too large. Check the provider endpoint or model.", "service-rejected");
+      }
+      text += decoder.decode(value, { stream: true });
+    }
+  } catch (error) {
+    void reader.cancel().catch(() => undefined);
+    throw error;
+  } finally { reader.releaseLock(); }
 }
 
 function looksLikeHtmlDocument(value: string): boolean {
@@ -1070,10 +1125,12 @@ function decodeHtmlEntities(value: string): string {
 
   return value.replace(/&(#x?[0-9a-fA-F]+|[a-zA-Z]+);/g, (match, entity: string) => {
     if (entity.startsWith("#x")) {
-      return String.fromCodePoint(Number.parseInt(entity.slice(2), 16));
+      const point = Number.parseInt(entity.slice(2), 16);
+      return point >= 0 && point <= 0x10ffff ? String.fromCodePoint(point) : match;
     }
     if (entity.startsWith("#")) {
-      return String.fromCodePoint(Number.parseInt(entity.slice(1), 10));
+      const point = Number.parseInt(entity.slice(1), 10);
+      return point >= 0 && point <= 0x10ffff ? String.fromCodePoint(point) : match;
     }
     return namedEntities[entity] ?? match;
   });

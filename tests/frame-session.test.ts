@@ -65,6 +65,22 @@ describe("iframe translation policy", () => {
 });
 
 describe("tab-wide document sessions", () => {
+  it("keeps live sessions usable when optional session persistence fails", async () => {
+    const f = await fixture();
+    vi.spyOn(f.api.storage.session, "get").mockRejectedValue(new Error("Session storage unavailable"));
+    vi.spyOn(f.api.storage.session, "set").mockRejectedValue(new Error("Quota exceeded"));
+    vi.spyOn(f.api.storage.session, "remove").mockRejectedValue(new Error("Session storage unavailable"));
+    await f.register(0);
+    expect(await f.action("start")).toMatchObject({ active: true, translated: 1 });
+    expect(await f.action("stop")).toMatchObject({ active: false });
+  });
+  it("retries a failed settings read on the next session request", async () => {
+    const f = await fixture();
+    f.readSettings.mockRejectedValueOnce(new Error("Storage temporarily unavailable"));
+    await expect(f.register(0)).rejects.toThrow("Storage temporarily unavailable");
+    await f.register(0);
+    expect(await f.action("start")).toMatchObject({ active: true, translated: 1 });
+  });
   it("reports a document initialization failure while translating healthy documents", async () => {
     const f = await fixture();
     await f.register(0); await f.register(1);

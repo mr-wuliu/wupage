@@ -1,3 +1,4 @@
+import { anySignal } from "../shared/abort";
 import type { RuntimeRequest } from "../shared/types";
 import { getSettings } from "../shared/settings";
 import { translateWithSettings } from "./translation";
@@ -57,7 +58,7 @@ export async function translateVideo(request: Extract<RuntimeRequest, { type: "T
   try {
     const settings = await getSettings();
     if (!normalizeVideoTranslation(settings.videoTranslation).enabled) throw new Error("视频字幕已关闭。");
-    const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(15_000)]);
+    const signal = anySignal([controller.signal, AbortSignal.timeout(15_000)]);
     signal.throwIfAborted();
     return await translateWithSettings(settings, { texts: request.texts, sourceLang: request.sourceLang, targetLang: request.targetLang, providerId: request.providerId },
       { signal, priority: true, persistentCache: false });

@@ -213,6 +213,12 @@ export class SelectionTranslationController {
       const element = node.nodeType === Node.ELEMENT_NODE ? node as Element : node.parentElement;
       if (!node.isConnected || element?.closest(EXCLUDED)) { this.close(); return; }
     }
+    // A selection can begin/end in prose and cross an editor in the middle.
+    // Checking only its endpoints would send that editor's draft as source text.
+    const common = range.commonAncestorContainer;
+    if (common instanceof Element && [...common.querySelectorAll(EXCLUDED)].some(element => range.intersectsNode(element))) {
+      this.close(); return;
+    }
     this.range = range.cloneRange(); this.query = query;
     const rects = this.rects();
     this.triggers.replaceChildren();

@@ -20,11 +20,6 @@ import type { FrameSessionRequest } from "../shared/frame-session";
 import { readParagraphMode } from "../shared/paragraph-mode";
 import { saveParagraphMode } from "./paragraph-mode";
 
-frameSessions.install();
-initVideoSettings();
-
-chrome.tabs?.onRemoved?.addListener(clearVideoTab);
-
 chrome.runtime.onMessage.addListener((request: RuntimeRequest, sender, sendResponse) => {
   if ("target" in request) return;
   handleMessage(request, sender)
@@ -34,6 +29,11 @@ chrome.runtime.onMessage.addListener((request: RuntimeRequest, sender, sendRespo
 
   return true;
 });
+
+try { frameSessions.install(); }
+catch (error) { console.warn("WuPage frame integration:", error); }
+try { initVideoSettings(); chrome.tabs?.onRemoved?.addListener(clearVideoTab); }
+catch (error) { console.warn("WuPage video integration:", error); }
 
 // Auxiliary browser integrations must not prevent settings and translation
 // messages from being handled when a Chromium fork lacks one of these APIs.
@@ -107,7 +107,11 @@ async function handleMessage(request: RuntimeRequest, sender: chrome.runtime.Mes
     case "GET_SETTINGS": {
       let settings = await getSettings();
       if (settings.imageTranslationEnabled) {
-        const installed = await installedRevision();
+        // OCR cache availability must not take down page translation/settings.
+        // Only a successful check can establish that a model is missing.
+        let installed: string | undefined;
+        try { installed = await installedRevision(); }
+        catch { return getSettings(); }
         // Model checks may finish after another page has saved new settings.
         // Return that version and only change its image toggle when needed.
         settings = await getSettings();
@@ -119,7 +123,10 @@ async function handleMessage(request: RuntimeRequest, sender: chrome.runtime.Mes
       return settings;
     }
     case "SAVE_SETTINGS":
-      if (request.settings.imageTranslationEnabled && !await installedRevision()) throw new Error("请先点击图片翻译旁的扳手安装 OCR 模型。");
+      // Checking a new opt-in is required. An unavailable optional cache must
+      // not prevent changing languages or services while OCR is already on.
+      if (request.settings.imageTranslationEnabled && !(await getSettings()).imageTranslationEnabled
+        && !await installedRevision()) throw new Error("请先点击图片翻译旁的扳手安装 OCR 模型。");
       await saveSettings(request.settings);
       return null;
     case "GET_OCR_STATUS":

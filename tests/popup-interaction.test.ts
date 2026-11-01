@@ -2,17 +2,17 @@
 
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from "vitest";
 import { DEFAULT_SETTINGS, SETTINGS_KEY } from "../src/shared/defaults";
 import type { ExtensionSettings, RuntimeRequest, RuntimeResponse } from "../src/shared/types";
 import { PARAGRAPH_MODE_KEY } from "../src/shared/paragraph-mode";
 import { normalizeVideoTranslation } from "../src/shared/video";
 
 describe("popup translation interactions", () => {
-  let translate: ReturnType<typeof vi.fn>;
-  let save: ReturnType<typeof vi.fn>;
-  let loadSettings: ReturnType<typeof vi.fn>;
-  let paragraph: ReturnType<typeof vi.fn>;
+  let translate: Mock<() => Promise<unknown>>;
+  let save: Mock<(settings: ExtensionSettings) => Promise<unknown>>;
+  let loadSettings: Mock<() => Promise<unknown>>;
+  let paragraph: Mock<(enabled: boolean) => Promise<unknown>>;
   let stored: ExtensionSettings;
   let settingsChanged: (changes: Record<string, chrome.storage.StorageChange>, area: string) => void;
 

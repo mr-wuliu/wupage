@@ -1,12 +1,13 @@
 import { findTranslatableParagraph } from "./dom";
 import { translateParagraph } from "./paragraph-translation";
+import { discoverShadowRoots, queryTranslationElements } from "./dom-roots";
 
 const EXCLUDED = "input,textarea,select,button,[contenteditable]:not([contenteditable='false']),[role='textbox'],[role='combobox'],[role='button'],img,video,audio,canvas,svg,#wupage-selection-tools,#wupage-floating-hitbox,#wupage-floating-menu,#wupage-debug-panel,#wupage-image-tools,#wupage-shortcut-notice";
 
 function resolveParagraph(element: Element | null): Element | null {
   if (!element || element === document.body || element === document.documentElement || element.closest(EXCLUDED)) return null;
   const targetId = element.closest(".wupage-translation")?.getAttribute("data-wupage-translation-target");
-  if (targetId) return [...document.querySelectorAll("[data-wupage-target-id]")]
+  if (targetId) return queryTranslationElements("[data-wupage-target-id]")
     .find(target => target.getAttribute("data-wupage-target-id") === targetId) ?? null;
   return findTranslatableParagraph(element);
 }
@@ -35,8 +36,16 @@ export async function translateShortcutParagraphs(): Promise<void> {
     }
   }
   if (!selected) {
-    const hovered = [...document.querySelectorAll(":hover")].at(-1) ?? null;
-    const paragraph = resolveParagraph(hovered) ?? resolveParagraph(document.activeElement);
+    let hovered = [...document.querySelectorAll(":hover")].at(-1) ?? null;
+    while (hovered?.shadowRoot) {
+      discoverShadowRoots(hovered, false);
+      const inner = [...hovered.shadowRoot.querySelectorAll(":hover")].at(-1);
+      if (!inner) break;
+      hovered = inner;
+    }
+    let focused = document.activeElement;
+    while (focused?.shadowRoot?.activeElement) focused = focused.shadowRoot.activeElement;
+    const paragraph = resolveParagraph(hovered) ?? resolveParagraph(focused);
     if (paragraph) targets.add(paragraph);
   }
   if (!targets.size) throw new Error("请将鼠标移到正文段落，或选中段落文字后再使用段落翻译快捷键。");

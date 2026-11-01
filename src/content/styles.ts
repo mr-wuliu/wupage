@@ -1,12 +1,58 @@
+import { onTranslationRoot, translationRoots } from "./dom-roots";
+
 const STYLE_ID = "wupage-translation-style";
+const styles = new WeakMap<Document | ShadowRoot, HTMLStyleElement>();
+const observers = new WeakMap<Document | ShadowRoot, MutationObserver>();
+let subscribed = false;
 
 export function injectContentStyles(): void {
-  if (document.getElementById(STYLE_ID)) return;
-  const style = document.createElement("style");
-  style.id = STYLE_ID;
-  style.textContent = `
+  if (!subscribed) { subscribed = true; onTranslationRoot(ensureRootStyles); }
+  for (const root of translationRoots()) ensureRootStyles(root);
+}
+
+function ensureRootStyles(root: Document | ShadowRoot): void {
+  const owner = root instanceof Document ? root : root.ownerDocument;
+  if (!owner.documentElement || !owner.defaultView) return;
+  let style = styles.get(root);
+  if (!style) {
+    style = owner.createElement("style"); style.id = STYLE_ID;
+    styles.set(root, style);
+  }
+  const css = root instanceof Document ? CONTENT_CSS : CONTENT_CSS.split("#wupage-floating-hitbox")[0];
+  if (style.textContent !== css) style.textContent = css;
+  style.disabled = false;
+  style.removeAttribute("media");
+  const parent = root instanceof Document ? root.documentElement : root;
+  if (style.parentNode !== parent) parent.append(style);
+  if (!observers.has(root)) {
+    // Defer repairs to one task. Host code repeatedly deleting styles cannot
+    // create an unbounded synchronous MutationObserver feedback loop.
+    let repair: number | undefined;
+    const observer = new MutationObserver(records => {
+      if (repair !== undefined) return;
+      if (style!.isConnected && !records.some(record => record.target === style || style!.contains(record.target))) return;
+      if (style!.isConnected && style!.textContent === css && !style!.disabled && !style!.hasAttribute("media")) return;
+      repair = owner.defaultView!.setTimeout(() => {
+        repair = undefined;
+        if (root instanceof ShadowRoot && !root.host.isConnected) { observer.disconnect(); observers.delete(root); return; }
+        ensureRootStyles(root);
+      }, 100);
+    });
+    observer.observe(root, { subtree: true, childList: true, characterData: true, attributes: true, attributeFilter: ["media", "disabled"] });
+    observers.set(root, observer);
+  }
+}
+
+const CONTENT_CSS = `
     .wupage-translation {
+      position: static !important;
+      float: none !important;
+      transform: none !important;
+      text-indent: 0 !important;
       box-sizing: border-box;
+      min-width: 0;
+      width: auto;
+      height: auto;
       max-width: 100%;
       white-space: normal;
       overflow-wrap: break-word;
@@ -1090,5 +1136,3 @@ export function injectContentStyles(): void {
     }
 
   `;
-  document.documentElement.append(style);
-}

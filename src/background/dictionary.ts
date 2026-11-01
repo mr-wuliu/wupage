@@ -1,3 +1,4 @@
+import { anySignal } from "../shared/abort";
 import { DICTIONARY_LABELS, isDictionaryAudioUrl, normalizeDictionaryQuery, type DictionaryEntry, type DictionaryProvider } from "../shared/dictionary";
 import type { RuntimeResponse } from "../shared/types";
 import { parseYoudaoDictionary } from "../dictionary/parsers";
@@ -106,7 +107,7 @@ export async function playDictionaryAudio(provider: DictionaryProvider, url: str
     previous?.controller.abort();
     if (previous?.runtimeStarted) await runtimeRequest({ action: "stop", id: previous.id }).catch(() => undefined);
     if (playback !== current) return;
-    const response = await fetch(url, { signal: AbortSignal.any([current.controller.signal, AbortSignal.timeout(10_000)]), credentials: "omit", redirect: "error", referrerPolicy: "no-referrer" });
+    const response = await fetch(url, { signal: anySignal([current.controller.signal, AbortSignal.timeout(10_000)]), credentials: "omit", redirect: "error", referrerPolicy: "no-referrer" });
     const type = response.headers.get("content-type")?.split(";")[0].trim().toLowerCase();
     if (response.ok && !["audio/mpeg", "audio/mp3", "audio/wav", "audio/ogg"].includes(type ?? "")) {
       await response.body?.cancel();

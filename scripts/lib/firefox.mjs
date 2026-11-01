@@ -29,7 +29,8 @@ export async function startFirefox(output, extension, preferences = {}) {
   const binary = process.env.FIREFOX_BINARY || (process.platform === 'win32'
     ? 'C:/Program Files/Mozilla Firefox/firefox.exe' : 'firefox');
   const child = spawn(binary, ['--headless', '--no-remote', '--wait-for-browser', '--profile', profile,
-    '--marionette', '--remote-allow-system-access'], { windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
+    '--marionette', '--remote-allow-system-access'], { windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'],
+    env: { ...process.env, MOZ_REMOTE_ALLOW_SYSTEM_ACCESS: '1' } });
   let log = '';
   child.stdout.on('data', data => { log += data; });
   child.stderr.on('data', data => { log += data; });

@@ -15,6 +15,9 @@ import {
 } from "./legacy-scientific";
 import { videoPlatform } from "../video/platforms";
 import { clearTranslationTypography, linkTranslationTypography } from "./translation-typography";
+import { isNonProseElement, isTranslationOptedOut, NON_PROSE_SELECTOR } from "./content-policy";
+import { composedContains, discoverShadowRoots, mutationElement, onTranslationRoot, queryTranslationElements, translationRoots } from "./dom-roots";
+import { injectContentStyles } from "./styles";
 
 export interface TextSegment {
   id: string;
@@ -76,6 +79,7 @@ interface ProtectedToken {
   node: Element;
   sourceNode: Element;
   sourceHidden?: { hadClassAttribute: boolean };
+  sourceSignature: string;
 }
 
 const TRANSLATION_CLASS = "wupage-translation";
@@ -233,6 +237,7 @@ const REDDIT_METADATA_SELECTOR = [
 ].join(",");
 const CODE_SELECTOR = "pre, code, .highlight, .example-wrap, .blob-code, .react-code-text";
 const CODE_COMMENT_TARGET_SELECTOR = ".react-code-text, .blob-code, pre, code, .highlight";
+const IMMUTABLE_INLINE_SELECTOR = "[translate='no' i],.notranslate,math";
 
 let trackedNodes: TrackedNode[] = [];
 let trackedGroups: TrackedGroup[] = [];
@@ -373,7 +378,7 @@ const PARAGRAPH_SELECTOR = [
 
 export function collectTextSegments(translateCodeComments = true): TextSegment[] {
   clearNodeTracking();
-  return collectTextSegmentsFromRoot(document.body, true, translateCodeComments);
+  return document.body ? collectAdditionalTextSegments(document.body, translateCodeComments) : [];
 }
 
 export function collectParagraphTextSegments(
@@ -396,7 +401,11 @@ export function collectAdditionalTextSegments(
   element: Element,
   translateCodeComments = true
 ): TextSegment[] {
-  return collectTextSegmentsFromRoot(element, false, translateCodeComments);
+  const segments = collectTextSegmentsFromRoot(element, false, translateCodeComments);
+  for (const shadow of discoverShadowRoots(element)) {
+    for (const child of shadow.children) segments.push(...collectAdditionalTextSegments(child, translateCodeComments));
+  }
+  return segments;
 }
 
 const SCAN_CHUNK_NODES = 120;
@@ -451,10 +460,16 @@ function* collectScanChunks(root: Element): Generator<ScanChunk> {
     while (count <= SCAN_CHUNK_NODES && walker.nextNode()) count += 1;
     if (count <= SCAN_CHUNK_NODES || !element.firstElementChild
       || element.matches(PARAGRAPH_SELECTOR + ",[data-wupage-scientific-source]")) {
+      for (const shadow of discoverShadowRoots(element)) {
+        for (const child of Array.from(shadow.children).reverse()) stack.push(child);
+      }
       yield { root: element, directTextOnly: false };
       continue;
     }
     yield { root: element, directTextOnly: true };
+    for (const shadow of discoverShadowRoots(element, false)) {
+      for (const child of Array.from(shadow.children).reverse()) stack.push(child);
+    }
     for (let child = element.lastElementChild; child; child = child.previousElementSibling) stack.push(child);
   }
 }
@@ -495,15 +510,17 @@ async function scanTextRootsProgressive(
   const touched = new Set<Element>();
   const recordMutations = (records: MutationRecord[]) => {
     for (const record of records) {
-      const element = record.target instanceof Element ? record.target : record.target.parentElement;
+      const element = mutationElement(record.target);
       if (!element?.isConnected) continue;
       addCoveredScanRoot(touched, element);
       if (touched.size > SCAN_MUTATION_ROOT_LIMIT) { touched.clear(); touched.add(document.body); }
     }
   };
   const observer = observeChanges ? new MutationObserver(recordMutations) : undefined;
-  observer?.observe(document.body, { childList: true, characterData: true, subtree: true, attributes: true,
-    attributeFilter: ["class", "style", "hidden", "aria-hidden", "placeholder", "alt", "open"] });
+  const observerOptions = { childList: true, characterData: true, subtree: true, attributes: true,
+    attributeFilter: ["class", "style", "hidden", "aria-hidden", "placeholder", "alt", "open", "translate", "contenteditable", "role"] };
+  for (const root of translationRoots()) observer?.observe(root, observerOptions);
+  const unsubscribe = onTranslationRoot(root => observer?.observe(root, observerOptions));
   let sliceStarted = performance.now();
   const scan = async (pending: Element[]) => {
     const candidates = new Set(pending.filter(root => root.isConnected));
@@ -549,7 +566,7 @@ async function scanTextRootsProgressive(
       options.onPendingRoots?.([...touched]);
     }
     return [...segments.values()];
-  } finally { observer?.disconnect(); }
+  } finally { unsubscribe(); observer?.disconnect(); }
 }
 
 /**
@@ -583,6 +600,10 @@ export function takeHiddenScanRoots(limit = HIDDEN_SCAN_ROOT_BATCH): Element[] {
 // its tracking so the next scan can translate the current source again.
 export function invalidateStaleSegments(changedRoots: Element[] = []): string[] {
   const stale = new Set<string>();
+  for (const [id, tokens] of protectedTokensById) {
+    if (tokens.some(token => !token.sourceNode.isConnected
+      || protectedSourceSignature(token.sourceNode, Boolean(token.sourceHidden)) !== token.sourceSignature)) stale.add(id);
+  }
   const recovered = recoverRewrittenReplacementSegments();
   // The host may move an intact source or add another control beside it. Its
   // text nodes can remain unchanged even though our isolated layout is unsafe.
@@ -591,6 +612,7 @@ export function invalidateStaleSegments(changedRoots: Element[] = []): string[] 
   }
   const changed = (tracked: TrackedNode): boolean => !tracked.node.isConnected
     || tracked.node.parentElement !== tracked.sourceParent
+    || isNonProseElement(tracked.sourceParent) || isTranslationOptedOut(tracked.sourceParent)
     || tracked.node.data !== (tracked.replaced ? tracked.replacementValue ?? "" : tracked.sourceValue);
   for (const tracked of trackedNodes) {
     if (recovered.has(tracked.id)) continue;
@@ -610,14 +632,20 @@ export function invalidateStaleSegments(changedRoots: Element[] = []): string[] 
   }
   for (const tracked of trackedAttributes) {
     if (!tracked.element.isConnected
+      || isTranslationOptedOut(tracked.element)
       || tracked.element.getAttribute(tracked.name) !== (tracked.translatedValue ?? tracked.sourceValue)) {
       stale.add(tracked.id);
+      if (tracked.translatedValue !== undefined && tracked.element.getAttribute(tracked.name) === tracked.translatedValue) {
+        tracked.element.setAttribute(tracked.name, tracked.sourceValue);
+      }
+      tracked.element.removeAttribute(TRANSLATED_ATTR);
     }
   }
   for (const tracked of trackedImageTexts) {
     const anchor = tracked.image.closest("picture") ?? tracked.image;
     const output = renderedById.get(tracked.id);
     if (!tracked.image.isConnected || tracked.image.getAttribute("alt") !== tracked.sourceValue
+      || isTranslationOptedOut(tracked.image) || isNonProseElement(tracked.image)
       || (tracked.renderedSource && tracked.renderedSource !== (tracked.image.currentSrc || tracked.image.src))
       || (tracked.waitingForImage && tracked.image.complete && tracked.image.naturalWidth > 0)
       || (output && output.parentElement !== anchor.parentElement)) {
@@ -860,9 +888,9 @@ export function hasTranslationsIn(element: Element): boolean {
 
 export function hasPageTranslations(): boolean {
   return Boolean(
-    document.querySelector(`.${TRANSLATION_CLASS}`) ||
-      document.querySelector(`[${TRANSLATED_ATTR}]`) ||
-      document.querySelector(`[${TRANSLATION_TARGET_ATTR}]`)
+    queryTranslationElements(`.${TRANSLATION_CLASS}`)[0] ||
+      queryTranslationElements(`[${TRANSLATED_ATTR}]`)[0] ||
+      queryTranslationElements(`[${TRANSLATION_TARGET_ATTR}]`)[0]
   );
 }
 
@@ -964,6 +992,7 @@ export function renderTranslations(
   translations: Array<{ id: string; text: string }>,
   displayMode: TranslationDisplayMode = "bilingual"
 ): void {
+  injectContentStyles();
   translations = translations.flatMap(({ id, text }) => {
     // A caller can render a segment that never reached a batch, so the deferred
     // block text is resolved first; it is also what registers the tokens.
@@ -1006,11 +1035,13 @@ export function renderTranslations(
     block.setAttribute(TRANSLATED_ATTR, "true");
     if (displayMode === "replace" && renderStableReplacement(group.id, group.nodes, element)) {
       renderedById.set(group.id, element);
+      if (!isOutputVisible(element)) rollbackInvisibleTranslation(group.id, group.nodes, element);
       continue;
     }
     insertGroupedTranslation(group, element, displayMode);
     linkTranslationTypography(element, block);
     renderedById.set(group.id, element);
+    if (!isOutputVisible(element)) { rollbackInvisibleTranslation(group.id, group.nodes, element); continue; }
     if (displayMode === "replace") {
       replaceTrackedSource(group.nodes, group.id);
       if (group.authoredLines) {
@@ -1043,11 +1074,13 @@ export function renderTranslations(
     parent.setAttribute(TRANSLATED_ATTR, "true");
     if (displayMode === "replace" && renderStableReplacement(tracked.id, [tracked], element)) {
       renderedById.set(tracked.id, element);
+      if (!isOutputVisible(element)) rollbackInvisibleTranslation(tracked.id, [tracked], element);
       continue;
     }
     if (tracked.mode === "block" && parent.matches(HEADING_SELECTOR)) insertBlockTranslation(parent, element);
     else tracked.node.after(element);
     renderedById.set(tracked.id, element);
+    if (!isOutputVisible(element)) { rollbackInvisibleTranslation(tracked.id, [tracked], element); continue; }
     if (displayMode === "replace") replaceTrackedSource([tracked]);
   }
 
@@ -1082,6 +1115,26 @@ export function renderTranslations(
     }
     insertImageTextTranslation(tracked, element);
     renderedById.set(tracked.id, element);
+  }
+}
+
+// A site's !important span rule must never leave the replacement blank. Keep
+// the source when the generated element cannot be shown; other segments proceed.
+function isOutputVisible(element: HTMLElement): boolean {
+  const style = element.ownerDocument.defaultView?.getComputedStyle(element);
+  return !style || (style.display !== "none" && style.visibility !== "hidden"
+    && style.visibility !== "collapse" && style.opacity !== "0");
+}
+
+function rollbackInvisibleTranslation(id: string, nodes: TrackedNode[], output: HTMLElement): void {
+  restoreStableReplacement(id);
+  removeRenderedTranslation(id);
+  output.remove();
+  for (const tracked of nodes) {
+    if (tracked.replaced && tracked.node.data === (tracked.replacementValue ?? "")) tracked.node.data = tracked.sourceValue;
+    tracked.replaced = false; tracked.replacementValue = undefined;
+    tracked.sourceParent.removeAttribute(TRANSLATED_ATTR);
+    tracked.sourceParent.removeAttribute(TARGET_ATTR);
   }
 }
 
@@ -1126,6 +1179,7 @@ export function renderTargetTranslation(
 }
 
 export function renderTranslationPlaceholders(segments: TextSegment[]): void {
+  injectContentStyles();
   const pendingIds = new Set(segments.map((segment) => segment.id));
 
   for (const group of trackedGroups) {
@@ -1185,13 +1239,29 @@ export function hideTranslations(): void {
   clearTranslationTypography();
   restoreTrackedAttributesIn(document.documentElement);
   restoreReplacedSourcesIn(document.documentElement);
-  document.querySelectorAll(`.${TRANSLATION_CLASS}`).forEach((node) => node.remove());
-  document.querySelectorAll(`[${TRANSLATED_ATTR}]`).forEach((node) => {
+  queryTranslationElements(`.${TRANSLATION_CLASS}`).forEach((node) => node.remove());
+  queryTranslationElements(`[${TRANSLATED_ATTR}]`).forEach((node) => {
     node.removeAttribute(TRANSLATED_ATTR);
   });
-  document.querySelectorAll(`[${TARGET_ATTR}]`).forEach((node) => {
+  queryTranslationElements(`[${TARGET_ATTR}]`).forEach((node) => {
     node.removeAttribute(TARGET_ATTR);
   });
+  // Virtual lists temporarily detach rows and later reuse the same nodes. A
+  // global stop must restore those rows too, before tracking can be discarded.
+  for (const output of renderedById.values()) if (output instanceof Element) output.remove();
+  const detached = new Set<Node>([
+    ...trackedNodes.map(tracked => tracked.sourceParent.getRootNode()),
+    ...trackedGroups.map(group => group.block.getRootNode()),
+    ...trackedAttributes.map(tracked => tracked.element.getRootNode()),
+    ...trackedImageTexts.map(tracked => tracked.image.getRootNode())
+  ]);
+  for (const root of detached) {
+    if (root === document || root.isConnected || !(root instanceof Element || root instanceof DocumentFragment)) continue;
+    root.querySelectorAll(`.${TRANSLATION_CLASS}`).forEach(node => node.remove());
+    const elements = [...root.querySelectorAll(`[${TRANSLATED_ATTR}],[${TARGET_ATTR}]`)];
+    if (root instanceof Element) elements.push(root);
+    for (const element of elements) { element.removeAttribute(TRANSLATED_ATTR); element.removeAttribute(TARGET_ATTR); }
+  }
   renderedById.clear();
   for (const tracked of trackedAttributes) tracked.translatedValue = undefined;
 }
@@ -1348,6 +1418,7 @@ function collectAttributeSegments(
 
   for (const candidate of candidates) {
     if (!(candidate instanceof HTMLElement) || trackedElements.has(candidate)) continue;
+    if (isTranslationOptedOut(candidate)) continue;
     if (candidate.closest(`.${TRANSLATION_CLASS}, #wupage-floating-menu, #wupage-debug-panel`)) continue;
     if (!visibility.isElementVisuallyRendered(candidate)) {
       noteHiddenScanCandidate(candidate);
@@ -1366,7 +1437,7 @@ function collectAttributeSegments(
 
 function restoreTrackedAttributesIn(root: Element): void {
   for (const tracked of trackedAttributes) {
-    if (tracked.element !== root && !root.contains(tracked.element)) continue;
+    if (root !== document.documentElement && tracked.element !== root && !composedContains(root, tracked.element)) continue;
     if (
       tracked.translatedValue !== undefined &&
       tracked.element.getAttribute(tracked.name) === tracked.translatedValue
@@ -1436,27 +1507,28 @@ function restoreProtectedSource(token: ProtectedToken): void {
 }
 
 function restoreReplacedSourcesIn(root: Element): void {
+  const all = root === document.documentElement;
   for (const [id, replacement] of stableReplacementsById) {
-    if (replacement.source === root || root.contains(replacement.source)) restoreStableReplacement(id);
+    if (all || replacement.source === root || composedContains(root, replacement.source)) restoreStableReplacement(id);
   }
   for (const group of trackedGroups) {
-    if (group.sourceHidden && (group.block === root || root.contains(group.block))) {
+    if (group.sourceHidden && (all || group.block === root || composedContains(root, group.block))) {
       restoreGroupedSource(group);
     }
   }
   for (const tracked of trackedImageTexts) {
-    if (tracked.image === root || root.contains(tracked.image)) restoreImageTextSource(tracked);
+    if (all || tracked.image === root || composedContains(root, tracked.image)) restoreImageTextSource(tracked);
   }
   for (const tracked of trackedNodes) {
-    if (!tracked.replaced || !tracked.node.parentElement) continue;
-    if (tracked.node.parentElement !== root && !root.contains(tracked.node.parentElement)) continue;
+    if (!tracked.replaced) continue;
+    if (!all && (!tracked.node.parentElement || (tracked.node.parentElement !== root && !composedContains(root, tracked.node.parentElement)))) continue;
     if (tracked.node.data === (tracked.replacementValue ?? "")) tracked.node.data = tracked.sourceValue;
     tracked.replaced = false;
     tracked.replacementValue = undefined;
   }
   for (const tokens of protectedTokensById.values()) {
     for (const token of tokens) {
-      if (token.sourceNode !== root && !root.contains(token.sourceNode)) continue;
+      if (!all && token.sourceNode !== root && !composedContains(root, token.sourceNode)) continue;
       restoreProtectedSource(token);
     }
   }
@@ -1468,7 +1540,7 @@ function isSameTranslation(id: string, translation: string): boolean {
 }
 
 function findTargetTranslations(targetId: string): Element[] {
-  return Array.from(document.querySelectorAll(`[${TRANSLATION_TARGET_ATTR}]`)).filter(
+  return queryTranslationElements(`[${TRANSLATION_TARGET_ATTR}]`).filter(
     (node) => node.getAttribute(TRANSLATION_TARGET_ATTR) === targetId
   );
 }
@@ -1487,7 +1559,7 @@ const translationColorSources = new WeakMap<HTMLElement, { source: Element } | {
 /** Recolor existing results in place, including paragraph and image-text translations. */
 export function refreshTranslationColors(colors?: TranslationColors): void {
   translationColors = colors;
-  for (const result of document.querySelectorAll<HTMLElement>(
+  for (const result of queryTranslationElements<HTMLElement>(
     '.wupage-translation[data-wupage-display-mode="bilingual-accent"], .wupage-image-text-result'
   )) {
     if (result.dataset.wupageImageLayout === "interleaved") continue;
@@ -1552,7 +1624,7 @@ function createPendingElement(id: string, mode: RenderMode): HTMLElement {
 }
 
 function removePendingForId(id: string): void {
-  document.querySelectorAll<HTMLElement>(`.${PENDING_CLASS}[data-wupage-pending-id="${id}"]`).forEach((node) => {
+  queryTranslationElements<HTMLElement>(`.${PENDING_CLASS}[data-wupage-pending-id="${id}"]`).forEach((node) => {
     const parent = node.parentElement;
     const targetId = node.getAttribute(TRANSLATION_TARGET_ATTR);
     node.remove();
@@ -1560,7 +1632,7 @@ function removePendingForId(id: string): void {
       parent.removeAttribute(TRANSLATED_ATTR);
     }
     if (targetId && !findTargetTranslations(targetId).length) {
-      const target = document.querySelector(`[${TARGET_ATTR}="${targetId}"]`);
+      const target = queryTranslationElements(`[${TARGET_ATTR}="${targetId}"]`)[0];
       target?.removeAttribute(TRANSLATED_ATTR);
       target?.removeAttribute(TARGET_ATTR);
     }
@@ -1677,6 +1749,10 @@ function completeGroupedSourceNodes(
   while (walker.nextNode()) {
     const node = walker.currentNode as Text;
     const parent = node.parentElement;
+    const citation = parent?.closest("a[href]");
+    // The entire citation is already a protected token. Clearing its text as
+    // ordinary prose would mutate the protection source during replacement.
+    if (citation && isScientificCitation(citation)) continue;
     if (tracked.has(node) || !parent || findGroupingBlock(parent) !== block
       || parent.closest("code,kbd,samp,button,input,textarea,select,option,[role='button']")
       || shouldSkipElement(parent, true, visibility) || !visibility.isTextNodeVisuallyRendered(node)) continue;
@@ -1846,7 +1922,10 @@ let groupingBlockCache = new WeakMap<Element, Element | null>();
 function findGroupingBlock(element: Element | null): Element | null {
   if (!element) return null;
   if (groupingBlockCache.has(element)) return groupingBlockCache.get(element) ?? null;
-  const block = computeGroupingBlock(element);
+  const candidate = computeGroupingBlock(element);
+  // An explicitly re-enabled child of translate=no owns its own text. Never
+  // aggregate it into an opted-out paragraph and replace that paragraph.
+  const block = candidate && !isTranslationOptedOut(candidate) ? candidate : null;
   groupingBlockCache.set(element, block);
   return block;
 }
@@ -2011,6 +2090,7 @@ function decideSkipElement(
   includeNavigation: boolean,
   visibility?: RenderVisibilitySnapshot
 ): boolean {
+  if (isNonProseElement(element) || isTranslationOptedOut(element)) return true;
   if (isLegacyScientificEquation(element)) return true;
   if (element.closest(`.${TRANSLATION_CLASS},kbd,samp`)) return true;
   if (element.closest(VIDEO_CONTROL_SELECTOR)) return true;
@@ -2091,6 +2171,7 @@ function isInlineCodeInReadableText(element: Element): boolean {
 // become protected tokens, <br> becomes a space, and the rest are stripped from
 // the clone. A block carrying none of them can be read without cloning it.
 const PLAIN_TEXT_BLOCKER_SELECTOR = [
+  IMMUTABLE_INLINE_SELECTOR,
   "code",
   "kbd",
   "samp",
@@ -2135,8 +2216,9 @@ function getReadableBlockText(
   const clone = block.cloneNode(true) as Element;
   // A clone has the same element order as its source, so candidates pair up by
   // index. Walking an ancestor path for every candidate was pure overhead.
-  const sourceCandidates = Array.from(block.querySelectorAll("code,kbd,samp,.MATH,a[href]"));
-  const protectedCandidates = Array.from(clone.querySelectorAll("code,kbd,samp,.MATH,a[href]")).map((
+  const protectedSelector = `code,kbd,samp,.MATH,a[href],${IMMUTABLE_INLINE_SELECTOR}`;
+  const sourceCandidates = Array.from(block.querySelectorAll(protectedSelector));
+  const protectedCandidates = Array.from(clone.querySelectorAll(protectedSelector)).map((
     node,
     index
   ) => ({
@@ -2176,16 +2258,22 @@ function getReadableBlockText(
   protectedCandidates.forEach(({ element, sourceElement }) => {
     if (!clone.contains(element)) return;
     if (!sourceElement) return;
-    if (!sourceElement.matches("code,kbd,samp")
+    const immutable = sourceElement.matches("math") || isTranslationOptedOut(sourceElement);
+    if (!sourceElement.matches("code,kbd,samp") && !immutable
       && !isScientificMathImage(sourceElement) && !isScientificCitation(sourceElement)) return;
+    if (sourceElement.closest(NON_PROSE_SELECTOR)) return;
     if (!visibility.isElementVisuallyRendered(sourceElement)) return;
     if (!isProtectedInlineElement(sourceElement)) return;
+    // An opt-out wrapper can contain independently enabled text. That text is
+    // translated separately, so cloning the wrapper would duplicate it.
+    if (immutable && sourceElement.querySelector("[translate='yes' i],[translate='']")) return;
     const protectedElement = getProtectedRenderElement(sourceElement);
     const marker = `⟪WUPAGE${tokens.length}⟫`;
     tokens.push({
       marker,
       node: protectedElement.cloneNode(true) as Element,
-      sourceNode: protectedElement
+      sourceNode: protectedElement,
+      sourceSignature: protectedSourceSignature(protectedElement)
     });
     element.replaceWith(document.createTextNode(` ${marker} `));
   });
@@ -2194,6 +2282,19 @@ function getReadableBlockText(
     text: normalizeText(clone.textContent ?? ""),
     tokens
   };
+}
+
+function protectedSourceSignature(element: Element, hiddenByExtension = false): string {
+  // Protected nodes are not in trackedNodes. A virtualized page can change a
+  // formula, code identifier, brand or citation without touching adjacent prose.
+  // Ignore only our own reversible root class and whitespace cleared by replace.
+  const markup = [element, ...element.querySelectorAll("*")].map(node => [node.namespaceURI, node.localName,
+    [...node.attributes].flatMap(attribute => {
+      if (attribute.name !== "class") return [[attribute.name, attribute.value]];
+      const classes = [...node.classList].filter(name => node !== element || !hiddenByExtension || name !== REPLACED_SOURCE_CLASS).sort();
+      return classes.length ? [["class", classes.join(" ")]] : [];
+    }).sort(([left], [right]) => left.localeCompare(right))]);
+  return JSON.stringify([normalizeText(element.textContent ?? ""), markup]);
 }
 
 function removeUnrenderedCloneText(

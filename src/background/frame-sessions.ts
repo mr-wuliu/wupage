@@ -1,3 +1,4 @@
+import { anySignal } from "../shared/abort";
 import type { ExtensionSettings, RuntimeRequest, RuntimeResponse, TranslateBatchRequest } from "../shared/types";
 import {
   aggregateDocumentStates, emptyDocumentState, frameExclusion, frameTranslationIdentity,
@@ -174,7 +175,7 @@ export class FrameSessionManager {
       || this.exclusion(tab, frame)) throw new Error("翻译会话已经停止。");
     let documentController = tab.documents.get(frame.frameId);
     if (!documentController) { documentController = new AbortController(); tab.documents.set(frame.frameId, documentController); }
-    const signal = AbortSignal.any([tab.controller.signal, documentController.signal]);
+    const signal = anySignal([tab.controller.signal, documentController.signal]);
     signal.throwIfAborted();
     const generation = tab.id;
     const frameId = sender.frameId;
@@ -187,7 +188,7 @@ export class FrameSessionManager {
     try { signal.throwIfAborted(); return await run(signal); }
     catch (error) {
       if (!signal.aborted && tab.id === generation && error instanceof ProviderError
-        && ["login-required", "rate-limited", "service-rejected", "permission-required", "protocol-changed"].includes(error.errorCode)) {
+        && ["login-required", "rate-limited", "service-rejected", "permission-required", "protocol-changed", "service-unavailable"].includes(error.errorCode)) {
         await this.pauseProvider(tab, error);
       }
       throw error;
@@ -216,7 +217,10 @@ export class FrameSessionManager {
     if (!value) {
       value = (async () => {
         await this.writes.get(tabId)?.catch(() => {});
-        const [settings, saved] = await Promise.all([this.readSettings(), this.api.storage?.session?.get(`${PREFIX}${tabId}`)]);
+        // Session persistence is an optimization. Browser startup/quota errors
+        // must not disable live translation in every document of this tab.
+        const [settings, saved] = await Promise.all([this.readSettings(),
+          this.api.storage?.session?.get(`${PREFIX}${tabId}`).catch(() => undefined)]);
         const stored = saved?.[`${PREFIX}${tabId}`] as Partial<Pick<TabSession, "id" | "revision" | "topDocument" | "topUrl" | "active" | "paused">> | undefined;
         return { id: stored?.id ?? crypto.randomUUID(), revision: Math.max(Date.now() * 1000, stored?.revision ?? 0),
           topDocument: stored?.topDocument ?? "", topUrl: stored?.topUrl ?? "",
@@ -226,6 +230,9 @@ export class FrameSessionManager {
           controller: new AbortController(), queue: [], running: 0, lastFrame: -1, controlVersion: 0, settingsRevision: 0, retired: false };
       })();
       this.tabs.set(tabId, value);
+      // Do not retain a rejected settings read forever. The next user action
+      // must be able to recover after storage becomes available again.
+      void value.catch(() => { if (this.tabs.get(tabId) === value) this.tabs.delete(tabId); });
     }
     return value;
   }
@@ -375,7 +382,8 @@ export class FrameSessionManager {
       active: tab.active, ...(tab.paused ? { paused: tab.paused } : {}) } : null;
     const write = (this.writes.get(tabId) ?? Promise.resolve()).catch(() => {}).then(() => tab?.retired ? undefined : value
       ? this.api.storage?.session?.set({ [`${PREFIX}${tabId}`]: value }) : this.api.storage?.session?.remove(`${PREFIX}${tabId}`));
-    this.writes.set(tabId, write); return write;
+    const persisted = write.catch(() => undefined);
+    this.writes.set(tabId, persisted); return persisted;
   }
   private async remove(tabId: number): Promise<void> {
     const tab = await this.tabs.get(tabId); tab?.controller.abort(); this.tabs.delete(tabId);
