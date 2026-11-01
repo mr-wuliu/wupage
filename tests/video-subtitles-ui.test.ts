@@ -40,6 +40,79 @@ afterEach(() => {
 });
 
 describe("player subtitle controls", () => {
+  it("shows the display mode after the first result and keeps it through subtitle gaps", async () => {
+    let finish!: () => void;
+    vi.mocked(sendRuntimeRequest).mockImplementation(async request => {
+      if (request.type === "GET_SETTINGS") return structuredClone(DEFAULT_SETTINGS);
+      if (request.type === "TRANSLATE_VIDEO_SUBTITLES") return new Promise(resolve => {
+        finish = () => resolve({ translations: request.texts.map(text => text === "Hello" ? "你好" : "稍后"), cached: 0 });
+      });
+      return null;
+    });
+    expect(toggle().textContent).toBe("译");
+    expect(toggle().getAttribute("aria-label")).toBe("翻译视频字幕");
+    toggle().click();
+    expect(toggle().textContent).toBe("译");
+    expect(toggle().title).toContain("正在读取字幕");
+    await flush();
+    expect(toggle().textContent).toBe("译");
+    finish(); await flush();
+    expect(toggle().textContent).toBe("双");
+    expect(toggle().getAttribute("aria-pressed")).toBe("true");
+    expect(toggle().title).toContain("双语字幕已开启");
+    video.currentTime = 8; await vi.advanceTimersByTimeAsync(120);
+    expect(root().querySelector<HTMLElement>(".captions")!.hidden).toBe(true);
+    expect(toggle().textContent).toBe("双");
+    toggle().click();
+    expect(toggle().textContent).toBe("译");
+    expect(toggle().getAttribute("aria-pressed")).toBe("false");
+  });
+  it.each([
+    ["youtube", "ytp-right-controls", "ytp-subtitles-button"],
+    ["bilibili", "bpx-player-control-bottom-right", "bpx-player-ctrl-subtitle"],
+    ["vimeo", "ControlBarButtonsAndMenus_module_collapsibleContent__fixture", "cc"],
+    ["udemy", "_control-bar_fixture_28", "_control-captions_fixture_125"]
+  ])("docks %s controls separately from captions and recovers when the native bar is rebuilt", async (site, group, anchor) => {
+    controller.dispose();
+    const player = video.parentElement!;
+    const bar = document.createElement("div"); bar.className = "ytp-chrome-bottom";
+    bar.innerHTML = `<div class="${group}"><button class="native ${anchor}">Settings</button></div>`;
+    player.append(bar);
+    const nativeClick = vi.fn(); player.addEventListener("click", nativeClick);
+    controller = new PlayerSubtitleController(video, player, VIDEO_PLATFORMS.find(platform => platform.id === site));
+    await flush();
+    const dock = () => document.querySelector<HTMLElement>("[data-wupage-video-toolbar]")!;
+    const dockToggle = () => dock().shadowRoot!.querySelector<HTMLButtonElement>(".toggle")!;
+    expect(dock().parentElement?.className).toBe(group);
+    expect(dock().nextElementSibling).toBe(bar.querySelector(".native"));
+    expect(root().querySelector(".toolbar")).toBeNull();
+    dockToggle().click(); await flush();
+    expect(root().querySelector(".translation span")?.textContent).toBe("你好");
+    const settings = dock().shadowRoot!.querySelector<HTMLButtonElement>(".settings")!;
+    settings.click();
+    settings.dispatchEvent(new Event("pointerdown", { bubbles: true, composed: true }));
+    expect(root().querySelector<HTMLElement>(".panel")!.hidden).toBe(false);
+    settings.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    expect(root().querySelector<HTMLElement>(".panel")!.hidden).toBe(true);
+    expect(nativeClick).not.toHaveBeenCalled();
+    bar.style.opacity = "0"; await flush();
+    expect(dock().inert).toBe(true);
+    expect(dock().hasAttribute("data-native-hidden")).toBe(true);
+    bar.style.opacity = "1"; await flush(); expect(dock().inert).toBe(false);
+    bar.innerHTML = `<div class="${group}"><button class="native ${anchor}">New settings</button></div>`;
+    await flush();
+    expect(document.querySelectorAll("[data-wupage-video-toolbar]")).toHaveLength(1);
+    expect(dockToggle().getAttribute("aria-pressed")).toBe("true");
+    bar.remove(); await flush();
+    expect(document.querySelector("[data-wupage-video-toolbar]")).toBeNull();
+    expect(toggle().getAttribute("aria-pressed")).toBe("true");
+    player.append(bar); await flush();
+    dockToggle().click(); expect(track.mode).toBe("showing");
+    bar.querySelector<HTMLButtonElement>(".native")!.click(); expect(nativeClick).toHaveBeenCalledOnce();
+    controller.dispose();
+    expect(document.querySelector("[data-wupage-video-toolbar]")).toBeNull();
+    player.removeEventListener("click", nativeClick);
+  });
   it("reveals controls on touch and keeps them visible after the finger leaves", async () => {
     await vi.advanceTimersByTimeAsync(2700);
     const host = document.querySelector('[data-wupage-video]')!;
@@ -174,6 +247,8 @@ describe("player subtitle controls", () => {
     const count = vi.mocked(sendRuntimeRequest).mock.calls.filter(([request]) => request.type === "TRANSLATE_VIDEO_SUBTITLES").length;
     settingsListener({ [SETTINGS_KEY]: { newValue: { ...changed, videoTranslation: { showOriginal: false, fontSize: 26, background: "none", preferredSource: "auto", enabledSites: [] } } } }, "local");
     expect(root().querySelector(".source span")?.textContent).toBe("");
+    expect(toggle().textContent).toBe("单");
+    expect(toggle().title).toContain("仅译文已开启");
     expect(vi.mocked(sendRuntimeRequest).mock.calls.filter(([request]) => request.type === "TRANSLATE_VIDEO_SUBTITLES")).toHaveLength(count);
   });
   it("keeps detailed controls collapsed and provides keyboard and explicit stop", async () => {
@@ -191,7 +266,8 @@ describe("player subtitle controls", () => {
     Object.defineProperty(video, "textTracks", { configurable: true, value: [track] });
     Object.defineProperty(track, "cues", { configurable: true, value: [] });
     await vi.advanceTimersByTimeAsync(2700);
-    expect(root().querySelector(".label")?.textContent).toBe("等待原字幕");
+    expect(toggle().textContent).toBe("译");
+    expect(toggle().getAttribute("aria-label")).toContain("等待原字幕");
     expect(root().querySelector(".status")?.textContent).toContain("原字幕尚未就绪");
     Object.defineProperty(track, "cues", { configurable: true, value: [{ startTime: 0, endTime: 4, text: "Hello" }] });
     await vi.advanceTimersByTimeAsync(120); await flush();

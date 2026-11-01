@@ -11,6 +11,7 @@ import { captionElements, mediaKey, renderedCaption, selectedNativeTrack, type V
 import type { PageSubtitleCatalogue } from "../video/site-cues";
 import { MAX_SUBTITLE_FILE_BYTES, parseSubtitles, SubtitleTranslator, subtitleText, type SubtitleCue } from "../video/subtitles";
 import { LiveSubtitleTranslator } from "../video/live-subtitles";
+import { playerControlDock, playerControlsVisible, playerContains, type PlayerControlDock } from "../video/player-controls";
 
 export class PlayerSubtitleController {
   readonly view: VideoView;
@@ -55,6 +56,9 @@ export class PlayerSubtitleController {
   private saveQueue: Promise<void> = Promise.resolve();
   private settingsRevision = 0;
   private originalPosition: { value: string; priority: string } | undefined;
+  private nativeDock?: PlayerControlDock;
+  private controlsScanned = false;
+  private controlsObserver?: MutationObserver;
 
   constructor(readonly video: HTMLVideoElement, readonly container: HTMLElement, readonly platform?: VideoPlatform, private autoStart = true) {
     this.view = new VideoView({
@@ -89,7 +93,7 @@ export class PlayerSubtitleController {
     this.on(video, "loadedmetadata", () => this.changedVideo());
     this.on(video, "enterpictureinpicture", () => { this.clearCaption(); this.view.tell("画中画中可在原播放器查看双语字幕。"); });
     this.on(document, "fullscreenchange", () => { this.position(); this.showControls(); this.tick(); });
-    this.on(window, "resize", () => this.position());
+    this.on(window, "resize", () => { this.controlsScanned = false; this.position(); });
     this.on(container, "click", event => {
       const target = event.target;
       if (!(target instanceof Element) || !event.isTrusted) return;
@@ -99,8 +103,16 @@ export class PlayerSubtitleController {
     });
     chrome.storage?.onChanged?.addListener(this.settingsChanged);
     this.cleanups.push(() => chrome.storage?.onChanged?.removeListener?.(this.settingsChanged));
-    const resize = typeof ResizeObserver !== "undefined" ? new ResizeObserver(() => this.position()) : undefined;
+    const resize = typeof ResizeObserver !== "undefined" ? new ResizeObserver(() => { this.controlsScanned = false; this.position(); }) : undefined;
     resize?.observe(video); resize?.observe(container); this.cleanups.push(() => resize?.disconnect());
+    const controls = new MutationObserver(records => {
+      if (records.some(record => !(record.target instanceof Element) || !record.target.closest('[id^="wupage-"]'))) this.mountControls(true);
+    });
+    this.controlsObserver = controls;
+    controls.observe(container, this.controlsObservation);
+    this.cleanups.push(() => controls.disconnect());
+    this.on(container, "transitionend", () => this.mountControls(), true);
+    this.on(container, "animationend", () => this.mountControls(), true);
     this.position(); this.showControls();
     void this.settingsSnapshot.read().then(settings => {
       if (this.disposed) return;
@@ -438,12 +450,27 @@ export class PlayerSubtitleController {
     this.view.host.style.setProperty("--wp-layer-width", `${rect.width / (scaleX || 1)}px`);
     this.view.host.style.setProperty("--wp-layer-height", `${rect.height / (scaleY || 1)}px`);
     this.view.host.hidden = fullscreen === this.video || rect.width < 160 || rect.height < 90;
+    this.mountControls();
     if (this.view.panelOpen) this.view.positionPanel();
+  }
+
+  private readonly controlsObservation: MutationObserverInit = { childList: true, subtree: true, attributes: true, attributeFilter: ["class", "style", "hidden", "inert", "aria-hidden"] };
+
+  private mountControls(refresh = false): void {
+    const fullscreen = document.fullscreenElement;
+    if (refresh || !this.controlsScanned || (this.nativeDock && !this.nativeDock.container.isConnected)) {
+      this.nativeDock = playerControlDock(this.video, this.container, this.platform, root => this.controlsObserver?.observe(root, this.controlsObservation));
+      this.controlsScanned = true;
+    }
+    const dock = this.nativeDock;
+    const controls = dock && (!fullscreen || playerContains(fullscreen, dock.container)) ? dock : undefined;
+    this.view.mountControls(controls?.container, controls?.before, controls?.reference);
+    if (controls) this.view.setNativeControlsVisible(playerControlsVisible(controls.container));
   }
 
   stop(): void {
     this.resumeOnReplacement = false; this.enabled = false; this.epoch++; this.clearSession(); this.phase = "idle";
-    this.state("点击播放器上的「字幕翻译」即可开启。"); this.showControls();
+    this.state("点击播放器上的「译」即可开启字幕翻译。"); this.showControls();
   }
 
   private clearSession(restoreNative = true): void {

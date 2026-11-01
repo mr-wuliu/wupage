@@ -45,17 +45,26 @@ const styles = `
   .import { margin-top: 10px; color: #e8f1ee; background: #233135; border: 1px solid #50615e; border-radius: 6px; padding: 6px 10px; }
   .offset { width: 100%; height: 32px; border: 1px solid #50615e; border-radius: 6px; background: #233135; color: #fff; padding: 5px 8px; }
   .notice { position: absolute; top: 58px; right: 14px; max-width: min(300px,calc(100% - 28px)); padding: 9px 12px; background: #172024ed; border: 1px solid #ffffff29; border-radius: 8px; color: #e4eeea; font: 12px/1.5 system-ui,sans-serif; pointer-events: auto; }
+  :host([data-docked]) { position: relative !important; inset: auto !important; display: inline-flex !important; vertical-align: top !important; flex: 0 0 auto !important; width: auto !important; height: var(--wp-native-control-height,100%) !important; transform: translateY(var(--wp-native-control-offset,0px)) !important; pointer-events: inherit !important; container-type: normal !important; z-index: auto !important; }
+  :host([data-docked]) .toolbar { position: static; height: 100%; background: transparent; border: 0; box-shadow: none; border-radius: 0; opacity: 1; transform: none; transition: none; pointer-events: inherit; }
+  :host([data-docked]) .toolbar button { height: 100%; min-height: 0; min-width: 34px; padding: 0 7px; border-radius: 0; }
+  :host([data-docked]) .settings { border-left: 0 !important; }
+  :host([data-native-hidden]) { pointer-events: none !important; }
   @media (prefers-reduced-motion: reduce) { .toolbar { transition: none; } }
-  @media (pointer: coarse) { .toolbar button { min-width: 44px; min-height: 44px; } }
+  @media (pointer: coarse) { .toolbar button, :host([data-docked]) .toolbar button { min-width: 44px; min-height: 44px; } }
 `;
 
 export class VideoView {
   readonly host = document.createElement("div");
   readonly root = this.host.attachShadow({ mode: "open" });
+  private readonly controlsHost = document.createElement("div");
+  private readonly controlsRoot = this.controlsHost.attachShadow({ mode: "open" });
   readonly id = `wupage-player-${++nextView}`;
   private readonly panel: HTMLElement;
   private readonly toggle: HTMLButtonElement;
-  private readonly label: HTMLElement;
+  private readonly mark: HTMLElement;
+  private readonly toolbar: HTMLElement;
+  private readonly settingsButton: HTMLButtonElement;
   private readonly caption: HTMLElement;
   private readonly source: HTMLElement;
   private readonly translation: HTMLElement;
@@ -63,13 +72,16 @@ export class VideoView {
   private readonly notice: HTMLElement;
   private readonly retry: HTMLButtonElement;
   private noticeTimer?: ReturnType<typeof setTimeout>;
+  private hasTranslation = false;
+  private showOriginal = true;
+  private controlOffset = 0;
   private cleanups: Array<() => void> = [];
 
   constructor(actions: VideoViewActions, label: string) {
     this.host.id = this.id; this.host.dataset.wupageVideo = ""; this.host.setAttribute("translate", "no");
     setHtmlContent(this.root, `<style>${styles}</style>
       <div class="toolbar" role="group" aria-label="视频字幕翻译">
-        <button class="toggle" type="button" aria-pressed="false" title="翻译视频字幕"><span class="mark" aria-hidden="true">译</span><span class="label">字幕翻译</span></button>
+        <button class="toggle" type="button" aria-label="翻译视频字幕" aria-pressed="false" title="翻译视频字幕"><span class="mark" aria-hidden="true">译</span></button>
         <button class="settings" type="button" aria-label="字幕设置" title="字幕设置" aria-expanded="false">${uiIconMarkup("settings")}</button>
       </div>
       <div class="captions" role="region" aria-label="双语字幕" hidden><div class="source" dir="auto"><span></span></div><div class="translation" dir="auto"><span></span></div></div>
@@ -89,12 +101,16 @@ export class VideoView {
         </details>
       </section><div class="notice" role="status" hidden></div>`);
     const query = <T extends Element>(selector: string) => this.root.querySelector<T>(selector)!;
-    this.panel = query(".panel"); this.toggle = query(".toggle"); this.label = query(".label"); this.caption = query(".captions");
+    this.panel = query(".panel"); this.toggle = query(".toggle"); this.toolbar = query(".toolbar"); this.settingsButton = query(".settings"); this.caption = query(".captions");
+    this.mark = query(".mark");
+    this.controlsHost.id = `${this.id}-toolbar`; this.controlsHost.dataset.wupageVideoToolbar = this.id;
+    this.controlsHost.setAttribute("data-docked", ""); this.controlsHost.setAttribute("translate", "no");
+    setHtmlContent(this.controlsRoot, `<style>${styles}</style>`);
     this.source = query(".source span"); this.translation = query(".translation span"); this.status = query(".status"); this.notice = query(".notice"); this.retry = query(".retry");
     const target = query<HTMLSelectElement>(".target");
     target.replaceChildren(...TARGET_LANGUAGES.map(language => new Option(language.label, language.code)));
     this.on(this.toggle, "click", () => actions.toggle());
-    this.on(query(".settings"), "click", () => this.setPanel(this.panel.hidden));
+    this.on(this.settingsButton, "click", () => this.setPanel(this.panel.hidden));
     this.on(query(".close"), "click", () => this.setPanel(false));
     this.on(this.retry, "click", () => actions.retry());
     this.on(target, "change", () => actions.settings({ targetLang: target.value }));
@@ -112,9 +128,11 @@ export class VideoView {
       if (Number.isFinite(value)) { offset.value = String(Math.max(-30, Math.min(30, value))); actions.offset(Number(offset.value)); }
       else offset.value = "0";
     });
-    this.on(this.root, "keydown", (event: Event) => { event.stopPropagation(); if ((event as KeyboardEvent).key === "Escape") { this.setPanel(false); this.toggle.focus(); } });
-    this.on(this.root, "click", event => event.stopPropagation());
-    this.on(document, "pointerdown", event => { if (!this.panel.hidden && !event.composedPath().includes(this.host)) this.setPanel(false); }, true);
+    for (const root of [this.root, this.controlsRoot]) {
+      this.on(root, "keydown", (event: Event) => { event.stopPropagation(); if ((event as KeyboardEvent).key === "Escape") { this.setPanel(false); this.toggle.focus(); } });
+      this.on(root, "click", event => event.stopPropagation());
+    }
+    this.on(document, "pointerdown", event => { if (!this.panel.hidden && !event.composedPath().some(node => node === this.host || node === this.controlsHost)) this.setPanel(false); }, true);
   }
 
   private on(target: EventTarget, type: string, callback: EventListener, capture = false): void {
@@ -124,6 +142,45 @@ export class VideoView {
   setControls(show: boolean): void { this.host.toggleAttribute("data-controls", show); }
   focus(): void { this.setControls(true); this.toggle.focus(); }
   get panelOpen(): boolean { return !this.panel.hidden; }
+
+  mountControls(container?: HTMLElement, before?: Element, reference?: Element): void {
+    if (container) {
+      if (this.toolbar.parentNode !== this.controlsRoot) this.controlsRoot.append(this.toolbar);
+      if (this.controlsHost.parentElement !== container) container.insertBefore(this.controlsHost, before ?? null);
+      this.alignControls(reference);
+    } else {
+      if (this.toolbar.parentNode !== this.root) this.root.prepend(this.toolbar);
+      this.controlsHost.remove();
+    }
+  }
+
+  private alignControls(reference?: Element): void {
+    if (!reference) {
+      this.controlsHost.style.removeProperty("--wp-native-control-height");
+      this.controlsHost.style.removeProperty("--wp-native-control-offset");
+      this.controlOffset = 0;
+      return;
+    }
+    // Match the actual button, not its taller row or popover wrapper. Layout
+    // height stays unscaled; the final center correction also handles scaled players.
+    const height = reference instanceof HTMLElement ? reference.offsetHeight : 0;
+    if (!height) return; // A hidden bar will be measured when it becomes visible.
+    const value = `${height}px`;
+    if (this.controlsHost.style.getPropertyValue("--wp-native-control-height") !== value) this.controlsHost.style.setProperty("--wp-native-control-height", value);
+    const source = reference.getBoundingClientRect(), target = this.controlsHost.getBoundingClientRect();
+    if (!source.height || !target.height) return;
+    const scale = target.height / (this.controlsHost.offsetHeight || target.height);
+    const offset = Math.round((this.controlOffset + (source.top + source.height / 2 - target.top - target.height / 2) / scale) * 1000) / 1000;
+    if (offset !== this.controlOffset) {
+      this.controlsHost.style.setProperty("--wp-native-control-offset", `${offset}px`);
+      this.controlOffset = offset;
+    }
+  }
+
+  setNativeControlsVisible(visible: boolean): void {
+    this.controlsHost.toggleAttribute("data-native-hidden", !visible);
+    if (this.controlsHost.inert !== !visible) this.controlsHost.inert = !visible;
+  }
 
   setPanel(open: boolean): void {
     if (open === !this.panel.hidden) return;
@@ -136,27 +193,33 @@ export class VideoView {
       this.panel.hidden = true;
     }
     this.host.toggleAttribute("data-panel", open);
-    this.root.querySelector(".settings")!.setAttribute("aria-expanded", String(open));
+    this.settingsButton.setAttribute("aria-expanded", String(open));
   }
 
   positionPanel(): void {
     const button = this.toggle.getBoundingClientRect();
     const width = Math.min(304, innerWidth - 24);
+    const height = Math.min(this.panel.scrollHeight || 430, innerHeight - 24);
+    const top = this.controlsHost.isConnected ? button.top - height - 8 : button.bottom + 8;
     this.panel.style.setProperty("--wp-panel-left", `${Math.max(12, Math.min(innerWidth - width - 12, button.right - width))}px`);
-    this.panel.style.setProperty("--wp-panel-top", `${Math.max(12, Math.min(innerHeight - Math.min(this.panel.scrollHeight || 430, innerHeight - 24) - 12, button.bottom + 8))}px`);
+    this.panel.style.setProperty("--wp-panel-top", `${Math.max(12, Math.min(innerHeight - height - 12, top))}px`);
   }
 
   setState(enabled: boolean, phase: "idle" | "loading" | "active" | "waiting" | "error", message: string): void {
     this.host.toggleAttribute("data-enabled", enabled); this.host.toggleAttribute("data-error", phase === "error");
     this.host.toggleAttribute("data-waiting", enabled && phase === "waiting");
+    this.controlsHost.toggleAttribute("data-enabled", enabled);
+    if (!enabled || phase === "loading") this.hasTranslation = false;
+    this.updateMark();
     this.toggle.setAttribute("aria-pressed", String(enabled));
-    this.toggle.title = enabled ? "停止字幕翻译" : "翻译视频字幕";
-    this.setText(this.label, !enabled ? "字幕翻译" : phase === "loading" ? "读取字幕…" : phase === "error" ? "字幕需重试" : phase === "waiting" ? "等待原字幕" : "双语已开");
+    this.toggle.title = !enabled ? "翻译视频字幕" : phase === "loading" ? "正在读取字幕，点击停止字幕翻译" : phase === "error" ? "字幕需重试，点击停止字幕翻译" : phase === "waiting" ? "等待原字幕，点击停止字幕翻译" : this.hasTranslation ? `${this.showOriginal ? "双语字幕" : "仅译文"}已开启，点击停止字幕翻译` : "正在翻译字幕，点击停止字幕翻译";
+    this.toggle.setAttribute("aria-label", this.toggle.title);
     this.setText(this.status, message); this.retry.hidden = !enabled || !["waiting", "error"].includes(phase);
   }
 
   settings(settings: ExtensionSettings, site: string): void {
     const preferences = normalizeVideoTranslation(settings.videoTranslation);
+    this.showOriginal = preferences.showOriginal; this.updateMark();
     const target = this.root.querySelector<HTMLSelectElement>(".target")!;
     if (![...target.options].some(option => option.value === settings.targetLang)) target.add(new Option(settings.targetLang, settings.targetLang));
     target.value = settings.targetLang;
@@ -182,9 +245,17 @@ export class VideoView {
   }
 
   render(source: string, translation: string, preferences: VideoTranslationSettings): void {
+    this.showOriginal = preferences.showOriginal;
+    if (translation) this.hasTranslation = true;
+    this.updateMark();
     this.setText(this.source, preferences.showOriginal && source !== translation ? source : "");
     this.setText(this.translation, translation);
     this.caption.hidden = !translation;
+  }
+
+  private updateMark(): void {
+    this.setText(this.mark, this.hasTranslation && this.host.hasAttribute("data-enabled") ? (this.showOriginal ? "双" : "单") : "译");
+    this.caption.setAttribute("aria-label", this.showOriginal ? "双语字幕" : "译文字幕");
   }
 
   tell(message: string): void {
@@ -193,5 +264,5 @@ export class VideoView {
   }
 
   private setText(element: Element, value: string): void { if (element.textContent !== value) element.textContent = value; }
-  dispose(): void { this.setPanel(false); clearTimeout(this.noticeTimer); for (const cleanup of this.cleanups) cleanup(); this.cleanups = []; this.host.remove(); }
+  dispose(): void { this.setPanel(false); clearTimeout(this.noticeTimer); for (const cleanup of this.cleanups) cleanup(); this.cleanups = []; this.controlsHost.remove(); this.host.remove(); }
 }
