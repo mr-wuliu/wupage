@@ -26,6 +26,7 @@ import { supportsServiceMode, translationApiOptions } from "../shared/translatio
 import { signVolcengineTranslation } from "./volcengine-signing";
 import { applyRequestTemplate, defaultLlmRequest, requestTemplateContext, validateRequestTemplate } from "../shared/request-template";
 import { DoubaoProvider } from "./doubao";
+import { alignGoogleContext, googleContextSource } from "./google-context";
 
 const GOOGLE_WEB_REQUEST_CONCURRENCY = 4;
 const WEB_TRANSLATION_TIMEOUT_MS = 20_000;
@@ -151,30 +152,32 @@ class GoogleWebTranslateProvider implements TranslatorProvider {
   }
 
   async translateBatch(request: TranslateBatchRequest, signal?: AbortSignal): Promise<string[]> {
-    return mapWithConcurrency(
-      request.texts,
-      GOOGLE_WEB_REQUEST_CONCURRENCY,
-      async (text) => {
-        const endpoint = new URL("https://translate.googleapis.com/translate_a/single");
-        endpoint.searchParams.set("client", "gtx");
-        endpoint.searchParams.set("sl", normalizeGoogleLang(request.sourceLang ?? "auto"));
-        endpoint.searchParams.set("tl", normalizeGoogleLang(request.targetLang));
-        endpoint.searchParams.set("dt", "t");
-        endpoint.searchParams.set("q", text);
+    const fetchText = async (text: string): Promise<GoogleWebTranslateResponse> => {
+      signal?.throwIfAborted();
+      const endpoint = new URL("https://translate.googleapis.com/translate_a/single");
+      endpoint.searchParams.set("client", "gtx");
+      endpoint.searchParams.set("sl", normalizeGoogleLang(request.sourceLang ?? "auto"));
+      endpoint.searchParams.set("tl", normalizeGoogleLang(request.targetLang));
+      endpoint.searchParams.set("dt", "t");
+      endpoint.searchParams.set("q", text);
 
-        const response = await fetchWithTimeout(
-          endpoint.toString(),
-          { signal },
-          WEB_TRANSLATION_TIMEOUT_MS
-        );
-        if (!response.ok) throw new Error(`Google Web Translate request failed: ${response.status}`);
-        const payload = await readJsonResponse<GoogleWebTranslateResponse>(
-          response,
-          "Google Web Translate"
-        );
-        return parseGoogleWebResponse(payload);
-      }
-    );
+      const response = await fetchWithTimeout(endpoint.toString(), { signal }, WEB_TRANSLATION_TIMEOUT_MS);
+      if (!response.ok) throw new Error(`Google Web Translate request failed: ${response.status}`);
+      return readJsonResponse<GoogleWebTranslateResponse>(response, "Google Web Translate");
+    };
+    let aligned: Array<string | undefined> = request.texts.map(() => undefined);
+    if (request.context && request.texts.length) {
+      const { source, ranges } = googleContextSource(request.context, request.texts);
+      const payload = await fetchText(source);
+      signal?.throwIfAborted();
+      aligned = alignGoogleContext(payload, source, ranges);
+    }
+    return mapWithConcurrency(request.texts, GOOGLE_WEB_REQUEST_CONCURRENCY, async (text, index) => {
+      const value = aligned[index];
+      // Auto-detection over mixed-language context can leave foreign text intact.
+      if (value !== undefined && (request.sourceLang && request.sourceLang !== "auto" || value.trim() !== text.trim())) return value;
+      return parseGoogleWebResponse(await fetchText(text));
+    });
   }
 }
 

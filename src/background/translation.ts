@@ -78,6 +78,7 @@ async function translateConfigured(
   // provider or tuning its concurrency must not discard the whole cache.
   const cacheProviderId = useCache
     ? `${providerId}.${await sha256(JSON.stringify({ version: CACHE_KEY_VERSION, provider: cacheStableProviderConfig(providerConfig), sourceLang: request.sourceLang ?? "auto",
+      ...(providerConfig.type === "google-web-translate" && providerConfig.serviceMode !== "api" ? { googleContextVersion: 1 } : {}),
       ...(providerConfig.type === "firefox-local" ? { models: LOCAL_MODELS.map(({ id, version }) => [id, version]) } : {}),
       ...(providerConfig.type === "doubao-web" ? { doubaoProtocolVersion: DOUBAO_PROTOCOL_VERSION, translateService: "1" } : {}),
       ...(request.preservePlaceholders ? { protectedTextVersion: 1 } : {}) }))}`
@@ -405,7 +406,9 @@ async function translateProviderTexts(
       translateProviderTexts(providerConfig, provider, { ...part, preservePlaceholders: false }, part.texts, signal)
     );
   }
-  if (providerConfig.type === "doubao-web" || providerConfig.type === "firefox-local" || isLlmProvider(providerConfig) || !request.context || !texts.length) {
+  if (providerConfig.type === "doubao-web" || providerConfig.type === "firefox-local"
+    || (providerConfig.type === "google-web-translate" && providerConfig.serviceMode !== "api")
+    || isLlmProvider(providerConfig) || !request.context || !texts.length) {
     return translate({ ...request, texts });
   }
 

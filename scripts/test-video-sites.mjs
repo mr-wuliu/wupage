@@ -10,6 +10,7 @@ const moduleName=process.env.PLAYWRIGHT_MODULE||'playwright';
 const {chromium}=await import(path.isAbsolute(moduleName)?pathToFileURL(moduleName).href:moduleName);
 const calls=[];const checks=[];const errors=[];
 let youtubeEmpty = false;
+let youtubeFragments = false;
 let translationDelay = 0;
 const texts=['Hello world.','Read the existing subtitles.','Seek to another moment.'];
 const translated=['你好，世界。','读取视频现有字幕。','跳转到另一个时间。'];
@@ -18,7 +19,7 @@ const server=createServer(async(request,response)=>{
  let raw='';for await(const chunk of request)raw+=chunk;
  const data=JSON.parse(raw);calls.push(data);response.setHeader('Content-Type','application/json');
  if(translationDelay)await new Promise(resolve=>setTimeout(resolve,translationDelay));
- response.end(JSON.stringify({translations:data.texts.map(text=>translated[texts.indexOf(text)]||'译：'+text)}));
+ response.end(JSON.stringify({translations:data.texts.map(text=>text==='This tool can save you time.'?'这个工具能为你节省时间。':translated[texts.indexOf(text)]||'译：'+text)}));
 });
 await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));const origin='http://127.0.0.1:'+server.address().port;
 const base=await fs.readFile(path.join(root,'tests/fixtures/video-subtitles.html'),'utf8');
@@ -60,7 +61,10 @@ try{
  context=await chromium.launchPersistentContext(path.join(output,'profile-'+Date.now()),{...(process.env.PDF_TEST_BROWSER?{executablePath:process.env.PDF_TEST_BROWSER}:{channel:'chromium'}),headless:true,ignoreDefaultArgs:['--disable-extensions'],args:['--enable-unsafe-extension-debugging'],viewport:{width:1240,height:850}});
  await context.route('https://**/*',async route=>{
   const url=new URL(route.request().url());const site=sites.find(site=>new URL(site.url).hostname===url.hostname);
-  if(url.pathname==='/api/timedtext')return route.fulfill({contentType:'application/json',body:youtubeEmpty?'':JSON.stringify({events:cues.map(cue=>({tStartMs:cue.start*1000,dDurationMs:(cue.end-cue.start)*1000,segs:[{utf8:cue.text}]}))})});
+  if(url.pathname==='/api/timedtext'){
+   const timeline=youtubeFragments?[{start:0,end:.3,text:'This tool'},{start:.3,end:.6,text:'can save'},{start:.6,end:.9,text:'you time.'}]:cues;
+   return route.fulfill({contentType:'application/json',body:youtubeEmpty?'':JSON.stringify({events:timeline.map(cue=>({tStartMs:cue.start*1000,dDurationMs:(cue.end-cue.start)*1000,segs:[{utf8:cue.text}]}))})});
+  }
   if(url.pathname==='/x/v2/subtitle/web/view')return route.fulfill({contentType:'application/octet-stream',body:biliMetadata,headers:{'Access-Control-Allow-Origin':'https://www.bilibili.com','Access-Control-Allow-Credentials':'true'}});
   if(url.hostname==='aisubtitle.hdslb.com')return route.fulfill({contentType:'application/json',body:JSON.stringify({body:cues.map(cue=>({from:cue.start,to:cue.end,content:cue.text}))}),headers:{'Access-Control-Allow-Origin':'*','Access-Control-Allow-Credentials':'true'}});
   if(site)return route.fulfill({contentType:'text/html',body:html(site)});
@@ -100,6 +104,23 @@ try{
   assert.equal(await page.locator('[data-wupage-video-native]').count(),0);
   if(site.id==='youtube')assert.equal(await page.locator('.ytp-subtitles-button').getAttribute('aria-pressed'),'false');
   if(site.id==='youtube'){
+   youtubeFragments=true;
+   await page.evaluate(()=>{history.pushState({},'','/watch?v=sentence-fixture');document.dispatchEvent(new Event('yt-navigate-finish'));document.querySelector('video').currentTime=0;});
+   const sentenceStart=calls.length;
+   await view.locator('.toggle').evaluate(button=>button.click());
+   await view.locator('.translation span').filter({hasText:'这个工具能为你节省时间。'}).waitFor();
+   assert.ok(calls.slice(sentenceStart).some(call=>call.texts.includes('This tool can save you time.')));
+   assert.ok(calls.slice(sentenceStart).every(call=>!call.texts.some(text=>['This tool','can save','you time.'].includes(text))));
+   await page.evaluate(()=>{document.querySelector('video').currentTime=.7;});
+   await view.locator('.source span').filter({hasText:'This tool can save you time.'}).waitFor();
+   await view.locator('.translation span').filter({hasText:'这个工具能为你节省时间。'}).waitFor();
+   await page.screenshot({path:path.join(output,'youtube-sentence-fixture.png')});
+   await page.evaluate(()=>{document.querySelector('video').currentTime=1.1;});
+   await page.waitForFunction(()=>document.querySelector('[data-wupage-video]').shadowRoot.querySelector('.translation span').textContent==='');
+   await view.locator('.toggle').evaluate(button=>button.click());
+   youtubeFragments=false;
+   await page.evaluate(()=>{history.pushState({},'','/watch?v=fallback-fixture');document.dispatchEvent(new Event('yt-navigate-finish'));});
+   checks.push('youtube: fragmented JSON3 cues translate as one sentence and share the original time range');
    youtubeEmpty=true;
    await page.evaluate(()=>{document.querySelector('video').currentTime=0;});
    const fallbackStart=calls.length;

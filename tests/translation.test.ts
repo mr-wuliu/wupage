@@ -33,9 +33,13 @@ describe("contextual machine translation", () => {
     ]);
     const fetchMock = vi.fn(async (url: string) => {
       const source = new URL(url).searchParams.get("q")!;
-      const translated = source.includes("WUPAGESEGMENT")
-        ? "⟪WUPAGESEGMENT0⟫\n游戏版本\n⟪WUPAGESEGMENT1⟫\nA lightweight library for game extensions.\n⟪WUPAGESEGMENT2⟫\n下载最新版本。"
-        : translations.get(source);
+      if (source.startsWith("Page title:")) return { ok: true, json: async () => [[
+        ["页面标题：模组列表\n\n", "Page title: 模组列表\n\n"],
+        ["游戏版本\n\n", "游戏版本\n\n"],
+        ["A lightweight library for game extensions.\n\n", "A lightweight library for game extensions.\n\n"],
+        ["下载最新版本。", "Download the latest release."]
+      ]] };
+      const translated = translations.get(source);
       expect(translated).toBeDefined();
       return { ok: true, json: async () => [[[translated, source, null, null]]] };
     });
@@ -54,16 +58,14 @@ describe("contextual machine translation", () => {
     const fetchMock = vi.fn(async (url: string) => {
       const source = new URL(url).searchParams.get("q") ?? "";
       expect(source).toContain("Why variance matters");
-      expect(source).toContain("⟪WUPAGESEGMENT0⟫");
-      expect(source).toContain("⟪WUPAGESEGMENT1⟫");
+      expect(source).not.toContain("WUPAGESEGMENT");
       return {
         ok: true,
-        json: async () => [[[
-          "⟪WUPAGESEGMENT0⟫\n为什么型变很重要\n⟪WUPAGESEGMENT1⟫\n型变涉及用一种类型替换另一种类型的能力。",
-          source,
-          null,
-          null
-        ]]]
+        json: async () => [[
+          ["参考内容。\n\n", source.slice(0, source.indexOf("\n\n") + 2)],
+          ["为什么型变很重要\n\n", "Why variance matters\n\n"],
+          ["型变涉及用一种类型替换另一种类型的能力。", "Variance is about our ability to substitute types for other types."]
+        ]]
       };
     });
     vi.stubGlobal("fetch", fetchMock);

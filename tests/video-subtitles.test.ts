@@ -24,6 +24,35 @@ describe("subtitle files", () => {
 });
 
 describe("subtitle translation scheduling", () => {
+  it("translates a complete sentence once and shows the same bilingual unit across its original cue times", async () => {
+    const fragments = [
+      { start: 0, end: 1, text: "This tool can" }, { start: 1, end: 2, text: "save you a lot" },
+      { start: 2, end: 3, text: "of time." }, { start: 4, end: 5, text: "Try it!" }
+    ];
+    const translate = vi.fn(async (texts: string[]) => texts.map(text => text.startsWith("This") ? "这个工具能为你节省很多时间。" : "试试看！"));
+    const session = new SubtitleTranslator(() => fragments, translate, vi.fn());
+    session.update(0); await flush();
+    expect(translate.mock.calls.map(call => call[0])).toEqual([["This tool can save you a lot of time.", "Try it!"]]);
+    const sentence = { source: "This tool can save you a lot of time.", translation: "这个工具能为你节省很多时间。" };
+    expect(session.current()).toEqual(sentence);
+    session.update(2.5); expect(session.current()).toEqual(sentence);
+    session.update(3); expect(session.current()).toEqual({ source: "", translation: "" });
+    session.update(1); await flush(); expect(session.current()).toEqual(sentence);
+    expect(translate).toHaveBeenCalledTimes(1); session.dispose();
+  });
+  it("rebuilds sentence groups when a native track appends more cues during a request", async () => {
+    const fragments = [{ start: 0, end: 1, text: "This tool can" }];
+    let finish!: (texts: string[]) => void;
+    const translate = vi.fn().mockImplementationOnce(() => new Promise<string[]>(resolve => { finish = resolve; }))
+      .mockResolvedValue(["这个工具能节省时间。"]);
+    const session = new SubtitleTranslator(() => fragments, translate, vi.fn());
+    session.update(0);
+    fragments.push({ start: 1, end: 2, text: "save time." });
+    session.update(.5); finish(["这个工具可以"]); await flush();
+    expect(translate.mock.calls[1][0]).toEqual(["This tool can save time."]);
+    expect(session.current()).toEqual({ source: "This tool can save time.", translation: "这个工具能节省时间。" });
+    session.dispose();
+  });
   it("prefetches only the nearby window, uses end-exclusive cue times, and reuses translations", async () => {
     const translate = vi.fn(async (texts: string[]) => texts.map(text => `译:${text}`));
     const session = new SubtitleTranslator(() => cues, translate, vi.fn());

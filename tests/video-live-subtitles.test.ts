@@ -3,6 +3,37 @@ import { LiveSubtitleTranslator } from "../src/video/live-subtitles";
 beforeEach(() => vi.useFakeTimers());
 afterEach(() => vi.useRealTimers());
 describe("rendered subtitle scheduling", () => {
+  it("retains the beginning of an utterance when the visible ASR window rolls forward", async () => {
+    const translate = vi.fn(async (texts: string[]) => texts.map(text => `译:${text}`));
+    const session = new LiveSubtitleTranslator(translate, vi.fn());
+    session.update("This tool can save you"); await vi.advanceTimersByTimeAsync(150);
+    session.update("can save you a lot of time."); await vi.advanceTimersByTimeAsync(320);
+    expect(translate.mock.calls.map(call => call[0])).toEqual([["This tool can save you a lot of time."]]);
+    expect(session.current().source).toBe("This tool can save you a lot of time.");
+    session.update("A different speaker starts."); await vi.advanceTimersByTimeAsync(320);
+    expect(session.current().source).toBe("A different speaker starts.");
+    session.dispose();
+  });
+  it("bounds accumulated unpunctuated live speech", async () => {
+    const translate = vi.fn(async (texts: string[]) => texts.map(text => `译:${text}`));
+    const session = new LiveSubtitleTranslator(translate, vi.fn());
+    for (let index = 0; index < 80; index++) {
+      session.update(Array.from({ length: 8 }, (_, word) => `word${index + word}`).join(" "));
+      await vi.advanceTimersByTimeAsync(100);
+    }
+    await vi.advanceTimersByTimeAsync(320);
+    expect(translate.mock.calls.length).toBeGreaterThan(0);
+    expect(translate.mock.calls.every(([texts]) => texts[0].length <= 320 && /^word\d/u.test(texts[0]))).toBe(true);
+    session.dispose();
+  });
+  it("does not duplicate punctuation where rolling windows overlap", async () => {
+    const translate = vi.fn(async (texts: string[]) => texts.map(text => `译:${text}`));
+    const session = new LiveSubtitleTranslator(translate, vi.fn());
+    session.update("We saved a lot of time."); await vi.advanceTimersByTimeAsync(150);
+    session.update("a lot of time. Try this."); await vi.advanceTimersByTimeAsync(320);
+    expect(translate.mock.calls.map(call => call[0])).toEqual([["We saved a lot of time. Try this."]]);
+    session.dispose();
+  });
   it("shows translated snapshots while slow ASR captions keep growing, wrapping and rolling", async () => {
     const translate = vi.fn(async (texts: string[]) => {
       await new Promise(resolve => setTimeout(resolve, 700)); return texts.map(text => `译:${text}`);

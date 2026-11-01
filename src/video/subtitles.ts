@@ -1,3 +1,5 @@
+import { subtitleSentences } from "./subtitle-sentences";
+
 export interface SubtitleCue {
   start: number;
   end: number;
@@ -47,6 +49,9 @@ export function parseSubtitles(source: string): SubtitleCue[] {
 /** The scheduler is independent of playback events, so late responses never select a stale cue. */
 export class SubtitleTranslator {
   private readonly cache = new Map<string, string>();
+  private sourceCues?: SubtitleCue[];
+  private sourceLength = -1;
+  private sentences: SubtitleCue[] = [];
   private time = 0;
   private busy = false;
   private disposed = false;
@@ -68,7 +73,7 @@ export class SubtitleTranslator {
   }
 
   current(): { source: string; translation: string } {
-    const active = this.readCues().filter(cue => cue.start <= this.time && cue.end > this.time).slice(0, 8);
+    const active = this.readSentences().filter(cue => cue.start <= this.time && cue.end > this.time).slice(0, 8);
     const texts = [...new Set(active.map(cue => cue.text))];
     return { source: texts.join("\n"), translation: texts.every(text => this.cache.has(text)) ? texts.map(text => this.cache.get(text)!).join("\n") : "" };
   }
@@ -76,9 +81,18 @@ export class SubtitleTranslator {
   retry(): void { this.error = ""; this.update(this.time); }
   dispose(): void { this.disposed = true; this.controller?.abort(); this.cache.clear(); }
 
+  private readSentences(): SubtitleCue[] {
+    const cues = this.readCues();
+    if (cues !== this.sourceCues || cues.length !== this.sourceLength) {
+      this.sourceCues = cues; this.sourceLength = cues.length;
+      this.sentences = subtitleSentences(cues);
+    }
+    return this.sentences;
+  }
+
   private async pump(): Promise<void> {
     if (this.disposed || this.busy || this.error) return;
-    const cues = this.readCues();
+    const cues = this.readSentences();
     const active = cues.filter(cue => cue.start <= this.time && cue.end > this.time);
     const future = cues.filter(cue => cue.start > this.time && cue.start <= this.time + 15);
     const texts: string[] = [];

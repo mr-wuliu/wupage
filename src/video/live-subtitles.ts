@@ -21,6 +21,29 @@ function continues(previous: string, next: string): boolean {
   return false;
 }
 
+function accumulatedCaption(previous: string, next: string): string {
+  const words = (text: string) => [...text.matchAll(/[\p{L}\p{N}]+/gu)];
+  const a = words(previous), b = words(next);
+  let joined = next;
+  for (let count = Math.min(a.length, b.length); count >= 2; count--) {
+    if (a.slice(-count).every((word, index) => word[0].toLowerCase() === b[index][0].toLowerCase())) {
+      const end = b[count - 1].index! + b[count - 1][0].length;
+      const previousEnd = a.at(-1)!.index! + a.at(-1)![0].length;
+      joined = previous.slice(0, previousEnd) + next.slice(end);
+      break;
+    }
+  }
+  if (!previous.includes(" ") && !next.includes(" ")) {
+    for (let count = Math.min(previous.length, next.length); count >= 4; count--) {
+      if (previous.slice(-count) === next.slice(0, count)) { joined = previous + next.slice(count); break; }
+    }
+  }
+  if (joined.length <= 320) return joined;
+  const tail = joined.slice(-320);
+  // Keep a bounded rolling utterance without cutting through a Latin word.
+  return /\s/u.test(tail) ? tail.slice(tail.indexOf(" ") + 1) : tail;
+}
+
 /** Show matching completed snapshots while an ASR utterance continues to evolve. */
 export class LiveSubtitleTranslator {
   private cache = new Map<string, string>();
@@ -48,6 +71,10 @@ export class LiveSubtitleTranslator {
     value = value.replace(/\s+/gu, " ").trim();
     if (this.disposed || value === this.text) return;
     const previous = this.text, now = Date.now();
+    // A rendered ASR window can drop its first words before translation returns.
+    // Retain verified overlap so later requests still contain the whole thought.
+    if (value && previous && continues(previous, value)) value = accumulatedCaption(previous, value);
+    if (value === previous) return;
     this.text = value; this.lastChanged = now;
     clearTimeout(this.timer); clearTimeout(this.emptyTimer);
     if (!value) {
