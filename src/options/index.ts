@@ -974,8 +974,8 @@ async function importSettingsBackup(): Promise<void> {
     // A file exported without keys holds blanks, not a request to clear this browser's copy.
     // Keep the stored key for every provider the file left blank, so restoring a key-less
     // backup on the same machine does not silently break the services it just restored.
-    const { settings: incoming, restoredKeys } = parsed.includesKeys
-      ? { settings: parsed.settings, restoredKeys: 0 }
+    const { settings: incoming, restoredKeys, skippedKeys } = parsed.includesKeys
+      ? { settings: parsed.settings, restoredKeys: 0, skippedKeys: 0 }
       : mergeStoredKeys(parsed.settings, await sendRuntimeMessage<ExtensionSettings>({ type: "GET_SETTINGS" }));
     // The model lives in this browser's cache, not in the file, so a backup taken where it was
     // installed cannot restore the toggle. SAVE_SETTINGS rejects the whole write in that case and
@@ -990,6 +990,9 @@ async function importSettingsBackup(): Promise<void> {
     const notes = [
       parsed.includesKeys ? "" : "文件不含密钥，本机已保存的密钥保持原样。",
       restoredKeys > 0 ? `已保留 ${restoredKeys} 个服务的本机密钥。` : "",
+      skippedKeys > 0
+        ? `有 ${skippedKeys} 个服务的接收地址与本机不同，未复用本机密钥，请重新填写。`
+        : "",
       missingModel ? "本机未安装 OCR 模型，图片翻译保持关闭，装好模型后可在设置里开启。" : ""
     ].filter(Boolean).join("");
     backupStatus.textContent = notes ? `${summary}${notes}` : summary;

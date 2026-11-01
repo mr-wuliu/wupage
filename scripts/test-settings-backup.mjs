@@ -12,6 +12,8 @@ await fs.mkdir(output, { recursive: true });
 
 const DEEPSEEK_KEY = 'sk-smoke-deepseek-0123456789';
 const AZURE_KEY = 'azure-smoke-0123456789';
+const TEMPLATE_KEY = 'http-smoke-0123456789';
+const LLM_KEY = 'sk-smoke-llm-0123456789';
 
 const moduleName = process.env.PLAYWRIGHT_MODULE || 'playwright';
 const { chromium } = await import(path.isAbsolute(moduleName) ? pathToFileURL(moduleName).href : moduleName);
@@ -25,11 +27,21 @@ const context = await chromium.launchPersistentContext(path.join(output, `profil
   viewport: { width: 1000, height: 900 }, acceptDownloads: true
 });
 
-/** Writes a settings object holding two keys in the two shapes into extension storage. */
+/**
+ * Writes a settings object holding credentials in the four shapes the export must handle:
+ * a provider key, a service-mode api block, an HTTP Template header and an LLM request template.
+ */
 const seed = `const stored=await chrome.storage.local.get('wupage.settings');
   let base=stored['wupage.settings'];
   if(!base){const answer=await chrome.runtime.sendMessage({type:'GET_SETTINGS'});base=answer&&answer.data;}
-  const providers=((base&&base.providers)||[]).map(provider=>provider.id==='deepseek'
+  const template={type:'http-template',id:'smoke-template',label:'Smoke Template',enabled:false,
+    method:'POST',url:'https://smoke.example/translate?api_key=${TEMPLATE_KEY}',
+    headers:{'Content-Type':'application/json',Authorization:'Bearer ${TEMPLATE_KEY}'},
+    bodyTemplate:'{"texts":{{json texts}}}',responsePath:'translations'};
+  const llm={type:'openai-compatible',id:'smoke-llm',label:'Smoke LLM',baseURL:'https://smoke.example/v1',
+    apiKey:'${LLM_KEY}',model:'smoke-model',systemPrompt:'Translate to {{targetLang}}',ollamaCompatibility:false,
+    requestTemplate:{enabled:true,headers:'{"x-api-key":"${LLM_KEY}"}',body:'{"texts":"{{json texts}}"}'}};
+  const providers=[...((base&&base.providers)||[]),template,llm].map(provider=>provider.id==='deepseek'
     ?{...provider,apiKey:${JSON.stringify(DEEPSEEK_KEY)}}
     :provider.id==='microsoft-web-translate'
       ?{...provider,serviceMode:'api',api:{...provider.api,apiKey:${JSON.stringify(AZURE_KEY)}}}
@@ -39,11 +51,17 @@ const seed = `const stored=await chrome.storage.local.get('wupage.settings');
 
 const readStored = `const stored=await chrome.storage.local.get('wupage.settings');
   const settings=stored['wupage.settings']||{};
-  const deepseek=(settings.providers||[]).find(provider=>provider.id==='deepseek')||{};
-  const microsoft=(settings.providers||[]).find(provider=>provider.id==='microsoft-web-translate')||{};
+  const providers=settings.providers||[];
+  const byId=id=>providers.find(provider=>provider.id===id)||{};
+  const template=byId('smoke-template');
+  const llm=byId('smoke-llm');
   return {targetLang:settings.targetLang,chunkSize:settings.chunkSize,
-    deepseekKey:deepseek.apiKey||'',azureKey:(microsoft.api||{}).apiKey||'',
-    providers:(settings.providers||[]).length};`;
+    deepseekKey:byId('deepseek').apiKey||'',azureKey:(byId('microsoft-web-translate').api||{}).apiKey||'',
+    templateAuth:(template.headers||{}).Authorization||'',
+    templateUrl:template.url||'',
+    llmKey:llm.apiKey||'',
+    llmHeaders:(llm.requestTemplate||{}).headers||'',
+    providers:providers.length};`;
 
 const reports = [];
 try {
@@ -86,6 +104,9 @@ try {
   assert.equal(defaultFile.includesKeys, false, 'the default export must declare that it carries no keys');
   assert.ok(!defaultText.includes(DEEPSEEK_KEY), 'the default export leaked a provider key');
   assert.ok(!defaultText.includes(AZURE_KEY), 'the default export leaked a service key');
+  // The custom carriers are the shapes the reviewer reproduced: a key outside the fixed fields.
+  assert.ok(!defaultText.includes(TEMPLATE_KEY), 'the default export leaked an HTTP Template credential');
+  assert.ok(!defaultText.includes(LLM_KEY), 'the default export leaked a request template credential');
   assert.equal(defaultFile.settings.providers.length, seeded, 'stripping keys dropped providers');
   assert.equal(defaultFile.settings.activeProviderId, 'deepseek', 'stripping keys changed the active provider');
   assert.match(await page.locator('#backupStatus').textContent(), /未包含翻译服务密钥/u);
@@ -113,6 +134,11 @@ try {
   const after = await api(readStored);
   assert.equal(after.deepseekKey, DEEPSEEK_KEY, 'importing a key-less file blanked the stored provider key');
   assert.equal(after.azureKey, AZURE_KEY, 'importing a key-less file blanked the stored service key');
+  // A same-device round trip must keep the custom carriers working, not just the fixed fields.
+  assert.equal(after.templateAuth, `Bearer ${TEMPLATE_KEY}`, 'importing a key-less file blanked the HTTP Template header');
+  assert.ok(after.templateUrl.includes(TEMPLATE_KEY), 'importing a key-less file blanked the HTTP Template url');
+  assert.equal(after.llmKey, LLM_KEY, 'importing a key-less file blanked the LLM key');
+  assert.ok(after.llmHeaders.includes(LLM_KEY), 'importing a key-less file blanked the request template header');
   assert.match(await page.locator('#backupStatus').textContent(), /本机已保存的密钥保持原样/u);
   reports.push({ case: 'import without keys', keptStoredKeys: true, providers: after.providers });
 

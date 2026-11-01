@@ -1,6 +1,7 @@
 import { normalizeSettings } from "./settings";
-import { supportsServiceMode } from "./translation-service";
-import type { ExtensionSettings, ProviderConfig, TranslationApiOptions } from "./types";
+import { supportsRequestTemplate } from "./request-template";
+import { supportsServiceMode, translationApiOptions } from "./translation-service";
+import type { ExtensionSettings, HttpTemplateConfig, ProviderConfig, TranslationApiOptions } from "./types";
 
 /** Marker written into exported files so a wrong JSON file is rejected clearly. */
 const BACKUP_APP = "wupage";
@@ -36,7 +37,105 @@ export interface ParsedSettingsBackup {
   includesKeys: boolean;
 }
 
-/** Blanks every key in place on a copy, so the provider still passes normalizeSettings. */
+/**
+ * Header names that carry a credential. Matching on the name fragment rather than on a fixed
+ * list keeps an invented header such as `x-custom-auth` covered too: a carrier this export fails
+ * to recognise leaves a key in a file the panel calls "without keys". Compared case-insensitively
+ * because HTTP header names are not case-sensitive and the panel stores what the user typed.
+ */
+const CREDENTIAL_HEADER =
+  /(?:^|-)(?:auth(?:orization)?|api-?key|api_?key|access-?token|token|secret|credential|signature|sig|cookie|session|subscription-?key)(?:$|-)/iu;
+
+/** Member and query-parameter names whose value is the credential itself. */
+const CREDENTIAL_MEMBER =
+  /^(?:auth|api[_-]?key|api[_-]?token|access[_-]?key|access[_-]?token|secret[_-]?access[_-]?key|secret[_-]?key|client[_-]?secret|refresh[_-]?token|id[_-]?token|token|secret|password|passwd|credential|credentials|authorization|signature|sig)$/iu;
+
+/** A credential pasted into a template as a literal instead of as a {{variable}}. */
+const LITERAL_CREDENTIAL_SOURCE = String.raw`\bsk-[A-Za-z0-9_-]{8,}|\bBearer\s+(?!\{\{)[A-Za-z0-9._~+/=-]{8,}`;
+/** Replacement form; the sticky flag keeps `replace` walking the whole value. */
+const LITERAL_CREDENTIAL = new RegExp(LITERAL_CREDENTIAL_SOURCE, "gu");
+/** Detection form; a shared /g state would make consecutive `test` calls disagree. */
+const LITERAL_CREDENTIAL_TEST = new RegExp(LITERAL_CREDENTIAL_SOURCE, "u");
+
+/**
+ * Keeps a template value that renders the key at runtime and drops a literal one. The variable
+ * form is safe because the key it expands from is blanked by this same export.
+ */
+function withoutCredentialValue(value: string): string {
+  return value.includes("{{") ? value.replace(LITERAL_CREDENTIAL, "") : "";
+}
+
+/** Blanks credential members at any depth of a parsed JSON document, keeping its shape. */
+function withoutJsonCredentials(value: unknown): unknown {
+  if (typeof value === "string") return value.replace(LITERAL_CREDENTIAL, "");
+  if (Array.isArray(value)) return value.map(withoutJsonCredentials);
+  const record = asRecord(value);
+  if (!record) return value;
+  return Object.fromEntries(Object.entries(record).map(([name, entry]) => [
+    name,
+    credentialName(name)
+      ? typeof entry === "string" ? withoutCredentialValue(entry) : null
+      : withoutJsonCredentials(entry)
+  ]));
+}
+
+/**
+ * Custom HTTP Template and LLM request templates keep their authentication in free-form text,
+ * so a fixed field list cannot cover them. A JSON template is walked member by member; a template
+ * that only renders variables (the HTTP Template default) is not JSON, so its text is kept and
+ * only literal-shaped credentials are removed.
+ */
+function withoutTemplateCredentials(text: string): string {
+  const trimmed = text.trim();
+  if (!trimmed.startsWith("{") && !trimmed.startsWith("[")) return text.replace(LITERAL_CREDENTIAL, "");
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(trimmed);
+  } catch {
+    // `${...}`-style templates such as {"q":{{json texts}}} are text, not JSON with bad syntax.
+    return text.replace(LITERAL_CREDENTIAL, "");
+  }
+  return JSON.stringify(withoutJsonCredentials(parsed), null, 2);
+}
+
+/**
+ * Drops credentials from an endpoint while keeping the text the user wrote: the URL is edited
+ * in place rather than through `URL`, which would reorder and percent-encode the request.
+ * Template variables such as `{{targetLang}}` are left alone, because they are not credentials.
+ */
+function withoutEndpointCredentials(value: string): string {
+  const cleaned = value.replace(LITERAL_CREDENTIAL, "");
+  // User info in a URL is sent as basic auth on every request.
+  const withoutUserInfo = cleaned.replace(/^([a-z][a-z0-9+.-]*:\/\/)[^/?#]*@/iu, "$1");
+  const hashAt = withoutUserInfo.indexOf("#");
+  const fragment = hashAt === -1 ? "" : withoutUserInfo.slice(hashAt);
+  const address = hashAt === -1 ? withoutUserInfo : withoutUserInfo.slice(0, hashAt);
+  const queryAt = address.indexOf("?");
+  if (queryAt === -1) return withoutUserInfo;
+  const query = address.slice(queryAt + 1).split("&").map((part) => {
+    const name = part.split("=")[0] ?? "";
+    return credentialName(name) ? `${name}=` : part;
+  }).join("&");
+  return `${address.slice(0, queryAt)}?${query}${fragment}`;
+}
+
+/** Query parameters and JSON members arrive percent-encoded, so compare the decoded name. */
+function credentialName(name: string): boolean {
+  let decoded = name;
+  try {
+    decoded = decodeURIComponent(name);
+  } catch {
+    // A malformed escape is not credential-shaped, so it is left for the user to see.
+  }
+  return CREDENTIAL_HEADER.test(decoded) || CREDENTIAL_MEMBER.test(decoded);
+}
+
+/**
+ * Blanks every key in place on a copy, so the provider still passes normalizeSettings. The
+ * supported credential carriers are the key fields, the service-mode api block, the custom
+ * HTTP Template headers and the LLM request template; a carrier this function cannot recognise
+ * would leave a key in a file the panel calls "without keys", so each one is handled here.
+ */
 function withoutProviderKeys(provider: ProviderConfig): ProviderConfig {
   const copy = structuredClone(provider) as ProviderConfig;
   // ProviderConfig is a union, so a keyed write needs the record view the field lists describe.
@@ -51,7 +150,49 @@ function withoutProviderKeys(provider: ProviderConfig): ProviderConfig {
     }
     copy.api = api;
   }
+  if (copy.type === "http-template") {
+    copy.headers = Object.fromEntries(Object.entries(copy.headers).map(([name, value]) => [
+      name,
+      credentialName(name) ? withoutCredentialValue(value) : value.replace(LITERAL_CREDENTIAL, "")
+    ]));
+    copy.url = withoutEndpointCredentials(copy.url);
+    copy.bodyTemplate = withoutTemplateCredentials(copy.bodyTemplate);
+  }
+  if (supportsRequestTemplate(copy) && copy.requestTemplate) {
+    copy.requestTemplate = {
+      enabled: copy.requestTemplate.enabled,
+      headers: withoutTemplateCredentials(copy.requestTemplate.headers),
+      body: withoutTemplateCredentials(copy.requestTemplate.body)
+    };
+  }
   return copy;
+}
+
+/** Whether a template still holds a credential once its variables are ignored. */
+function templateHasCredential(text: string): boolean {
+  const trimmed = text.trim();
+  if (!trimmed.startsWith("{") && !trimmed.startsWith("[")) return LITERAL_CREDENTIAL_TEST.test(trimmed);
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(trimmed);
+  } catch {
+    // Variable-only templates such as {"q":{{json texts}}} are text; only a literal-shaped
+    // credential can be a key there, the same rule the export applies.
+    return LITERAL_CREDENTIAL_TEST.test(trimmed);
+  }
+  return documentHasCredential(parsed);
+}
+
+function documentHasCredential(value: unknown): boolean {
+  if (typeof value === "string") return LITERAL_CREDENTIAL_TEST.test(value);
+  if (Array.isArray(value)) return value.some(documentHasCredential);
+  const record = asRecord(value);
+  if (!record) return false;
+  return Object.entries(record).some(([name, entry]) =>
+    credentialName(name)
+      ? typeof entry === "string" && !entry.includes("{{") && entry.trim() !== ""
+      : documentHasCredential(entry)
+  );
 }
 
 /** Whether this provider currently holds a key the user may not want written to a file. */
@@ -60,11 +201,29 @@ export function providerHasStoredKey(provider: ProviderConfig): boolean {
     const value = (provider as unknown as Record<string, unknown>)[field];
     return typeof value === "string" && value.trim() !== "";
   })) return true;
-  return supportsServiceMode(provider) && Boolean(provider.api)
+  if (supportsServiceMode(provider) && Boolean(provider.api)
     && SERVICE_KEY_FIELDS.some((field) => {
       const value = provider.api?.[field];
       return typeof value === "string" && value.trim() !== "";
-    });
+    })) return true;
+  // The custom carriers hold credentials this export cannot recognise by field name, so any
+  // value left in them counts as a stored key. An HTTP Template renders only the text variables,
+  // so a credential-named header there is always a literal, never a safe `{{apiKey}}`.
+  if (provider.type === "http-template") {
+    const headerHoldsKey = Object.entries(provider.headers).some(([name, value]) =>
+      credentialName(name) ? value.trim() !== "" : templateHasCredential(value)
+    );
+    if (headerHoldsKey) return true;
+    if (templateHasCredential(provider.bodyTemplate)) return true;
+    if (provider.url.includes("{{")) {
+      if (templateHasCredential(provider.url)) return true;
+    } else if (provider.url !== withoutEndpointCredentials(provider.url)) return true;
+  }
+  if (supportsRequestTemplate(provider) && provider.requestTemplate) {
+    if (templateHasCredential(provider.requestTemplate.headers)) return true;
+    if (templateHasCredential(provider.requestTemplate.body)) return true;
+  }
+  return false;
 }
 
 export class SettingsBackupError extends Error {
@@ -164,21 +323,88 @@ export function parseSettingsBackup(text: string): ParsedSettingsBackup {
 }
 
 /**
+ * The hosts a provider sends its credential to. A key-less file may come from another device, a
+ * shared configuration or a hand edit, so matching on id alone would hand a stored key to whatever
+ * address the file names; only the endpoints that receive the credential identify the service.
+ */
+function credentialEndpoints(provider: ProviderConfig): string[] {
+  const record = provider as unknown as Record<string, unknown>;
+  const endpoints: string[] = [];
+  const push = (value: unknown): void => {
+    if (typeof value === "string" && value.trim()) endpoints.push(normalizeEndpoint(value));
+  };
+  // Every LLM type posts its key to baseURL; it is also where a rewired HTTP Template points.
+  push(record.baseURL);
+  push(record.url);
+  // microsoft-translator carries the translator endpoint; the other keyed types post to baseURL.
+  push(record.endpoint);
+  if (supportsServiceMode(provider)) {
+    // The resolved options already fall back to the built-in host, so an unchanged default
+    // compares equal and a rewritten api.endpoint does not.
+    const api = translationApiOptions(provider);
+    push(api.endpoint);
+    // A region or folder selects the account inside that host, so the key does not carry over.
+    push(api.region);
+    push(api.folderId);
+  }
+  push(record.region);
+  return endpoints;
+}
+
+/**
+ * Compares only what identifies the receiving service: scheme, host, port and path. User info
+ * carries basic-auth credentials, a query string or fragment does not address a different
+ * service, and a trailing slash or host letter case is the same address, so none of them may
+ * block a legitimate restore. Values that are not URLs (a region or a folder id) compare as
+ * the bare scope they name.
+ */
+function normalizeEndpoint(value: string): string {
+  const trimmed = value.trim();
+  const address = trimmed.split("#")[0]?.split("?")[0] ?? trimmed;
+  const scheme = /^([a-z][a-z0-9+.-]*:\/\/)/iu.exec(address)?.[1].toLowerCase() ?? "";
+  const rest = scheme ? address.slice(scheme.length) : address;
+  // User info sits before the last `@`; everything after it is the host and path.
+  const host = rest.slice(rest.lastIndexOf("@") + 1);
+  return `${scheme}${host}`.replace(/\/+$/u, "").toLowerCase();
+}
+
+/** Whether the file keeps sending this provider's credential to the address stored here. */
+function keepsCredentialEndpoint(incoming: ProviderConfig, stored: ProviderConfig): boolean {
+  const next = credentialEndpoints(incoming);
+  const previous = credentialEndpoints(stored);
+  // A provider with no endpoint here (an unkeyed built-in) has nothing to compare, and the
+  // caller only restores keys when the stored copy holds one.
+  if (!previous.length) return true;
+  if (!next.length) return true;
+  return next.every((endpoint) => previous.includes(endpoint));
+}
+
+/**
  * Fills keys the incoming file left blank with the ones already stored here. A key that is
  * absent from the file is missing data, not a request to clear this browser's copy; without
  * this an export that strips keys would wipe them on import and the services would stop
  * working. Non-empty incoming keys always win, so editing a file still takes effect.
+ *
+ * The key is not restored when the file points the provider at another endpoint: a key-less
+ * backup can come from another device, a shared configuration or a hand edit, and reusing the
+ * stored key would send this browser's credential to the address the file names.
  */
 export function mergeStoredKeys(
   incoming: ExtensionSettings,
   current: ExtensionSettings
-): { settings: ExtensionSettings; restoredKeys: number } {
+): { settings: ExtensionSettings; restoredKeys: number; skippedKeys: number } {
   let restoredKeys = 0;
+  let skippedKeys = 0;
   const providers = incoming.providers.map((provider) => {
     const existing = current.providers.find(
       (candidate) => candidate.id === provider.id && candidate.type === provider.type
     );
     if (!existing) return provider;
+    if (!keepsCredentialEndpoint(provider, existing)) {
+      // Report it only when a key was actually withheld, so an unchanged import stays quiet.
+      if (providerHasStoredKey(existing)) skippedKeys += 1;
+      return provider;
+    }
     const merged = structuredClone(provider) as ProviderConfig;
     // Same union caveat as in withoutProviderKeys: index through the record view.
     const mergedRecord = merged as unknown as Record<string, unknown>;
@@ -202,10 +428,50 @@ export function mergeStoredKeys(
       }
       if (Object.keys(api).length) merged.api = api;
     }
+    // The custom carriers are blanked by the export, so restoring them here is what keeps a
+    // same-device round trip working. Only a carrier that still equals this browser's own
+    // stripped copy is restored: any other text means the file was edited and the file wins.
+    if (merged.type === "http-template" && existing.type === "http-template") {
+      const stripped = withoutProviderKeys(existing) as HttpTemplateConfig;
+      if (!sameJson(merged.headers, existing.headers) && sameJson(merged.headers, stripped.headers)) {
+        merged.headers = existing.headers;
+        changed = true;
+      }
+      if (merged.bodyTemplate !== existing.bodyTemplate && merged.bodyTemplate === stripped.bodyTemplate) {
+        merged.bodyTemplate = existing.bodyTemplate;
+        changed = true;
+      }
+      if (merged.url !== existing.url && merged.url === stripped.url) {
+        merged.url = existing.url;
+        changed = true;
+      }
+    }
+    if (supportsRequestTemplate(merged) && supportsRequestTemplate(existing)
+      && merged.requestTemplate && existing.requestTemplate) {
+      const stripped = withoutProviderKeys(existing);
+      const strippedTemplate = supportsRequestTemplate(stripped) ? stripped.requestTemplate : undefined;
+      if (strippedTemplate && merged.requestTemplate.headers !== existing.requestTemplate.headers
+        && merged.requestTemplate.headers === strippedTemplate.headers) {
+        merged.requestTemplate = { ...merged.requestTemplate, headers: existing.requestTemplate.headers };
+        changed = true;
+      }
+      if (strippedTemplate && merged.requestTemplate.body !== existing.requestTemplate.body
+        && merged.requestTemplate.body === strippedTemplate.body) {
+        merged.requestTemplate = { ...merged.requestTemplate, body: existing.requestTemplate.body };
+        changed = true;
+      }
+    }
     if (changed) restoredKeys += 1;
     return merged;
   });
-  return { settings: { ...incoming, providers }, restoredKeys };
+  return { settings: { ...incoming, providers }, restoredKeys, skippedKeys };
+}
+
+/** Structural comparison for the free-form carriers, which are objects of strings. */
+function sameJson(left: Record<string, string>, right: Record<string, string>): boolean {
+  const names = Object.keys(left);
+  if (names.length !== Object.keys(right).length) return false;
+  return names.every((name) => left[name] === right[name]);
 }
 
 /** Whether the file actually carried any key, which decides how the import is reported. */

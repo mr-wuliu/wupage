@@ -27,6 +27,63 @@ function settingsWithKeys(): ExtensionSettings {
   return { ...settings, providers };
 }
 
+/** Fictional credentials, so a leak assertion can name the exact string that must not appear. */
+const CUSTOM_SECRETS = [
+  "http-template-secret",
+  "sk-llm-key",
+  "sk-llm-template-secret",
+  "llm-body-secret",
+  "deepseek-secret-query"
+] as const;
+
+/** An LLM provider that keeps its credential in the editable request template as well. */
+function llmProvider(): ProviderConfig {
+  return {
+    type: "openai-compatible", id: "custom-llm", label: "Custom LLM",
+    baseURL: "https://api.example.com/v1", apiKey: "sk-llm-key", model: "gpt-4o-mini",
+    systemPrompt: "Translate to {{targetLang}}", ollamaCompatibility: false,
+    requestTemplate: {
+      enabled: true,
+      headers: JSON.stringify({
+        "Content-Type": "application/json",
+        Authorization: "Bearer {{apiKey}}",
+        "x-api-key": "sk-llm-template-secret",
+        "x-tenant": "wupage-tenant"
+      }, null, 2),
+      body: JSON.stringify({
+        model: "{{model}}",
+        api_key: "llm-body-secret",
+        texts: "{{json texts}}"
+      }, null, 2)
+    }
+  };
+}
+
+/** An HTTP Template plus that LLM: both keep credentials outside the fixed key fields. */
+function settingsWithCustomCredentials(): ExtensionSettings {
+  const template: ProviderConfig = {
+    type: "http-template", id: "http-template", label: "HTTP Template", enabled: true, method: "POST",
+    url: "https://user:pass@api.example.com/translate?api_key=deepseek-secret-query&target={{targetLang}}",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: "Bearer http-template-secret",
+      "x-api-key": "http-template-secret",
+      // An invented header name: a fixed list of well-known names would miss this one.
+      "x-custom-auth": "http-template-secret",
+      "x-tenant": "wupage-tenant"
+    },
+    bodyTemplate: '{"texts":{{json texts}},"target":"{{targetLang}}"}',
+    responsePath: "translations"
+  };
+  // The built-in HTTP Template shares this id, so it is replaced by normalizeSettings rather
+  // than appended, which is the shape the panel actually stores.
+  return normalizeSettings({
+    ...DEFAULT_SETTINGS,
+    activeProviderId: "custom-llm",
+    providers: [...DEFAULT_SETTINGS.providers, template, llmProvider()]
+  });
+}
+
 function keyOf(settings: ExtensionSettings, id: string): string | undefined {
   const provider = settings.providers.find((candidate) => candidate.id === id);
   if (!provider) throw new Error(`missing provider ${id}`);
@@ -188,5 +245,98 @@ describe("settings backup", () => {
     expect(providerHasStoredKey(byId("microsoft-web-translate"))).toBe(true);
     const bare = normalizeSettings(DEFAULT_SETTINGS);
     expect(bare.providers.some(providerHasStoredKey)).toBe(false);
+  });
+
+  it("strips the credentials an HTTP Template keeps outside its key fields", () => {
+    // Reported risk: a default export said "without keys" while the custom carriers still held one.
+    const settings = settingsWithCustomCredentials();
+    const file = createSettingsBackup(settings);
+    expect(file.includesKeys).toBe(false);
+    const written = JSON.stringify(file);
+    for (const secret of CUSTOM_SECRETS) expect(written).not.toContain(secret);
+    // The non-credential header must survive, or the export would break the request.
+    const template = file.settings.providers.find((provider) => provider.id === "http-template")!;
+    expect((template as unknown as { headers: Record<string, string> }).headers["x-tenant"])
+      .toBe("wupage-tenant");
+    expect(settingsBackupHasKeys(file.settings)).toBe(false);
+  });
+
+  it("keeps the credential carriers usable after stripping", () => {
+    // The point of blanking instead of deleting: the provider must survive an import.
+    const file = createSettingsBackup(settingsWithCustomCredentials());
+    const restored = parseSettingsBackup(JSON.stringify(file)).settings;
+    const template = restored.providers.find((provider) => provider.id === "http-template");
+    expect(template).toBeDefined();
+    // A variable-only template is not JSON, so the text the user wrote has to survive verbatim.
+    expect((template as unknown as Record<string, unknown>).bodyTemplate)
+      .toBe('{"texts":{{json texts}},"target":"{{targetLang}}"}');
+    const llm = restored.providers.find((provider) => provider.id === "custom-llm");
+    expect(llm).toBeDefined();
+    expect(JSON.stringify(llm)).toContain("{{apiKey}}");
+  });
+
+  it("keeps the variables a request template renders at runtime", () => {
+    const file = createSettingsBackup(settingsWithCustomCredentials());
+    const llm = file.settings.providers.find((provider) => provider.id === "custom-llm")!;
+    const headers = JSON.parse((llm as unknown as { requestTemplate: { headers: string } }).requestTemplate.headers);
+    // The stored key is blank, so the header must still be built from the variable.
+    expect(headers.Authorization).toBe("Bearer {{apiKey}}");
+    expect(headers["x-api-key"]).toBe("");
+    expect(headers["x-tenant"]).toBe("wupage-tenant");
+  });
+
+  it("leaves this browser's custom credentials when the file matches its own export", () => {
+    // Exporting and re-importing on the same device must not disarm a working service.
+    const current = settingsWithCustomCredentials();
+    const incoming = parseSettingsBackup(JSON.stringify(createSettingsBackup(current))).settings;
+    const { settings: merged, restoredKeys } = mergeStoredKeys(incoming, current);
+    const template = merged.providers.find((provider) => provider.id === "http-template")!;
+    expect((template as unknown as { headers: Record<string, string> }).headers.Authorization)
+      .toBe("Bearer http-template-secret");
+    const llm = merged.providers.find((provider) => provider.id === "custom-llm")!;
+    expect(JSON.stringify(llm)).toContain("sk-llm-template-secret");
+    expect(restoredKeys).toBeGreaterThanOrEqual(2);
+  });
+
+  it("does not reuse a stored key once the file moves the provider to another host", () => {
+    // Reported risk: a key-less file kept this browser's key while rewriting where it is sent.
+    const current = normalizeSettings({
+      ...DEFAULT_SETTINGS, activeProviderId: "custom-llm",
+      providers: [{ ...llmProvider(), baseURL: "https://host-a.example/v1", apiKey: "sk-stored-key" }]
+    });
+    const incoming = normalizeSettings({
+      ...DEFAULT_SETTINGS, activeProviderId: "custom-llm",
+      providers: [{ ...llmProvider(), baseURL: "https://host-b.example/v1", apiKey: "" }]
+    });
+    const { settings: merged, restoredKeys, skippedKeys } = mergeStoredKeys(incoming, current);
+    expect(keyOf(merged, "custom-llm")).toBe("");
+    expect(restoredKeys).toBe(0);
+    expect(skippedKeys).toBe(1);
+  });
+
+  it("still reuses a key when only the URL spelling changed", () => {
+    // Trim, trailing slash and host case do not move the credential to another service.
+    const current = settingsWithCustomCredentials();
+    const incoming = structuredClone(current);
+    incoming.providers = incoming.providers.map((provider) => provider.id === "custom-llm"
+      ? { ...provider, baseURL: "HTTPS://API.Example.COM/v1/" } as ProviderConfig : provider);
+    const { settings: merged, restoredKeys, skippedKeys } = mergeStoredKeys(
+      parseSettingsBackup(JSON.stringify(createSettingsBackup(incoming))).settings, current
+    );
+    expect(keyOf(merged, "custom-llm")).toBe("sk-llm-key");
+    expect(restoredKeys).toBeGreaterThanOrEqual(1);
+    expect(skippedKeys).toBe(0);
+  });
+
+  it("does not reuse a service-mode key after the endpoint is rewritten", () => {
+    const current = settingsWithKeys();
+    const incoming = structuredClone(parseSettingsBackup(JSON.stringify(createSettingsBackup(current))).settings);
+    incoming.providers = incoming.providers.map((provider) => {
+      if (provider.id !== "microsoft-web-translate" || !supportsServiceMode(provider)) return provider;
+      return { ...provider, api: { ...provider.api, endpoint: "https://collector.example" } } as ProviderConfig;
+    });
+    const { settings: merged, skippedKeys } = mergeStoredKeys(incoming, current);
+    expect(apiKeyOf(merged, "microsoft-web-translate")).toBe("");
+    expect(skippedKeys).toBe(1);
   });
 });
