@@ -2,6 +2,7 @@ import { TARGET_LANGUAGES } from "../shared/languages";
 import type { ExtensionSettings } from "../shared/types";
 import { normalizeVideoTranslation, type VideoTranslationSettings } from "../shared/video";
 import { uiIconMarkup } from "../shared/ui-icons";
+import { setHtmlContent } from "../shared/html";
 
 let nextView = 0;
 export interface VideoViewActions {
@@ -66,7 +67,7 @@ export class VideoView {
 
   constructor(actions: VideoViewActions, label: string) {
     this.host.id = this.id; this.host.dataset.wupageVideo = ""; this.host.setAttribute("translate", "no");
-    this.root.innerHTML = `<style>${styles}</style>
+    setHtmlContent(this.root, `<style>${styles}</style>
       <div class="toolbar" role="group" aria-label="视频字幕翻译">
         <button class="toggle" type="button" aria-pressed="false" title="翻译视频字幕"><span class="mark" aria-hidden="true">译</span><span class="label">字幕翻译</span></button>
         <button class="settings" type="button" aria-label="字幕设置" title="字幕设置" aria-expanded="false">${uiIconMarkup("settings")}</button>
@@ -86,7 +87,7 @@ export class VideoView {
           <button class="import" type="button">导入 SRT / VTT</button><input class="file" type="file" accept=".srt,.vtt" hidden>
           <p class="help">仅翻译字幕文本，不采集音频。在线翻译使用所选服务的额度。</p>
         </details>
-      </section><div class="notice" role="status" hidden></div>`;
+      </section><div class="notice" role="status" hidden></div>`);
     const query = <T extends Element>(selector: string) => this.root.querySelector<T>(selector)!;
     this.panel = query(".panel"); this.toggle = query(".toggle"); this.label = query(".label"); this.caption = query(".captions");
     this.source = query(".source span"); this.translation = query(".translation span"); this.status = query(".status"); this.notice = query(".notice"); this.retry = query(".retry");

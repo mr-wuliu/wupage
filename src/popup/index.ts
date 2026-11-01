@@ -369,16 +369,14 @@ async function togglePageTranslation(): Promise<void> {
       await loadTranslationState();
     } else {
       const failed = result.failed ?? 0;
+      const success = result.remaining
+        ? result.translated ? `已翻译当前区域 ${result.translated} 段，滚动页面将继续翻译。` : "当前区域暂无可翻译内容，滚动页面将继续翻译。"
+        : result.translated ? `已翻译 ${result.translated} 段，缓存命中 ${result.cached ?? 0} 段。` : "当前区域暂无可翻译内容，新内容加载后将自动翻译。";
       setStatus(
         failed > 0
           ? `已翻译 ${result.translated ?? 0} 段，失败 ${failed} 段：${result.error ?? ""}`
-          : result.pending
-            ? "正在翻译当前区域，后续内容将自动继续翻译。"
-            : result.remaining
-              ? `已翻译当前区域 ${result.translated ?? 0} 段，滚动页面将继续翻译。`
-              : result.translated
-                ? `已翻译 ${result.translated} 段，缓存命中 ${result.cached ?? 0} 段。`
-                : "当前区域暂无可翻译内容，新内容加载后将自动翻译。"
+          : result.error ? `翻译未完成：${result.error}`
+            : result.pending ? "正在翻译当前区域，后续内容将自动继续翻译。" : success
       );
     }
   } catch (error) {

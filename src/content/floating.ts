@@ -1,4 +1,5 @@
 import { uiIconMarkup } from "../shared/ui-icons";
+import { setHtmlContent } from "../shared/html";
 import type {
   ExtensionSettings,
   RuntimeRequest,
@@ -354,7 +355,7 @@ function createMenu(): void {
   menu.hidden = true;
   menu.setAttribute("role", "dialog");
   menu.setAttribute("aria-label", "WuPage 翻译");
-  menu.innerHTML = `
+  setHtmlContent(menu, `
     <div class="wupage-menu-top">
     <div class="wupage-menu-header">
       <strong>WuPage</strong>
@@ -441,7 +442,7 @@ function createMenu(): void {
       <button type="button" data-action="retranslate" hidden>重新翻译</button>
       <button type="button" data-action="doubao-settings" hidden>豆包登录与检测</button>
     </div>
-  `;
+  `);
   const pointerMedia = window.matchMedia?.("(any-hover: none) and (any-pointer: coarse)");
   const updateParagraphVisibility = () => {
     const button = menu.querySelector<HTMLButtonElement>('[data-action="paragraph-mode"]')!;
@@ -943,20 +944,20 @@ export function refreshTranslationState(): void {
   }
   const retry = menu.querySelector<HTMLButtonElement>("[data-action='retranslate']");
   if (retry) {
-    retry.hidden = !translationEnabled && state.failed === 0 && !menuError;
+    retry.hidden = !translationEnabled && state.failed === 0 && !state.error && !menuError;
     retry.disabled = busy || retrySeconds > 0;
-    const retryLabel = retrySeconds > 0 ? `等待 ${retrySeconds} 秒后重试` : state.failed > 0 || menuError ? "重试翻译" : "重新翻译";
+    const retryLabel = retrySeconds > 0 ? `等待 ${retrySeconds} 秒后重试` : state.failed > 0 || state.error || menuError ? "重试翻译" : "重新翻译";
     if (retry.textContent !== retryLabel) retry.textContent = retryLabel;
   }
   const status = menu.querySelector<HTMLElement>("[data-role='translation-status']");
   if (status) {
-    status.dataset.tone = menuError || state.failed > 0 ? "error" : "normal";
+    status.dataset.tone = menuError || state.error || state.failed > 0 ? "error" : "normal";
     let message = menuError
       ?? (busy
         ? `正在翻译当前区域${state.translated ? `，已完成 ${state.translated} 段` : ""}，点击「原」可停止并恢复原文。`
         : state.failed > 0
           ? `已翻译 ${state.translated} 段，失败 ${state.failed} 段。${state.error ?? "请重试。"}`
-          : state.translated > 0
+          : state.error ? `翻译未完成：${state.error}` : state.translated > 0
             ? `已翻译 ${state.translated} 段${state.cached ? ` · 缓存命中 ${state.cached} 段` : ""}。滚动页面继续翻译。`
             : translated
               ? "已显示译文，点击悬浮球可恢复原文。"
@@ -1008,7 +1009,7 @@ export async function openDebugPanel(): Promise<void> {
 
   const panel = document.createElement("section");
   panel.id = DEBUG_PANEL_ID;
-  panel.innerHTML = `
+  setHtmlContent(panel, `
     <header>
       <strong>Debug</strong>
       <button type="button" data-action="close-debug" title="关闭" aria-label="关闭 Debug 面板">${uiIconMarkup("cross")}</button>
@@ -1016,7 +1017,7 @@ export async function openDebugPanel(): Promise<void> {
     <div class="wupage-debug-summary">正在读取任务...</div>
     <div class="wupage-debug-list"></div>
     <div class="wupage-debug-resize" title="调整窗口大小" aria-label="调整 Debug 窗口大小"></div>
-  `;
+  `);
   const header = panel.querySelector("header");
   const resizeHandle = panel.querySelector<HTMLElement>(".wupage-debug-resize");
   header?.addEventListener("pointerdown", startDebugDrag);
@@ -1369,7 +1370,7 @@ function updateAutoTranslationSiteButton(menu: HTMLElement, value: ExtensionSett
   const added = hasAutoTranslationWebsite(value, window.location.href);
   add.hidden = !normalizeAutoTranslation(value).enabled;
   add.disabled = !pattern || automatic.getAttribute("aria-busy") === "true" || add.getAttribute("aria-busy") === "true";
-  add.innerHTML = uiIconMarkup(added ? "tick" : "plus");
+  setHtmlContent(add, uiIconMarkup(added ? "tick" : "plus"));
   add.setAttribute("aria-pressed", String(added));
   const label = !pattern ? "请切换到普通网页后再添加网站" : added ? `将 ${pattern} 排除自动翻译` : `将 ${pattern} 加入自动翻译列表`;
   add.title = label;

@@ -1,6 +1,7 @@
 import { sendRuntimeMessage } from "./messaging";
 import { OCR_DESCRIPTION, type OcrStatus } from "./ocr";
 import { uiIconMarkup } from "./ui-icons";
+import { setHtmlContent } from "./html";
 
 interface OcrControlOptions {
   elements?: { action: HTMLButtonElement; description: HTMLElement; status: HTMLElement; progress: HTMLProgressElement };
@@ -24,7 +25,7 @@ export function setImageTranslationToggle(toggle: HTMLButtonElement | HTMLInputE
 function setupHelp(action: HTMLButtonElement, contents: HTMLElement[], helpId: string): { position: () => void; hide: () => void } {
   const help = document.createElement("div"); help.className = "ocr-help";
   const trigger = document.createElement("button");
-  trigger.type = "button"; trigger.className = "ocr-help-trigger"; trigger.innerHTML = uiIconMarkup("question-mark");
+  trigger.type = "button"; trigger.className = "ocr-help-trigger"; setHtmlContent(trigger, uiIconMarkup("question-mark"));
   trigger.setAttribute("aria-label", "图片翻译说明与模型状态");
   trigger.setAttribute("aria-describedby", helpId);
   const panel = document.createElement("div");
@@ -73,7 +74,7 @@ export function setupOcrControl(toggle: HTMLButtonElement | HTMLInputElement, on
   let refreshing: Promise<void> | undefined;
   toggle.disabled = true;
   button.disabled = true;
-  button.innerHTML = uiIconMarkup("wrench");
+  setHtmlContent(button, uiIconMarkup("wrench"));
 
   function render(value: OcrStatus): void {
     const wasInstalled = current?.state === "installed";
@@ -85,7 +86,7 @@ export function setupOcrControl(toggle: HTMLButtonElement | HTMLInputElement, on
     if (!installed) setImageTranslationToggle(toggle, false);
     button.disabled = acting || installing;
     button.dataset.state = value.state;
-    button.innerHTML = uiIconMarkup(installed ? "trash" : "wrench");
+    setHtmlContent(button, uiIconMarkup(installed ? "trash" : "wrench"));
     button.title = installed ? "删除 OCR 模型并关闭图片翻译" : installing ? "正在安装 OCR 模型" : "安装 OCR 模型（约 20.5 MB）";
     button.setAttribute("aria-label", button.title);
     progress.hidden = !installing;

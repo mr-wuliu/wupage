@@ -123,6 +123,16 @@ describe("popup translation interactions", () => {
     await vi.waitFor(() => expect(document.querySelector("#status")?.textContent).toContain("本次翻译已取消"));
     expect(button().textContent).toBe("翻译全文");
   });
+  it("preserves document startup errors even without a failed-paragraph count", async () => {
+    translate.mockResolvedValue({ translated: 0, failed: 0, error: "Document initialization failed" });
+    button().click();
+    await vi.waitFor(() => expect(document.querySelector("#status")?.textContent).toBe("翻译未完成：Document initialization failed"));
+  });
+  it("does not claim success when only offscreen paragraphs remain", async () => {
+    translate.mockResolvedValue({ translated: 0, remaining: 8, pending: 0 });
+    button().click();
+    await vi.waitFor(() => expect(document.querySelector("#status")?.textContent).toBe("当前区域暂无可翻译内容，滚动页面将继续翻译。"));
+  });
 
   it("reports a running batch instead of claiming zero completed segments", async () => {
     translate.mockResolvedValue({ translated: 0, cached: 0, pending: 2 });

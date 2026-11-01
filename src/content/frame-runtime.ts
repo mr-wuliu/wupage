@@ -23,7 +23,9 @@ export function installFrameRuntime(documentKey: string, options: { top: boolean
   let registered = false;
   let desiredActive: boolean | undefined;
   let resumeAfterRestore = false;
-  const documentState = () => ({ ...getLocalPageTranslationState(), documentHidden: !frameIsRendered() });
+  let applyError: string | undefined;
+  let applyVersion = 0;
+  const documentState = () => ({ ...getLocalPageTranslationState(), ...(applyError ? { error: applyError } : {}), documentHidden: !frameIsRendered() });
   const updateSnapshot = (value: FrameSessionSnapshot) => {
     if (options.top && value.topDocument && value.topDocument !== documentKey) return;
     if (!snapshot || value.revision >= snapshot.revision) { snapshot = value; if (options.top) notifyCoordinatedPageState(); }
@@ -50,6 +52,8 @@ export function installFrameRuntime(documentKey: string, options: { top: boolean
     if (desiredActive === false && value.active) return documentState();
     if (!allowed || !value.active) {
       appliedId = value.id;
+      applyVersion++;
+      applyError = undefined;
       if (getLocalPageTranslationState().active || hasPageTranslations()) hideLocalPageTranslation(false);
       setPageRequestIdentity(undefined); report();
       return documentState();
@@ -58,8 +62,18 @@ export function installFrameRuntime(documentKey: string, options: { top: boolean
       setLocalPageTranslationDisplayMode(value.settings.translationDisplayMode); report(); return documentState();
     }
     appliedId = value.id;
+    const version = ++applyVersion;
+    applyError = undefined;
     setPageRequestIdentity({ id: value.id, documentKey });
-    await startLocalPageTranslation(value.settings, reuseResults);
+    try {
+      await startLocalPageTranslation(value.settings, reuseResults);
+    } catch (error) {
+      if (version === applyVersion) {
+        applyError = error instanceof Error ? error.message : String(error);
+        report();
+      }
+      throw error;
+    }
     report(); return documentState();
   }
 

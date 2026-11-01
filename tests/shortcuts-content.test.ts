@@ -49,6 +49,31 @@ describe("translation shortcut actions", () => {
     finish(settings); await pending;
     expect(mocks.start).not.toHaveBeenCalled(); expect(notice()).toContain("恢复原文");
   });
+  it("explains an empty viewport without reporting a successful zero-paragraph translation", async () => {
+    mocks.start.mockImplementationOnce(async () => { active = true; return { translated: 0, failed: 0, remaining: 0 }; });
+    await execute("toggle-page-translation");
+    expect(notice()).toContain("暂无可翻译内容");
+    expect(notice()).not.toContain("已翻译 0 段");
+  });
+  it("reports pending frame work before any paragraphs finish", async () => {
+    mocks.start.mockImplementationOnce(async () => { active = true; return { translated: 0, failed: 0, remaining: 0 }; });
+    mocks.getState.mockImplementation(() => ({ active, pending: active ? 2 : 0 }));
+    await execute("toggle-page-translation");
+    expect(notice()).toContain("正在翻译当前区域");
+    expect(notice()).not.toContain("已翻译 0 段");
+  });
+  it("does not announce a cancelled scan as successful when another session is active", async () => {
+    mocks.start.mockImplementationOnce(async () => { active = true; return { translated: 0, failed: 0, remaining: 0, cancelled: true }; });
+    await execute("toggle-page-translation");
+    expect(notice()).not.toContain("已翻译 0 段");
+    expect(notice()).not.toContain("暂无可翻译内容");
+  });
+  it("shows session errors even when no paragraph failure count is available", async () => {
+    mocks.start.mockImplementationOnce(async () => { active = true; return { translated: 0, failed: 0, remaining: 0, error: "Document could not start" }; });
+    await execute("toggle-page-translation");
+    expect(notice()).toContain("Document could not start");
+    expect(notice()).not.toContain("已翻译 0 段");
+  });
   it("stops in-flight translation and ignores its late result", async () => {
     let finish!: (value: unknown) => void;
     mocks.start.mockImplementationOnce(() => { active = true; return new Promise(resolve => { finish = resolve; }); });

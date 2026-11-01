@@ -51,9 +51,13 @@ async function togglePage(): Promise<void> {
     if (getPageTranslationState().active) return;
     showShortcutNotice("正在翻译全文，再次操作可恢复原文。");
     const result = await startPageTranslation(settings);
-    if (revision !== pageRevision || !getPageTranslationState().active) return;
+    const state = getPageTranslationState();
+    if (revision !== pageRevision || result.cancelled || !state.active) return;
     if (result.failed) showShortcutNotice(`部分段落翻译失败：${result.error ?? "请检查翻译服务设置。"}`, true);
-    else showShortcutNotice(`已翻译 ${result.translated} 段${result.remaining ? "，滚动页面继续翻译" : ""}。`);
+    else if (result.error) showShortcutNotice(`翻译未完成：${result.error}`, true);
+    else if (state.pending) showShortcutNotice("正在翻译当前区域，后续内容将自动继续翻译。");
+    else if (result.translated) showShortcutNotice(`已翻译 ${result.translated} 段${result.remaining ? "，滚动页面继续翻译" : ""}。`);
+    else showShortcutNotice("当前区域暂无可翻译内容，新内容加载或滚动页面后将自动翻译。");
     refreshTranslationState();
   } catch (error) {
     if (revision === pageRevision) throw error;

@@ -7,8 +7,9 @@ import type { ExtensionSettings, RuntimeRequest } from "../src/shared/types";
 
 vi.mock("../src/content/runtime", () => ({ sendRuntimeRequest: vi.fn() }));
 
-import { getParagraphMode, initFloatingBall, setParagraphMode } from "../src/content/floating";
+import { getParagraphMode, initFloatingBall, refreshTranslationState, setParagraphMode } from "../src/content/floating";
 import { clearPageTranslation, getPageTranslationState, startPageTranslation } from "../src/content/page-translation";
+import * as pageTranslation from "../src/content/page-translation";
 import { sendRuntimeRequest } from "../src/content/runtime";
 import { injectContentStyles } from "../src/content/styles";
 import { ProviderError } from "../src/shared/errors";
@@ -100,6 +101,14 @@ describe("floating translation interactions", () => {
     expect(query(".wupage-provider-trigger .wupage-provider-name").textContent)
       .toBe(stored.providers.find((entry) => entry.id === stored.activeProviderId)!.label);
     expect(query<HTMLSelectElement>("[data-role='display-mode']").value).toBe(stored.translationDisplayMode);
+  });
+  it("shows document startup errors instead of an empty-viewport message", () => {
+    vi.spyOn(pageTranslation, "getPageTranslationState").mockReturnValue({ active: true, translated: 0, cached: 0, failed: 0, pending: 0, remaining: 0, error: "Document initialization failed" });
+    refreshTranslationState();
+    const status = query<HTMLElement>("[data-role='translation-status']");
+    expect(status.textContent).toBe("翻译未完成：Document initialization failed");
+    expect(status.dataset.tone).toBe("error");
+    expect(query<HTMLElement>("[data-action='retranslate']").textContent).toBe("重试翻译");
   });
 
   it("opens after 500 ms of hover and allows crossing the gap before closing on leave", () => {

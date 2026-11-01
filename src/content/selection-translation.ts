@@ -7,6 +7,7 @@ import { SELECTION_TRANSLATION_STYLES } from "./selection-translation-styles";
 import { normalizeShortcutEnabled } from "../shared/shortcuts";
 import { formatLocalShortcut, matchesLocalShortcut, normalizeLocalShortcuts } from "../shared/local-shortcuts";
 import { uiIconMarkup } from "../shared/ui-icons";
+import { setHtmlContent } from "../shared/html";
 
 const HOST_ID = "wupage-selection-tools";
 const EXCLUDED = "input,textarea,select,button,[contenteditable]:not([contenteditable='false']),[role='textbox'],#wupage-selection-tools,#wupage-floating-hitbox,#wupage-floating-menu,#wupage-debug-panel,#wupage-image-tools";
@@ -99,7 +100,7 @@ export class SelectionTranslationController {
     this.translationService.className = "translation-service";
     this.translationService.hidden = true;
     const close = document.createElement("button");
-    close.type = "button"; close.className = "close"; close.innerHTML = uiIconMarkup("cross");
+    close.type = "button"; close.className = "close"; setHtmlContent(close, uiIconMarkup("cross"));
     close.setAttribute("aria-label", "关闭划词翻译");
     close.addEventListener("click", () => this.close());
     header.append(this.word, this.providerSelect, this.translationService, close);
@@ -391,7 +392,7 @@ export class SelectionTranslationController {
       line.append(label);
       if (pronunciation.audioUrl) {
         const button = document.createElement("button");
-        button.type = "button"; button.className = "speak"; button.innerHTML = uiIconMarkup("volume");
+        button.type = "button"; button.className = "speak"; setHtmlContent(button, uiIconMarkup("volume"));
         button.setAttribute("aria-label", `播放${accent === "读音" ? "单词" : `${accent}式`}发音`);
         button.addEventListener("click", () => { void this.play(entry.provider, pronunciation.audioUrl!, button, version); });
         line.append(button);

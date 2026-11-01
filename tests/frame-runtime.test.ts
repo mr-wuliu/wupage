@@ -85,4 +85,29 @@ describe("document session control ordering", () => {
     expect(await starting).toMatchObject({ cancelled: true, translated: 0 });
     await stopping;
   });
+  it("retains initialization errors in delayed reports and clears them when stopped", async () => {
+    const runtime = installFrameRuntime("document", { top: false });
+    f.start.mockRejectedValueOnce(new Error("Document initialization failed"));
+    await expect(runtime.apply(snapshot(2, true))).rejects.toThrow("Document initialization failed");
+    await vi.advanceTimersByTimeAsync(60);
+    expect(f.send).toHaveBeenLastCalledWith(expect.objectContaining({ type: "FRAME_REPORT", state: expect.objectContaining({ error: "Document initialization failed" }) }));
+    const stopped = await runtime.apply(snapshot(3, false));
+    expect(stopped).not.toHaveProperty("error");
+    await vi.advanceTimersByTimeAsync(60);
+    const reports = f.send.mock.calls.map(([request]) => request as RuntimeRequest).filter(request => request.type === "FRAME_REPORT");
+    expect(reports.at(-1)).toMatchObject({ type: "FRAME_REPORT", sessionId: "session-3", state: { active: false } });
+  });
+  it("does not let a late initialization failure overwrite a newer session", async () => {
+    const runtime = installFrameRuntime("document", { top: false });
+    let reject!: (error: Error) => void;
+    f.start.mockImplementationOnce(() => new Promise((_resolve, fail) => { reject = fail; }));
+    const old = runtime.apply(snapshot(2, true));
+    await runtime.apply(snapshot(3, true));
+    const rejected = expect(old).rejects.toThrow("Old initialization failed");
+    reject(new Error("Old initialization failed")); await rejected;
+    await vi.advanceTimersByTimeAsync(60);
+    const report = f.send.mock.calls.at(-1)![0];
+    expect(report).toMatchObject({ type: "FRAME_REPORT", sessionId: "session-3", state: { active: true } });
+    expect(report.state).not.toHaveProperty("error");
+  });
 });

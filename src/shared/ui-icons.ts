@@ -1,4 +1,5 @@
 import icons from "./game-icons/icons.json";
+import { setHtmlContent } from "./html";
 
 // Nieobie/game-icon-pack, CC0 1.0. Vendored from b1a5fec8b68c99e7b46484db707610ab2414ad4c.
 // Source SVG geometry is unchanged; sizing and accessibility are set for UI use.
@@ -19,6 +20,6 @@ export function uiIconMarkup(name: UiIconName): string {
 export function renderUiIcons(root: ParentNode = document): void {
   for (const element of root.querySelectorAll<HTMLElement>("[data-wupage-icon]")) {
     const name = element.dataset.wupageIcon;
-    if (name && Object.hasOwn(icons, name)) element.innerHTML = uiIconMarkup(name as UiIconName);
+    if (name && Object.hasOwn(icons, name)) setHtmlContent(element, uiIconMarkup(name as UiIconName));
   }
 }

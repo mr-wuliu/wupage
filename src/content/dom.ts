@@ -2020,7 +2020,7 @@ function decideSkipElement(
   if (isCompactControlText(element)) {
     return Boolean(element.closest(COMPACT_CONTROL_SKIP_SELECTOR));
   }
-  if (SKIP_TAGS.has(element.tagName)) return true;
+  if (SKIP_TAGS.has(element.tagName.toUpperCase())) return true;
   if (isCompactNavigationText(element)) {
     if (!includeNavigation && !element.closest(KNOWN_COMPACT_NAV_SELECTOR)) return true;
     return Boolean(element.closest(COMPACT_NAV_SKIP_SELECTOR));

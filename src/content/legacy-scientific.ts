@@ -44,7 +44,7 @@ export function prepareLegacyScientificParagraphs(root: Element): void {
   };
   for (const node of [...doc.body.childNodes]) {
     if (node instanceof Text || node.nodeType === Node.COMMENT_NODE) { run.push(node); continue; }
-    if (node instanceof Element && INLINE.test(node.tagName) && !sourceRuns.has(node as HTMLElement)
+    if (node instanceof Element && INLINE.test(node.tagName.toUpperCase()) && !sourceRuns.has(node as HTMLElement)
       && !node.matches('[clear], [role], [contenteditable], .wupage-translation, .wupage-translation-pending')
       && !node.querySelector(BLOCKS)) {
       run.push(node);

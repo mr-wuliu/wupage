@@ -1,6 +1,6 @@
 import type { ExtensionSettings, RuntimeRequest, RuntimeResponse, TranslateBatchRequest } from "../shared/types";
 import {
-  aggregateDocumentStates, frameExclusion, frameTranslationIdentity,
+  aggregateDocumentStates, emptyDocumentState, frameExclusion, frameTranslationIdentity,
   type DocumentTranslationState, type FrameDiagnostic, type FrameSessionRequest, type FrameSessionSnapshot
 } from "../shared/frame-session";
 import { getSettings } from "../shared/settings";
@@ -112,7 +112,7 @@ export class FrameSessionManager {
       if (frame.documentKey !== request.documentKey || this.exclusion(tab, frame)) return null;
       frame.state = request.state;
       frame.reason = request.state.documentHidden ? "等待嵌入页面显示" : undefined;
-      frame.status = request.state.failed ? "failed" : request.state.documentHidden ? "waiting-viewport" : request.state.pending ? "translating"
+      frame.status = request.state.failed || request.state.error ? "failed" : request.state.documentHidden ? "waiting-viewport" : request.state.pending ? "translating"
         : request.state.remaining ? "waiting-viewport" : request.state.translated ? "ready" : "empty";
       this.publish(tabId, tab); return null;
     }
@@ -327,12 +327,14 @@ export class FrameSessionManager {
           snapshot, allowed, reuseResults }) as DocumentTranslationState;
         if (tab.id === snapshot.id && tab.frames.get(frame.frameId) === frame && value) {
           frame.state = value; frame.reason = value.documentHidden ? "等待嵌入页面显示" : undefined;
-          frame.status = value.failed ? "failed" : value.documentHidden ? "waiting-viewport" : value.pending ? "translating"
+          frame.status = value.failed || value.error ? "failed" : value.documentHidden ? "waiting-viewport" : value.pending ? "translating"
             : value.remaining ? "waiting-viewport" : value.translated ? "ready" : "empty";
         }
       } catch (error) {
         if (tab.id === snapshot.id && tab.frames.get(frame.frameId) === frame) {
           frame.status = "unavailable"; frame.reason = error instanceof Error ? error.message : String(error);
+          // A document that could not start must not aggregate as a successful empty page.
+          frame.state = { ...emptyDocumentState(), ...(tab.active && allowed ? { error: frame.reason } : {}) };
         }
       }
     }));

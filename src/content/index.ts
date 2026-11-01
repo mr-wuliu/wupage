@@ -27,13 +27,17 @@ import { installFrameRuntime } from "./frame-runtime";
 import { createDocumentKey } from "../shared/frame-session";
 import { initVideoSubtitles, openVideoSubtitles } from "./video-subtitles";
 import { readParagraphMode } from "../shared/paragraph-mode";
-
-
+import { supportsHtmlContent } from "../shared/html";
 
 let pageActionVersion = 0;
+const supported = supportsHtmlContent();
 
 addRuntimeMessageListener((request: RuntimeRequest, _sender, sendResponse) => {
   if (request.type.startsWith("FRAME_")) return;
+  if (!supported) {
+    sendResponse({ ok: false, error: "此页面不支持翻译，请切换到普通网页。" });
+    return;
+  }
   handleMessage(request)
     .then((data): RuntimeResponse => ({ ok: true, data }))
     .catch((error: unknown): RuntimeResponse => ({
@@ -45,33 +49,37 @@ addRuntimeMessageListener((request: RuntimeRequest, _sender, sendResponse) => {
   return true;
 });
 
-injectContentStyles();
-if (chrome.runtime?.id && typeof chrome.runtime.onMessage?.addListener === "function") installFrameRuntime(createDocumentKey(), { top: true });
-const appearance = setupAppearance(undefined, { extensionPage: false, onChange: scheme => {
-  refreshTranslationColors({ light: scheme.colors["translation-light"], dark: scheme.colors["translation-dark"] });
-} });
-// Ignore an older initial read if the user saves a newer appearance while it is pending.
-let appearanceRevision = 0;
-void sendRuntimeRequest<ExtensionSettings>({ type: "GET_SETTINGS" }).then(settings => {
-  if (!appearanceRevision) appearance.update(settings.appearance);
-}).catch(() => undefined);
-initFloatingBall();
-initImageTranslation();
-initAutoTranslation();
-initSelectionTranslation();
-initKeyboardShortcuts(executeTranslationShortcut);
-initVideoSubtitles();
+if (supported) initializeContent();
 
-// One listener for the saved settings: the appearance revision and the page
-// translation settings must observe the same change, in the same order.
-chrome.storage.onChanged.addListener((changes, area) => {
-  if (area !== "local") return;
-  const change = changes[SETTINGS_KEY];
-  if (!change) return;
-  appearanceRevision++;
-  const settings = change.newValue as ExtensionSettings | undefined;
-  if (settings) updatePageTranslationSettings(settings);
-});
+function initializeContent(): void {
+  injectContentStyles();
+  if (chrome.runtime?.id && typeof chrome.runtime.onMessage?.addListener === "function") installFrameRuntime(createDocumentKey(), { top: true });
+  const appearance = setupAppearance(undefined, { extensionPage: false, onChange: scheme => {
+    refreshTranslationColors({ light: scheme.colors["translation-light"], dark: scheme.colors["translation-dark"] });
+  } });
+  // Ignore an older initial read if the user saves a newer appearance while it is pending.
+  let appearanceRevision = 0;
+  void sendRuntimeRequest<ExtensionSettings>({ type: "GET_SETTINGS" }).then(settings => {
+    if (!appearanceRevision) appearance.update(settings.appearance);
+  }).catch(() => undefined);
+  initFloatingBall();
+  initImageTranslation();
+  initAutoTranslation();
+  initSelectionTranslation();
+  initKeyboardShortcuts(executeTranslationShortcut);
+  initVideoSubtitles();
+
+  // One listener for the saved settings: the appearance revision and the page
+  // translation settings must observe the same change, in the same order.
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area !== "local") return;
+    const change = changes[SETTINGS_KEY];
+    if (!change) return;
+    appearanceRevision++;
+    const settings = change.newValue as ExtensionSettings | undefined;
+    if (settings) updatePageTranslationSettings(settings);
+  });
+}
 
 async function handleMessage(request: RuntimeRequest): Promise<unknown> {
   if (request.type === "OPEN_VIDEO_SUBTITLES") {

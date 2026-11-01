@@ -9,10 +9,11 @@ import { SETTINGS_KEY } from "../shared/defaults";
 import type { ExtensionSettings } from "../shared/types";
 import { initEmbeddedVideoSubtitles } from "./video-bootstrap";
 import { observeParagraphMode } from "../shared/paragraph-mode";
+import { supportsHtmlContent } from "../shared/html";
 
 const scope = globalThis as typeof globalThis & { __wupageFrameBootstrap?: boolean };
-const visibility = installFrameVisibilityBridge();
-if (window !== window.top && !scope.__wupageFrameBootstrap) {
+const visibility = supportsHtmlContent() ? installFrameVisibilityBridge() : { ready: Promise.resolve() };
+if (window !== window.top && supportsHtmlContent() && !scope.__wupageFrameBootstrap) {
   scope.__wupageFrameBootstrap = true;
   initEmbeddedVideoSubtitles();
   const documentKey = createDocumentKey();
@@ -95,11 +96,12 @@ if (window !== window.top && !scope.__wupageFrameBootstrap) {
     return true;
   });
   initKeyboardShortcuts(async command => {
+    if (!supported()) return;
     if (command === "translate-selection") { if (!current || allowed(current)) await (await activate()).selection(); }
     else await sendRuntimeRequest({ type: "FRAME_FORWARD_SHORTCUT", command });
   });
   document.addEventListener("selectionchange", () => {
-    if (worker || current?.settings.selectionTranslation?.enabled === false || !window.getSelection()?.toString().trim() || current && !allowed(current)) return;
+    if (!supported() || worker || current?.settings.selectionTranslation?.enabled === false || !window.getSelection()?.toString().trim() || current && !allowed(current)) return;
     void activate().then(() => document.dispatchEvent(new Event("selectionchange"))).catch(() => {});
   });
   window.addEventListener("pageshow", event => { if (event.persisted) void register().catch(() => {}); });

@@ -13,16 +13,17 @@ async function fixture() {
   let settings = structuredClone(DEFAULT_SETTINGS);
   const stored: Record<string, unknown> = {};
   const deliveries: Array<{ frameId?: number; documentId?: string; request: RuntimeRequest }> = [];
+  const sendMessage = vi.fn(async (_tab: number, request: RuntimeRequest, target: { frameId?: number; documentId?: string }) => {
+    deliveries.push({ ...target, request });
+    if (request.type === "FRAME_APPLY") return { ok: true, data: { ...emptyDocumentState(),
+      active: request.allowed && request.snapshot.active, translated: request.allowed && request.snapshot.active ? 1 : 0 } };
+    return { ok: true };
+  });
   const api = {
     storage: { session: { get: async (key: string) => ({ [key]: stored[key] }),
       set: async (value: object) => { Object.assign(stored, structuredClone(value)); },
       remove: async (key: string) => { delete stored[key]; } } },
-    tabs: { sendMessage: vi.fn(async (_tab: number, request: RuntimeRequest, target: { frameId?: number; documentId?: string }) => {
-      deliveries.push({ ...target, request });
-      if (request.type === "FRAME_APPLY") return { ok: true, data: { ...emptyDocumentState(),
-        active: request.allowed && request.snapshot.active, translated: request.allowed && request.snapshot.active ? 1 : 0 } };
-      return { ok: true };
-    }) }
+    tabs: { sendMessage }
   } as unknown as typeof chrome;
   const readSettings = vi.fn(async () => settings);
   const manager = new FrameSessionManager(api, readSettings);
@@ -33,7 +34,7 @@ async function fixture() {
   const action = async (action: "start" | "stop", tabId = 1) =>
     (await manager.handle({ type: "FRAME_SESSION_ACTION", action }, sender(0, tabId)) as FrameSessionSnapshot).state;
   const snapshot = () => manager.handle({ type: "FRAME_SESSION_GET" }, sender(0)) as Promise<FrameSessionSnapshot>;
-  return { manager, api, readSettings, stored, sender, register, action, snapshot, deliveries,
+  return { manager, api, sendMessage, readSettings, stored, sender, register, action, snapshot, deliveries,
     settings: () => settings, update: (value: ExtensionSettings) => { settings = value; } };
 }
 
@@ -64,6 +65,18 @@ describe("iframe translation policy", () => {
 });
 
 describe("tab-wide document sessions", () => {
+  it("reports a document initialization failure while translating healthy documents", async () => {
+    const f = await fixture();
+    await f.register(0); await f.register(1);
+    const original = f.sendMessage.getMockImplementation()!;
+    f.sendMessage.mockImplementation(async (tabId, request, target) => {
+      if (request.type === "FRAME_APPLY" && target?.documentId === "document-1") throw new Error("Document initialization failed");
+      return original(tabId, request, target!);
+    });
+    expect(await f.action("start")).toMatchObject({ active: true, translated: 1, failed: 0, error: "Document initialization failed" });
+    await f.action("stop");
+    expect((await f.snapshot()).state).toMatchObject({ active: false, failed: 0 });
+  });
   it("addresses browser document identities, aggregates results, isolates tabs, and restores all documents", async () => {
     const f = await fixture();
     await f.register(0); await f.register(1); await f.register(0, 2);

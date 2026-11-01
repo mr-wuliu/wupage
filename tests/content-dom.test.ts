@@ -24,6 +24,13 @@ import {
 import { injectContentStyles } from "../src/content/styles";
 
 describe("content DOM translation extraction", () => {
+  it("skips protected tags when the document exposes lowercase tag names", () => {
+    document.body.innerHTML = '<p>Readable article paragraph.</p><kbd>Skipped keyboard contents</kbd><samp>Skipped sample output</samp>';
+    // XHTML uses lowercase tagName values; retain the test document's browsing context for layout.
+    for (const element of document.querySelectorAll("kbd,samp")) Object.defineProperty(element, "tagName", { value: element.localName });
+    stubLayout();
+    expect(collectTextSegments(false).map(segment => segment.text)).toEqual(["Readable article paragraph."]);
+  });
   it.each(["videoPlayer", "videoComponent"])("keeps X %s controls out of page and paragraph translation", (testId) => {
     document.body.innerHTML = `<main><article>
       <div data-testid="tweetText">Watch this portrait video.</div>

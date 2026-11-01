@@ -20,8 +20,9 @@ describe("LaTeX2HTML article translation", () => {
   });
   afterEach(() => { clearTranslations(); vi.restoreAllMocks(); document.head.innerHTML = ""; document.body.innerHTML = ""; });
 
-  it("groups bare prose between block boundaries and preserves numeric reference links", () => {
+  it.each([false, true])("groups bare prose and reference links with lowercase tag names=%s", lowercase => {
     document.body.innerHTML = `<h1><a name="intro">Introduction</a></h1>${prose}<p>Next paragraph.</p>`;
+    if (lowercase) for (const element of document.querySelectorAll("a,i")) Object.defineProperty(element, "tagName", { value: element.localName });
     const link = document.querySelector('a[href]');
     const segments = collectTextSegments();
     const bare = segments.find(segment => segment.text.startsWith("Bare introduction"))!;

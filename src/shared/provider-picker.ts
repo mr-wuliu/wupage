@@ -1,6 +1,7 @@
 import { ensureProviderIconStyles, providerIconMarkup } from "./provider-icons";
 import type { ProviderConfig } from "./types";
 import { uiIconMarkup } from "./ui-icons";
+import { htmlFragment, setHtmlContent } from "./html";
 
 const pickers = new WeakMap<HTMLSelectElement, () => void>();
 let openPicker: { root: HTMLElement; close: (focus?: boolean) => void } | undefined;
@@ -17,7 +18,7 @@ export function enhanceProviderSelect(select: HTMLSelectElement, providers: Prov
   select.hidden = true;
   const root = document.createElement("div");
   root.className = "wupage-provider-picker";
-  root.innerHTML = `<button type="button" class="wupage-provider-trigger" aria-label="翻译服务" aria-haspopup="listbox" aria-expanded="false"></button><div class="wupage-provider-list" role="listbox" aria-label="翻译服务" popover="manual" hidden></div>`;
+  setHtmlContent(root, `<button type="button" class="wupage-provider-trigger" aria-label="翻译服务" aria-haspopup="listbox" aria-expanded="false"></button><div class="wupage-provider-list" role="listbox" aria-label="翻译服务" popover="manual" hidden></div>`);
   select.after(root);
   const trigger = root.querySelector<HTMLButtonElement>("button")!;
   const list = root.querySelector<HTMLDivElement>("[role='listbox']")!;
@@ -40,13 +41,12 @@ export function enhanceProviderSelect(select: HTMLSelectElement, providers: Prov
     const selected = select.selectedOptions[0];
     trigger.setAttribute("aria-label", `翻译服务：${selected?.textContent ?? "未选择"}`);
     trigger.title = selected?.textContent ?? "选择翻译服务";
-    trigger.replaceChildren();
-    trigger.insertAdjacentHTML("afterbegin", selected ? markup(selected) : providerIconMarkup(undefined));
+    setHtmlContent(trigger, selected ? markup(selected) : providerIconMarkup(undefined));
     const label = document.createElement("span");
     label.className = "wupage-provider-name";
     label.textContent = selected?.textContent ?? "选择翻译服务";
     trigger.append(label);
-    trigger.insertAdjacentHTML("beforeend", `<span class="wupage-provider-arrow" aria-hidden="true">${uiIconMarkup("arrow-down-03")}</span>`);
+    trigger.append(htmlFragment(`<span class="wupage-provider-arrow" aria-hidden="true">${uiIconMarkup("arrow-down-03")}</span>`, trigger.ownerDocument));
     trigger.disabled = select.disabled;
     list.replaceChildren(...Array.from(select.options, (option) => {
       const button = document.createElement("button");
@@ -57,7 +57,7 @@ export function enhanceProviderSelect(select: HTMLSelectElement, providers: Prov
       button.tabIndex = -1;
       button.disabled = option.disabled;
       button.dataset.value = option.value;
-      button.innerHTML = markup(option);
+      setHtmlContent(button, markup(option));
       const name = document.createElement("span");
       name.className = "wupage-provider-name";
       name.textContent = option.textContent;
