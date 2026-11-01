@@ -7,6 +7,7 @@ import { setHtmlContent } from "../shared/html";
 let nextView = 0;
 export interface VideoViewActions {
   toggle: () => void;
+  frame: () => void;
   retry: () => void;
   source: (id: string) => void;
   settings: (patch: Partial<ExtensionSettings>) => void;
@@ -49,8 +50,15 @@ const styles = `
   :host([data-docked]) .toolbar { position: static; height: 100%; background: transparent; border: 0; box-shadow: none; border-radius: 0; opacity: 1; transform: none; transition: none; pointer-events: inherit; }
   :host([data-docked]) .toolbar button { height: 100%; min-height: 0; min-width: 34px; padding: 0 7px; border-radius: 0; }
   :host([data-docked]) .settings { border-left: 0 !important; }
+  .frame { display: grid; place-items: center; border-left: 1px solid #ffffff1c !important; } .frame svg { width: 16px; height: 16px; }
+  .frame[aria-pressed=true] { color: #a9ead3; } .frame[aria-busy=true] { animation: frame-pulse 1s ease-in-out infinite alternate; }
+  @keyframes frame-pulse { to { opacity: .5; } }
+  .frame-layer { position: absolute; inset: 0; overflow: hidden; pointer-events: none; } .frame-layer canvas { width: 100%; height: 100%; display: block; }
+  :host([data-frame-visible]) .captions { visibility: hidden; }
+  :host([data-capturing]) { visibility: hidden !important; }
+  .frame-status { top: auto; bottom: 58px; }
   :host([data-native-hidden]) { pointer-events: none !important; }
-  @media (prefers-reduced-motion: reduce) { .toolbar { transition: none; } }
+  @media (prefers-reduced-motion: reduce) { .toolbar { transition: none; } .frame { animation: none !important; } }
   @media (pointer: coarse) { .toolbar button, :host([data-docked]) .toolbar button { min-width: 44px; min-height: 44px; } }
 `;
 
@@ -62,6 +70,9 @@ export class VideoView {
   readonly id = `wupage-player-${++nextView}`;
   private readonly panel: HTMLElement;
   private readonly toggle: HTMLButtonElement;
+  private readonly frameButton: HTMLButtonElement;
+  private readonly frameLayer: HTMLElement;
+  private readonly frameStatus: HTMLElement;
   private readonly mark: HTMLElement;
   private readonly toolbar: HTMLElement;
   private readonly settingsButton: HTMLButtonElement;
@@ -80,8 +91,10 @@ export class VideoView {
   constructor(actions: VideoViewActions, label: string) {
     this.host.id = this.id; this.host.dataset.wupageVideo = ""; this.host.setAttribute("translate", "no");
     setHtmlContent(this.root, `<style>${styles}</style>
-      <div class="toolbar" role="group" aria-label="视频字幕翻译">
+      <div class="frame-layer"></div>
+      <div class="toolbar" role="group" aria-label="视频翻译">
         <button class="toggle" type="button" aria-label="翻译视频字幕" aria-pressed="false" title="翻译视频字幕"><span class="mark" aria-hidden="true">译</span></button>
+        <button class="frame" type="button" aria-label="暂停并翻译画面" aria-pressed="false" title="暂停并翻译画面">${uiIconMarkup("display")}</button>
         <button class="settings" type="button" aria-label="字幕设置" title="字幕设置" aria-expanded="false">${uiIconMarkup("settings")}</button>
       </div>
       <div class="captions" role="region" aria-label="双语字幕" hidden><div class="source" dir="auto"><span></span></div><div class="translation" dir="auto"><span></span></div></div>
@@ -99,10 +112,11 @@ export class VideoView {
           <button class="import" type="button">导入 SRT / VTT</button><input class="file" type="file" accept=".srt,.vtt" hidden>
           <p class="help">仅翻译字幕文本，不采集音频。在线翻译使用所选服务的额度。</p>
         </details>
-      </section><div class="notice" role="status" hidden></div>`);
+      </section><div class="notice" role="status" hidden></div><div class="notice frame-status" role="status" hidden></div>`);
     const query = <T extends Element>(selector: string) => this.root.querySelector<T>(selector)!;
     this.panel = query(".panel"); this.toggle = query(".toggle"); this.toolbar = query(".toolbar"); this.settingsButton = query(".settings"); this.caption = query(".captions");
     this.mark = query(".mark");
+    this.frameButton = query(".frame"); this.frameLayer = query(".frame-layer"); this.frameStatus = query(".frame-status");
     this.controlsHost.id = `${this.id}-toolbar`; this.controlsHost.dataset.wupageVideoToolbar = this.id;
     this.controlsHost.setAttribute("data-docked", ""); this.controlsHost.setAttribute("translate", "no");
     setHtmlContent(this.controlsRoot, `<style>${styles}</style>`);
@@ -110,6 +124,7 @@ export class VideoView {
     const target = query<HTMLSelectElement>(".target");
     target.replaceChildren(...TARGET_LANGUAGES.map(language => new Option(language.label, language.code)));
     this.on(this.toggle, "click", () => actions.toggle());
+    this.on(this.frameButton, "click", () => actions.frame());
     this.on(this.settingsButton, "click", () => this.setPanel(this.panel.hidden));
     this.on(query(".close"), "click", () => this.setPanel(false));
     this.on(this.retry, "click", () => actions.retry());
@@ -142,6 +157,23 @@ export class VideoView {
   setControls(show: boolean): void { this.host.toggleAttribute("data-controls", show); }
   focus(): void { this.setControls(true); this.toggle.focus(); }
   get panelOpen(): boolean { return !this.panel.hidden; }
+
+  setFrameCapturing(hidden: boolean): void {
+    this.host.toggleAttribute("data-capturing", hidden); this.controlsHost.toggleAttribute("data-capturing", hidden);
+  }
+
+  showFrame(canvas: HTMLCanvasElement): void { this.frameLayer.replaceChildren(canvas); }
+
+  setFrameState(phase: "idle" | "loading" | "active" | "original", message = ""): void {
+    const active = phase === "active";
+    this.host.toggleAttribute("data-frame-visible", active);
+    this.frameButton.setAttribute("aria-pressed", String(active));
+    this.frameButton.setAttribute("aria-busy", String(phase === "loading"));
+    const label = phase === "loading" ? "取消画面翻译" : active ? "显示原画面" : phase === "original" ? "显示画面译文" : "暂停并翻译画面";
+    this.frameButton.title = label; this.frameButton.setAttribute("aria-label", label);
+    this.setText(this.frameStatus, message); this.frameStatus.hidden = !message;
+    if (message) this.setControls(true);
+  }
 
   mountControls(container?: HTMLElement, before?: Element, reference?: Element): void {
     if (container) {

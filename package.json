@@ -34,6 +34,8 @@
     "test:floating-responsive": "node scripts/test-floating-responsive.mjs",
     "test:selection": "node scripts/test-selection-translation.mjs",
     "test:video": "node scripts/test-video-subtitles.mjs",
+    "test:video:frame": "node scripts/test-video-frame.mjs",
+    "test:video:frame:edge": "node scripts/test-video-frame.mjs --edge",
     "test:video:edge": "node scripts/test-video-subtitles.mjs --edge",
     "test:video:sites": "node scripts/test-video-sites.mjs",
     "test:video:x-layout": "node scripts/test-x-video-layout.mjs",

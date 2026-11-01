@@ -104,6 +104,16 @@ Bilibili 的两次暂停样本均位于循环起点（约 0.321 秒、readyState
 
 采样通常间隔约 10 秒，最长间隔 166.52 秒。累计播放由相邻媒体时间与观察到的循环计算，长间隔内不可见的完整循环未补算。这是同一媒体循环的分段观察，不能等同逐帧字幕延迟监测或持续新字幕负载测试。此前独立、未登录的 Bilibili 长测在媒体约 61.6 秒处暂停，扩展仍开启且未显示服务错误；原因未确定，未将该次运行记为通过。上述正常 Edge 结果不替代 Netflix、Disney+、Prime Video、Coursera 和 Udemy 已购课程的登录播放验收。
 
+### 暂停视频画面翻译
+
+`src/content/video-frame.ts` 管理单次暂停画面的识别、译文覆盖及原文切换，复用 `TRANSLATE_IMAGE` 的本地 OCR、文字翻译和区域绘制。入口与字幕入口并列，受现有视频功能总开关控制，识别仍要求已安装 OCR 并开启图片翻译。不会因普通暂停事件自动提交请求。播放、seek、媒体更换、设置变更和控制器释放均使当前结果失效，迟到的识别或服务响应不能重新覆盖画面；已经发出的服务请求仍可能被处理。
+
+`video-frame-capture.ts` 优先读取解码视频像素，保留 object-fit / object-position；跨域画布受限时，`frame-visibility.ts` 逐层换算内嵌帧位置，只通过页面消息传递坐标。后台 `src/background/video-frame.ts` 校验浏览器提供的发送页身份、活动标签页与可见范围，再调用截图接口；整页截图只在后台内存中解码，裁剪后的视频像素返回当前内容脚本，只有 OCR 文字进入翻译服务。截图前临时隐藏扩展覆盖层，成功、失败和取消后都恢复。浏览器截图需要 [`<all_urls>` 或 activeTab](https://developer.chrome.com/docs/extensions/reference/api/tabs#method-captureVisibleTab)，共享 Manifest 使用 `<all_urls>`，内容脚本仍限于原有 HTTP / HTTPS 匹配范围。Firefox 数据声明沿用 `websiteContent` 与 `authenticationInfo`，没有新增第三方图像传输。
+
+单元回归：`npm test -- tests/video-frame.test.ts tests/video-frame-capture.test.ts tests/video-frame-background.test.ts`。覆盖无字幕视频的手动暂停翻译、原文切换、播放及跳转清理、取消与迟到响应、语言和服务变更、缺少模型、截图失败、跨域帧坐标和活动标签页隔离。截图路径要求画面完整可见，无法保证被网站弹层、原生控件或非轴对齐变换遮挡的文字可读；内容保护、画中画和视频元素原生全屏不提供画面覆盖。
+
+构建后运行 `npm run test:video:frame`（Edge 使用 `npm run test:video:frame:edge`），以真实本地视频、本地 OCR 和模拟文本翻译验证暂停、切换原画面、播放及 seek 清理、容器全屏、跨域媒体截图和跨域 iframe 截图；另确认画面之外的网页文字未进入翻译。使用独立浏览器资料目录，不读取个人账号。需预先通过 `test:ocr-runtime` 准备已校验的模型文件，默认读取 `.npm-cache/firefox/models/`，也可用 `OCR_MODEL_FIXTURE_DIR` 指定；脚本不会自行下载模型。支持 `PLAYWRIGHT_MODULE`、`CHROME_TEST_BROWSER`、`EDGE_TEST_BROWSER` 和 `VIDEO_TEST_EXTENSION_DIR`，报告与截图位于 `.npm-cache/video-frame/<browser>/`。本地样本不替代真实站点验收。
+
 ### 从源码构建
 
 需要 Node.js 22 或更高版本，以及 npm。

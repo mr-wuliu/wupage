@@ -1,4 +1,30 @@
 import { createDocumentKey } from "../shared/frame-session";
+import { validVideoFrameArea, type VideoFrameArea } from "../shared/video-frame";
+
+const GEOMETRY_REQUEST = "wupage-video-frame-area";
+const GEOMETRY_REPLY = "wupage-video-frame-area-result";
+
+/** Page messages carry coordinates only; capturing pixels requires extension messaging. */
+export async function topVideoFrameArea(area: VideoFrameArea, signal?: AbortSignal): Promise<VideoFrameArea> {
+  signal?.throwIfAborted();
+  if (!validVideoFrameArea(area)) throw new Error("请将完整视频画面显示在窗口内后重试。");
+  if (window === window.top) return area;
+  const key = createDocumentKey();
+  return new Promise((resolve, reject) => {
+    const cleanup = () => { clearTimeout(timer); window.removeEventListener("message", receive); signal?.removeEventListener("abort", cancel); };
+    const cancel = () => { cleanup(); reject(new DOMException("Aborted", "AbortError")); };
+    const receive = (event: MessageEvent) => {
+      if (event.source !== window.parent || event.data?.type !== GEOMETRY_REPLY || event.data.key !== key) return;
+      cleanup();
+      if (validVideoFrameArea(event.data.area)) resolve(event.data.area);
+      else reject(new Error("无法定位内嵌视频画面，请将完整播放器显示在窗口内后重试。"));
+    };
+    const timer = setTimeout(() => { cleanup(); reject(new Error("无法定位内嵌视频画面，请在视频原网页中重试。")); }, 2000);
+    window.addEventListener("message", receive);
+    signal?.addEventListener("abort", cancel, { once: true });
+    window.parent.postMessage({ type: GEOMETRY_REQUEST, key, area }, "*");
+  });
+}
 
 const EVENT = "wupage:frame-visibility";
 const scope = globalThis as typeof globalThis & { __wupageFrameRendered?: boolean };
@@ -63,6 +89,31 @@ export function installFrameVisibilityBridge(): { ready: Promise<void> } {
     }
   };
   window.addEventListener("message", event => {
+    if (event.data?.type === GEOMETRY_REQUEST && typeof event.data.key === "string" && event.data.key.length === 32
+      && event.source && event.source !== window && event.source !== window.parent && validVideoFrameArea(event.data.area)) {
+      const host = findHost(event.source);
+      if (!host) return;
+      const source = event.source as Window, key = event.data.key;
+      for (let element: Element | null = host; element;) {
+        const transform = getComputedStyle(element).transform;
+        if (transform && transform !== "none") {
+          const matrix = new DOMMatrixReadOnly(transform);
+          if (!matrix.is2D || matrix.b || matrix.c || matrix.a <= 0 || matrix.d <= 0) {
+            source.postMessage({ type: GEOMETRY_REPLY, key }, "*"); return;
+          }
+        }
+        element = element.parentElement ?? (element.getRootNode() instanceof ShadowRoot ? (element.getRootNode() as ShadowRoot).host : null);
+      }
+      const area = event.data.area as VideoFrameArea, rect = host.getBoundingClientRect();
+      const sx = rect.width / (host.offsetWidth || rect.width), sy = rect.height / (host.offsetHeight || rect.height);
+      const x = rect.left + host.clientLeft * sx, y = rect.top + host.clientTop * sy;
+      const scaleX = host.clientWidth * sx / area.viewport.width, scaleY = host.clientHeight * sy / area.viewport.height;
+      void topVideoFrameArea({ rect: { x: x + area.rect.x * scaleX, y: y + area.rect.y * scaleY,
+        width: area.rect.width * scaleX, height: area.rect.height * scaleY }, viewport: { width: innerWidth, height: innerHeight } })
+        .then(area => source.postMessage({ type: GEOMETRY_REPLY, key, area }, "*"),
+          () => source.postMessage({ type: GEOMETRY_REPLY, key }, "*"));
+      return;
+    }
     if (event.source === window.parent && event.data?.type === "wupage-frame-rendered" && event.data.key === key
       && typeof event.data.rendered === "boolean") {
       clearTimeout(timer); resolveReady();

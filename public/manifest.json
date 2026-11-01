@@ -53,5 +53,5 @@
     "sandbox": "sandbox allow-scripts; script-src 'self' 'unsafe-eval'; child-src 'self'; connect-src 'self' data: chrome-extension:;"
   },
   "web_accessible_resources": [{ "resources": ["ocr-runtime/*", "frame-content.js", "video-content.js"], "matches": ["<all_urls>"] }],
-  "host_permissions": ["http://*/*", "https://*/*", "file:///*"]
+  "host_permissions": ["<all_urls>"]
 }

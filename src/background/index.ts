@@ -19,6 +19,7 @@ import { frameSessions } from "./frame-sessions";
 import type { FrameSessionRequest } from "../shared/frame-session";
 import { readParagraphMode } from "../shared/paragraph-mode";
 import { saveParagraphMode } from "./paragraph-mode";
+import { captureVideoFrame } from "./video-frame";
 
 chrome.runtime.onMessage.addListener((request: RuntimeRequest, sender, sendResponse) => {
   if ("target" in request) return;
@@ -62,6 +63,8 @@ async function handleMessage(request: RuntimeRequest, sender: chrome.runtime.Mes
       return null;
     case "VIDEO_FRAME_STATUS":
       registerVideoFrame(request, sender); return null;
+    case "CAPTURE_VIDEO_FRAME":
+      return captureVideoFrame(request, sender);
     case "TRANSLATE_VIDEO_SUBTITLES":
       return translateVideo(request, sender);
     case "CANCEL_VIDEO_SUBTITLES":

@@ -322,6 +322,7 @@ export type RuntimeRequest =
   | { type: "TRANSLATE_PAGE" }
   | { type: "OPEN_VIDEO_SUBTITLES"; tabId?: number }
   | { type: "VIDEO_FRAME_STATUS"; videos: number; area: number; playing: boolean }
+  | ({ type: "CAPTURE_VIDEO_FRAME" } & import("./video-frame").VideoFrameArea)
   | ({ type: "TRANSLATE_VIDEO_SUBTITLES"; sessionId: string; requestId: string } & TranslateBatchRequest)
   | { type: "CANCEL_VIDEO_SUBTITLES"; sessionId: string; requestId?: string }
   | { type: "CLEAR_TRANSLATION" }

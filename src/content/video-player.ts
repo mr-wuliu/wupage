@@ -1,5 +1,6 @@
 import { VideoView } from "./video-view";
 import { VideoRequests } from "./video-requests";
+import { PlayerFrameTranslation } from "./video-frame";
 import { sendRuntimeRequest } from "./runtime";
 import { SETTINGS_KEY } from "../shared/defaults";
 import { TARGET_LANGUAGES } from "../shared/languages";
@@ -15,6 +16,7 @@ import { playerControlDock, playerControlsVisible, playerContains, type PlayerCo
 
 export class PlayerSubtitleController {
   readonly view: VideoView;
+  private readonly frameTranslation: PlayerFrameTranslation;
   enabled = false;
   private resumeOnReplacement = false;
   private disposed = false;
@@ -63,6 +65,7 @@ export class PlayerSubtitleController {
   constructor(readonly video: HTMLVideoElement, readonly container: HTMLElement, readonly platform?: VideoPlatform, private autoStart = true) {
     this.view = new VideoView({
       toggle: () => { if (this.enabled) this.stop(); else void this.start(); },
+      frame: () => { void this.frameTranslation.toggle(); },
       retry: () => { void this.start(); },
       source: id => { this.source = id; if (this.enabled) void this.start(); },
       settings: patch => this.save(patch),
@@ -72,6 +75,7 @@ export class PlayerSubtitleController {
       import: file => { void this.importFile(file); },
       offset: value => { this.offset = value; this.live?.reset(); this.tick(); }
     }, this.site);
+    this.frameTranslation = new PlayerFrameTranslation(video, this.view, () => this.settingsSnapshot.read());
     if (getComputedStyle(container).position === "static") {
       this.originalPosition = { value: container.style.getPropertyValue("position"), priority: container.style.getPropertyPriority("position") };
       container.style.setProperty("position", "relative");
@@ -398,6 +402,7 @@ export class PlayerSubtitleController {
     this.applySettings(settings);
     const signature = (value: ExtensionSettings) => JSON.stringify([value.sourceLang, value.targetLang, value.activeProviderId,
       value.providers.find(provider => provider.id === value.activeProviderId), normalizeVideoTranslation(value.videoTranslation).preferredSource]);
+    if (previous && (signature(previous) !== signature(settings) || previous.imageTranslationEnabled !== settings.imageTranslationEnabled)) this.frameTranslation.reset();
     if (this.enabled && previous && signature(previous) !== signature(settings)) void this.start();
     else this.paint();
   }
@@ -493,7 +498,7 @@ export class PlayerSubtitleController {
   dispose(preserveTranslation = false): void {
     if (this.disposed) return;
     const resume = preserveTranslation && this.enabled;
-    this.stop(); this.disposed = true; clearTimeout(this.controlsTimer);
+    this.frameTranslation.dispose(); this.stop(); this.disposed = true; clearTimeout(this.controlsTimer);
     this.resumeOnReplacement = resume;
     for (const cleanup of this.cleanups) cleanup(); this.cleanups.length = 0;
     if (this.originalPosition && this.container.style.position === "relative") {
