@@ -42,6 +42,7 @@ select { max-width: 110px; min-width: 0; padding: 5px 24px 5px 7px; border: 1px 
 .meanings li { display: flex; align-items: baseline; gap: 10px; overflow-wrap: anywhere; }
 .part-of-speech { flex: 0 0 auto; min-width: 24px; color: var(--muted); font-style: italic; }
 .part-of-speech:empty { display: none; }
+.meaning-pronunciation { margin-right: 7px; color: var(--muted); font-size: 12px; }
 .notice { margin: 6px 0; color: var(--muted); }
 .retry { margin-top: 6px; padding: 5px 12px; border: 1px solid var(--line); border-radius: 5px; background: var(--soft); }
 footer { display: flex; flex: 0 0 auto; justify-content: space-between; align-items: center; gap: 10px; min-height: 36px; padding: 7px 16px; border-top: 1px solid var(--line); color: var(--muted); font-size: 11px; }

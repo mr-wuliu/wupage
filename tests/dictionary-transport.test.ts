@@ -33,6 +33,26 @@ describe("dictionary network transport", () => {
     expect(ensureOffscreenDocument).toHaveBeenCalled();
     expect(chrome.runtime.sendMessage).toHaveBeenCalledWith(expect.objectContaining({ target: "dictionary-runtime", action: "parse-bing", query: "example" }));
   });
+  it("requests Chinese pinyin and definitions from Youdao even when Bing is the default", async () => {
+    let finish!: (response: Response) => void;
+    const fetcher = vi.fn(() => new Promise<Response>(resolve => { finish = resolve; }));
+    vi.stubGlobal("fetch", fetcher);
+    const first = lookupDictionary("bing", "垚");
+    const second = lookupDictionary("youdao", "垚");
+    expect(fetcher).toHaveBeenCalledOnce();
+    const [url, init] = fetcher.mock.calls[0] as unknown as [string, RequestInit];
+    const params = new URL(url).searchParams;
+    expect(new URL(url).hostname).toBe("dict.youdao.com");
+    expect(params.get("q")).toBe("垚");
+    expect(params.get("le")).toBe("zh");
+    expect(JSON.parse(params.get("dicts")!)).toEqual({ count: 3, dicts: [["newhh", "ce", "simple"]] });
+    expect(init).toMatchObject({ credentials: "omit", redirect: "error", referrerPolicy: "no-referrer" });
+    finish(Response.json({ input: "垚", newhh: { word: "垚", dataList: [{ pinyin: "yáo", sense: [{ def: ["山势高峻。"] }] }] } }));
+    await expect(first).resolves.toMatchObject({ provider: "youdao", pronunciations: [{ accent: "pinyin", phonetic: "yáo" }],
+      meanings: [{ definition: "山势高峻。" }] });
+    await second;
+    expect(runtimeSend).not.toHaveBeenCalled();
+  });
   it("rejects bad inputs before networking and reports rate limits, malformed JSON and response size limits", async () => {
     const fetcher = vi.fn(); vi.stubGlobal("fetch", fetcher);
     expect(() => lookupDictionary("evil" as "bing", "example")).toThrow("请选择");

@@ -1,5 +1,5 @@
 import { SETTINGS_KEY } from "../shared/defaults";
-import { DICTIONARY_LABELS, MAX_SELECTION_TEXT_LENGTH, dictionarySourceUrl, isSingleDictionaryWord, normalizeSelectionText, normalizeSelectionTranslation,
+import { DICTIONARY_LABELS, MAX_SELECTION_TEXT_LENGTH, dictionaryProviderForQuery, dictionarySourceUrl, isChineseDictionaryQuery, isSingleDictionaryWord, normalizeSelectionText, normalizeSelectionTranslation,
   type DictionaryEntry, type DictionaryProvider, type SelectionTranslationSettings } from "../shared/dictionary";
 import type { ExtensionSettings, TranslateBatchResponse } from "../shared/types";
 import { sendRuntimeRequest } from "./runtime";
@@ -273,8 +273,13 @@ export class SelectionTranslationController {
     this.body.hidden = false;
     let translating = forceTranslation || !isSingleDictionaryWord(this.query);
     this.setTranslationMode(translating);
+    const chinese = isChineseDictionaryQuery(this.query);
+    provider = dictionaryProviderForQuery(provider, this.query);
+    this.providerSelect.querySelector<HTMLOptionElement>('option[value="bing"]')!.disabled = chinese;
+    this.providerSelect.title = chinese ? "中文拼音和释义由有道词典提供" : "";
     this.providerSelect.value = provider;
     this.word.value = this.query;
+    this.word.lang = chinese ? "zh-CN" : "";
     this.source.href = dictionarySourceUrl(provider, this.query);
     this.source.textContent = `在${DICTIONARY_LABELS[provider]}中查看`;
     this.body.textContent = translating ? "正在翻译…" : "正在查询…";
@@ -286,7 +291,8 @@ export class SelectionTranslationController {
       if (translating) { await this.translateSelection(version); return; }
       const entry = await sendRuntimeRequest<DictionaryEntry>({ type: "LOOKUP_DICTIONARY", provider, query: this.query });
       if (!this.canRender(version)) return;
-      if (entry.meanings.some(meaning => meaning.definition.trim())) this.renderEntry(entry, version);
+      if (entry.meanings.some(meaning => meaning.definition.trim())
+        || (chinese && entry.pronunciations.some(item => item.phonetic?.trim()))) this.renderEntry(entry, version);
       else { translating = true; await this.translateSelection(version); }
     } catch (error) {
       if (version !== this.version || this.disposed) return;
@@ -392,14 +398,15 @@ export class SelectionTranslationController {
     phonetics.className = "phonetics";
     for (const pronunciation of entry.pronunciations) {
       const line = document.createElement("div");
-      const accent = pronunciation.accent === "uk" ? "英" : pronunciation.accent === "us" ? "美" : "读音";
+      const accent = pronunciation.accent === "uk" ? "英" : pronunciation.accent === "us" ? "美" : pronunciation.accent === "pinyin" ? "拼音" : "读音";
       const label = document.createElement("span");
-      label.textContent = `${accent} ${pronunciation.phonetic ? pronunciation.accent === "default" ? pronunciation.phonetic : `/${pronunciation.phonetic}/` : ""}`;
+      label.textContent = `${accent} ${pronunciation.phonetic ? pronunciation.accent === "uk" || pronunciation.accent === "us" ? `/${pronunciation.phonetic}/` : pronunciation.phonetic : ""}`;
+      if (pronunciation.accent === "pinyin") label.lang = "zh-Latn-pinyin";
       line.append(label);
       if (pronunciation.audioUrl) {
         const button = document.createElement("button");
         button.type = "button"; button.className = "speak"; setHtmlContent(button, uiIconMarkup("volume"));
-        button.setAttribute("aria-label", `播放${accent === "读音" ? "单词" : `${accent}式`}发音`);
+        button.setAttribute("aria-label", `播放${accent === "拼音" ? "中文" : accent === "读音" ? "单词" : `${accent}式`}发音`);
         button.addEventListener("click", () => { void this.play(entry.provider, pronunciation.audioUrl!, button, version); });
         line.append(button);
       }
@@ -412,13 +419,21 @@ export class SelectionTranslationController {
       const item = document.createElement("li");
       const pos = document.createElement("span");
       pos.className = "part-of-speech"; pos.textContent = meaning.partOfSpeech;
-      const definition = document.createElement("span"); definition.textContent = meaning.definition;
+      const definition = document.createElement("span");
+      if (meaning.pronunciation) {
+        const reading = document.createElement("span");
+        reading.className = "meaning-pronunciation"; reading.lang = "zh-Latn-pinyin";
+        reading.textContent = meaning.pronunciation;
+        definition.append(reading);
+      }
+      definition.append(document.createTextNode(meaning.definition));
       item.append(pos, definition); meanings.append(item);
     }
     if (meanings.childElementCount) this.body.append(meanings);
     else {
       const empty = document.createElement("p"); empty.className = "notice";
-      empty.textContent = "未找到词典释义，可切换词典或查看原站。"; this.body.append(empty);
+      empty.textContent = isChineseDictionaryQuery(this.query) ? "未找到词典释义，可查看原站。" : "未找到词典释义，可切换词典或查看原站。";
+      this.body.append(empty);
     }
   }
 

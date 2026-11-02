@@ -101,6 +101,50 @@ describe("selection dictionary UI", () => {
     expect(document.getElementById("first")?.innerHTML).toBe("example");
     expect(root().querySelector<HTMLButtonElement>(".trigger-line")?.style.width).toBe("50px");
   });
+  it("looks up Chinese pinyin and explanations on activation while retaining the English dictionary preference", async () => {
+    controller.update({ enabled: true, provider: "bing", style: "dot" });
+    document.getElementById("first")!.textContent = "齉";
+    vi.mocked(sendRuntimeRequest).mockResolvedValueOnce({ ...entry, query: "齉", word: "齉",
+      pronunciations: [{ accent: "pinyin", phonetic: "nàng" }], meanings: [{ partOfSpeech: "形容词", definition: "鼻子不通气；发音不清" }] });
+    await show(); expect(sendRuntimeRequest).not.toHaveBeenCalled();
+    expect(root().querySelector(".trigger-dot")?.getAttribute("title")).toBe("查词");
+    open(); await vi.waitFor(() => expect(root().querySelector(".meanings")?.textContent).toContain("鼻子不通气"));
+    expect(sendRuntimeRequest).toHaveBeenCalledExactlyOnceWith({ type: "LOOKUP_DICTIONARY", provider: "youdao", query: "齉" });
+    expect(root().querySelector(".phonetics")?.textContent).toBe("拼音 nàng");
+    expect(root().querySelector<HTMLSelectElement>("select")?.value).toBe("youdao");
+    expect(root().querySelector<HTMLOptionElement>('option[value="bing"]')?.disabled).toBe(true);
+    expect(source().lang).toBe("zh-CN");
+    expect(root().querySelector("footer a")?.getAttribute("href")).toContain("lang=zh");
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+    document.getElementById("first")!.textContent = "example";
+    await show(); open(); await vi.waitFor(() => expect(sendRuntimeRequest).toHaveBeenLastCalledWith({ type: "LOOKUP_DICTIONARY", provider: "bing", query: "example" }));
+    expect(root().querySelector<HTMLOptionElement>('option[value="bing"]')?.disabled).toBe(false);
+  });
+  it("shows all Chinese readings and associates meanings with their pronunciation", async () => {
+    document.getElementById("first")!.textContent = "重";
+    vi.mocked(sendRuntimeRequest).mockResolvedValueOnce({ ...entry, query: "重", word: "重",
+      pronunciations: [{ accent: "pinyin", phonetic: "chóng" }, { accent: "pinyin", phonetic: "zhòng" }],
+      meanings: [{ partOfSpeech: "动词", pronunciation: "chóng", definition: "重叠；重复" }, { partOfSpeech: "形容词", pronunciation: "zhòng", definition: "重量大" }] });
+    await show(); open(); await vi.waitFor(() => expect(root().querySelectorAll(".meaning-pronunciation")).toHaveLength(2));
+    expect(root().querySelector(".phonetics")?.textContent).toContain("拼音 chóng");
+    expect(root().querySelector(".phonetics")?.textContent).toContain("拼音 zhòng");
+    expect(root().querySelector(".meanings li")?.textContent).toContain("chóng重叠；重复");
+  });
+  it("retains Chinese pinyin when no meanings are provided instead of translating it away", async () => {
+    document.getElementById("first")!.textContent = "你好";
+    vi.mocked(sendRuntimeRequest).mockResolvedValueOnce({ ...entry, query: "你好", word: "你好",
+      pronunciations: [{ accent: "pinyin", phonetic: "nǐ hǎo" }], meanings: [] });
+    await show(); open(); await vi.waitFor(() => expect(root().querySelector(".phonetics")?.textContent).toBe("拼音 nǐ hǎo"));
+    expect(sendRuntimeRequest).toHaveBeenCalledOnce();
+    expect(card().dataset.mode).toBe("dictionary");
+    expect(root().querySelector(".notice")?.textContent).toContain("未找到词典释义");
+  });
+  it.each(["这是一句需要直接翻译的中文", "你好！", "翻訳する"])("translates sentences and kana selections directly: %s", async text => {
+    document.getElementById("first")!.textContent = text;
+    await show(); open(); await vi.waitFor(() => expect(root().querySelector(".selection-translation")).not.toBeNull());
+    expect(sendRuntimeRequest).toHaveBeenLastCalledWith(expect.objectContaining({ type: "TRANSLATE_BATCH", texts: [text] }));
+    expect(vi.mocked(sendRuntimeRequest).mock.calls.some(([request]) => request.type === "LOOKUP_DICTIONARY")).toBe(false);
+  });
   it("ignores editable selections, stale text selections in form fields, oversized text and a disabled feature", async () => {
     select("editable"); await new Promise(resolve => setTimeout(resolve, 60));
     expect(root().querySelector(".trigger-dot")).toBeNull();
