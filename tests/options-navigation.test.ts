@@ -84,6 +84,22 @@ describe("settings category navigation", () => {
     await vi.waitFor(() => expect(query<HTMLElement>("#autoTranslationSettings").hidden).toBe(false));
   });
 
+  it("saves exclusion drafts and reveals an invalid selector from another category", async () => {
+    await mount(); navigate("elementExclusionSettings");
+    query<HTMLTextAreaElement>('[data-field="selectors"]').value = "div..invalid";
+    navigate("generalSettings"); query<HTMLButtonElement>("#save").click();
+    await vi.waitFor(() => expect(query("#status").textContent).toContain("CSS 选择器无效"));
+    expect(query<HTMLElement>("#elementExclusionSettings").hidden).toBe(false);
+    expect(sendMessage.mock.calls.some(([request]) => request.type === "SAVE_SETTINGS")).toBe(false);
+    const field = query<HTMLTextAreaElement>('[data-field="selectors"]');
+    expect(document.activeElement).toBe(field);
+    expect(query<HTMLElement>(".exclusion-rule-details").hidden).toBe(false);
+    field.value = 'header[role="banner"]';
+    query<HTMLInputElement>('.exclusion-rule input[type="checkbox"]').checked = false;
+    navigate("providerSettings"); query<HTMLButtonElement>("#save").click();
+    await vi.waitFor(() => expect(stored.elementExclusions?.[0]).toMatchObject({ pattern: "x.com", enabled: false }));
+  });
+
   it("retains shortcut drafts across categories, saves them in-page and reloads them", async () => {
     await mount(); navigate("shortcutSettings");
     const input = query<HTMLInputElement>("[data-command='toggle-page-translation']");

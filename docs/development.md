@@ -352,6 +352,14 @@ OpenCV 4.10 的构建文件还会移除旧 Emscripten 的 demangler 选项及文
 
 构建后运行 `npm run test:steam`，添加 `-- --edge` 或 `-- --firefox` 可切换浏览器。脚本使用独立浏览器资料访问公开的 tModLoader 社区首页、创意工坊及其中一个条目详情页，检查简介、公告、模组标题和说明、滚动补译及原文恢复；翻译请求仅发往本地模拟服务，不验证在线服务的译文质量。支持 `PLAYWRIGHT_MODULE`、`CHROME_TEST_BROWSER`、`EDGE_TEST_BROWSER` 和 `FIREFOX_BINARY`。报告和前后截图保存在 `.npm-cache/steam-community/<浏览器>/`，页面内容及网络变化可能影响实页检查。
 
+### 可配置元素排除
+
+`src/shared/element-exclusions.ts` 定义排除规则与规范化：每条包含 ID、名称、站点模式、CSS 选择器数组及启用状态。站点匹配复用自动翻译规则；缺少配置时仅迁移一条启用的 `x.com` 侧边导航预置，显式空数组和停用状态会保留。设置页的「翻译排除」由 `src/options/element-exclusions.ts` 管理，采用列表与可折叠详情，默认只显示名称、网站、开关和删除按钮；新增或校验失败时自动展开，折叠保留草稿。保存时逐条验证站点和浏览器支持的选择器，并在失败时展开、定位对应字段。
+
+`src/content/element-exclusions.ts` 按文档地址缓存已匹配且有效的选择器，跨开放 Shadow DOM 的祖先判断接入统一内容策略。包含被排除子树的段落不再聚合整块替换，以保留子树节点和原文；翻译上下文同样过滤。活动页观察选择器引用的属性及 ID，响应动态区域变化；规则保存和单页路由变化会清理过期译文。后台将设置广播到各文档，只取消适用规则发生变化的文档请求，其他站点继续使用原结果。
+
+`tests/element-exclusions*.test.ts` 覆盖迁移、删除与停用、站点和路径、三种显示模式、内联子树、上下文、动态属性、迟到响应和设置交互。构建后运行 `npm run test:element-exclusions`（Edge 添加 `-- --edge`），使用独立 Chromium 资料、按 X / 示例站点地址路由的页面样本及本地模拟翻译服务，检查设置保存、规则启停、自定义区域、嵌入文档、原文恢复、动态内容和 1400 / 820 / 390px 布局。支持 `PLAYWRIGHT_MODULE`、`CHROME_TEST_BROWSER`、`EDGE_TEST_BROWSER`；报告与截图保存在 `.npm-cache/element-exclusions/<浏览器>/`。该测试不代表登录态 X 实页验收。
+
 ### 页面扫描与取消回归
 
 `tests/page-scan.test.ts` 覆盖扫描期间停止、连续启动、语言与显示模式切换、可见性变化、超过 200 个容器的 DOM 修改，以及保留已有译文的分片补扫。`tests/content-dom.test.ts` 另覆盖隐藏候选的数量边界和溢出轮转。

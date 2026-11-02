@@ -25,6 +25,10 @@
             <span data-wupage-icon="lightning" aria-hidden="true"></span>
             <span>自动翻译</span>
           </a>
+          <a href="#elementExclusionSettings" aria-controls="elementExclusionSettings">
+            <span data-wupage-icon="adjustment" aria-hidden="true"></span>
+            <span>翻译排除</span>
+          </a>
           <a href="#shortcutSettings" aria-controls="shortcutSettings">
             <span data-wupage-icon="keyboard" aria-hidden="true"></span>
             <span>快捷键</span>
@@ -190,6 +194,19 @@
               <p id="autoTranslateSiteHelp" class="hint">example.com 包含子域名，*.example.com 仅匹配子域名，https://example.com/docs/* 可限定协议和路径。</p>
               <p id="autoTranslateSiteStatus" class="hint" role="status"></p>
             </fieldset>
+          </section>
+
+          <section id="elementExclusionSettings" class="settings-panel" aria-labelledby="elementExclusionSettingsTitle" hidden>
+            <div class="settings-panel-heading">
+              <h2 id="elementExclusionSettingsTitle">翻译排除</h2>
+              <p>让指定网站的导航、侧栏或其他区域保留原文。</p>
+            </div>
+            <div id="elementExclusionRules" class="exclusion-rules" aria-label="翻译排除规则"></div>
+            <button id="addElementExclusion" type="button" class="secondary exclusion-rule-add"><span data-wupage-icon="plus" aria-hidden="true"></span>添加规则</button>
+            <p class="hint">网站可填写域名或网址路径。example.com 包含子域名，https://example.com/docs/* 可限定页面范围。</p>
+            <p id="elementExclusionSelectorHelp" class="hint">排除元素使用 CSS 选择器，每行一个，例如 .sidebar 或 [data-region="recommendations"]。匹配元素及其子元素会跳过网页和段落翻译；动态加载的内容同样生效。</p>
+            <p class="hint">修改后点击页面底部「保存」。正在翻译的页面会按新规则重新处理。</p>
+            <p id="elementExclusionStatus" class="hint" role="status" aria-live="polite"></p>
           </section>
 
           <section id="appearanceSettings" class="settings-panel" aria-labelledby="appearanceSettingsTitle" hidden>

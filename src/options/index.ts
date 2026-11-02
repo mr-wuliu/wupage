@@ -10,6 +10,7 @@ import { setImageTranslationToggle, setupOcrControl } from "../shared/ocr-contro
 import { setupLocalModelControl } from "../local/control";
 import { ensureProviderIconStyles, providerIconMarkup } from "../shared/provider-icons";
 import { setupAutoTranslationControls } from "./auto-translation";
+import { setupElementExclusionControls } from "./element-exclusions";
 import { renderProviderUsage, updateProviderScheduling } from "./provider-usage";
 import { setupSettingsNavigation } from "./navigation";
 import { setupStatisticsControls } from "./statistics";
@@ -75,6 +76,9 @@ const autoTranslationControls = setupAutoTranslationControls(
   }
 );
 const frameTranslationEnabled = query<HTMLInputElement>("#frameTranslationEnabled");
+const elementExclusionControls = setupElementExclusionControls(query<HTMLElement>("#elementExclusionSettings"), field => {
+  settingsNavigation.reveal(field); field.scrollIntoView?.({ block: "center" });
+});
 const frameTranslationExcluded = query<HTMLTextAreaElement>("#frameTranslationExcluded");
 
 const LLM_MODEL_OPTIONS = [
@@ -202,6 +206,7 @@ function render(): void {
   shortcutControls.render(settings.shortcuts, settings.shortcutEnabled, settings.localShortcuts);
   appearanceControls.render(settings.appearance);
   autoTranslationControls.render(settings.autoTranslation);
+  elementExclusionControls.render(settings.elementExclusions);
   const frameTranslation = normalizeFrameTranslation(settings.frameTranslation);
   frameTranslationEnabled.checked = frameTranslation.enabled;
   frameTranslationExcluded.value = frameTranslation.excludeMatches.join("\n");
@@ -936,6 +941,7 @@ function readSettingsFromForm(): ExtensionSettings {
     localShortcuts: shortcutControls.readLocal(),
     shortcutEnabled: shortcutControls.readEnabled(),
     autoTranslation: autoTranslationControls.read(),
+    elementExclusions: elementExclusionControls.read(),
     frameTranslation: normalizeFrameTranslation({ enabled: frameTranslationEnabled.checked,
       excludeMatches: frameTranslationExcluded.value.split(/\r?\n/u) }),
     targetLang: targetLang.value.trim() || "zh-CN",

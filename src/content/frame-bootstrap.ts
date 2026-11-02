@@ -10,6 +10,7 @@ import type { ExtensionSettings } from "../shared/types";
 import { initEmbeddedVideoSubtitles } from "./video-bootstrap";
 import { observeParagraphMode } from "../shared/paragraph-mode";
 import { supportsHtmlContent } from "../shared/html";
+import { configureElementExclusions } from "./element-exclusions";
 
 const scope = globalThis as typeof globalThis & { __wupageFrameBootstrap?: boolean };
 const visibility = supportsHtmlContent() ? installFrameVisibilityBridge() : { ready: Promise.resolve() };
@@ -48,6 +49,7 @@ if (window !== window.top && supportsHtmlContent() && !scope.__wupageFrameBootst
   const register = async () => {
     const value = await sendRuntimeRequest<FrameSessionSnapshot>({ type: "FRAME_REGISTER", documentKey, url: location.href });
     current = value;
+    if (!worker) configureElementExclusions(value.settings.elementExclusions);
     frameId = value.selfFrameId;
     configureCandidates();
     if (supported() && allowed(value) && value.active) await (await activate()).apply(value);
@@ -75,6 +77,7 @@ if (window !== window.top && supportsHtmlContent() && !scope.__wupageFrameBootst
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area !== "local" || !changes[SETTINGS_KEY]?.newValue || !current) return;
     current = { ...current, settings: changes[SETTINGS_KEY].newValue as ExtensionSettings };
+    if (!worker) configureElementExclusions(current.settings.elementExclusions);
     configureCandidates();
   });
   chrome.runtime.onMessage.addListener((request: RuntimeRequest, _sender, respond) => {
@@ -83,6 +86,7 @@ if (window !== window.top && supportsHtmlContent() && !scope.__wupageFrameBootst
     }
     if (request.type !== "FRAME_APPLY" || request.documentKey !== documentKey) return;
     current = request.snapshot;
+    if (!worker) configureElementExclusions(current.settings.elementExclusions);
     configureCandidates();
     if (!supported()) { respond({ ok: false, error: "此文档使用专用查看器" }); return; }
     if (!worker && (!request.allowed || (!request.snapshot.active && !paragraphMode))) {

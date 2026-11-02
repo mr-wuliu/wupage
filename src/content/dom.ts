@@ -19,6 +19,7 @@ import { isNonProseElement, isTranslationOptedOut, NON_PROSE_SELECTOR } from "./
 import { composedContains, discoverShadowRoots, mutationElement, onTranslationRoot, queryTranslationElements, translationRoots } from "./dom-roots";
 import { injectContentStyles } from "./styles";
 import { isSteamCommunity, isSteamContentCard, steamItemTitle, steamTextBlock } from "./steam-content";
+import { containsExcludedElement, isElementExcluded } from "./element-exclusions";
 
 export interface TextSegment {
   id: string;
@@ -733,6 +734,7 @@ function recoverRewrittenReplacementSegments(): Set<string> {
     if (!groupedNodes.has(node)) candidates.set(node.id, [node]);
   }
   for (const [id, oldNodes] of candidates) {
+    if (oldNodes.some(node => isElementExcluded(node.sourceParent))) continue;
     const output = renderedById.get(id);
     if (output instanceof Text) continue;
     const translation = translatedTextById.get(id);
@@ -1658,11 +1660,16 @@ function groupTextSegments(
 ): TextSegment[] {
   const groups = new Map<Element, TrackedNode[]>();
   const standalone = new Set(fallback.map((segment) => segment.id));
+  const exclusionBoundaries = new Map<Element, boolean>();
 
   for (const tracked of nodes) {
     if (tracked.mode === "code-comment") continue;
     const block = findGroupingBlock(tracked.node.parentElement);
     if (!block) continue;
+    // Keep excluded inline regions in place instead of merging their content
+    // into a larger paragraph or hiding them during replacement.
+    if (!exclusionBoundaries.has(block)) exclusionBoundaries.set(block, containsExcludedElement(block));
+    if (exclusionBoundaries.get(block)) continue;
     if (block.querySelector(`.${TRANSLATION_CLASS}`) && !block.matches(YOUTUBE_DESCRIPTION_SELECTOR)) continue;
     const group = groups.get(block) ?? [];
     group.push(tracked);
@@ -2343,7 +2350,8 @@ function removeUnrenderedCloneText(
       : visibility.isTextNodeVisuallyRendered(sourceText);
     // A descendant may belong to its own label, control or paragraph. Its
     // text must never also appear in an ancestor's translation request.
-    if (!keep || findGroupingBlock(sourceText.parentElement) !== source) {
+    if (!keep || (sourceText.parentElement && isElementExcluded(sourceText.parentElement))
+      || findGroupingBlock(sourceText.parentElement) !== source) {
       hidden.push(cloneWalker.currentNode as Text);
     }
   }

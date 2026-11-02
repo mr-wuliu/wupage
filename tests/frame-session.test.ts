@@ -65,6 +65,32 @@ describe("iframe translation policy", () => {
 });
 
 describe("tab-wide document sessions", () => {
+  it("cancels pending work only in documents whose exclusion rules change", async () => {
+    const f = await fixture();
+    let changed!: (changes: Record<string, chrome.storage.StorageChange>, area: string) => void;
+    Object.assign(f.api.storage, { onChanged: { addListener: (listener: typeof changed) => { changed = listener; } } });
+    f.manager.install();
+    await f.register(0); await f.register(1); await f.action("start");
+    const { id } = await f.snapshot();
+    let topSignal!: AbortSignal, childSignal!: AbortSignal;
+    let finishChild!: (value: string) => void;
+    const top = f.manager.translate({ texts: ["top"], targetLang: "zh-CN", pageSession: { id, documentKey: "key-0" } }, f.sender(0),
+      signal => new Promise<string>((_resolve, reject) => {
+        topSignal = signal!; signal!.addEventListener("abort", () => reject(new Error("cancelled excluded document")));
+      })).catch(error => error);
+    const child = f.manager.translate({ texts: ["child"], targetLang: "zh-CN", pageSession: { id, documentKey: "key-1" } }, f.sender(1),
+      signal => { childSignal = signal!; return new Promise<string>(resolve => { finishChild = resolve; }); });
+    await vi.waitFor(() => expect(topSignal && childSignal).toBeDefined());
+    const settings = { ...f.settings(), elementExclusions: [{ id: "top", name: "Top region", pattern: "site.example",
+      selectors: [".excluded"], enabled: true }] };
+    changed({ "wupage.settings": { newValue: settings } }, "local");
+    await vi.waitFor(() => expect(topSignal.aborted).toBe(true));
+    expect(childSignal.aborted).toBe(false);
+    expect((await f.snapshot()).id).toBe(id);
+    finishChild("still active"); expect(await child).toBe("still active");
+    expect(await top).toBeInstanceOf(Error);
+  });
+
   it("keeps live sessions usable when optional session persistence fails", async () => {
     const f = await fixture();
     vi.spyOn(f.api.storage.session, "get").mockRejectedValue(new Error("Session storage unavailable"));

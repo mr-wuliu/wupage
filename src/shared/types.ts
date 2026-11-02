@@ -181,6 +181,7 @@ export type DualServiceProviderConfig = Extract<ProviderConfig, DualServiceConfi
 }>;
 
 export interface ExtensionSettings {
+  elementExclusions?: import("./element-exclusions").ElementExclusionRule[];
   frameTranslation?: import("./frame-session").FrameTranslationSettings;
   videoTranslation?: VideoTranslationSettings;
   shortcuts?: ShortcutSettings;

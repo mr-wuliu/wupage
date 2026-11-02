@@ -1,4 +1,5 @@
 import { composedParent } from "./dom-roots";
+import { matchesElementExclusion } from "./element-exclusions";
 const HTML_NAMESPACE = "http://www.w3.org/1999/xhtml";
 
 // These are source documents or application state, rather than readable prose.
@@ -9,6 +10,7 @@ export const NON_PROSE_SELECTOR = "script,style,noscript,textarea,input,select,o
 export function isTranslationOptedOut(element: Element): boolean {
   let translate: boolean | undefined;
   for (let current: Element | null = element; current; current = composedParent(current)) {
+    if (matchesElementExclusion(current)) return true;
     if (current.classList.contains("notranslate")) return true;
     const value = current.getAttribute("translate")?.toLowerCase();
     if (translate === undefined && value === "no") translate = false;
