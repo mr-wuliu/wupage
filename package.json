@@ -12,6 +12,7 @@
     "dev": "vite build --watch",
     "test": "vitest run --exclude \"**/.npm-cache/**\"",
     "test:page": "node scripts/test-page-translation.mjs",
+    "test:steam": "node scripts/test-steam-community.mjs",
     "test:resilience": "node scripts/test-resilience.mjs",
     "test:resilience:edge": "node scripts/test-resilience.mjs --edge",
     "test:resilience:firefox": "node scripts/test-resilience.mjs --firefox",

@@ -346,6 +346,12 @@ OpenCV 4.10 的构建文件还会移除旧 Emscripten 的 demangler 选项及文
 
 可通过 `PLAYWRIGHT_MODULE` 指定外部 Playwright 的 `index.mjs`，通过 `PDF_TEST_BROWSER` 指定现有 Chromium 或 Edge 的可执行文件；测试报告保存在被 Git 忽略的 `.npm-cache/github-code-comments/`。
 
+### Steam 社区与创意工坊回归
+
+`tests/steam-content.test.ts` 覆盖被标记为可点击按钮的简介、公告与讨论卡片、短模组名称和导航分类标签、三种显示模式、段落恢复、动态追加，以及隐藏和禁止翻译区域。站点规则位于 `src/content/steam-content.ts`，新版创意工坊的条目通过稳定的详情链接识别，不依赖生成的 CSS 类名。
+
+构建后运行 `npm run test:steam`，添加 `-- --edge` 或 `-- --firefox` 可切换浏览器。脚本使用独立浏览器资料访问公开的 tModLoader 社区首页、创意工坊及其中一个条目详情页，检查简介、公告、模组标题和说明、滚动补译及原文恢复；翻译请求仅发往本地模拟服务，不验证在线服务的译文质量。支持 `PLAYWRIGHT_MODULE`、`CHROME_TEST_BROWSER`、`EDGE_TEST_BROWSER` 和 `FIREFOX_BINARY`。报告和前后截图保存在 `.npm-cache/steam-community/<浏览器>/`，页面内容及网络变化可能影响实页检查。
+
 ### 页面扫描与取消回归
 
 `tests/page-scan.test.ts` 覆盖扫描期间停止、连续启动、语言与显示模式切换、可见性变化、超过 200 个容器的 DOM 修改，以及保留已有译文的分片补扫。`tests/content-dom.test.ts` 另覆盖隐藏候选的数量边界和溢出轮转。

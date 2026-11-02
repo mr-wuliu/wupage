@@ -18,6 +18,7 @@ import { clearTranslationTypography, linkTranslationTypography } from "./transla
 import { isNonProseElement, isTranslationOptedOut, NON_PROSE_SELECTOR } from "./content-policy";
 import { composedContains, discoverShadowRoots, mutationElement, onTranslationRoot, queryTranslationElements, translationRoots } from "./dom-roots";
 import { injectContentStyles } from "./styles";
+import { isSteamCommunity, isSteamContentCard, steamItemTitle, steamTextBlock } from "./steam-content";
 
 export interface TextSegment {
   id: string;
@@ -825,6 +826,11 @@ function restoreStableReplacement(id: string): void {
 export function findTranslatableParagraph(start: Element | null): Element | null {
   if (start?.closest(CODE_SELECTOR) && !isInlineCodeInReadableText(start)) {
     return findCodeCommentBlock(start);
+  }
+
+  if (start && !shouldSkipElement(start)) {
+    const steamBlock = steamTextBlock(start);
+    if (steamBlock && !shouldSkipElement(steamBlock)) return steamBlock;
   }
 
   let current: Element | null = start;
@@ -1760,7 +1766,7 @@ function completeGroupedSourceNodes(
     // ordinary prose would mutate the protection source during replacement.
     if (citation && isScientificCitation(citation)) continue;
     if (tracked.has(node) || !parent || findGroupingBlock(parent) !== block
-      || parent.closest("code,kbd,samp,button,input,textarea,select,option,[role='button']")
+      || hasSkippedAncestor(parent, "code,kbd,samp,button,input,textarea,select,option,[role='button']")
       || shouldSkipElement(parent, true, visibility) || !visibility.isTextNodeVisuallyRendered(node)) continue;
     // Short words, punctuation and whitespace can be in the complete paragraph
     // even when they were unsuitable as standalone translation requests.
@@ -1941,6 +1947,8 @@ function computeGroupingBlock(element: Element): Element | null {
   if (description) return element.closest("a") ? null : description;
   const comment = element.closest(YOUTUBE_COMMENT_SELECTOR);
   if (comment) return comment;
+  const workshopTitle = steamItemTitle(element);
+  if (workshopTitle) return workshopTitle;
   const compactNavigationTarget = getCompactNavigationTarget(element);
   if (compactNavigationTarget) return compactNavigationTarget;
   const compactControlTarget = getCompactControlTarget(element);
@@ -2044,7 +2052,7 @@ function constrainGroupingToLayoutSlot(element: Element, block: Element, respect
 
 function isAuthoredLineTextBlock(element: Element): boolean {
   if (!element.matches("span") || !element.querySelector("br")) return false;
-  if (element.closest("a,button,nav,[role='navigation'],[role='button'],[role='tab']")) return false;
+  if (hasSkippedAncestor(element, "a,button,nav,[role='navigation'],[role='button'],[role='tab']")) return false;
   if (element.querySelector("div,p,ul,ol,table,img,picture,video,iframe,input,textarea,select,button,[contenteditable]")) return false;
   if (normalizeText(element.textContent ?? "").length < 24) return false;
   if (/^(?:inline-)?(?:flex|grid)$/u.test(window.getComputedStyle(element).display)) return false;
@@ -2104,27 +2112,38 @@ function decideSkipElement(
   if (element.closest(REDDIT_METADATA_SELECTOR)) return true;
   if (isInsideCodeBlock(element)) return false;
   if (isCompactControlText(element)) {
-    return Boolean(element.closest(COMPACT_CONTROL_SKIP_SELECTOR));
+    return hasSkippedAncestor(element, COMPACT_CONTROL_SKIP_SELECTOR);
   }
   if (SKIP_TAGS.has(element.tagName.toUpperCase())) return true;
   if (isCompactNavigationText(element)) {
     if (!includeNavigation && !element.closest(KNOWN_COMPACT_NAV_SELECTOR)) return true;
-    return Boolean(element.closest(COMPACT_NAV_SKIP_SELECTOR));
+    return hasSkippedAncestor(element, COMPACT_NAV_SKIP_SELECTOR);
   }
   if (isInsideDocumentSemanticText(element)) {
-    return Boolean(element.closest(COMPACT_NAV_SKIP_SELECTOR));
+    return hasSkippedAncestor(element, COMPACT_NAV_SKIP_SELECTOR);
   }
   if (isInsideReadableHeadingContent(element)) {
-    return Boolean(element.closest(READABLE_SUMMARY_SKIP_SELECTOR));
+    return hasSkippedAncestor(element, READABLE_SUMMARY_SKIP_SELECTOR);
   }
   if (isInsideReadableSummary(element)) {
-    return Boolean(element.closest(READABLE_SUMMARY_SKIP_SELECTOR));
+    return hasSkippedAncestor(element, READABLE_SUMMARY_SKIP_SELECTOR);
   }
   const skipSelector = isVisuallyRenderedAriaHiddenText(element, visibility)
     ? VISIBLE_ARIA_HIDDEN_SKIP_SELECTOR
     : SKIP_SELECTOR;
-  if (element.closest(skipSelector)) return true;
-  return false;
+  return hasSkippedAncestor(element, skipSelector);
+}
+
+function hasSkippedAncestor(element: Element, selector: string): boolean {
+  let skipped = element.closest(selector);
+  while (skipped && isSteamContentCard(skipped)) {
+    // Only the navigable-card role is exempt; hidden/editor/navigation rules
+    // on the very same element must still apply.
+    const otherSelectors = selector.split(",").filter(part => part.trim() !== "[role='button']").join(",");
+    if (otherSelectors && skipped.matches(otherSelectors)) return true;
+    skipped = skipped.parentElement?.closest(selector) ?? null;
+  }
+  return Boolean(skipped);
 }
 
 function isVisuallyRenderedAriaHiddenText(
@@ -2477,6 +2496,9 @@ function isCompactUiElement(element: Element): boolean {
 
 function isLikelyUiToken(text: string, element: Element | null): boolean {
   if (!element) return false;
+  // Steam's generated div/link UI also carries short headings, filters and
+  // mod names. Keep these readable labels; normal content exclusions still apply.
+  if (isSteamCommunity(element)) return false;
   if (legacyScientificProseBlock(element)) return false;
   if (element.closest(YOUTUBE_DESCRIPTION_SELECTOR)) return false;
   if (element.closest(YOUTUBE_COMMENT_SELECTOR)) return false;
@@ -2563,6 +2585,7 @@ function getCompactControlTarget(element: Element): Element | null {
     + "[role='menuitemradio'],[role='menuitemcheckbox'],[role='option']"
   );
   if (!control || control.closest(HEADING_SELECTOR)) return null;
+  if (isSteamContentCard(control)) return null;
   if (control.matches("a:not([role='button'])") && !control.querySelector("img,svg,canvas")) return null;
   if (control.querySelector("input,select,textarea,[contenteditable='true']")) return null;
   const text = normalizeText(control.textContent ?? "");
