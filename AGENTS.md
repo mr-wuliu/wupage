@@ -50,6 +50,8 @@ git push origin main v1.1.0
 
 带预发布后缀的标签会自动创建 GitHub Prerelease。成功发布后，工作流还会触发项目网站的版本同步。
 
+网站同步兼容旧版固定版本文案与新版 `releases/latest` 下载入口。页面已使用最新版链接且没有固定版本或安装包名时，无需改写网页，同步正常结束。
+
 ### Firefox 构建
 
 `npm run build:firefox` 从共享 Manifest 生成 `dist-firefox/`，最低 Firefox 154。`browser_specific_settings.gecko.id` 固定为 `wupage@mr-wuliu.github.io`，正式提交 AMO 后不得随意变更。数据传输声明包含 `websiteContent` 和 `authenticationInfo`，后者对应用户配置后发送给服务商的 API 凭据；功能的数据处理行为变化时须同步检查声明。
