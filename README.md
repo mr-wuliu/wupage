@@ -50,6 +50,10 @@
 
 ![PDF 课件翻译：左侧英文原文，右侧简体中文译文](docs/example/PDF-ppt-trans.png)
 
+**外观配色 · 浅色 / 深色**
+
+![樱粉、晴蓝、素白、玫夜、深海、墨黑六套配色预览](docs/example/appearance-schemes.png)
+
 ## 安装
 
 ### Microsoft Edge
