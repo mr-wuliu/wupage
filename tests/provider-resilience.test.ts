@@ -10,7 +10,7 @@ const llm = () => createProvider({ id: "test", type: "deepseek", label: "Test", 
 
 // Model a server that flushes headers and then stalls mid-body. Aborting fetch
 // must still abort its body after the headers promise has already resolved.
-function stalledBody() {
+function stalledBody(status = 200) {
   let signal: AbortSignal | undefined;
   const fetch = vi.fn(async (_url: string, init: RequestInit) => {
     signal = init.signal!;
@@ -19,7 +19,7 @@ function stalledBody() {
         controller.enqueue(new TextEncoder().encode("["));
         signal!.addEventListener("abort", () => controller.error(signal!.reason), { once: true });
       }
-    }));
+    }), { status });
   });
   vi.stubGlobal("fetch", fetch);
   return { fetch, signal: () => signal };
@@ -59,6 +59,50 @@ describe("translation transport recovery", () => {
     }))));
     await expect(machine().translateBatch(request)).rejects.toMatchObject({ errorCode: "service-rejected" });
     expect(cancel).toHaveBeenCalledOnce();
+  });
+
+  it.each([false, true])("bounds HTTP 400 inspection and cancels both response branches (temperature=%s)", async temperature => {
+    let downloadedBytes = 0;
+    const cancel = vi.fn();
+    const chunk = new Uint8Array(1024 * 1024).fill(65);
+    if (temperature) chunk.set(new TextEncoder().encode("temperature is not supported"));
+    const fetch = vi.fn()
+      .mockImplementationOnce(async () => new Response(new ReadableStream<Uint8Array>({
+        pull(controller) {
+          if (downloadedBytes >= 16 * 1024 * 1024) { controller.close(); return; }
+          downloadedBytes += chunk.byteLength;
+          controller.enqueue(chunk);
+        },
+        cancel
+      }), { status: 400 }))
+      .mockResolvedValue(new Response(JSON.stringify({ choices: [{ message: { content: '["你好"]' } }] })));
+    vi.stubGlobal("fetch", fetch);
+
+    await expect(llm().translateBatch(request)).rejects.toMatchObject({
+      errorCode: "service-rejected", message: expect.stringContaining("too large")
+    });
+    expect(downloadedBytes).toBeLessThan(16 * 1024 * 1024);
+    await vi.waitFor(() => expect(cancel).toHaveBeenCalledOnce());
+    expect(fetch).toHaveBeenCalledOnce();
+  });
+
+  it("preserves cancellation while inspecting an LLM HTTP 400 body", async () => {
+    const f = stalledBody(400);
+    const controller = new AbortController();
+    const result = llm().translateBatch(request, controller.signal);
+    const rejected = expect(result).rejects.toMatchObject({ name: "AbortError" });
+    await vi.waitFor(() => expect(f.signal()).toBeDefined());
+    controller.abort();
+    await rejected;
+    expect(f.fetch).toHaveBeenCalledOnce();
+  });
+
+  it("keeps the response-body deadline while inspecting an LLM HTTP 400 body", async () => {
+    const timeout = AbortSignal.timeout.bind(AbortSignal);
+    vi.spyOn(AbortSignal, "timeout").mockImplementation(() => timeout(30));
+    const f = stalledBody(400);
+    await expect(llm().translateBatch(request)).rejects.toMatchObject({ name: "TimeoutError" });
+    expect(f.fetch).toHaveBeenCalledOnce();
   });
 
   it.each([[400, "service-rejected"], [401, "login-required"], [403, "permission-required"], [429, "rate-limited"], [500, "service-unavailable"]] as const)

@@ -882,8 +882,17 @@ async function fetchWithTemperatureFallback(url: string, init: RequestInit, conf
   let body: unknown;
   try { body = JSON.parse(init.body); } catch { return response; }
   if (body === null || typeof body !== "object" || !("temperature" in body)) return response;
-  const detail = await response.clone().text().catch(() => "");
+  let detail: string;
+  try {
+    detail = await readResponseText(response.clone());
+  } catch (error) {
+    // The bounded reader cancels the clone. Cancel the original branch too so
+    // the tee releases its buffered data and the underlying stream can stop.
+    void response.body?.cancel().catch(() => undefined);
+    throw error;
+  }
   if (!/temperature/i.test(detail)) return response;
+  void response.body?.cancel().catch(() => undefined);
   console.info("[wupage] LLM rejected temperature; retrying once without it");
   const { temperature: _dropped, ...rest } = body as Record<string, unknown>;
   return fetchWithLlmRetry(url, { ...init, body: JSON.stringify(rest) }, config);
