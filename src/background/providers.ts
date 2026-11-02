@@ -289,7 +289,7 @@ class CloudTranslationProvider implements TranslatorProvider {
     return { ok: true };
   }
 
-  async translateBatch(request: TranslateBatchRequest, signal?: AbortSignal): Promise<string[]> {
+  async translateBatch(request: TranslateBatchRequest, signal?: AbortSignal, onUsage?: (payload: unknown) => void): Promise<string[]> {
     const validation = this.validateConfig();
     if (!validation.ok) throw new Error(validation.message);
     signal?.throwIfAborted();
@@ -300,7 +300,7 @@ class CloudTranslationProvider implements TranslatorProvider {
         const payload = await this.request<{ choices?: Array<{ message?: { content?: unknown } }> }>(
           chatCompletionsEndpoint(api.endpoint!), { "Content-Type": "application/json", Authorization: `Bearer ${api.apiKey}` },
           { model: api.model, stream: false, messages: [{ role: "user", content:
-            `Translate the following text${request.sourceLang && request.sourceLang !== "auto" ? ` from ${request.sourceLang}` : ""} into ${request.targetLang}. Preserve placeholders, numbers, links and formatting. Return only the translated text.\n\n${text}` }] }, signal);
+            `Translate the following text${request.sourceLang && request.sourceLang !== "auto" ? ` from ${request.sourceLang}` : ""} into ${request.targetLang}. Preserve placeholders, numbers, links and formatting. Return only the translated text.\n\n${text}` }] }, signal, onUsage);
         const translated = payload.choices?.[0]?.message?.content;
         if (typeof translated !== "string" || !translated.trim()) throw new Error("TokenHub 未返回完整译文。");
         return translated;
@@ -344,11 +344,11 @@ class CloudTranslationProvider implements TranslatorProvider {
     return values as string[];
   }
 
-  private async request<T>(url: string, headers: Record<string, string>, body: unknown, signal?: AbortSignal): Promise<T> {
+  private async request<T>(url: string, headers: Record<string, string>, body: unknown, signal?: AbortSignal, onUsage?: (payload: unknown) => void): Promise<T> {
     signal?.throwIfAborted();
     const response = await fetchWithTimeout(url, { method: "POST", headers, body: JSON.stringify(body), credentials: "omit", redirect: "error", signal }, API_TRANSLATION_TIMEOUT_MS);
     if (!response.ok) throw httpResponseError(response, `${this.label} API 请求失败 (${response.status})，请检查凭据、额度或使用方式。`);
-    return readJsonResponse<T>(response, this.label);
+    return readJsonResponse<T>(response, this.label, onUsage);
   }
 }
 
@@ -655,7 +655,7 @@ class OpenAICompatibleProvider implements TranslatorProvider {
     return { ok: true };
   }
 
-  async translateBatch(request: TranslateBatchRequest, signal?: AbortSignal): Promise<string[]> {
+  async translateBatch(request: TranslateBatchRequest, signal?: AbortSignal, onUsage?: (payload: unknown) => void): Promise<string[]> {
     const validation = this.validateConfig();
     if (!validation.ok) throw new Error(validation.message);
 
@@ -685,7 +685,7 @@ class OpenAICompatibleProvider implements TranslatorProvider {
         : " 如果使用 Ollama，请在服务设置中开启“Ollama 兼容”；仍失败时检查服务端权限或 OLLAMA_ORIGINS。";
       throw httpResponseError(response, `LLM request failed: ${response.status} ${response.statusText}. ${await readErrorBody(response)}${hint}`);
     }
-    const payload = await readJsonResponse<OpenAIChatResponse>(response, "LLM provider");
+    const payload = await readJsonResponse<OpenAIChatResponse>(response, "LLM provider", onUsage);
     const content = payload.choices?.[0]?.message?.content;
     if (!content) throw new TranslationResponseError("LLM response did not include content.");
 
@@ -716,7 +716,7 @@ class AnthropicCompatibleProvider implements TranslatorProvider {
     return { ok: true };
   }
 
-  async translateBatch(request: TranslateBatchRequest, signal?: AbortSignal): Promise<string[]> {
+  async translateBatch(request: TranslateBatchRequest, signal?: AbortSignal, onUsage?: (payload: unknown) => void): Promise<string[]> {
     const validation = this.validateConfig();
     if (!validation.ok) throw new Error(validation.message);
 
@@ -741,7 +741,7 @@ class AnthropicCompatibleProvider implements TranslatorProvider {
         `LLM request failed: ${response.status} ${response.statusText}. ${await readErrorBody(response)}`
       );
     }
-    const payload = await readJsonResponse<AnthropicMessagesResponse>(response, "LLM provider");
+    const payload = await readJsonResponse<AnthropicMessagesResponse>(response, "LLM provider", onUsage);
     const content = payload.content
       ?.filter((entry) => entry.type === "text" && typeof entry.text === "string")
       .map((entry) => entry.text)
@@ -790,7 +790,7 @@ class HttpTemplateProvider implements TranslatorProvider {
     return { ok: true };
   }
 
-  async translateBatch(request: TranslateBatchRequest, signal?: AbortSignal): Promise<string[]> {
+  async translateBatch(request: TranslateBatchRequest, signal?: AbortSignal, onUsage?: (payload: unknown) => void): Promise<string[]> {
     const validation = this.validateConfig();
     if (!validation.ok) throw new Error(validation.message);
 
@@ -816,7 +816,7 @@ class HttpTemplateProvider implements TranslatorProvider {
     }, API_TRANSLATION_TIMEOUT_MS);
 
     if (!response.ok) throw httpResponseError(response, `HTTP template request failed: ${response.status}`);
-    const payload = await readJsonResponse<unknown>(response, "HTTP template provider");
+    const payload = await readJsonResponse<unknown>(response, "HTTP template provider", onUsage);
     const translations = readPath(payload, this.config.responsePath);
     if (!Array.isArray(translations) || !translations.every((item) => typeof item === "string")) {
       throw new Error("Response path must resolve to an array of strings.");
@@ -1013,7 +1013,7 @@ async function readErrorBody(response: Response): Promise<string> {
   }
 }
 
-async function readJsonResponse<T>(response: Response, providerLabel: string): Promise<T> {
+async function readJsonResponse<T>(response: Response, providerLabel: string, onUsage?: (payload: unknown) => void): Promise<T> {
   const contentType = response.headers?.get?.("content-type") ?? "";
   if (/\btext\/html\b/i.test(contentType)) {
     void response.body?.cancel().catch(() => undefined);
@@ -1025,7 +1025,9 @@ async function readJsonResponse<T>(response: Response, providerLabel: string): P
   try {
     // Empty-body responses still use the browser's ordinary JSON error. Stream
     // nonempty bodies with a byte budget before allocating/parsing their text.
-    return response.body ? JSON.parse(await readResponseText(response)) as T : await response.json() as T;
+    const payload = response.body ? JSON.parse(await readResponseText(response)) as T : await response.json() as T;
+    onUsage?.(payload);
+    return payload;
   } catch (error) {
     if (error instanceof ProviderError) throw error;
     if (error instanceof Error && error.name === "AbortError") throw error;

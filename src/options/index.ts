@@ -12,6 +12,7 @@ import { ensureProviderIconStyles, providerIconMarkup } from "../shared/provider
 import { setupAutoTranslationControls } from "./auto-translation";
 import { renderProviderUsage, updateProviderScheduling } from "./provider-usage";
 import { setupSettingsNavigation } from "./navigation";
+import { setupStatisticsControls } from "./statistics";
 import { setupShortcutSettings } from "./shortcuts";
 import { setupAppearanceControls } from "./appearance";
 import "../shared/appearance.css";
@@ -27,6 +28,7 @@ renderUiIcons();
 const settingsNavigation = setupSettingsNavigation(query<HTMLElement>(".settings"));
 const shortcutControls = setupShortcutSettings(query<HTMLElement>("#shortcutSettings"));
 const appearanceControls = setupAppearanceControls(query<HTMLElement>("#appearanceSettings"));
+const statisticsControls = setupStatisticsControls(query<HTMLElement>("#statisticsSettings"));
 
 const targetLang = query<HTMLSelectElement>("#targetLang");
 const sourceLang = query<HTMLSelectElement>("#sourceLang");
@@ -196,6 +198,7 @@ async function init(): Promise<void> {
 }
 
 function render(): void {
+  statisticsControls.render(settings.statisticsEnabled === true);
   shortcutControls.render(settings.shortcuts, settings.shortcutEnabled, settings.localShortcuts);
   appearanceControls.render(settings.appearance);
   autoTranslationControls.render(settings.autoTranslation);
@@ -943,6 +946,7 @@ function readSettingsFromForm(): ExtensionSettings {
     pdfTranslationPageRadius: pdfTranslationScope.value === "unlimited" ? null
       : pdfTranslationPageRadius.value === "" ? DEFAULT_SETTINGS.pdfTranslationPageRadius : Number(pdfTranslationPageRadius.value),
     cacheEnabled: cacheEnabled.checked,
+    statisticsEnabled: statisticsControls.read(),
     floatingBallEnabled: floatingBallEnabled.checked,
     selectionTranslation: {
       enabled: selectionTranslationEnabled.checked,

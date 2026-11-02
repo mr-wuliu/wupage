@@ -19,6 +19,7 @@ export const DEFAULT_SETTINGS: ExtensionSettings = {
   concurrency: 3,
   pdfTranslationPageRadius: 5,
   cacheEnabled: true,
+  statisticsEnabled: false,
   floatingBallEnabled: true,
   contextMenuTranslationEnabled: false,
   imageTranslationEnabled: false,

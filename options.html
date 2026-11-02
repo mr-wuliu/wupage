@@ -41,6 +41,10 @@
             <span data-wupage-icon="microchip" aria-hidden="true"></span>
             <span>性能设置</span>
           </a>
+          <a href="#statisticsSettings" aria-controls="statisticsSettings">
+            <span data-wupage-icon="display" aria-hidden="true"></span>
+            <span>使用统计</span>
+          </a>
         </nav>
       </aside>
 
@@ -345,6 +349,47 @@
                 </label>
               </div>
             </fieldset>
+          </section>
+          <section id="statisticsSettings" class="settings-panel" aria-labelledby="statisticsSettingsTitle" hidden>
+            <div class="settings-panel-heading">
+              <h2 id="statisticsSettingsTitle">使用统计</h2>
+              <p>查看翻译用量与使用习惯。统计仅保存在当前浏览器，不上传、不跨设备同步。</p>
+            </div>
+            <label class="setting-toggle">
+              <span>启用使用统计</span>
+              <input id="statisticsEnabled" type="checkbox" role="switch" aria-describedby="statisticsCollectionStatus" />
+              <span class="setting-toggle-control" aria-hidden="true"></span>
+            </label>
+            <p id="statisticsCollectionStatus" class="field-description" role="status">默认关闭，保存后生效。</p>
+            <div class="statistics-toolbar">
+              <label>统计范围
+                <select id="statisticsRange"><option value="7">最近 7 天</option><option value="30" selected>最近 30 天</option><option value="90">最近 90 天</option></select>
+              </label>
+              <div class="statistics-actions">
+                <button id="refreshStatistics" type="button" class="secondary">刷新</button>
+                <button id="clearStatistics" type="button" class="secondary">清空统计</button>
+              </div>
+            </div>
+            <p id="statisticsStatus" class="field-description" role="status" aria-live="polite"></p>
+            <div id="statisticsSummary" class="statistics-summary"></div>
+            <div class="statistics-chart-heading">
+              <h3>每日消耗趋势</h3>
+              <label><span class="visually-hidden">趋势指标</span><select id="statisticsMetric"><option value="totalTokens">Token 用量</option><option value="requests">翻译请求</option><option value="pages">翻译页面</option></select></label>
+            </div>
+            <div id="statisticsTrend" class="statistics-chart"></div>
+            <details class="statistics-daily"><summary>查看每日数据</summary><div class="statistics-table-scroll"><table><caption class="visually-hidden">每日翻译用量</caption><thead><tr><th scope="col">日期</th><th scope="col">页面</th><th scope="col">请求</th><th scope="col">已报告 Token</th></tr></thead><tbody id="statisticsDailyRows"></tbody></table></div></details>
+            <h3>请求频率</h3>
+            <p id="statisticsFrequency" class="field-description"></p>
+            <div id="statisticsHours" class="statistics-chart"></div>
+            <h3>常用模型与服务</h3>
+            <div class="statistics-table-scroll"><table class="statistics-models"><caption class="visually-hidden">按翻译请求次数排序的模型和服务</caption><thead><tr><th scope="col">模型 / 服务</th><th scope="col">请求</th><th scope="col">已报告 Token</th><th scope="col">成功率</th></tr></thead><tbody id="statisticsModelRows"></tbody></table></div>
+            <details class="statistics-definitions"><summary>统计口径与数据保留</summary>
+              <ul>
+                <li>页面数为有成功翻译结果的页面会话，同日同一会话只计一次，包含缓存结果；刷新、重新打开或重新启动全文翻译会产生新会话。嵌入页面与全文翻译共用会话。</li>
+                <li>请求数按调用翻译服务的批次计数，包含失败和译文修复调用；接口内部的 HTTP 重试或子请求不另计。仅缓存命中不增加请求数；服务配置测试和词典查询不计入。</li>
+                <li>Token 仅累加接口实际返回的用量，未返回的部分不估算。免费翻译、本地翻译等通常没有 Token 用量；用量不代表实际账单或金额。</li>
+              </ul>
+            </details>
           </section>
         </div>
 

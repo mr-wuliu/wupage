@@ -197,6 +197,8 @@ export interface ExtensionSettings {
   /** Pages to translate on each side of the reading page; null means the whole PDF. */
   pdfTranslationPageRadius: number | null;
   cacheEnabled: boolean;
+  /** Local usage statistics are collected only after explicit opt-in. */
+  statisticsEnabled?: boolean;
   floatingBallEnabled: boolean;
   contextMenuTranslationEnabled?: boolean;
   imageTranslationEnabled?: boolean;
@@ -300,7 +302,7 @@ export interface ValidationResult {
 export interface TranslatorProvider {
   id: string;
   label: string;
-  translateBatch(request: TranslateBatchRequest, signal?: AbortSignal): Promise<string[]>;
+  translateBatch(request: TranslateBatchRequest, signal?: AbortSignal, onUsage?: (payload: unknown) => void): Promise<string[]>;
   validateConfig(): ValidationResult;
 }
 
@@ -335,6 +337,8 @@ export type RuntimeRequest =
   | { type: "OPEN_TRANSLATION_DEBUG" }
   | { type: "GET_TRANSLATION_DEBUG" }
   | { type: "CLEAR_CACHE" }
+  | { type: "GET_STATISTICS" }
+  | { type: "CLEAR_STATISTICS" }
   | { type: "LOAD_IMAGE"; url: string }
   | { type: "TRANSLATE_CONTEXT_IMAGE"; srcUrl: string }
   | ({ type: "TRANSLATE_IMAGE" } & TranslateImageRequest)

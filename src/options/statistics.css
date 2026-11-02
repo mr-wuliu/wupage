@@ -1,0 +1,32 @@
+.statistics-toolbar, .statistics-actions, .statistics-chart-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.statistics-toolbar { margin-top: 12px; }
+.statistics-toolbar label { display: flex; align-items: center; gap: 10px; }
+.statistics-toolbar select, .statistics-chart-heading select { width: auto; min-width: 120px; }
+.statistics-summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.statistics-card { min-width: 0; display: grid; align-content: start; gap: 10px; padding: 16px; border: 1px solid var(--wp-border, #d7dedb); border-radius: 8px; background: var(--wp-soft, #f5f7f5); }
+.statistics-card span { color: var(--wp-muted, #526068); font-size: 12px; }
+.statistics-card strong { font-size: 20px; font-weight: 600; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.statistics-card:nth-child(4) strong, .statistics-card:nth-child(5) strong { font-size: 15px; }
+.statistics-chart-heading { margin-top: 8px; }
+.statistics-chart-heading h3 { margin: 0; }
+.statistics-chart { min-width: 0; padding: 12px 0; border: 1px solid var(--wp-border, #d7dedb); border-radius: 8px; }
+.statistics-chart svg { display: block; width: 100%; height: auto; overflow: visible; }
+.statistics-grid-line { stroke: var(--wp-border, #d7dedb); stroke-width: 1; }
+.statistics-axis { fill: var(--wp-muted, #526068); font-size: 11px; }
+.statistics-trend-line { stroke: var(--wp-accent, #116466); stroke-width: 2; fill: none; stroke-linejoin: round; }
+.statistics-point, .statistics-bar { fill: var(--wp-accent, #116466); }
+.statistics-point-unknown { fill: var(--wp-surface, #fff); stroke: var(--wp-accent, #116466); stroke-width: 1.5; }
+.statistics-point:hover { r: 5; }
+.statistics-bar:hover { opacity: .65; }
+.statistics-table-scroll { width: 100%; overflow-x: auto; }
+#statisticsSettings table { width: 100%; border-collapse: collapse; font-size: 13px; text-align: left; font-variant-numeric: tabular-nums; }
+#statisticsSettings th, #statisticsSettings td { padding: 12px 8px; border-bottom: 1px solid var(--wp-border, #d7dedb); overflow-wrap: anywhere; }
+#statisticsSettings th { color: var(--wp-muted, #526068); font-weight: 500; white-space: nowrap; }
+#statisticsSettings td:first-child { min-width: 100px; }
+#statisticsSettings td:not(:first-child) { white-space: nowrap; }
+#statisticsSettings summary { cursor: pointer; font-size: 13px; color: var(--wp-muted, #526068); }
+.statistics-daily { max-height: 300px; overflow-y: auto; }
+.statistics-definitions ul { margin: 12px 0 0; padding-left: 20px; font-size: 12px; line-height: 1.9; color: var(--wp-muted, #526068); }
+#statisticsStatus:empty { display: none; }
+@media (max-width: 1100px) { .statistics-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 420px) { .statistics-card { padding: 12px; } .statistics-card strong { font-size: 17px; } .statistics-summary { gap: 8px; } }

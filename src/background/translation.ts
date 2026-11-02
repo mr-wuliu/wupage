@@ -18,6 +18,7 @@ import { LOCAL_MODELS } from "../local/models";
 import { DOUBAO_PROTOCOL_VERSION } from "../shared/doubao";
 import { withDoubaoDeadline } from "./doubao";
 import { detectSourceLanguage } from "./source-language";
+import { createStatisticsRecorder, type StatisticsRecorder } from "./statistics";
 
 const GLOBAL_LIMITER = Symbol("global-translation-limiter");
 const providerLimiters = new Map<string | symbol, ProviderLimiter>();
@@ -34,6 +35,7 @@ export interface TranslationTaskOptions {
   signal?: AbortSignal;
   priority?: boolean;
   persistentCache?: boolean;
+  statisticsPageKey?: string;
 }
 
 export async function translateWithSettings(
@@ -74,6 +76,7 @@ async function translateConfigured(
   const useCache = settings.cacheEnabled && options.persistentCache !== false;
   const providerId = providerConfig.id;
   const provider = createProvider(providerConfig);
+  const statistics = createStatisticsRecorder(settings);
   const performance = getEffectiveProviderPerformance(settings, providerId);
   // Model/prompt/source-language changes must not keep serving old translations.
   // Scheduling and presentation fields stay out of the fingerprint: renaming a
@@ -111,7 +114,7 @@ async function translateConfigured(
 
   const runProviderTexts = (texts: string[]) =>
     runProviderTask(providerConfig, request, texts, performance, settings.concurrency, async () => {
-      const result = await translateProviderTexts(providerConfig, provider, request, texts, signal);
+      const result = await translateProviderTexts(providerConfig, provider, request, texts, signal, statistics);
       signal?.throwIfAborted();
       assertTranslationResponse(result, texts.length);
       return result;
@@ -138,6 +141,7 @@ async function translateConfigured(
   await writeCachedTranslations(pendingCacheWrites);
 
   signal?.throwIfAborted();
+  await statistics?.result(request.pageSession?.id ?? options.statisticsPageKey, cachedTranslations.size, output.length);
   return {
     translations: output,
     cached: cachedTranslations.size
@@ -399,15 +403,16 @@ async function translateProviderTexts(
   provider: ReturnType<typeof createProvider>,
   request: TranslateBatchRequest,
   texts: string[],
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  statistics?: StatisticsRecorder
 ): Promise<string[]> {
   signal?.throwIfAborted();
-  const translate = (part: TranslateBatchRequest) => signal
-    ? provider.translateBatch(part, signal)
-    : provider.translateBatch(part);
+  const translate = (part: TranslateBatchRequest) => statistics
+    ? statistics.call(providerConfig, part.texts, onUsage => provider.translateBatch(part, signal, onUsage))
+    : signal ? provider.translateBatch(part, signal) : provider.translateBatch(part);
   if (request.preservePlaceholders) {
     return translateProtectedText({ ...request, texts }, (part) =>
-      translateProviderTexts(providerConfig, provider, { ...part, preservePlaceholders: false }, part.texts, signal)
+      translateProviderTexts(providerConfig, provider, { ...part, preservePlaceholders: false }, part.texts, signal, statistics)
     );
   }
   if (providerConfig.type === "doubao-web" || providerConfig.type === "firefox-local"

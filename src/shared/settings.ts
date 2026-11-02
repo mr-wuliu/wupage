@@ -71,6 +71,7 @@ export function normalizeSettings(value: unknown): ExtensionSettings {
         ? input.translateCodeComments
         : DEFAULT_SETTINGS.translateCodeComments,
     imageTranslationEnabled: input.imageTranslationEnabled === true,
+    statisticsEnabled: input.statisticsEnabled === true,
     contextMenuTranslationEnabled: input.contextMenuTranslationEnabled === true,
     translationDisplayMode: isTranslationDisplayMode(input.translationDisplayMode)
       ? input.translationDisplayMode

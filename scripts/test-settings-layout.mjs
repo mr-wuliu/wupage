@@ -21,7 +21,7 @@ try{
   for(const width of [1400,900,720,390]){
     await browser.resize(width,900);
     const categories=[];
-    for(const name of ['general','selectionTranslation','autoTranslation','shortcut','appearance','provider','performance','appearance']){
+    for(const name of ['general','selectionTranslation','autoTranslation','shortcut','appearance','provider','performance','statistics','appearance']){
       await browser.evaluate(`document.querySelector('.settings-nav a[aria-controls="${name}Settings"]').click();`);await delay(50);
       const value=await geometry();categories.push({name,...value});
       if(!record){

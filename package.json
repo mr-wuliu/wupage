@@ -62,6 +62,7 @@
     "test:scientific:firefox": "node scripts/test-scientific-page.mjs --firefox",
     "test:scientific:edge": "node scripts/test-scientific-page.mjs --edge",
     "test:settings": "node scripts/test-settings-initialization.mjs",
+    "test:statistics": "node scripts/test-statistics.mjs",
     "test:settings-layout": "node scripts/test-settings-layout.mjs",
     "test:settings-layout:edge": "node scripts/test-settings-layout.mjs --edge",
     "test:settings-layout:firefox": "node scripts/test-settings-layout.mjs --firefox",

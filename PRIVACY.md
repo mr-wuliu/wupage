@@ -22,10 +22,11 @@ WuPage processes the following data only to provide its translation functionalit
 - **Translation cache:** When local caching is enabled, translated text is stored locally with a hash of the source text. Users can disable or clear the cache from the extension interface.
 - **Image translation cache:** When caching is enabled, recognized text, translations, region coordinates and colors are stored locally under a hash of the image and translation settings. Original image bytes are not persisted in the cache. The same cache controls clear these entries.
 - **Debug information:** When translation tasks run, WuPage can display source text, translated text, request status, and errors in its Debug window. This information is held by the extension for troubleshooting and is not sent to the WuPage developer.
+- **Optional local usage statistics:** Disabled by default. After the user enables statistics and saves settings, WuPage records daily counts of translated page sessions, translation service calls, successes, failures, cache hits, response time, source character counts, model/service names, and Token usage actually returned by providers. Missing Token usage is not estimated. The statistics stay in the current browser and are never uploaded or synced. They do not contain visited URLs, page titles, source text, translations, or credentials. Hashed document/session identities used to avoid duplicate page counts are stored only for the browser session. Reading or recording statistics removes daily aggregates older than 90 local calendar days. Disabling statistics stops new collection and retains previous aggregates; clearing statistics removes them without affecting settings or translation caches, and in-flight older tasks cannot repopulate cleared records.
 
 The source text in a selection card can be edited. Edits remain in memory and do not alter the webpage or send requests until the user submits them with the lookup/translate button or Ctrl+Enter. Submitted edits follow the same dictionary and translation data flow described above.
 
-WuPage does not intentionally collect names, email addresses, health information, financial information, precise location, browsing history, or user activity for analytics, advertising, profiling, or tracking.
+WuPage does not send names, email addresses, health information, financial information, precise location, browsing history, or usage statistics to its developer for analytics, advertising, profiling, or tracking. Optional usage statistics are limited to the local aggregates described above.
 
 ## How Data Is Used and Shared
 
@@ -53,6 +54,7 @@ Users can:
 - choose the provider, languages and reading range used for PDF translation;
 - remove stored provider credentials by clearing the relevant configuration;
 - disable the local translation cache or clear cached translations;
+- enable or disable local usage statistics and clear all saved statistics independently;
 - pause local model downloads, resume them, import model files offline, or remove downloaded models;
 - export PDFs without downloading fonts, or install and remove the optional complete export font;
 - clear displayed translations from a webpage;

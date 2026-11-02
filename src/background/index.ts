@@ -1,4 +1,5 @@
 import { getSettings, saveSettings } from "../shared/settings";
+import { clearStatistics, getStatistics, initStatistics, statisticsPageKey } from "./statistics";
 import type { RuntimeRequest, RuntimeResponse } from "../shared/types";
 import { createProvider } from "./providers";
 import { loadImageData, translateImageWithSettings } from "./image-translation";
@@ -33,6 +34,7 @@ chrome.runtime.onMessage.addListener((request: RuntimeRequest, sender, sendRespo
 
 try { frameSessions.install(); }
 catch (error) { console.warn("WuPage frame integration:", error); }
+initStatistics();
 try { initVideoSettings(); chrome.tabs?.onRemoved?.addListener(clearVideoTab); }
 catch (error) { console.warn("WuPage video integration:", error); }
 
@@ -144,7 +146,7 @@ async function handleMessage(request: RuntimeRequest, sender: chrome.runtime.Mes
     }
     case "TRANSLATE_BATCH": {
       const settings = await getSettings();
-      return frameSessions.translate(request, sender, signal => translateWithSettings(settings, request, { signal }));
+      return frameSessions.translate(request, sender, signal => translateWithSettings(settings, request, { signal, statisticsPageKey: statisticsPageKey(sender) }));
     }
     case "LOAD_IMAGE": {
       const settings = await getSettings();
@@ -152,7 +154,11 @@ async function handleMessage(request: RuntimeRequest, sender: chrome.runtime.Mes
       return loadImageData(request.url);
     }
     case "TRANSLATE_IMAGE":
-      return translateImageWithSettings(await getSettings(), request);
+      return translateImageWithSettings(await getSettings(), request, statisticsPageKey(sender));
+    case "GET_STATISTICS":
+      return getStatistics();
+    case "CLEAR_STATISTICS":
+      return clearStatistics();
     case "GET_TRANSLATION_DEBUG":
       return { ...getTranslationDebugSnapshot(),
         ...(sender.tab?.id !== undefined ? { frames: await frameSessions.diagnostics(sender.tab.id) } : {}) };

@@ -39,6 +39,12 @@
 `src/content/legacy-scientific.ts` 识别 LaTeX2HTML 生成标记，将页面根节点下连续的行内内容临时组织为段落，并在清理时还原原始节点。正文中的公式图片和数字引用使用已有的受保护标记协议，译文复用公式图片和引用链接；独立公式、编号和公式图片的替代文本不送去翻译。
 
 构建后运行 `npm run test:scientific`（Chrome）、`npm run test:scientific:firefox` 及 `npm run test:scientific:edge`，环境变量与框架回归相同。测试使用本地原创样例和模拟翻译，检查段落、公式、引用、可见范围调度、三种显示模式和恢复原文。直接运行 `node scripts/test-scientific-page.mjs --live`（可加 `--firefox` 或 `--edge`）还会验证 OpenMX 的实际论文页面。报告和截图按浏览器分别保存在 `.npm-cache/scientific-page/` 下；模拟结果只用于验证采集和排版，不衡量翻译质量。
+### 本地使用统计
+
+`src/shared/statistics.ts` 定义每日聚合、接口 Token 用量解析与 7 / 30 / 90 天汇总；`src/background/statistics.ts` 串行写入独立的本地存储键，页面去重摘要只进入会话存储。`statisticsEnabled` 默认关闭并严格按布尔值规范化。`translation.ts` 在实际调用服务的批次边界记录结果，LLM、TokenHub 和自定义 HTTP 适配器通过可选回调提供响应内的用量；接口内部 HTTP 重试不另外计数。缓存命中只增加缓存文本和页面计数。设置测试、词典查询不经过统计入口。
+
+关闭开关、清空数据会使旧记录器失效，避免在途任务回写；统计读写失败不影响翻译结果。查看或新增记录时清理 90 天以前的聚合。设置页 `src/options/statistics.ts` 提供范围切换、用量趋势、小时分布、模型排名与清空操作，样式复用扩展主题。相关单元与集成验证位于 `tests/statistics*.test.ts`。构建后运行 `npm run test:statistics`（Edge / Firefox 添加 `--edge` / `--firefox`，或直接运行对应脚本），使用独立浏览器资料目录、本地模拟服务验证默认关闭、实际响应用量、并发、页面去重、关闭后保留历史、清空与 1400 / 900 / 720 / 390px 布局。支持 `PLAYWRIGHT_MODULE`、`CHROME_TEST_BROWSER`、`EDGE_TEST_BROWSER`，报告与截图位于 `.npm-cache/statistics/<browser>/`。
+
 ### 视频字幕实验
 
 `src/content/video-subtitles.ts` 在主页面与嵌入帧中发现视频，每个播放器由 `video-player.ts` 管理独立会话，`video-view.ts` 提供带键盘支持的 Shadow DOM 工具条、折叠设置与字幕覆盖层。仅用户手动开启或明确勾选网站自动开启后才发送字幕文本。播放器控制不操作时收起，设置关闭后继续翻译；字号、背景、原文显示不会重新调用翻译服务。
