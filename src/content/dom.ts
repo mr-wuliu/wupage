@@ -1775,13 +1775,18 @@ function computeGroupingBlock(element: Element): Element | null {
   const singleLineTarget = getSingleLineTextTarget(element);
   if (singleLineTarget) return constrainGroupingToLayoutSlot(element, singleLineTarget);
 
+  const listItem = element.closest("li");
   const readableBlock = element.closest(
     `${SEMANTIC_TEXT_BLOCK_SELECTOR}, label, summary, ${X_POST_TEXT_SELECTOR}`
   );
-  if (readableBlock?.matches("summary") && !isInsideReadableSummary(readableBlock)) {
-    return null;
+  // Layout tables and blockquotes can wrap entire documents. Their semantic
+  // boundary must not absorb nearer list items; replacement would empty those
+  // items and move their combined translation to the outer container's end.
+  // Paragraphs and cells *inside* a list item still own their own content.
+  if (readableBlock && (!listItem || listItem.contains(readableBlock))) {
+    if (readableBlock.matches("summary") && !isInsideReadableSummary(readableBlock)) return null;
+    return constrainGroupingToLayoutSlot(element, readableBlock);
   }
-  if (readableBlock) return constrainGroupingToLayoutSlot(element, readableBlock);
   const scientificBlock = legacyScientificProseBlock(element);
   if (scientificBlock) return scientificBlock;
 
@@ -1798,7 +1803,6 @@ function computeGroupingBlock(element: Element): Element | null {
   const div = element.closest("div");
   if (div && isDivProseBlock(div)) return constrainGroupingToLayoutSlot(element, div);
 
-  const listItem = element.closest("li");
   if (!listItem) return null;
   const slot = constrainGroupingToLayoutSlot(element, listItem);
   if (slot !== listItem) return slot;

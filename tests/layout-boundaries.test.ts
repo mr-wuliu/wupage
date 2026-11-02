@@ -133,6 +133,51 @@ describe("translation layout boundaries", () => {
     expect((await collectTextSegmentsProgressive()).map(s => s.text)).toEqual(["One complete sentence with inline emphasis and a reference link."]);
   });
 
+  it.each(["td", "blockquote"])("keeps lists inside their own items within a %s layout", async tag => {
+    const content = `<p>Introduction before the feature list.</p><ul>
+      <li id="feature-one">Open <em>archive architecture</em>
+      <li id="feature-two">Strong encryption support for archive data
+      </ul><p>Descriptions remain separate.</p>
+      <table><tr><td id="method">Method label</td><td id="description">Compression method description</td></tr></table>
+      <ul><li id="feature-three">Small memory requirements during archive extraction</li></ul><p>Concluding paragraph.</p>`;
+    document.body.innerHTML = tag === "td" ? `<table><tr><td id="layout">${content}</td></tr></table>`
+      : `<blockquote id="layout">${content}</blockquote>`;
+    const original = document.body.innerHTML;
+    const segments = await collectTextSegmentsProgressive();
+    const items = [...document.querySelectorAll("li")];
+    const sources = items.map(item => item.textContent!.trim());
+    expect(segments.filter(segment => items.includes(segment.element as HTMLLIElement)).map(segment => segment.text)).toEqual(sources);
+    expect(segments.some(segment => segment.element.id === "layout")).toBe(false);
+    expect(segments.find(segment => segment.element.id === "description")?.text).toBe("Compression method description");
+
+    for (const mode of ["replace", "bilingual", "bilingual-accent"] as const) {
+      renderTranslationPlaceholders(segments);
+      renderTranslations(segments.map(segment => ({ id: segment.id, text: `译文：${segment.text}` })), mode);
+      items.forEach((item, index) => expect(item.querySelector(".wupage-translation")?.textContent).toBe(`译文：${sources[index]}`));
+      expect(document.querySelector("#layout > .wupage-translation")).toBeNull();
+      expect(document.querySelector("#description .wupage-translation")?.textContent).toBe("译文：Compression method description");
+      setTranslationDisplayMode(mode === "replace" ? "bilingual" : "replace");
+      items.forEach(item => expect(item.textContent?.trim()).not.toBe(""));
+    }
+    clearTranslations();
+    expect(document.body.innerHTML).toBe(original);
+  });
+
+  it("keeps inner paragraphs, nested list items and table cells separate inside a table-layout list", async () => {
+    document.body.innerHTML = `<table><tr><td id="layout"><ul><li>Opening list prose.
+      <p id="inner-paragraph">An independent paragraph inside the list item.</p>
+      <ul><li id="nested-item">A nested feature description.</li></ul>
+      <table><tr><td id="inner-cell">A table cell inside the list item.</td></tr></table>
+      </li></ul></td></tr></table>`;
+    const segments = await collectTextSegmentsProgressive();
+    expect(segments.find(segment => segment.element.id === "inner-paragraph")?.text)
+      .toBe("An independent paragraph inside the list item.");
+    expect(segments.find(segment => segment.element.id === "nested-item")?.text).toBe("A nested feature description.");
+    expect(segments.find(segment => segment.element.id === "inner-cell")?.text).toBe("A table cell inside the list item.");
+    expect(segments.some(segment => segment.element.id === "layout")).toBe(false);
+    expect(segments.some(segment => segment.text.includes("Opening") && segment.text.includes("independent"))).toBe(false);
+  });
+
   it("keeps inline-block language and statistics fields in their original boxes", async () => {
     document.body.innerHTML = `<p><span id="language" style="display:inline-block"><i></i><span>Shell</span></span>
       <a id="stars" style="display:inline-block" href="/stars"><svg></svg>160</a>
