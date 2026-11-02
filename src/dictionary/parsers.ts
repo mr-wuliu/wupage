@@ -1,4 +1,4 @@
-import { dictionarySourceUrl, isDictionaryAudioUrl, type DictionaryEntry, type DictionaryPronunciation } from "../shared/dictionary";
+import { dictionarySourceUrl, isChineseDictionaryQuery, isDictionaryAudioUrl, type DictionaryEntry, type DictionaryPronunciation } from "../shared/dictionary";
 
 function record(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
@@ -17,10 +17,34 @@ function text(value: unknown, depth = 0): string {
 
 export function parseYoudaoDictionary(payload: unknown, query: string): DictionaryEntry {
   const data = record(payload);
-  if (!data.ec && !data.ce && !data.simple && !data.input) throw new Error("有道词典返回了无法识别的数据，请稍后重试。");
+  if (!data.ec && !data.ce && !data.simple && !data.newhh && !data.input) throw new Error("有道词典返回了无法识别的数据，请稍后重试。");
   const ec = record(list(record(data.ec).word)[0]);
   const ce = record(list(record(data.ce).word)[0]);
   const simple = record(list(record(data.simple).word)[0]);
+  const chinese = isChineseDictionaryQuery(query);
+  if (chinese) {
+    const dictionary = record(data.newhh);
+    const groups = list(dictionary.dataList).slice(0, 30).map(record);
+    const readings = [...new Set(groups.map(group => text(group.pinyin).trim()).filter(Boolean))];
+    const meanings: DictionaryEntry["meanings"] = [];
+    for (const group of groups) {
+      for (const sense of list(group.sense).slice(0, 30).map(record)) {
+        for (const value of list(sense.def)) {
+          const definition = text(value).trim();
+          if (!definition || meanings.length >= 30) continue;
+          meanings.push({ partOfSpeech: text(sense.cat ?? group.cat), definition,
+            ...(readings.length > 1 ? { pronunciation: text(group.pinyin).trim() } : {}) });
+        }
+      }
+    }
+    if (readings.length || meanings.length) {
+      const phonetics = readings.length ? readings : [text(ce.phone ?? simple.phone).trim()].filter(Boolean);
+      return {
+        provider: "youdao", query, word: text(dictionary.word) || query, sourceUrl: dictionarySourceUrl("youdao", query),
+        pronunciations: phonetics.map(phonetic => ({ accent: "pinyin", phonetic })), meanings
+      };
+    }
+  }
   const wordData = Object.keys(ec).length ? ec : ce;
   const word = text(wordData["return-phrase"]) || text(simple["return-phrase"]) || query;
   const pronunciations: DictionaryPronunciation[] = [];
@@ -33,7 +57,7 @@ export function parseYoudaoDictionary(payload: unknown, query: string): Dictiona
     if (phonetic || hasAudio) pronunciations.push({ accent, phonetic, audioUrl: hasAudio ? url.href : undefined });
   }
   const phone = text(wordData.phone ?? simple.phone);
-  if (!pronunciations.length && phone) pronunciations.push({ accent: "default", phonetic: phone });
+  if (!pronunciations.length && phone) pronunciations.push({ accent: chinese ? "pinyin" : "default", phonetic: phone });
   const meanings: DictionaryEntry["meanings"] = [];
   for (const group of list(wordData.trs).slice(0, 30)) {
     const item = record(group);

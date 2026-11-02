@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from "vitest";
 import { normalizeSettings } from "../src/shared/settings";
-import { isDictionaryAudioUrl, isSingleDictionaryWord, normalizeDictionaryQuery, normalizeSelectionText } from "../src/shared/dictionary";
+import { dictionaryProviderForQuery, dictionarySourceUrl, isChineseDictionaryQuery, isDictionaryAudioUrl, isSingleDictionaryWord, normalizeDictionaryQuery, normalizeSelectionText } from "../src/shared/dictionary";
 import { parseBingDictionary, parseYoudaoDictionary } from "../src/dictionary/parsers";
 
 const bing = `<html><head><title>example - 搜索 词典</title></head><body><div class="qdef">
@@ -24,9 +24,18 @@ describe("dictionary settings and input", () => {
     expect(normalizeDictionaryQuery("e\u0301cole")).toBe("école");
     for (const value of [" ", "123.45", "a".repeat(101), "hello\0", {}, undefined]) expect(normalizeDictionaryQuery(value)).toBe("");
   });
-  it("routes only single alphabetic words to the dictionary", () => {
+  it("routes alphabetic words and short Han selections to the dictionary", () => {
     for (const word of ["filesystem", "Running", "don't", "well-known", "école", "e\u0301cole"]) expect(isSingleDictionaryWord(word)).toBe(true);
-    for (const text of ["take off", "first\nsecond", "feat: add selection translation", "hello!", "中文没有空格", "翻訳", "한국어", "123", "a".repeat(101)]) expect(isSingleDictionaryWord(text)).toBe(false);
+    for (const word of ["齉", "垚", "生僻", "重", "漢字", "魑魅魍魉", "𠮷", "一".repeat(8)]) expect(isSingleDictionaryWord(word)).toBe(true);
+    for (const text of ["take off", "first\nsecond", "feat: add selection translation", "hello!", "这是一句需要直接翻译的中文", "你好。", "中文 English", "生 僻", "翻訳する", "한국어", "123", "a".repeat(101)]) expect(isSingleDictionaryWord(text)).toBe(false);
+  });
+  it("uses Youdao's Chinese dictionary without changing the default for alphabetic words", () => {
+    expect(isChineseDictionaryQuery("  齉  ")).toBe(true);
+    expect(isChineseDictionaryQuery("𠮷".repeat(8))).toBe(true);
+    for (const value of ["一".repeat(9), "𠮷".repeat(9), "你好！", "中文\n汉字", "汉字かな", "hello"]) expect(isChineseDictionaryQuery(value)).toBe(false);
+    expect(dictionaryProviderForQuery("bing", "齉")).toBe("youdao");
+    expect(dictionaryProviderForQuery("bing", "hello")).toBe("bing");
+    expect(new URL(dictionarySourceUrl("youdao", "齉")).searchParams.get("lang")).toBe("zh");
   });
   it("allows longer selections and preserves paragraph breaks for translation", () => {
     const paragraph = "Read this paragraph.\r\n".repeat(10).trim();
@@ -59,7 +68,44 @@ describe("dictionary response adapters", () => {
       .toEqual([{ partOfSpeech: "n.", definition: "例子" }]);
     const entry = parseYoudaoDictionary({ ce: { word: [{ phone: "nǐ hǎo", trs: [{ tr: [{ l: { i: ["", { "#text": "hello", "@href": "app:ds:hello" }, " / ", { "#text": "hi" }] } }] }] }] } }, "你好");
     expect(entry.meanings).toEqual([{ partOfSpeech: "", definition: "hello / hi" }]);
-    expect(entry.pronunciations).toEqual([{ accent: "default", phonetic: "nǐ hǎo" }]);
+    expect(entry.pronunciations).toEqual([{ accent: "pinyin", phonetic: "nǐ hǎo" }]);
+  });
+  it("prefers Chinese definitions to Chinese-English translations for rare characters", () => {
+    const entry = parseYoudaoDictionary({ input: "齉", newhh: { word: "齉", dataList: [
+      { pinyin: "nàng", cat: "形容词", sense: [{ def: ["鼻子不通气；也指因鼻子不通气而发音不清"] }] }
+    ] }, ce: { word: [{ phone: "nàng", trs: [{ tr: [{ l: { i: ["nasal"] } }] }] }] } }, "齉");
+    expect(entry.word).toBe("齉");
+    expect(entry.pronunciations).toEqual([{ accent: "pinyin", phonetic: "nàng" }]);
+    expect(entry.meanings).toEqual([{ partOfSpeech: "形容词", definition: "鼻子不通气；也指因鼻子不通气而发音不清" }]);
+    expect(entry.sourceUrl).toContain("lang=zh");
+  });
+  it("accepts Chinese-only entries and preserves the reading for each polyphonic definition", () => {
+    const entry = parseYoudaoDictionary({ newhh: { word: "重", dataList: [
+      { pinyin: "chóng", sense: [{ cat: "动词", def: ["重叠；重复"] }] },
+      { pinyin: "zhòng", sense: [{ cat: "形容词", def: ["重量大", "程度深"] }] },
+      { pinyin: "zhòng", sense: [{ cat: "名词", def: ["分量"] }] }
+    ] } }, "重");
+    expect(entry.pronunciations).toEqual([{ accent: "pinyin", phonetic: "chóng" }, { accent: "pinyin", phonetic: "zhòng" }]);
+    expect(entry.meanings).toEqual([
+      { partOfSpeech: "动词", definition: "重叠；重复", pronunciation: "chóng" },
+      { partOfSpeech: "形容词", definition: "重量大", pronunciation: "zhòng" },
+      { partOfSpeech: "形容词", definition: "程度深", pronunciation: "zhòng" },
+      { partOfSpeech: "名词", definition: "分量", pronunciation: "zhòng" }
+    ]);
+    expect(parseYoudaoDictionary({ newhh: { word: "汉字", dataList: [{ pinyin: "hànzì", sense: [{ def: ["记录汉语的文字。"] }] }] } }, "漢字"))
+      .toMatchObject({ query: "漢字", word: "汉字" });
+  });
+  it("keeps available pinyin when Chinese definitions are absent and ignores malformed senses", () => {
+    expect(parseYoudaoDictionary({ simple: { word: [{ phone: "nǐ hǎo" }] } }, "你好"))
+      .toMatchObject({ pronunciations: [{ accent: "pinyin", phonetic: "nǐ hǎo" }], meanings: [] });
+    const entry = parseYoudaoDictionary({ newhh: { dataList: [{ pinyin: "yáo", sense: [null, { def: [null, {}, "山势高峻。"] }] }] } }, "垚");
+    expect(entry.meanings).toEqual([{ partOfSpeech: "", definition: "山势高峻。" }]);
+  });
+  it("uses the basic dictionary pinyin if a Chinese definition omits its reading", () => {
+    const entry = parseYoudaoDictionary({ newhh: { word: "垚", dataList: [{ sense: [{ def: ["山势高峻。"] }] }] },
+      simple: { word: [{ phone: "yáo" }] } }, "垚");
+    expect(entry.pronunciations).toEqual([{ accent: "pinyin", phonetic: "yáo" }]);
+    expect(entry.meanings).toEqual([{ partOfSpeech: "", definition: "山势高峻。" }]);
   });
   it("distinguishes a missing word from an invalid or blocked response", () => {
     expect(parseYoudaoDictionary({ input: "nonword" }, "nonword").meanings).toEqual([]);

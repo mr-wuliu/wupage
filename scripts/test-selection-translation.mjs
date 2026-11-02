@@ -37,7 +37,7 @@ const server = createServer(async (request, response) => {
   }
   response.writeHead(200, { 'content-type': 'text/html; charset=utf-8',
     'content-security-policy': "default-src 'self'; script-src 'self'; style-src 'self'; media-src 'none'" });
-  response.end('<!doctype html><html><head><meta charset="utf-8"><title>Dictionary reading test</title><link rel="stylesheet" href="/page.css"></head><body><h1>A quiet place to read</h1><p id="first">example</p><p id="second">running</p><p id="slow">slow</p><p id="missing">missing</p><p id="failure">failure</p><p id="title">feat: add selection translation with dictionaries</p><p id="slowTranslation">slow translation</p><p id="multiline">take off and explore a wider world</p><textarea aria-label="Draft">private draft</textarea><div id="editable" contenteditable="true">private note</div></body></html>');
+  response.end('<!doctype html><html><head><meta charset="utf-8"><title>Dictionary reading test</title><link rel="stylesheet" href="/page.css"></head><body><h1>A quiet place to read</h1><p id="first">example</p><p id="second">running</p><p id="slow">slow</p><p id="missing">missing</p><p id="failure">failure</p><p id="title">feat: add selection translation with dictionaries</p><p id="slowTranslation">slow translation</p><p id="multiline">take off and explore a wider world</p><p id="chinese">齉</p><p id="polyphonic">重</p><p id="chinesePinyin">你好</p><p id="chineseMissing">龘</p><p id="chineseSentence">这是一句需要直接翻译的中文。</p><textarea aria-label="Draft">private draft</textarea><div id="editable" contenteditable="true">private note</div></body></html>');
 });
 await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
 const origin = `http://127.0.0.1:${server.address().port}`;
@@ -61,11 +61,21 @@ try {
       if (!isYoudao && !isBing) return original(input, init);
       const voice = url.pathname === '/dictvoice' || url.pathname === '/dict/mediamp3';
       const q = url.searchParams.get('q');
-      globalThis.dictionaryCalls.push({ provider: isYoudao ? 'youdao' : 'bing', voice, q, credentials: init?.credentials });
+      globalThis.dictionaryCalls.push({ provider: isYoudao ? 'youdao' : 'bing', voice, q, credentials: init?.credentials,
+        dictionaries: url.searchParams.get('dicts'), language: url.searchParams.get('le') });
       if (voice) return globalThis.dictionaryBadAudio ? new Response('<html>unavailable</html>', { headers: { 'content-type': 'text/html' } })
         : new Response(Uint8Array.from(atob(wav), c => c.charCodeAt(0)), { headers: { 'content-type': 'audio/wav' } });
       if (q === 'slow') await new Promise(resolve => setTimeout(resolve, 500));
       if (q === 'failure') return new Response('limited', { status: 429 });
+      if (isYoudao && q === '齉') return Response.json({ input: q, newhh: { word: q, dataList: [
+        { pinyin: 'nàng', cat: '形容词', sense: [{ def: ['鼻子不通气；也指因鼻子不通气而发音不清'] }] }
+      ] } });
+      if (isYoudao && q === '重') return Response.json({ input: q, newhh: { word: q, dataList: [
+        { pinyin: 'chóng', sense: [{ cat: '动词', def: ['重叠；重复'] }] },
+        { pinyin: 'zhòng', sense: [{ cat: '形容词', def: ['重量大（跟“轻”相对）'] }] }
+      ] } });
+      if (isYoudao && q === '你好') return Response.json({ input: q, simple: { word: [{ phone: 'nǐ hǎo' }] } });
+      if (isYoudao && q === '龘') return Response.json({ input: q });
       if (isYoudao) return Response.json(q === 'missing' ? { input: q } : { input: q, ec: { word: [{ 'return-phrase': { l: { i: q } },
         ukphone: 'ɪɡˈzɑːmpəl', usphone: 'ɪɡˈzæmpəl', ukspeech: q + '&type=1', usspeech: q + '&type=2',
         trs: [{ tr: [{ l: { i: ['n. 例子；范例'] } }] }] }] } });
@@ -97,6 +107,9 @@ try {
   const selector = '#wupage-selection-tools';
   const card = page.locator(`${selector} .card`);
   async function select(id) {
+    await page.locator(id).scrollIntoViewIfNeeded();
+    // Let the scroll event close the old card before capturing a new selection.
+    await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
     await page.locator(id).evaluate(element => {
       const range = document.createRange(); range.selectNodeContents(element);
       const selection = window.getSelection(); selection.removeAllRanges(); selection.addRange(range);
@@ -222,6 +235,53 @@ try {
   await card.screenshot({ path: path.join(output, 'narrow-card.png') });
   checks.push('narrow viewport positioning');
   await page.keyboard.press('Escape');
+  const translationsBeforeChinese = translationCalls.length;
+  await page.locator('#chinese').scrollIntoViewIfNeeded(); await select('#chinese');
+  const callsBeforeChinese = await worker.evaluate(() => globalThis.dictionaryCalls.length);
+  await page.waitForTimeout(80);
+  assert.equal(await worker.evaluate(() => globalThis.dictionaryCalls.length), callsBeforeChinese);
+  assert.equal(await page.locator(`${selector} .trigger-line`).first().getAttribute('title'), '查词');
+  await page.locator(`${selector} .trigger-line`).first().click(); await card.locator('.meanings').waitFor();
+  assert.match(await card.locator('.phonetics').innerText(), /拼音 nàng/);
+  assert.match(await card.locator('.meanings').innerText(), /鼻子不通气/);
+  assert.equal(await card.locator('select').inputValue(), 'youdao');
+  assert.equal(await card.locator('option[value="bing"]').isDisabled(), true);
+  const chineseCall = await worker.evaluate(() => globalThis.dictionaryCalls.at(-1));
+  assert.equal(chineseCall.provider, 'youdao');
+  assert.equal(chineseCall.language, 'zh');
+  assert.ok(JSON.parse(chineseCall.dictionaries).dicts[0].includes('newhh'));
+  assert.equal(translationCalls.length, translationsBeforeChinese);
+  assert.equal(await card.locator('.body').evaluate(element => element.scrollWidth > element.clientWidth), false);
+  await card.screenshot({ path: path.join(output, 'chinese-card.png') });
+  checks.push('click-only Chinese lookup displays tone-marked pinyin and Chinese definitions with Bing as the default');
+  await page.keyboard.press('Escape');
+  await page.locator('#polyphonic').scrollIntoViewIfNeeded(); await open('#polyphonic'); await card.locator('.meanings').waitFor();
+  assert.match(await card.locator('.phonetics').innerText(), /chóng/);
+  assert.match(await card.locator('.phonetics').innerText(), /zhòng/);
+  assert.equal(await card.locator('.meaning-pronunciation').count(), 2);
+  assert.match(await card.locator('.meanings li').first().innerText(), /chóng.*重叠/s);
+  await card.screenshot({ path: path.join(output, 'chinese-polyphonic-card.png') });
+  checks.push('polyphonic readings remain associated with their definitions in a narrow viewport');
+  await page.keyboard.press('Escape');
+  await page.locator('#chinesePinyin').scrollIntoViewIfNeeded(); await open('#chinesePinyin'); await card.locator('.phonetics').waitFor();
+  assert.match(await card.locator('.phonetics').innerText(), /拼音 nǐ hǎo/);
+  assert.equal(translationCalls.length, translationsBeforeChinese);
+  checks.push('Chinese pinyin remains visible even without dictionary meanings');
+  await page.keyboard.press('Escape');
+  await page.locator('#chineseMissing').scrollIntoViewIfNeeded(); await open('#chineseMissing'); await card.locator('.selection-translation').waitFor();
+  assert.equal(translationCalls.at(-1).texts[0], '龘');
+  await page.keyboard.press('Escape');
+  const dictionaryCallsBeforeSentence = await worker.evaluate(() => globalThis.dictionaryCalls.length);
+  await page.locator('#chineseSentence').scrollIntoViewIfNeeded(); await open('#chineseSentence'); await card.locator('.selection-translation').waitFor();
+  assert.equal(translationCalls.at(-1).texts[0], '这是一句需要直接翻译的中文。');
+  assert.equal(await worker.evaluate(() => globalThis.dictionaryCalls.length), dictionaryCallsBeforeSentence);
+  checks.push('unlisted Han selections fall back to translation while Chinese sentences bypass dictionaries');
+  await page.keyboard.press('Escape');
+  await page.locator('#first').scrollIntoViewIfNeeded(); await open(); await card.locator('.meanings').waitFor();
+  assert.equal(await card.locator('select').inputValue(), 'bing');
+  assert.equal(await card.locator('option[value="bing"]').isDisabled(), false);
+  checks.push('Chinese lookup preserves the default dictionary for the next alphabetic word');
+  await page.keyboard.press('Escape');
   await page.locator('#editable').evaluate(element => { const range = document.createRange(); range.selectNodeContents(element); window.getSelection().removeAllRanges(); window.getSelection().addRange(range); });
   await page.waitForTimeout(80); assert.equal(await page.locator(`${selector} .trigger-line`).count(), 0);
   await settings.locator('label:has(#selectionTranslationEnabled)').click(); await settings.locator('#save').click();
@@ -234,6 +294,7 @@ try {
   await fs.writeFile(path.join(output, 'report.json'), JSON.stringify({ passed: true, checks, errors }, null, 2));
   console.log(JSON.stringify({ passed: true, checks: checks.length, output }));
 } catch (error) {
+  await fs.writeFile(path.join(output, 'report.json'), JSON.stringify({ passed: false, checks, errors, error: String(error) }, null, 2));
   console.log(JSON.stringify({ checks, errors }));
   for (const [index, page] of (context?.pages() ?? []).entries()) {
     await page.screenshot({ path: path.join(output, `failure-${index}.png`) }).catch(() => undefined);

@@ -1,5 +1,5 @@
 import { anySignal } from "../shared/abort";
-import { DICTIONARY_LABELS, isDictionaryAudioUrl, normalizeDictionaryQuery, type DictionaryEntry, type DictionaryProvider } from "../shared/dictionary";
+import { DICTIONARY_LABELS, dictionaryProviderForQuery, isChineseDictionaryQuery, isDictionaryAudioUrl, normalizeDictionaryQuery, type DictionaryEntry, type DictionaryProvider } from "../shared/dictionary";
 import type { RuntimeResponse } from "../shared/types";
 import { parseYoudaoDictionary } from "../dictionary/parsers";
 import { ensureOffscreenDocument } from "./offscreen";
@@ -56,6 +56,7 @@ export function lookupDictionary(provider: DictionaryProvider, input: string): P
   checkProvider(provider);
   const query = normalizeDictionaryQuery(input);
   if (!query) throw new Error("请选择不超过 100 个字符的单词或短语。");
+  provider = dictionaryProviderForQuery(provider, query);
   const key = `${provider}:${query}`;
   const existing = lookups.get(key);
   if (existing) return existing;
@@ -70,7 +71,9 @@ async function queryDictionary(provider: DictionaryProvider, query: string): Pro
   url.searchParams.set("q", query);
   if (provider === "youdao") {
     url.searchParams.set("jsonversion", "2");
-    url.searchParams.set("dicts", JSON.stringify({ count: 3, dicts: [["ec", "ce", "simple"]] }));
+    const chinese = isChineseDictionaryQuery(query);
+    url.searchParams.set("dicts", JSON.stringify({ count: 3, dicts: [chinese ? ["newhh", "ce", "simple"] : ["ec", "ce", "simple"]] }));
+    if (chinese) url.searchParams.set("le", "zh");
   }
   try {
     const response = await fetch(url.href, { signal: AbortSignal.timeout(10_000), credentials: "omit", redirect: "error", referrerPolicy: "no-referrer" });

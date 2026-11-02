@@ -8,7 +8,7 @@ export interface SelectionTranslationSettings {
 }
 
 export interface DictionaryPronunciation {
-  accent: "uk" | "us" | "default";
+  accent: "uk" | "us" | "default" | "pinyin";
   phonetic?: string;
   audioUrl?: string;
 }
@@ -19,12 +19,13 @@ export interface DictionaryEntry {
   word: string;
   sourceUrl: string;
   pronunciations: DictionaryPronunciation[];
-  meanings: { partOfSpeech: string; definition: string }[];
+  meanings: { partOfSpeech: string; definition: string; pronunciation?: string }[];
 }
 
 export const DICTIONARY_LABELS: Record<DictionaryProvider, string> = { youdao: "有道词典", bing: "Bing 词典" };
 export const DEFAULT_SELECTION_TRANSLATION: SelectionTranslationSettings = { enabled: true, provider: "youdao", style: "dot" };
 export const MAX_DICTIONARY_QUERY_LENGTH = 100;
+export const MAX_CHINESE_DICTIONARY_QUERY_LENGTH = 8;
 export const MAX_SELECTION_TEXT_LENGTH = 5000;
 
 export function normalizeSelectionText(value: unknown): string {
@@ -36,9 +37,19 @@ export function normalizeSelectionText(value: unknown): string {
 
 export function isSingleDictionaryWord(value: string): boolean {
   const query = normalizeDictionaryQuery(value);
-  // Keep word-internal apostrophes/hyphens. Unspaced CJK text goes directly to translation.
-  return /^[\p{L}\p{M}]+(?:[-'’][\p{L}\p{M}]+)*$/u.test(query)
-    && !/[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/u.test(query);
+  // Short Han selections cover characters and words; longer prose goes to translation.
+  return isChineseDictionaryQuery(query) || (/^[\p{L}\p{M}]+(?:[-'’][\p{L}\p{M}]+)*$/u.test(query)
+    && !/[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/u.test(query));
+}
+
+export function isChineseDictionaryQuery(value: string): boolean {
+  const query = normalizeDictionaryQuery(value);
+  return /^\p{Script=Han}+$/u.test(query) && Array.from(query).length <= MAX_CHINESE_DICTIONARY_QUERY_LENGTH;
+}
+
+/** Chinese readings and definitions come from Youdao's Chinese dictionary. */
+export function dictionaryProviderForQuery(provider: DictionaryProvider, query: string): DictionaryProvider {
+  return isChineseDictionaryQuery(query) ? "youdao" : provider;
 }
 
 export function normalizeSelectionTranslation(value: unknown): SelectionTranslationSettings {
@@ -60,6 +71,7 @@ export function normalizeDictionaryQuery(value: unknown): string {
 export function dictionarySourceUrl(provider: DictionaryProvider, query: string): string {
   const url = new URL(provider === "bing" ? "https://cn.bing.com/dict/search" : "https://dict.youdao.com/result");
   url.searchParams.set(provider === "bing" ? "q" : "word", query);
+  if (provider === "youdao" && isChineseDictionaryQuery(query)) url.searchParams.set("lang", "zh");
   return url.href;
 }
 
