@@ -840,7 +840,11 @@ export function findTranslatableParagraph(start: Element | null): Element | null
     }
     current = current.parentElement;
   }
-  return findNearestTextBlock(start);
+  const fallback = findNearestTextBlock(start);
+  // Inline fallback targets must share the renderer's enclosing prose boundary;
+  // its translation may be a sibling outside the clicked span or emphasis.
+  const block = fallback && computeGroupingBlock(fallback);
+  return block && !shouldSkipElement(block) ? block : fallback;
 }
 
 export function clearTranslationsIn(element: Element): void {
@@ -1017,6 +1021,7 @@ export function renderTranslations(
 
     removePendingForId(group.id);
     if (isSameTranslation(group.id, translation)) continue;
+    removeRenderedTranslation(group.id);
     const targetId = ensureTranslationTarget(block);
     if (displayMode === "replace" && renderSlottedNavigationReplacement(group.id, group.nodes, block, translation)) {
       block.setAttribute(TRANSLATED_ATTR, "true");
@@ -1059,6 +1064,7 @@ export function renderTranslations(
 
     removePendingForId(tracked.id);
     if (isSameTranslation(tracked.id, translation)) continue;
+    removeRenderedTranslation(tracked.id);
     if (displayMode === "replace" && renderSlottedNavigationReplacement(tracked.id, [tracked], parent, translation)) {
       parent.setAttribute(TRANSLATED_ATTR, "true");
       continue;

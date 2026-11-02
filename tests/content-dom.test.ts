@@ -1877,6 +1877,25 @@ describe("content DOM translation extraction", () => {
     expect(document.querySelector(".wupage-translation")?.textContent).toBe("你好世界");
   });
 
+  it.each(["bilingual", "bilingual-accent", "replace"] as const)("replaces repeated segment results without appending translations in %s mode", mode => {
+    document.body.innerHTML = `<main><p>Standalone sentence.</p><p>Read <em>this guide</em> carefully.</p>
+      <div><span>First authored sentence.<br>Second authored sentence.<br></span></div></main>`;
+    stubLayout();
+    const original = document.querySelector("main")!.innerHTML;
+    const segments = collectTextSegments();
+    expect(segments).toHaveLength(3);
+    renderTranslationPlaceholders(segments);
+    for (const text of ["初次译文", "更新后的译文", "更新后的译文"]) {
+      renderTranslations(segments.map(segment => ({ id: segment.id, text })), mode);
+      const outputs = [...document.querySelectorAll(".wupage-translation")];
+      expect(outputs).toHaveLength(3);
+      expect(outputs.every(output => output.textContent === text)).toBe(true);
+      expect(document.querySelector(".wupage-translation-pending")).toBeNull();
+    }
+    clearTranslations();
+    expect(document.querySelector("main")!.innerHTML).toBe(original);
+  });
+
   it("translates a structured commit title without appending a second translation to its grid card", () => {
     document.body.innerHTML = `
       <main>
