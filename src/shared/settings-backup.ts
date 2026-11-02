@@ -65,18 +65,27 @@ function withoutCredentialValue(value: string): string {
   return value.includes("{{") ? value.replace(LITERAL_CREDENTIAL, "") : "";
 }
 
-/** Blanks credential members at any depth of a parsed JSON document, keeping its shape. */
-function withoutJsonCredentials(value: unknown): unknown {
-  if (typeof value === "string") return value.replace(LITERAL_CREDENTIAL, "");
-  if (Array.isArray(value)) return value.map(withoutJsonCredentials);
+/**
+ * Blanks credential members at any depth of a parsed JSON document, keeping its shape. In a
+ * header map a member whose value is shaped like a key is blanked as well, because inventing a
+ * header name the word list misses is an ordinary thing for a user to do.
+ */
+function withoutJsonCredentials(value: unknown, headerMap = false): unknown {
+  if (typeof value === "string") {
+    return headerMap && looksLikeSecret(value) ? "" : value.replace(LITERAL_CREDENTIAL, "");
+  }
+  if (Array.isArray(value)) return value.map((entry) => withoutJsonCredentials(entry, headerMap));
   const record = asRecord(value);
   if (!record) return value;
-  return Object.fromEntries(Object.entries(record).map(([name, entry]) => [
-    name,
-    credentialName(name)
-      ? typeof entry === "string" ? withoutCredentialValue(entry) : null
-      : withoutJsonCredentials(entry)
-  ]));
+  return Object.fromEntries(Object.entries(record).map(([name, entry]) => {
+    if (credentialName(name)) {
+      return [name, typeof entry === "string" ? withoutCredentialValue(entry) : null];
+    }
+    if (headerMap && typeof entry === "string" && looksLikeSecret(entry)) {
+      return [name, withoutCredentialValue(entry)];
+    }
+    return [name, withoutJsonCredentials(entry, headerMap)];
+  }));
 }
 
 /**
@@ -87,7 +96,7 @@ function withoutJsonCredentials(value: unknown): unknown {
  * member such as `api_key` carries no recognisable prefix and would otherwise be written to a
  * file the panel calls "without keys".
  */
-function withoutTemplateCredentials(text: string): string {
+function withoutTemplateCredentials(text: string, headerMap = false): string {
   const trimmed = text.trim();
   if (!trimmed.startsWith("{") && !trimmed.startsWith("[")) return sanitizeTemplateText(text).text;
   let parsed: unknown;
@@ -99,7 +108,7 @@ function withoutTemplateCredentials(text: string): string {
     // keys, so they are scanned rather than falling back to credential prefixes.
     return sanitizeTemplateText(text).text;
   }
-  return JSON.stringify(withoutJsonCredentials(parsed), null, 2);
+  return JSON.stringify(withoutJsonCredentials(parsed, headerMap), null, 2);
 }
 
 /** A member name in a template that is JSON-shaped but not parseable, such as `{"q":{{json texts}}}`. */
@@ -258,6 +267,20 @@ function credentialName(name: string): boolean {
 }
 
 /**
+ * A value shaped like a credential rather than like a protocol constant. A header name the word
+ * list does not recognise is still a likely carrier, and a key pasted as base64, hex or a bare
+ * token matches none of the literal prefixes, so the shape is what has to decide. MIME types and
+ * language tags are the protocol values that legitimately look like a token, so they are excluded.
+ */
+function looksLikeSecret(value: string): boolean {
+  const trimmed = value.trim();
+  if (trimmed.length < 24 || trimmed.includes("{{") || /\s/u.test(trimmed)) return false;
+  if (/^[a-z]+\/[a-z0-9.+-]+$/iu.test(trimmed)) return false;
+  if (/^[a-z]{2}(?:-[a-z]{2})?$/iu.test(trimmed)) return false;
+  return /^[A-Za-z0-9+/=_.~-]+$/u.test(trimmed);
+}
+
+/**
  * Blanks every key in place on a copy, so the provider still passes normalizeSettings. The
  * supported credential carriers are the key fields, the service-mode api block, the custom
  * HTTP Template headers and the LLM request template; a carrier this function cannot recognise
@@ -280,7 +303,9 @@ function withoutProviderKeys(provider: ProviderConfig): ProviderConfig {
   if (copy.type === "http-template") {
     copy.headers = Object.fromEntries(Object.entries(copy.headers).map(([name, value]) => [
       name,
-      credentialName(name) ? withoutCredentialValue(value) : value.replace(LITERAL_CREDENTIAL, "")
+      credentialName(name) || looksLikeSecret(value)
+        ? withoutCredentialValue(value)
+        : value.replace(LITERAL_CREDENTIAL, "")
     ]));
     copy.url = withoutEndpointCredentials(copy.url);
     copy.bodyTemplate = withoutTemplateCredentials(copy.bodyTemplate);
@@ -288,7 +313,7 @@ function withoutProviderKeys(provider: ProviderConfig): ProviderConfig {
   if (supportsRequestTemplate(copy) && copy.requestTemplate) {
     copy.requestTemplate = {
       enabled: copy.requestTemplate.enabled,
-      headers: withoutTemplateCredentials(copy.requestTemplate.headers),
+      headers: withoutTemplateCredentials(copy.requestTemplate.headers, true),
       body: withoutTemplateCredentials(copy.requestTemplate.body)
     };
   }
@@ -296,7 +321,7 @@ function withoutProviderKeys(provider: ProviderConfig): ProviderConfig {
 }
 
 /** Whether a template still holds a credential once its variables are ignored. */
-function templateHasCredential(text: string): boolean {
+function templateHasCredential(text: string, headerMap = false): boolean {
   const trimmed = text.trim();
   if (!trimmed.startsWith("{") && !trimmed.startsWith("[")) return sanitizeTemplateText(text).changed;
   let parsed: unknown;
@@ -307,18 +332,20 @@ function templateHasCredential(text: string): boolean {
     // export applies decides it; a credential-shaped literal alone would miss a named member.
     return sanitizeTemplateText(text).changed;
   }
-  return documentHasCredential(parsed);
+  return documentHasCredential(parsed, headerMap);
 }
 
-function documentHasCredential(value: unknown): boolean {
-  if (typeof value === "string") return LITERAL_CREDENTIAL_TEST.test(value);
-  if (Array.isArray(value)) return value.some(documentHasCredential);
+function documentHasCredential(value: unknown, headerMap = false): boolean {
+  if (typeof value === "string") {
+    return LITERAL_CREDENTIAL_TEST.test(value) || (headerMap && looksLikeSecret(value));
+  }
+  if (Array.isArray(value)) return value.some((entry) => documentHasCredential(entry, headerMap));
   const record = asRecord(value);
   if (!record) return false;
   return Object.entries(record).some(([name, entry]) =>
     credentialName(name)
       ? typeof entry === "string" && !entry.includes("{{") && entry.trim() !== ""
-      : documentHasCredential(entry)
+      : documentHasCredential(entry, headerMap)
   );
 }
 
@@ -338,7 +365,9 @@ export function providerHasStoredKey(provider: ProviderConfig): boolean {
   // so a credential-named header there is always a literal, never a safe `{{apiKey}}`.
   if (provider.type === "http-template") {
     const headerHoldsKey = Object.entries(provider.headers).some(([name, value]) =>
-      credentialName(name) ? value.trim() !== "" : templateHasCredential(value)
+      credentialName(name) || looksLikeSecret(value)
+        ? value.trim() !== ""
+        : templateHasCredential(value)
     );
     if (headerHoldsKey) return true;
     if (templateHasCredential(provider.bodyTemplate)) return true;
@@ -347,7 +376,7 @@ export function providerHasStoredKey(provider: ProviderConfig): boolean {
     } else if (provider.url !== withoutEndpointCredentials(provider.url)) return true;
   }
   if (supportsRequestTemplate(provider) && provider.requestTemplate) {
-    if (templateHasCredential(provider.requestTemplate.headers)) return true;
+    if (templateHasCredential(provider.requestTemplate.headers, true)) return true;
     if (templateHasCredential(provider.requestTemplate.body)) return true;
   }
   return false;

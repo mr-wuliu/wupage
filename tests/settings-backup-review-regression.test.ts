@@ -1,7 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { DEFAULT_SETTINGS } from "../src/shared/defaults";
 import { normalizeSettings } from "../src/shared/settings";
-import { createSettingsBackup, mergeStoredKeys, parseSettingsBackup } from "../src/shared/settings-backup";
+import {
+  createSettingsBackup, mergeStoredKeys, parseSettingsBackup, settingsBackupHasKeys
+} from "../src/shared/settings-backup";
 import { createProvider } from "../src/background/providers";
 import type { HttpTemplateConfig, OpenAICompatibleConfig, ProviderConfig } from "../src/shared/types";
 
@@ -63,5 +65,55 @@ describe("review: remaining backup boundaries", () => {
       skippedKeys,
       sendsOriginalKey: new Headers(init.headers).get("Authorization") === `Bearer ${SECRET}`
     }).toEqual({ skippedKeys: 1, sendsOriginalKey: false });
+  });
+
+  it("blanks a key under a header name the credential word list does not recognise", () => {
+    const provider: HttpTemplateConfig = {
+      type: "http-template", id: "custom-http-blindspot", label: "Custom HTTP", method: "POST",
+      url: "https://translation.example/v1", responsePath: "translations",
+      headers: { "Content-Type": "application/json", "X-Signature2": SECRET },
+      bodyTemplate: `{"q":{{json texts}},"target":"{{targetLang}}"}`
+    };
+    const file = createSettingsBackup(settingsWith(provider));
+    const written = JSON.stringify(file);
+    const headers = (file.settings.providers.find(p => p.id === provider.id) as HttpTemplateConfig).headers;
+    expect({
+      includesKeys: file.includesKeys,
+      reportsKeys: settingsBackupHasKeys(file.settings),
+      leaked: written.includes(SECRET),
+      secretHeader: headers["X-Signature2"],
+      keptContentType: headers["Content-Type"]
+    }).toEqual({
+      includesKeys: false,
+      reportsKeys: false,
+      leaked: false,
+      secretHeader: "",
+      keptContentType: "application/json"
+    });
+  });
+
+  it("blanks a key under an unrecognised name in a request template header map", () => {
+    const provider: OpenAICompatibleConfig = {
+      type: "openai-compatible", id: "custom-llm-blindspot", label: "Custom LLM",
+      baseURL: "https://llm.example/v1", apiKey: "",
+      model: "model", systemPrompt: "Translate", ollamaCompatibility: false,
+      requestTemplate: {
+        enabled: true,
+        headers: JSON.stringify({ "Content-Type": "application/json", "X-Signature2": SECRET }),
+        body: "{}"
+      }
+    };
+    const file = createSettingsBackup(settingsWith(provider));
+    const written = JSON.stringify(file);
+    const restored = (file.settings.providers.find(p => p.id === provider.id) as OpenAICompatibleConfig).requestTemplate!;
+    expect({
+      reportsKeys: settingsBackupHasKeys(file.settings),
+      leaked: written.includes(SECRET),
+      headers: JSON.parse(restored.headers)
+    }).toEqual({
+      reportsKeys: false,
+      leaked: false,
+      headers: { "Content-Type": "application/json", "X-Signature2": "" }
+    });
   });
 });
