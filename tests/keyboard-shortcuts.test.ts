@@ -77,6 +77,26 @@ describe("configurable page keyboard shortcuts", () => {
     event.preventDefault(); document.body.dispatchEvent(event);
     expect(execute).not.toHaveBeenCalled();
   });
+  it.each(["textarea", "input", "#edit", "#textbox"])("runs only the input translation shortcut while typing in %s", selector => {
+    controller.update(DEFAULT_SHORTCUTS);
+    expect(press(document.querySelector(selector)!, { key: "K", code: "KeyK" }).defaultPrevented).toBe(true);
+    expect(execute).toHaveBeenCalledWith("translate-input");
+    expect(press(document.querySelector(selector)!).defaultPrevented).toBe(false);
+    expect(execute).toHaveBeenCalledOnce();
+  });
+  it("leaves the input translation key to the page when the feature or its shortcut is off", () => {
+    controller.update(DEFAULT_SHORTCUTS, undefined, { enabled: false });
+    expect(press(document.querySelector("textarea")!, { key: "K", code: "KeyK" }).defaultPrevented).toBe(false);
+    controller.update(DEFAULT_SHORTCUTS, { "translate-input": false });
+    expect(press(document.querySelector("textarea")!, { key: "K", code: "KeyK" }).defaultPrevented).toBe(false);
+    expect(execute).not.toHaveBeenCalled();
+  });
+  it("does not run input translation inside the extension's own panels", () => {
+    controller.update(DEFAULT_SHORTCUTS);
+    document.body.insertAdjacentHTML("beforeend", '<div id="wupage-selection-tools"><textarea></textarea></div>');
+    expect(press(document.querySelector("#wupage-selection-tools textarea")!, { key: "K", code: "KeyK" }).defaultPrevented).toBe(false);
+    expect(execute).not.toHaveBeenCalled();
+  });
   it("stops listening when disposed", () => {
     controller.update(DEFAULT_SHORTCUTS); controller.dispose(); press(); expect(execute).not.toHaveBeenCalled();
   });

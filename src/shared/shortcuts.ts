@@ -4,7 +4,8 @@ export const TRANSLATION_SHORTCUTS = [
   { name: "toggle-page-translation", label: "翻译全文 / 恢复原文" },
   { name: "translate-selection", label: "段落翻译" },
   { name: "toggle-paragraph-mode", label: "开启 / 关闭段落模式" },
-  { name: "cycle-display-mode", label: "切换译文显示模式" }
+  { name: "cycle-display-mode", label: "切换译文显示模式" },
+  { name: "translate-input", label: "翻译输入框" }
 ] as const;
 
 export type TranslationShortcut = typeof TRANSLATION_SHORTCUTS[number]["name"];
@@ -31,7 +32,8 @@ export const DEFAULT_SHORTCUTS: ShortcutSettings = {
   "toggle-page-translation": "Alt+Shift+Y",
   "translate-selection": "Alt+Shift+Q",
   "toggle-paragraph-mode": "Alt+Shift+L",
-  "cycle-display-mode": "Alt+Shift+M"
+  "cycle-display-mode": "Alt+Shift+M",
+  "translate-input": "Alt+Shift+K"
 };
 
 const MODIFIERS = ["Ctrl", "Alt", "Shift", "Meta"];

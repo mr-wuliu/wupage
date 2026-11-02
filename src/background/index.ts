@@ -21,6 +21,7 @@ import type { FrameSessionRequest } from "../shared/frame-session";
 import { readParagraphMode } from "../shared/paragraph-mode";
 import { saveParagraphMode } from "./paragraph-mode";
 import { captureVideoFrame } from "./video-frame";
+import { translateInput } from "./input-translation";
 
 chrome.runtime.onMessage.addListener((request: RuntimeRequest, sender, sendResponse) => {
   if ("target" in request) return;
@@ -148,6 +149,8 @@ async function handleMessage(request: RuntimeRequest, sender: chrome.runtime.Mes
       const settings = await getSettings();
       return frameSessions.translate(request, sender, signal => translateWithSettings(settings, request, { signal, statisticsPageKey: statisticsPageKey(sender) }));
     }
+    case "TRANSLATE_INPUT":
+      return translateInput(await getSettings(), request.text);
     case "LOAD_IMAGE": {
       const settings = await getSettings();
       if (!settings.imageTranslationEnabled) throw new Error("请先开启图片翻译。");

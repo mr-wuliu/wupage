@@ -188,6 +188,7 @@ export interface ExtensionSettings {
   shortcutEnabled?: ShortcutEnabledSettings;
   appearance?: AppearanceSettings;
   selectionTranslation?: SelectionTranslationSettings;
+  inputTranslation?: import("./input-translation").InputTranslationSettings;
   autoTranslation?: AutoTranslationSettings;
   targetLang: string;
   sourceLang: string;
@@ -343,6 +344,7 @@ export type RuntimeRequest =
   | { type: "TRANSLATE_CONTEXT_IMAGE"; srcUrl: string }
   | ({ type: "TRANSLATE_IMAGE" } & TranslateImageRequest)
   | ({ type: "TRANSLATE_BATCH" } & TranslateBatchRequest)
+  | { type: "TRANSLATE_INPUT"; text: string }
   | { type: "GET_SETTINGS" }
   | { type: "OPEN_OPTIONS_PAGE" }
   | { type: "OPEN_EMBEDDED_PDF"; url: string }

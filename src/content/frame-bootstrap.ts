@@ -10,6 +10,7 @@ import type { ExtensionSettings } from "../shared/types";
 import { initEmbeddedVideoSubtitles } from "./video-bootstrap";
 import { observeParagraphMode } from "../shared/paragraph-mode";
 import { supportsHtmlContent } from "../shared/html";
+import { translateFocusedInput } from "./input-translation";
 
 const scope = globalThis as typeof globalThis & { __wupageFrameBootstrap?: boolean };
 const visibility = supportsHtmlContent() ? installFrameVisibilityBridge() : { ready: Promise.resolve() };
@@ -98,6 +99,8 @@ if (window !== window.top && supportsHtmlContent() && !scope.__wupageFrameBootst
   initKeyboardShortcuts(async command => {
     if (!supported()) return;
     if (command === "translate-selection") { if (!current || allowed(current)) await (await activate()).selection(); }
+    // The focused field lives in this frame, so input translation runs here rather than in the top page.
+    else if (command === "translate-input") await translateFocusedInput();
     else await sendRuntimeRequest({ type: "FRAME_FORWARD_SHORTCUT", command });
   });
   document.addEventListener("selectionchange", () => {
