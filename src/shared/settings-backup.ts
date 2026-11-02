@@ -82,20 +82,147 @@ function withoutJsonCredentials(value: unknown): unknown {
 /**
  * Custom HTTP Template and LLM request templates keep their authentication in free-form text,
  * so a fixed field list cannot cover them. A JSON template is walked member by member; a template
- * that only renders variables (the HTTP Template default) is not JSON, so its text is kept and
- * only literal-shaped credentials are removed.
+ * that renders a variable is not valid JSON, so the same credential members are blanked in the
+ * text instead. Only scanning for credential-shaped literals is not enough: a key named by a
+ * member such as `api_key` carries no recognisable prefix and would otherwise be written to a
+ * file the panel calls "without keys".
  */
 function withoutTemplateCredentials(text: string): string {
   const trimmed = text.trim();
-  if (!trimmed.startsWith("{") && !trimmed.startsWith("[")) return text.replace(LITERAL_CREDENTIAL, "");
+  if (!trimmed.startsWith("{") && !trimmed.startsWith("[")) return sanitizeTemplateText(text).text;
   let parsed: unknown;
   try {
     parsed = JSON.parse(trimmed);
   } catch {
-    // `${...}`-style templates such as {"q":{{json texts}}} are text, not JSON with bad syntax.
-    return text.replace(LITERAL_CREDENTIAL, "");
+    // A template such as {"api_key":"…","q":{{json texts}}} is text, not JSON with bad syntax:
+    // the unquoted variable makes it unparseable, but its member names are still ordinary JSON
+    // keys, so they are scanned rather than falling back to credential prefixes.
+    return sanitizeTemplateText(text).text;
   }
   return JSON.stringify(withoutJsonCredentials(parsed), null, 2);
+}
+
+/** A member name in a template that is JSON-shaped but not parseable, such as `{"q":{{json texts}}}`. */
+const TEMPLATE_MEMBER = /"((?:[^"\\]|\\.)*)"[ \t\r\n]*:/gu;
+/** A `name=value` pair, the shape a query string or a form-encoded body uses. */
+const TEMPLATE_ASSIGNMENT = /(^|[&;,\s?])([A-Za-z0-9_.\-]+)=([^&;\s]*)/gu;
+
+/**
+ * Blanks the credential members of a template that is not valid JSON. Its member names are still
+ * ordinary JSON keys, so the text is scanned for `"name": value` and `name=value` pairs and a
+ * credential-named value is blanked in place. A value that renders a variable survives: the key it
+ * expands from is blanked by this same export, so the request still authenticates after a restore.
+ * Returns whether anything was removed, which is what tells the import a provider holds a key.
+ */
+function sanitizeTemplateText(text: string): { text: string; changed: boolean } {
+  let out = "";
+  let cursor = 0;
+  TEMPLATE_MEMBER.lastIndex = 0;
+  let match: RegExpExecArray | null;
+  while ((match = TEMPLATE_MEMBER.exec(text)) !== null) {
+    if (!credentialName(decodeMemberName(match[1] ?? ""))) continue;
+    const valueStart = match.index + match[0].length;
+    const value = readTemplateValue(text, valueStart);
+    if (!value) continue;
+    out += text.slice(cursor, valueStart) + credentialMemberReplacement(value.raw);
+    cursor = value.end;
+    TEMPLATE_MEMBER.lastIndex = value.end;
+  }
+  out += text.slice(cursor);
+  const assigned = out.replace(TEMPLATE_ASSIGNMENT, (whole: string, lead: string, name: string, value: string) =>
+    credentialName(name) ? `${lead}${name}=${credentialAssignmentReplacement(value)}` : whole
+  );
+  const stripped = assigned.replace(LITERAL_CREDENTIAL, "");
+  return { text: stripped, changed: stripped !== text };
+}
+
+/** A member name arrives as the inside of a JSON string, so its escapes have to be decoded. */
+function decodeMemberName(raw: string): string {
+  try {
+    return JSON.parse(`"${raw}"`) as string;
+  } catch {
+    return raw;
+  }
+}
+
+/** What replaces a credential member's value: a variable survives, a literal does not. */
+function credentialMemberReplacement(raw: string): string {
+  if (!raw.startsWith('"')) return raw.includes("{{") ? raw : "null";
+  let decoded: string;
+  try {
+    decoded = JSON.parse(raw) as string;
+  } catch {
+    return '""';
+  }
+  return JSON.stringify(withoutCredentialValue(decoded));
+}
+
+/** What replaces a `name=value` credential; an empty value keeps the parameter shape. */
+function credentialAssignmentReplacement(value: string): string {
+  return value.includes("{{") ? value.replace(LITERAL_CREDENTIAL, "") : "";
+}
+
+/**
+ * Measures the value after a member name. A string literal, a `{{variable}}`, a balanced object or
+ * array and a bare token are all possible in a template that renders variables, so the end is found
+ * by hand rather than by a parser that would reject the text.
+ */
+function readTemplateValue(text: string, from: number): { raw: string; end: number } | null {
+  let start = from;
+  while (start < text.length && /\s/u.test(text[start] ?? "")) start += 1;
+  if (start >= text.length) return null;
+  if (text.startsWith("{{", start)) {
+    const close = text.indexOf("}}", start + 2);
+    return close === -1 ? null : { raw: text.slice(start, close + 2), end: close + 2 };
+  }
+  const first = text[start] ?? "";
+  if (first === '"') {
+    const end = endOfString(text, start);
+    return end === -1 ? null : { raw: text.slice(start, end), end };
+  }
+  if (first === "{" || first === "[") {
+    const end = endOfBalanced(text, start);
+    return end === -1 ? null : { raw: text.slice(start, end), end };
+  }
+  let end = start;
+  while (end < text.length && !",}]".includes(text[end] ?? "")) end += 1;
+  const raw = text.slice(start, end).trimEnd();
+  return { raw, end: start + raw.length };
+}
+
+/** The index just past the closing quote of the JSON string starting at `start`, or -1. */
+function endOfString(text: string, start: number): number {
+  for (let index = start + 1; index < text.length; index += 1) {
+    const char = text[index];
+    if (char === "\\") {
+      index += 1;
+      continue;
+    }
+    if (char === '"') return index + 1;
+  }
+  return -1;
+}
+
+/** The index just past the `}` or `]` closing the value starting at `start`, or -1. */
+function endOfBalanced(text: string, start: number): number {
+  const open = text[start];
+  const close = open === "{" ? "}" : "]";
+  let depth = 0;
+  for (let index = start; index < text.length; index += 1) {
+    const char = text[index];
+    if (char === '"') {
+      const end = endOfString(text, index);
+      if (end === -1) return -1;
+      index = end - 1;
+      continue;
+    }
+    if (char === open) depth += 1;
+    else if (char === close) {
+      depth -= 1;
+      if (depth === 0) return index + 1;
+    }
+  }
+  return -1;
 }
 
 /**
@@ -171,14 +298,14 @@ function withoutProviderKeys(provider: ProviderConfig): ProviderConfig {
 /** Whether a template still holds a credential once its variables are ignored. */
 function templateHasCredential(text: string): boolean {
   const trimmed = text.trim();
-  if (!trimmed.startsWith("{") && !trimmed.startsWith("[")) return LITERAL_CREDENTIAL_TEST.test(trimmed);
+  if (!trimmed.startsWith("{") && !trimmed.startsWith("[")) return sanitizeTemplateText(text).changed;
   let parsed: unknown;
   try {
     parsed = JSON.parse(trimmed);
   } catch {
-    // Variable-only templates such as {"q":{{json texts}}} are text; only a literal-shaped
-    // credential can be a key there, the same rule the export applies.
-    return LITERAL_CREDENTIAL_TEST.test(trimmed);
+    // Variable-only templates such as {"q":{{json texts}}} are text, so the same member scan the
+    // export applies decides it; a credential-shaped literal alone would miss a named member.
+    return sanitizeTemplateText(text).changed;
   }
   return documentHasCredential(parsed);
 }
@@ -355,17 +482,23 @@ function credentialEndpoints(provider: ProviderConfig): string[] {
  * Compares only what identifies the receiving service: scheme, host, port and path. User info
  * carries basic-auth credentials, a query string or fragment does not address a different
  * service, and a trailing slash or host letter case is the same address, so none of them may
- * block a legitimate restore. Values that are not URLs (a region or a folder id) compare as
- * the bare scope they name.
+ * block a legitimate restore. A path is case-sensitive and is kept as written. Values that are
+ * not URLs (a region or a folder id) compare as the bare scope they name.
  */
 function normalizeEndpoint(value: string): string {
   const trimmed = value.trim();
   const address = trimmed.split("#")[0]?.split("?")[0] ?? trimmed;
   const scheme = /^([a-z][a-z0-9+.-]*:\/\/)/iu.exec(address)?.[1].toLowerCase() ?? "";
   const rest = scheme ? address.slice(scheme.length) : address;
-  // User info sits before the last `@`; everything after it is the host and path.
-  const host = rest.slice(rest.lastIndexOf("@") + 1);
-  return `${scheme}${host}`.replace(/\/+$/u, "").toLowerCase();
+  // User info is only valid in the authority, which ends at the first `/`. Reading an `@` from
+  // the path instead would take the text after it as the host, so a path such as
+  // `/proxy@original.example/v1` could be matched against the original host and reuse its key.
+  const authorityEnd = rest.search(/[/?#]/u);
+  const authority = authorityEnd === -1 ? rest : rest.slice(0, authorityEnd);
+  const path = authorityEnd === -1 ? "" : rest.slice(authorityEnd);
+  const host = authority.slice(authority.lastIndexOf("@") + 1).toLowerCase();
+  // A path is case-sensitive, so only the scheme and host are folded.
+  return `${scheme}${host}${path}`.replace(/\/+$/u, "");
 }
 
 /** Whether the file keeps sending this provider's credential to the address stored here. */

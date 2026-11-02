@@ -11,7 +11,7 @@ import {
   SettingsBackupError,
   settingsBackupHasKeys
 } from "../src/shared/settings-backup";
-import type { ExtensionSettings, ProviderConfig } from "../src/shared/types";
+import type { ExtensionSettings, HttpTemplateConfig, ProviderConfig } from "../src/shared/types";
 import { supportsServiceMode } from "../src/shared/translation-service";
 
 /** Settings with a stored key in both key shapes: a provider field and a service-mode api block. */
@@ -82,6 +82,25 @@ function settingsWithCustomCredentials(): ExtensionSettings {
     activeProviderId: "custom-llm",
     providers: [...DEFAULT_SETTINGS.providers, template, llmProvider()]
   });
+}
+
+/** An HTTP Template entry whose body is the given free-form text. */
+function httpTemplate(bodyTemplate: string): ExtensionSettings {
+  return normalizeSettings({
+    ...DEFAULT_SETTINGS, activeProviderId: "http-template",
+    providers: [{
+      type: "http-template", id: "http-template", label: "HTTP Template", enabled: true, method: "POST",
+      url: "https://translation.example/v1", responsePath: "translations",
+      headers: { "Content-Type": "application/json" },
+      bodyTemplate
+    }]
+  });
+}
+
+/** The body template the exported or imported HTTP Template entry carries. */
+function bodyTemplateOf(settings: ExtensionSettings): string {
+  const provider = settings.providers.find((candidate) => candidate.id === "http-template");
+  return (provider as HttpTemplateConfig).bodyTemplate;
 }
 
 function keyOf(settings: ExtensionSettings, id: string): string | undefined {
@@ -337,6 +356,80 @@ describe("settings backup", () => {
     });
     const { settings: merged, skippedKeys } = mergeStoredKeys(incoming, current);
     expect(apiKeyOf(merged, "microsoft-web-translate")).toBe("");
+    expect(skippedKeys).toBe(1);
+  });
+
+  it("strips a named credential from a body template that cannot be parsed as JSON", () => {
+    // Reported risk: the unquoted variable makes the body unparseable, and the fallback only knew
+    // the `sk-` and `Bearer` shapes, so a plain named `api_key` went into a key-less file.
+    const body = '{"api_key":"0123456789abcdef","q":{{json texts}},"target":"{{targetLang}}"}';
+    const current = httpTemplate(body);
+    const file = createSettingsBackup(current);
+    expect(file.includesKeys).toBe(false);
+    expect(JSON.stringify(file)).not.toContain("0123456789abcdef");
+    // Only the value changed, so the template stays renderable rather than being dropped whole.
+    expect(settingsBackupHasKeys(file.settings)).toBe(false);
+    expect(bodyTemplateOf(parseSettingsBackup(JSON.stringify(file)).settings))
+      .toBe('{"api_key":"","q":{{json texts}},"target":"{{targetLang}}"}');
+    // A same-device round trip has to put the named credential back, or restoring a backup breaks
+    // a service that was working before the export.
+    const { settings: merged, restoredKeys } = mergeStoredKeys(
+      parseSettingsBackup(JSON.stringify(file)).settings, current
+    );
+    expect(restoredKeys).toBe(1);
+    expect(bodyTemplateOf(merged)).toBe(body);
+  });
+
+  it("keeps a credential the template renders from a variable", () => {
+    // The key it expands from is blanked by the same export, so the variable itself is not a leak.
+    const settings = httpTemplate('{"api_key":"{{apiKey}}","q":{{json texts}},"target":"{{targetLang}}"}');
+    const file = createSettingsBackup(settings);
+    expect(bodyTemplateOf(parseSettingsBackup(JSON.stringify(file)).settings))
+      .toBe('{"api_key":"{{apiKey}}","q":{{json texts}},"target":"{{targetLang}}"}');
+  });
+
+  it("blanks a named credential in a form-encoded body template", () => {
+    // Same rule for the other shape a request body takes when it is not a JSON document.
+    const settings = httpTemplate("api_key=0123456789abcdef&q={{texts}}&target={{targetLang}}");
+    const file = createSettingsBackup(settings);
+    expect(JSON.stringify(file)).not.toContain("0123456789abcdef");
+    expect(bodyTemplateOf(parseSettingsBackup(JSON.stringify(file)).settings))
+      .toBe("api_key=&q={{texts}}&target={{targetLang}}");
+  });
+
+  it("reports a template that names a credential as holding a key", () => {
+    // Without this the panel would call a file key-less on the way back in.
+    const settings = httpTemplate('{"api_key":"0123456789abcdef","q":{{json texts}}}');
+    const provider = settings.providers.find((candidate) => candidate.id === "http-template")!;
+    expect(providerHasStoredKey(provider)).toBe(true);
+    expect(settingsBackupHasKeys(createSettingsBackup(settings).settings)).toBe(false);
+  });
+
+  it("still reuses a key when only the user info in the URL changed", () => {
+    // User info carries basic-auth credentials, not the identity of the receiving service.
+    const current = normalizeSettings({
+      ...DEFAULT_SETTINGS, activeProviderId: "custom-llm",
+      providers: [{ ...llmProvider(), baseURL: "https://api.example.com/v1", apiKey: "sk-stored-key" }]
+    });
+    const incoming = structuredClone(parseSettingsBackup(JSON.stringify(createSettingsBackup(current))).settings);
+    incoming.providers = incoming.providers.map((provider) => provider.id === "custom-llm"
+      ? { ...provider, baseURL: "https://user:pass@api.example.com/v1" } as ProviderConfig : provider);
+    const { settings: merged, skippedKeys } = mergeStoredKeys(incoming, current);
+    expect(keyOf(merged, "custom-llm")).toBe("sk-stored-key");
+    expect(skippedKeys).toBe(0);
+  });
+
+  it("does not reuse a key once only the path case changed", () => {
+    // A path is case-sensitive, so a different spelling is a different endpoint.
+    const current = normalizeSettings({
+      ...DEFAULT_SETTINGS, activeProviderId: "custom-llm",
+      providers: [{ ...llmProvider(), baseURL: "https://api.example.com/v1", apiKey: "sk-stored-key" }]
+    });
+    const incoming = structuredClone(parseSettingsBackup(JSON.stringify(createSettingsBackup(current))).settings);
+    incoming.providers = incoming.providers.map((provider) => provider.id === "custom-llm"
+      ? { ...provider, baseURL: "https://api.example.com/V1" } as ProviderConfig : provider);
+    const { settings: merged, skippedKeys } = mergeStoredKeys(incoming, current);
+    expect(keyOf(merged, "custom-llm")).toBe("");
     expect(skippedKeys).toBe(1);
   });
 });

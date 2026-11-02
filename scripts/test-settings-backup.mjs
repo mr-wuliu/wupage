@@ -13,6 +13,8 @@ await fs.mkdir(output, { recursive: true });
 const DEEPSEEK_KEY = 'sk-smoke-deepseek-0123456789';
 const AZURE_KEY = 'azure-smoke-0123456789';
 const TEMPLATE_KEY = 'http-smoke-0123456789';
+// Named in the body template itself, so the check is not about the key prefixes the old export knew.
+const BODY_KEY = 'body-smoke-0123456789';
 const LLM_KEY = 'sk-smoke-llm-0123456789';
 
 const moduleName = process.env.PLAYWRIGHT_MODULE || 'playwright';
@@ -37,7 +39,7 @@ const seed = `const stored=await chrome.storage.local.get('wupage.settings');
   const template={type:'http-template',id:'smoke-template',label:'Smoke Template',enabled:false,
     method:'POST',url:'https://smoke.example/translate?api_key=${TEMPLATE_KEY}',
     headers:{'Content-Type':'application/json',Authorization:'Bearer ${TEMPLATE_KEY}'},
-    bodyTemplate:'{"texts":{{json texts}}}',responsePath:'translations'};
+    bodyTemplate:'{"api_key":"${BODY_KEY}","texts":{{json texts}}}',responsePath:'translations'};
   const llm={type:'openai-compatible',id:'smoke-llm',label:'Smoke LLM',baseURL:'https://smoke.example/v1',
     apiKey:'${LLM_KEY}',model:'smoke-model',systemPrompt:'Translate to {{targetLang}}',ollamaCompatibility:false,
     requestTemplate:{enabled:true,headers:'{"x-api-key":"${LLM_KEY}"}',body:'{"texts":"{{json texts}}"}'}};
@@ -59,6 +61,7 @@ const readStored = `const stored=await chrome.storage.local.get('wupage.settings
     deepseekKey:byId('deepseek').apiKey||'',azureKey:(byId('microsoft-web-translate').api||{}).apiKey||'',
     templateAuth:(template.headers||{}).Authorization||'',
     templateUrl:template.url||'',
+    templateBody:template.bodyTemplate||'',
     llmKey:llm.apiKey||'',
     llmHeaders:(llm.requestTemplate||{}).headers||'',
     providers:providers.length};`;
@@ -106,6 +109,9 @@ try {
   assert.ok(!defaultText.includes(AZURE_KEY), 'the default export leaked a service key');
   // The custom carriers are the shapes the reviewer reproduced: a key outside the fixed fields.
   assert.ok(!defaultText.includes(TEMPLATE_KEY), 'the default export leaked an HTTP Template credential');
+  // A named member in a template that renders a variable cannot be parsed as JSON; the key there
+  // has no recognisable prefix, so it was the shape the previous export still wrote out.
+  assert.ok(!defaultText.includes(BODY_KEY), 'the default export leaked a named credential in the body template');
   assert.ok(!defaultText.includes(LLM_KEY), 'the default export leaked a request template credential');
   assert.equal(defaultFile.settings.providers.length, seeded, 'stripping keys dropped providers');
   assert.equal(defaultFile.settings.activeProviderId, 'deepseek', 'stripping keys changed the active provider');
@@ -137,6 +143,7 @@ try {
   // A same-device round trip must keep the custom carriers working, not just the fixed fields.
   assert.equal(after.templateAuth, `Bearer ${TEMPLATE_KEY}`, 'importing a key-less file blanked the HTTP Template header');
   assert.ok(after.templateUrl.includes(TEMPLATE_KEY), 'importing a key-less file blanked the HTTP Template url');
+  assert.ok(after.templateBody.includes(BODY_KEY), 'importing a key-less file blanked the named credential in the body template');
   assert.equal(after.llmKey, LLM_KEY, 'importing a key-less file blanked the LLM key');
   assert.ok(after.llmHeaders.includes(LLM_KEY), 'importing a key-less file blanked the request template header');
   assert.match(await page.locator('#backupStatus').textContent(), /本机已保存的密钥保持原样/u);
