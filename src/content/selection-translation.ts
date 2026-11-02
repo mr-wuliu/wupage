@@ -151,15 +151,6 @@ export class SelectionTranslationController {
     this.updateSourceAction();
   }
 
-  openFromShortcut(): void {
-    if (!this.settings.enabled) throw new Error("请先在设置 → 划词翻译中启用划词翻译。");
-    if (!this.card.hidden) { this.card.focus({ preventScroll: true }); return; }
-    // Capture immediately: the selectionchange debounce may not have fired yet.
-    this.captureSelection();
-    if (!this.range || !this.rects().length) throw new Error("请先选中网页正文（最多 5,000 个字符）；输入框和编辑区中的文字不支持划词翻译。");
-    void this.lookup(this.settings.provider);
-  }
-
   dispose(): void {
     this.close(); this.disposed = true;
     this.host.remove();
@@ -483,15 +474,6 @@ export class SelectionTranslationController {
 }
 
 let controller: SelectionTranslationController | undefined;
-
-export async function translateSelectedText(): Promise<void> {
-  const settings = await sendRuntimeRequest<ExtensionSettings>({ type: "GET_SETTINGS" });
-  const normalized = normalizeSelectionTranslation(settings.selectionTranslation);
-  if (controller) controller.update(normalized);
-  else controller = new SelectionTranslationController(normalized);
-  controller.updateShortcuts(settings.shortcutEnabled, settings.localShortcuts);
-  controller.openFromShortcut();
-}
 
 export function initSelectionTranslation(): void {
   if (typeof document === "undefined" || !chrome?.runtime?.id || controller) return;

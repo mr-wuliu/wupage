@@ -46,6 +46,10 @@ flowchart LR
 
 文本翻译先经过后台的缓存与批次调度，再进入服务适配层；返回值通过格式与受保护内容校验后交还调用方。网页 DOM 操作留在内容脚本，服务协议处理留在后台，公共配置和类型放入共享层。
 
+`src/background/providers.ts` 是服务工厂；`providers/` 按在线翻译服务、LLM 和 HTTP 模板组织适配器，`provider-transport.ts` 统一管理超时、重试与响应读取。网页渐进扫描的分块、让出主线程及变更补扫位于 `src/content/progressive-scan.ts`，内容判断与渲染仍由 `dom.ts` 处理。正文采集测试使用与产品相同的渐进扫描入口。
+
+普通配置保存通过 `SAVE_SETTINGS` 同时提交编辑结果和读取时的 `previousSettings`。后台按顺序合并本次变更，保留其他页面修改的字段；服务配置按稳定 ID 合并，避免覆盖其他服务的凭据或重新创建已删除服务。显式恢复默认设置时省略 `previousSettings`，执行完整替换。新增保存入口应遵循同一约定，避免直接写入整个配置对象。
+
 Chrome / Edge 使用后台 Service Worker，并通过 offscreen 文档承载需要 DOM 或 Worker 的本地能力；Firefox 使用后台事件页和隐藏 iframe。相关适配入口为 `build/manifest.ts` 与 `src/background/offscreen.ts`。
 
 ## 环境搭建

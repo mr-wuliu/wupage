@@ -1,3 +1,6 @@
+import { scanTextRootsProgressive } from "./progressive-scan";
+import type { ProgressiveScanOptions, TextSegment } from "./text-segments";
+export type { TextSegment } from "./text-segments";
 import { getEffectiveBackgroundColor, mapTranslationTextColor, type TranslationColors } from "../shared/translation-colors";
 export { mapTranslationTextColor } from "../shared/translation-colors";
 import {
@@ -16,16 +19,10 @@ import {
 import { videoPlatform } from "../video/platforms";
 import { clearTranslationTypography, linkTranslationTypography } from "./translation-typography";
 import { isNonProseElement, isTranslationOptedOut, NON_PROSE_SELECTOR } from "./content-policy";
-import { composedContains, discoverShadowRoots, mutationElement, onTranslationRoot, queryTranslationElements, translationRoots } from "./dom-roots";
+import { composedContains, queryTranslationElements } from "./dom-roots";
 import { injectContentStyles } from "./styles";
 import { isSteamCommunity, isSteamContentCard, steamItemTitle, steamTextBlock } from "./steam-content";
 import { containsExcludedElement, isElementExcluded } from "./element-exclusions";
-
-export interface TextSegment {
-  id: string;
-  text: string;
-  element: Element;
-}
 
 interface TrackedNode {
   id: string;
@@ -378,11 +375,6 @@ const PARAGRAPH_SELECTOR = [
   YOUTUBE_COMMENT_SELECTOR
 ].join(",");
 
-export function collectTextSegments(translateCodeComments = true): TextSegment[] {
-  clearNodeTracking();
-  return document.body ? collectAdditionalTextSegments(document.body, translateCodeComments) : [];
-}
-
 export function collectParagraphTextSegments(
   element: Element,
   translateCodeComments = true
@@ -396,92 +388,7 @@ export function collectParagraphTextSegments(
     tracked.image !== element && !element.contains(tracked.image)
   );
   pruneTranslationResults();
-  return collectTextSegmentsFromRoot(element, false, translateCodeComments);
-}
-
-export function collectAdditionalTextSegments(
-  element: Element,
-  translateCodeComments = true
-): TextSegment[] {
-  const segments = collectTextSegmentsFromRoot(element, false, translateCodeComments);
-  for (const shadow of discoverShadowRoots(element)) {
-    for (const child of shadow.children) segments.push(...collectAdditionalTextSegments(child, translateCodeComments));
-  }
-  return segments;
-}
-
-const SCAN_CHUNK_NODES = 120;
-const SCAN_SLICE_MS = 12;
-const SCAN_MUTATION_ROOT_LIMIT = 200;
-
-export interface ProgressiveScanOptions {
-  signal?: AbortSignal;
-  onSegments?: (segments: TextSegment[]) => void;
-  onPendingRoots?: (roots: Element[]) => void;
-  observeChanges?: boolean;
-}
-
-function yieldToMain(signal?: AbortSignal): Promise<void> {
-  return new Promise<void>((resolve) => {
-    let channel: MessageChannel | undefined;
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    const finish = () => {
-      signal?.removeEventListener("abort", finish);
-      channel?.port1.close();
-      channel?.port2.close();
-      clearTimeout(timer);
-      resolve();
-    };
-    if (signal?.aborted) { finish(); return; }
-    signal?.addEventListener("abort", finish, { once: true });
-    const scheduler = (globalThis as { scheduler?: { yield?: () => Promise<void> } }).scheduler;
-    if (typeof scheduler?.yield === "function") {
-      scheduler.yield().then(finish, finish);
-    } else if (typeof MessageChannel !== "undefined") {
-      channel = new MessageChannel();
-      channel.port1.onmessage = finish;
-      channel.port2.postMessage(0);
-    } else timer = setTimeout(finish, 0);
-  });
-}
-
-interface ScanChunk {
-  root: Element;
-  directTextOnly: boolean;
-}
-
-// Discover chunks lazily so planning a large document also yields. Keep authored
-// paragraphs intact: splitting inline runs changes grouping and line breaks.
-function* collectScanChunks(root: Element): Generator<ScanChunk> {
-  const stack = [root];
-  while (stack.length) {
-    const element = stack.pop()!;
-    if (!element.isConnected) continue;
-    const walker = element.ownerDocument.createTreeWalker(element, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT);
-    let count = 0;
-    while (count <= SCAN_CHUNK_NODES && walker.nextNode()) count += 1;
-    if (count <= SCAN_CHUNK_NODES || !element.firstElementChild
-      || element.matches(PARAGRAPH_SELECTOR + ",[data-wupage-scientific-source]")) {
-      for (const shadow of discoverShadowRoots(element)) {
-        for (const child of Array.from(shadow.children).reverse()) stack.push(child);
-      }
-      yield { root: element, directTextOnly: false };
-      continue;
-    }
-    yield { root: element, directTextOnly: true };
-    for (const shadow of discoverShadowRoots(element, false)) {
-      for (const child of Array.from(shadow.children).reverse()) stack.push(child);
-    }
-    for (let child = element.lastElementChild; child; child = child.previousElementSibling) stack.push(child);
-  }
-}
-
-function addCoveredScanRoot(roots: Set<Element>, element: Element): void {
-  for (const root of roots) {
-    if (root.contains(element)) return;
-    if (element.contains(root)) roots.delete(root);
-  }
-  roots.add(element);
+  return collectTextSegmentsFromRoot(element, translateCodeComments);
 }
 
 export async function collectTextSegmentsProgressive(
@@ -492,83 +399,27 @@ export async function collectTextSegmentsProgressive(
   clearNodeTracking();
   if (!document.body) return [];
   prepareLegacyScientificParagraphs(document.body);
-  return scanTextRootsProgressive([document.body], translateCodeComments, options, true);
+  return scanTrackedTextRoots([document.body], translateCodeComments, options, true);
 }
 
 /** Incremental scans retain existing translations and use the same time budget. */
 export function collectAdditionalTextSegmentsProgressive(
   roots: Element[], translateCodeComments = true, options: ProgressiveScanOptions = {}
 ): Promise<TextSegment[]> {
-  return scanTextRootsProgressive(roots, translateCodeComments, options, options.observeChanges ?? true);
+  return scanTrackedTextRoots(roots, translateCodeComments, options, options.observeChanges ?? true);
 }
 
-async function scanTextRootsProgressive(
+function scanTrackedTextRoots(
   roots: Element[], translateCodeComments: boolean, options: ProgressiveScanOptions, observeChanges: boolean
 ): Promise<TextSegment[]> {
   const epoch = nodeTrackingEpoch;
-  const cancelled = () => options.signal?.aborted || epoch !== nodeTrackingEpoch;
-  if (cancelled()) return [];
-  const segments = new Map<string, TextSegment>();
-  const touched = new Set<Element>();
-  const recordMutations = (records: MutationRecord[]) => {
-    for (const record of records) {
-      const element = mutationElement(record.target);
-      if (!element?.isConnected) continue;
-      addCoveredScanRoot(touched, element);
-      if (touched.size > SCAN_MUTATION_ROOT_LIMIT) { touched.clear(); touched.add(document.body); }
-    }
-  };
-  const observer = observeChanges ? new MutationObserver(recordMutations) : undefined;
-  const observerOptions = { childList: true, characterData: true, subtree: true, attributes: true,
-    attributeFilter: ["class", "style", "hidden", "aria-hidden", "placeholder", "alt", "open", "translate", "contenteditable", "role"] };
-  for (const root of translationRoots()) observer?.observe(root, observerOptions);
-  const unsubscribe = onTranslationRoot(root => observer?.observe(root, observerOptions));
-  let sliceStarted = performance.now();
-  const scan = async (pending: Element[]) => {
-    const candidates = new Set(pending.filter(root => root.isConnected));
-    const covered = [...candidates].filter(root => {
-      for (let ancestor = root.parentElement; ancestor; ancestor = ancestor.parentElement) {
-        if (candidates.has(ancestor)) return false;
-      }
-      return true;
-    });
-    for (const root of covered) {
-      if (root === document.body || root === document.documentElement) clearHiddenScanCandidates();
-      for (const chunk of collectScanChunks(root)) {
-        if (cancelled()) return;
-        recordMutations(observer?.takeRecords() ?? []);
-        const found = collectTextSegmentsFromRoot(chunk.root, false, translateCodeComments, chunk.directTextOnly);
-        // Text normalization performed by the collector is already represented in
-        // found; do not mistake its own node splits for host changes.
-        observer?.takeRecords();
-        for (const segment of found) segments.set(segment.id, segment);
-        options.onSegments?.(found);
-        if (performance.now() - sliceStarted < SCAN_SLICE_MS) continue;
-        await yieldToMain(options.signal);
-        if (cancelled()) return;
-        sliceStarted = performance.now();
-      }
-    }
-  };
-  try {
-    await scan(roots);
-    // Reconcile bursts without letting a continuously updating page keep the
-    // initial scan open forever. The page session takes over any remaining work.
-    for (let pass = 0; pass < 2 && !cancelled(); pass++) {
-      recordMutations(observer?.takeRecords() ?? []);
-      if (!touched.size) break;
-      const changed = [...touched]; touched.clear();
-      for (const id of invalidateStaleSegments(changed)) segments.delete(id);
-      await scan(changed);
-    }
-    if (cancelled()) return [];
-    recordMutations(observer?.takeRecords() ?? []);
-    if (touched.size) {
-      for (const id of invalidateStaleSegments([...touched])) segments.delete(id);
-      options.onPendingRoots?.([...touched]);
-    }
-    return [...segments.values()];
-  } finally { unsubscribe(); observer?.disconnect(); }
+  return scanTextRootsProgressive(roots, { ...options, observeChanges }, {
+    isCurrent: () => epoch === nodeTrackingEpoch,
+    isParagraph: element => element.matches(PARAGRAPH_SELECTOR + ",[data-wupage-scientific-source]"),
+    collect: (root, directTextOnly) => collectTextSegmentsFromRoot(root, translateCodeComments, directTextOnly),
+    clearHiddenCandidates: clearHiddenScanCandidates,
+    invalidate: invalidateStaleSegments
+  });
 }
 
 /**
@@ -918,11 +769,9 @@ const NON_BLANK_TEXT = /\S/;
 
 function collectTextSegmentsFromRoot(
   root: Element,
-  resetTracking: boolean,
   translateCodeComments: boolean,
   directTextOnly = false
 ): TextSegment[] {
-  if (resetTracking) clearNodeTracking();
   // A whole-document scan starts from a clean slate; the progressive scanner
   // already cleared the candidates and its per-chunk results must survive the
   // body sweep.
@@ -1165,33 +1014,6 @@ export function setTranslationDisplayMode(displayMode: TranslationDisplayMode): 
   renderTranslations([...translatedTextById].map(([id, text]) => ({ id, text })), displayMode);
 }
 
-export function renderTargetTranslation(
-  element: Element,
-  text: string,
-  sourceText?: string,
-  displayMode: TranslationDisplayMode = "bilingual"
-): void {
-  const targetId = ensureTranslationTarget(element);
-  findTargetTranslations(targetId).forEach((node) => node.remove());
-  if (sourceText !== undefined && normalizeText(sourceText) === normalizeText(text)) {
-    element.removeAttribute(TRANSLATED_ATTR);
-    element.removeAttribute(TARGET_ATTR);
-    return;
-  }
-
-  const translation = document.createElement("span");
-  translation.className = TRANSLATION_CLASS;
-  translation.dataset.wupageMode = getRenderMode(element);
-  translation.dataset.wupageDisplayMode = displayMode;
-  applyTranslationTextColor(translation, element, displayMode);
-  translation.textContent = text;
-  translation.setAttribute("lang", "translated");
-  if (displayMode !== "replace") translation.setAttribute("aria-hidden", "true");
-  translation.setAttribute(TRANSLATION_TARGET_ATTR, targetId);
-  element.setAttribute(TRANSLATED_ATTR, "true");
-  element.append(translation);
-}
-
 export function renderTranslationPlaceholders(segments: TextSegment[]): void {
   injectContentStyles();
   const pendingIds = new Set(segments.map((segment) => segment.id));
@@ -1232,16 +1054,6 @@ export function clearTranslationPlaceholders(segments: TextSegment[]): void {
   for (const segment of segments) {
     removePendingForId(segment.id);
   }
-}
-
-export function renderTargetPlaceholder(element: Element): void {
-  const targetId = ensureTranslationTarget(element);
-  findTargetTranslations(targetId).forEach((node) => node.remove());
-  const pending = createPendingElement(targetId, getRenderMode(element));
-  applyTranslationTextColor(pending, element, "bilingual");
-  pending.setAttribute(TRANSLATION_TARGET_ATTR, targetId);
-  element.setAttribute(TRANSLATED_ATTR, "true");
-  element.append(pending);
 }
 
 export function clearTranslations(): void {

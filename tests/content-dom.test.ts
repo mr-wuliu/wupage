@@ -6,16 +6,13 @@ import {
   clearTranslationPlaceholders,
   clearTranslations,
   collectParagraphTextSegments,
-  collectAdditionalTextSegments,
-  collectTextSegments,
+  collectAdditionalTextSegmentsProgressive,
   collectTextSegmentsProgressive,
   findTranslatableParagraph,
   hasPageTranslations,
   hasTranslationsIn,
   invalidateStaleSegments,
   mapTranslationTextColor,
-  renderTargetPlaceholder,
-  renderTargetTranslation,
   renderTranslationPlaceholders,
   renderTranslations,
   setTranslationDisplayMode,
@@ -24,12 +21,12 @@ import {
 import { injectContentStyles } from "../src/content/styles";
 
 describe("host content boundaries", () => {
-  it.each([[false, false], [true, false], [false, true], [true, true]])("restores temporarily detached rows before forgetting their source, pending=%s, fragment=%s", (pending, fragment) => {
+  it.each([[false, false], [true, false], [false, true], [true, true]])("restores temporarily detached rows before forgetting their source, pending=%s, fragment=%s", async (pending, fragment) => {
     document.body.innerHTML = '<main><section><p>Read <code>guide()</code> carefully.</p><input placeholder="Search rows"></section></main>';
     stubLayout();
     const row = document.querySelector("section")!;
     const original = row.innerHTML;
-    const segments = collectTextSegments();
+    const segments = (await collectTextSegmentsProgressive());
     if (pending) renderTranslationPlaceholders(segments);
     else renderTranslations(segments.map(segment => ({ id: segment.id, text: `译文：${segment.text}` })), "replace");
     row.remove();
@@ -37,23 +34,23 @@ describe("host content boundaries", () => {
     clearTranslations();
     document.querySelector("main")!.append(row);
     expect(row.innerHTML).toBe(original);
-    expect(collectAdditionalTextSegments(row).map(segment => segment.text)).toContain("Read ⟪WUPAGE0⟫ carefully.");
+    expect((await collectAdditionalTextSegmentsProgressive([row])).map(segment => segment.text)).toContain("Read ⟪WUPAGE0⟫ carefully.");
   });
-  it("keeps source text when site CSS makes the generated replacement invisible", () => {
+  it("keeps source text when site CSS makes the generated replacement invisible", async () => {
     document.body.innerHTML = "<main><p>Original paragraph.</p></main>";
     stubLayout("", { style: element => element.classList.contains("wupage-translation") ? { display: "none" } : {} });
-    const [segment] = collectTextSegments();
+    const [segment] = (await collectTextSegmentsProgressive());
     renderTranslations([{ id: segment.id, text: "译文段落。" }], "replace");
     expect(document.querySelector("p")!.textContent).toBe("Original paragraph.");
     expect(document.querySelector(".wupage-translation")).toBeNull();
   });
-  it.each(["code", "math", "brand"])("invalidates active replacements when protected %s changes", kind => {
+  it.each(["code", "math", "brand"])("invalidates active replacements when protected %s changes", async kind => {
     const inline = kind === "code" ? '<code id="protected">oldName()</code>'
       : kind === "math" ? '<math id="protected"><mi>alpha</mi></math>'
       : '<span id="protected" translate="no">OldBrand</span>';
     document.body.innerHTML = `<main><p>Read ${inline} before continuing.</p></main>`;
     stubLayout();
-    const [segment] = collectTextSegments();
+    const [segment] = (await collectTextSegmentsProgressive());
     renderTranslations([{ id: segment.id, text: "请先阅读 ⟪WUPAGE0⟫。" }], "replace");
     // Our own visibility class must not make every response invalidate itself.
     expect(invalidateStaleSegments()).toEqual([]);
@@ -64,21 +61,21 @@ describe("host content boundaries", () => {
     expect(source.classList.contains("wupage-replaced-source")).toBe(false);
     expect(document.querySelector("p")!.textContent).toBe("Read UpdatedSource before continuing.");
   });
-  it.each(["", "true", "plaintext-only"])("never collects code comments or controls inside contenteditable=%s", value => {
+  it.each(["", "true", "plaintext-only"])("never collects code comments or controls inside contenteditable=%s", async value => {
     document.body.innerHTML = `<main><p>Published article.</p><div contenteditable="${value}">
       <pre><code>// Unsent private draft</code></pre><button><span>Draft action</span></button>
       </div><div role="textbox"><code># Another private draft</code></div></main>`;
     stubLayout();
-    expect(collectTextSegments().map(segment => segment.text)).toEqual(["Published article."]);
+    expect((await collectTextSegmentsProgressive()).map(segment => segment.text)).toEqual(["Published article."]);
     expect(collectParagraphTextSegments(document.querySelector("pre")!)).toEqual([]);
   });
 
-  it("preserves opted-out inline content with protected markers across display modes", () => {
+  it("preserves opted-out inline content with protected markers across display modes", async () => {
     document.body.innerHTML = `<main><p>Install <span translate="NO">PrivateProduct</span> before proceeding.</p>
       <p class="notranslate">Do not translate this paragraph.</p><input translate="no" placeholder="Private placeholder"></main>`;
     stubLayout();
     const original = document.querySelector("main")!.innerHTML;
-    const segments = collectTextSegments();
+    const segments = (await collectTextSegmentsProgressive());
     expect(segments.map(segment => segment.text)).toEqual(["Install ⟪WUPAGE0⟫ before proceeding."]);
     renderTranslations([{ id: segments[0].id, text: "请先安装 ⟪WUPAGE0⟫。" }], "replace");
     expect(document.querySelector(".wupage-translation [translate]")?.textContent).toBe("PrivateProduct");
@@ -90,19 +87,19 @@ describe("host content boundaries", () => {
     expect(document.querySelector("main")!.innerHTML).toBe(original);
   });
 
-  it("honors explicit translate=yes within a translate=no region", () => {
+  it("honors explicit translate=yes within a translate=no region", async () => {
     document.body.innerHTML = `<main translate="NO"><p>Leave this paragraph alone.</p>
       <p translate="yes">Translate this paragraph.</p><p translate="invalid">Inherited exclusion.</p></main>`;
     stubLayout();
-    expect(collectTextSegments().map(segment => segment.text)).toEqual(["Translate this paragraph."]);
+    expect((await collectTextSegmentsProgressive()).map(segment => segment.text)).toEqual(["Translate this paragraph."]);
   });
 
-  it("preserves inline MathML while leaving standalone math and SVG graphics alone", () => {
+  it("preserves inline MathML while leaving standalone math and SVG graphics alone", async () => {
     document.body.innerHTML = `<main><p>Use <math><mi>alpha</mi><mo>+</mo><mi>beta</mi></math> to continue.</p>
       <math><mi>gamma</mi></math><svg><text>Diagram label</text></svg></main>`;
     stubLayout();
     const original = document.querySelector("main")!.innerHTML;
-    const segments = collectTextSegments();
+    const segments = (await collectTextSegmentsProgressive());
     expect(segments.map(segment => segment.text)).toEqual(["Use ⟪WUPAGE0⟫ to continue."]);
     renderTranslations([{ id: segments[0].id, text: "使用 ⟪WUPAGE0⟫ 继续。" }], "replace");
     expect(document.querySelector(".wupage-translation math")?.textContent).toBe("alpha+beta");
@@ -110,27 +107,27 @@ describe("host content boundaries", () => {
     expect(document.querySelector("main")!.innerHTML).toBe(original);
   });
 
-  it("restores source text when a translated paragraph becomes an editor or opts out", () => {
+  it("restores source text when a translated paragraph becomes an editor or opts out", async () => {
     document.body.innerHTML = "<main><p>Published paragraph.</p></main>";
     stubLayout();
-    const [segment] = collectTextSegments();
+    const [segment] = (await collectTextSegmentsProgressive());
     renderTranslations([{ id: segment.id, text: "已发布段落。" }], "replace");
     segment.element.setAttribute("contenteditable", "true");
     expect(invalidateStaleSegments()).toContain(segment.id);
     expect(segment.element.textContent).toBe("Published paragraph.");
-    expect(collectAdditionalTextSegments(segment.element)).toEqual([]);
+    expect((await collectAdditionalTextSegmentsProgressive([segment.element]))).toEqual([]);
   });
 });
 
 describe("content DOM translation extraction", () => {
-  it("skips protected tags when the document exposes lowercase tag names", () => {
+  it("skips protected tags when the document exposes lowercase tag names", async () => {
     document.body.innerHTML = '<p>Readable article paragraph.</p><kbd>Skipped keyboard contents</kbd><samp>Skipped sample output</samp>';
     // XHTML uses lowercase tagName values; retain the test document's browsing context for layout.
     for (const element of document.querySelectorAll("kbd,samp")) Object.defineProperty(element, "tagName", { value: element.localName });
     stubLayout();
-    expect(collectTextSegments(false).map(segment => segment.text)).toEqual(["Readable article paragraph."]);
+    expect((await collectTextSegmentsProgressive(false)).map(segment => segment.text)).toEqual(["Readable article paragraph."]);
   });
-  it.each(["videoPlayer", "videoComponent"])("keeps X %s controls out of page and paragraph translation", (testId) => {
+  it.each(["videoPlayer", "videoComponent"])("keeps X %s controls out of page and paragraph translation", async (testId) => {
     document.body.innerHTML = `<main><article>
       <div data-testid="tweetText">Watch this portrait video.</div>
       <div data-testid="${testId}"><video>Video playback is unavailable.</video>
@@ -144,62 +141,62 @@ describe("content DOM translation extraction", () => {
     const player = document.querySelector(`[data-testid="${testId}"]`)!;
     const original = player.innerHTML;
     expect(collectParagraphTextSegments(player).map(segment => segment.text)).toEqual([]);
-    const segments = collectTextSegments();
+    const segments = (await collectTextSegmentsProgressive());
     expect(segments.map(segment => segment.text)).toEqual(["Watch this portrait video."]);
     renderTranslations(segments.map(({ id }) => ({ id, text: "看看这段竖屏视频。" })));
     expect(player.innerHTML).toBe(original);
   });
 
   it.each(["ytp-chrome-bottom", "ytp-chrome-top", "vjs-control-bar", "plyr__controls", "jw-controlbar"])
-    ("leaves %s playback controls unchanged while translating surrounding prose", (className) => {
+    ("leaves %s playback controls unchanged while translating surrounding prose", async (className) => {
       document.body.innerHTML = `<main><p>A description of the video.</p><div class="${className}">
         <button><span>Playback speed</span></button><span>Video settings</span>
       </div></main>`;
       stubLayout();
-      expect(collectTextSegments().map(segment => segment.text)).toEqual(["A description of the video."]);
+      expect((await collectTextSegmentsProgressive()).map(segment => segment.text)).toEqual(["A description of the video."]);
     });
 
-  it('keeps Udemy native captions out of page translation before subtitle translation starts', () => {
+  it('keeps Udemy native captions out of page translation before subtitle translation starts', async () => {
     vi.stubGlobal('location', new URL('https://www.udemy.com/course/fixture/'));
     try {
       document.body.innerHTML = '<main><p>Ordinary course description.</p></main><div data-purpose="media-player-container"><video></video><div class="_caption-container_nnobv_16"><div class="_cue-text_nnobv_32">The native video subtitle should stay unchanged.</div></div></div>';
       stubLayout();
-      expect(collectTextSegments().map(segment => segment.text)).toEqual(['Ordinary course description.']);
+      expect((await collectTextSegmentsProgressive()).map(segment => segment.text)).toEqual(['Ordinary course description.']);
       vi.stubGlobal('location', new URL('https://example.com/article'));
-      expect(collectTextSegments().map(segment => segment.text)).toContain('The native video subtitle should stay unchanged.');
+      expect((await collectTextSegmentsProgressive()).map(segment => segment.text)).toContain('The native video subtitle should stay unchanged.');
     } finally { vi.unstubAllGlobals(); }
   });
   it.each(["Label", "State", "Counter", "layout-with-breadcrumbs", "withBreadcrumbs"])
-    ("does not exclude ordinary prose because of a generic %s class", (className) => {
+    ("does not exclude ordinary prose because of a generic %s class", async (className) => {
       document.body.innerHTML = `<article class="${className}"><p>Ordinary readable article text.</p></article>`;
       stubLayout();
-      expect(collectTextSegments().map(({ text }) => text)).toEqual(["Ordinary readable article text."]);
+      expect((await collectTextSegmentsProgressive()).map(({ text }) => text)).toEqual(["Ordinary readable article text."]);
     });
 
-  it("keeps semantic headings separate inside a div-based reading region", () => {
+  it("keeps semantic headings separate inside a div-based reading region", async () => {
     document.body.innerHTML = `<div role="main"><div><h2>Review <em>request</em></h2><span>Please respond tomorrow.</span></div></div>`;
     stubLayout();
-    const segments = collectTextSegments();
+    const segments = (await collectTextSegmentsProgressive());
     expect(segments.map(({ text }) => text)).toEqual(["Review request", "Please respond tomorrow."]);
     renderTranslations(segments.map(({ id, text }) => ({ id, text: `译文：${text}` })));
     expect(document.querySelector("h2 .wupage-translation")?.textContent).toBe("译文：Review request");
   });
 
-  it.each(["main", "article", "div role='main'"])("groups div-based prose consistently inside %s", (rootTag) => {
+  it.each(["main", "article", "div role='main'"])("groups div-based prose consistently inside %s", async (rootTag) => {
     const closingTag = rootTag.split(" ")[0];
     document.body.innerHTML = `<${rootTag}><div>Please <strong>review</strong> the attached contract.</div></${closingTag}>`;
     stubLayout();
-    expect(collectTextSegments().map(({ text }) => text)).toEqual(["Please review the attached contract."]);
+    expect((await collectTextSegmentsProgressive()).map(({ text }) => text)).toEqual(["Please review the attached contract."]);
   });
 
-  it.each(["flex", "inline-flex", "grid", "inline-grid"])("keeps card fields separate in a %s layout", (display) => {
+  it.each(["flex", "inline-flex", "grid", "inline-grid"])("keeps card fields separate in a %s layout", async (display) => {
     document.body.innerHTML = `<article><div id="fields"><span id="title">A modular library for game extensions</span>
       <span id="author">by <a href="/user/developer">developer</a></span></div>
       <div id="summary">Lightweight tools for creating and sharing extensions.</div></article>`;
     stubLayout("", { style: element => ({ display: element.id === "fields" ? display : "block" }) });
     const original = document.querySelector("article")!.innerHTML;
     const authorLink = document.querySelector("#author a");
-    const segments = collectTextSegments();
+    const segments = (await collectTextSegmentsProgressive());
     expect(segments.map(({ text }) => text)).toEqual([
       "A modular library for game extensions", "by", "developer", "Lightweight tools for creating and sharing extensions."
     ]);
@@ -218,7 +215,7 @@ describe("content DOM translation extraction", () => {
     expect(document.querySelector("article")!.innerHTML).toBe(original);
   });
 
-  it.each(["inline-block", "inline-flex", "block", "grid"])("keeps a self-contained %s list link inside its layout box", (display) => {
+  it.each(["inline-block", "inline-flex", "block", "grid"])("keeps a self-contained %s list link inside its layout box", async (display) => {
     document.body.innerHTML = `<div id="sidebar"><ul><li><div class="favicon" title="Site"></div><a href="/question">Lower your <em>expectations</em> for this puzzle</a></li></ul>
       <ul><li><a href="/tag/stream" rel="tag">stream</a></li></ul></div>`;
     stubLayout("rgb(0, 102, 204)", { style: element => ({
@@ -227,7 +224,7 @@ describe("content DOM translation extraction", () => {
     const original = document.querySelector("#sidebar")!.innerHTML;
     const links = [...document.querySelectorAll("a")];
     const icon = document.querySelector(".favicon");
-    const segments = collectTextSegments();
+    const segments = (await collectTextSegmentsProgressive());
     expect(segments.map(({ text }) => text)).toEqual(["Lower your expectations for this puzzle", "stream"]);
     renderTranslationPlaceholders(segments);
     expect(document.querySelector("li > .wupage-translation")).toBeNull();
@@ -246,21 +243,21 @@ describe("content DOM translation extraction", () => {
     expect(document.querySelector("#sidebar")!.innerHTML).toBe(original);
   });
 
-  it("protects inline code inside div-based prose", () => {
+  it("protects inline code inside div-based prose", async () => {
     document.body.innerHTML = `<article><div>Call <code>fetch()</code> before continuing.</div></article>`;
     stubLayout();
-    const [segment] = collectTextSegments();
+    const [segment] = (await collectTextSegmentsProgressive());
     expect(segment.text).toBe("Call ⟪WUPAGE0⟫ before continuing.");
     renderTranslations([{ id: segment.id, text: "继续之前调用 ⟪WUPAGE0⟫。" }]);
     expect(document.querySelector(".wupage-translation code")?.textContent).toBe("fetch()");
   });
 
-  it("replaces every source fragment in a grouped paragraph, including short words and punctuation", () => {
+  it("replaces every source fragment in a grouped paragraph, including short words and punctuation", async () => {
     document.body.innerHTML = `<main><div id="prose">Please <strong>review</strong> the attached contract.</div>
       <p id="code">A <strong>small</strong> <code>example()</code>.</p></main>`;
     stubLayout();
     const original = document.querySelector("main")!.textContent;
-    const segments = collectTextSegments();
+    const segments = (await collectTextSegmentsProgressive());
     renderTranslations(segments.map(({ id, text }) => ({ id, text: text.includes("WUPAGE") ? "代码 ⟪WUPAGE0⟫。" : "请审阅合同。" })), "replace");
     expect(document.querySelector("#prose")?.textContent).toBe("请审阅合同。");
     expect(document.querySelector("#code .wupage-translation")?.textContent).toBe("代码 example()。");
@@ -272,15 +269,15 @@ describe("content DOM translation extraction", () => {
     expect(document.querySelector("main")!.textContent).toBe(original);
   });
 
-  it.each(["", "true", "plaintext-only"])("excludes contenteditable=%s from both standalone and grouped text", (value) => {
+  it.each(["", "true", "plaintext-only"])("excludes contenteditable=%s from both standalone and grouped text", async (value) => {
     document.body.innerHTML = `<main><div contenteditable="${value}">Unsent standalone draft.</div>
       <p>Published <em>message</em>.<span contenteditable="${value}">Unsent inline draft.</span></p></main>`;
     stubLayout();
-    const texts = collectTextSegments().map(({ text }) => text);
+    const texts = (await collectTextSegmentsProgressive()).map(({ text }) => text);
     expect(texts).toEqual(["Published message."]);
   });
 
-  it("switches existing rich text, authored lines, comments and placeholders without losing originals", () => {
+  it("switches existing rich text, authored lines, comments and placeholders without losing originals", async () => {
     document.body.innerHTML = `<main>
       <p id="prose">Read the <a href="/guide"><code>guide</code></a> today.</p>
       <div><span id="authored">First authored sentence.<br>Second authored sentence.<br></span></div>
@@ -293,7 +290,7 @@ describe("content DOM translation extraction", () => {
     const protectedSource = code.closest("a")!;
     const authored = document.querySelector("#authored")!;
     const breaks = [...authored.querySelectorAll("br")];
-    const segments = collectTextSegments();
+    const segments = (await collectTextSegmentsProgressive());
     expect(segments).toHaveLength(4);
     renderTranslations(segments.map((segment) => ({ id: segment.id, text: segment.text.includes("WUPAGE")
       ? "今天阅读 ⟪WUPAGE0⟫。" : "保留的译文" })));
@@ -319,10 +316,10 @@ describe("content DOM translation extraction", () => {
     expect(document.querySelector(".wupage-translation")).toBeNull();
   });
 
-  it("does not revive cleared paragraphs or overwrite source updates when switching modes", () => {
+  it("does not revive cleared paragraphs or overwrite source updates when switching modes", async () => {
     document.body.innerHTML = `<main><p id="first">First sentence.</p><p id="second">Second sentence.</p></main>`;
     stubLayout();
-    const segments = collectTextSegments();
+    const segments = (await collectTextSegmentsProgressive());
     renderTranslations(segments.map((segment) => ({ id: segment.id, text: "已有译文" })), "replace");
     clearTranslationsIn(document.querySelector("#first")!);
     document.querySelector("#second")!.firstChild!.textContent = "New source text supplied by the website.";
@@ -331,14 +328,14 @@ describe("content DOM translation extraction", () => {
     expect(document.querySelector("#second")?.textContent).toBe("New source text supplied by the website.");
     expect(document.querySelector(".wupage-translation")).toBeNull();
   });
-  it.each(["bilingual", "bilingual-accent"] as const)("keeps authored multiline text inside its column in %s mode", (mode) => {
+  it.each(["bilingual", "bilingual-accent"] as const)("keeps authored multiline text inside its column in %s mode", async (mode) => {
     document.body.innerHTML = `<div id="profile"><span id="source">すべての魔法少女たちを救うことを願い<br>「円環の理」と呼ばれる神にも等しい<br>存在となった少女。<br></span></div>`;
     stubLayout("rgb(34, 34, 34)", { style: (element) => element.id === "source"
       ? { display: "inline-block", whiteSpace: "nowrap" } : {} });
     const source = document.querySelector<HTMLElement>("#source")!;
     const original = source.innerHTML;
     const breaks = [...source.querySelectorAll("br")];
-    const segments = collectTextSegments();
+    const segments = (await collectTextSegmentsProgressive());
     expect(segments).toHaveLength(1);
     expect(segments[0].text).toContain("願い 「円環の理」");
     renderTranslationPlaceholders(segments);
@@ -356,13 +353,13 @@ describe("content DOM translation extraction", () => {
     expect(document.querySelector(".wupage-translation")).toBeNull();
   });
 
-  it("restores authored line breaks when returning from replacement mode", () => {
+  it("restores authored line breaks when returning from replacement mode", async () => {
     document.body.innerHTML = `<div><span id="source">First authored sentence with enough text.<br>Second authored sentence on its own line.<br></span></div>`;
     stubLayout();
     const source = document.querySelector<HTMLElement>("#source")!;
     const original = source.innerHTML;
     const originalElement = source.outerHTML;
-    const [segment] = collectTextSegments();
+    const [segment] = (await collectTextSegmentsProgressive());
     renderTranslations([{ id: segment.id, text: "合并为完整段落的译文。" }], "replace");
     expect(source.classList.contains("wupage-replaced-source")).toBe(true);
     expect(source.nextElementSibling?.textContent).toBe("合并为完整段落的译文。");
@@ -372,19 +369,19 @@ describe("content DOM translation extraction", () => {
     expect(source.outerHTML).toBe(originalElement);
   });
 
-  it("does not combine separate card fields just because their wrapper contains a line break", () => {
+  it("does not combine separate card fields just because their wrapper contains a line break", async () => {
     document.body.innerHTML = `<div><span>First independent field with enough text.</span><br><p>Another complete paragraph in the same card.</p></div>`;
     stubLayout();
-    expect(collectTextSegments().map((segment) => segment.text)).toEqual([
+    expect((await collectTextSegmentsProgressive()).map((segment) => segment.text)).toEqual([
       "First independent field with enough text.", "Another complete paragraph in the same card."
     ]);
   });
 
-  it("reveals updated authored text without overwriting the host page's changes", () => {
+  it("reveals updated authored text without overwriting the host page's changes", async () => {
     document.body.innerHTML = `<div><span id="source">First authored sentence with enough text.<br>Second authored sentence on its own line.</span></div>`;
     stubLayout();
     const source = document.querySelector<HTMLElement>("#source")!;
-    const [segment] = collectTextSegments();
+    const [segment] = (await collectTextSegmentsProgressive());
     renderTranslations([{ id: segment.id, text: "旧译文。" }], "replace");
     source.firstChild!.textContent = "The page supplied an updated opening sentence.";
     source.classList.add("host-updated");
@@ -412,8 +409,8 @@ describe("content DOM translation extraction", () => {
       return document.querySelector<HTMLElement>(".host-source")!;
     }
 
-    function recover(source: HTMLElement) {
-      const [segment] = collectTextSegments();
+    async function recover(source: HTMLElement) {
+      const [segment] = (await collectTextSegmentsProgressive());
       expect(segment.text).toBe(original);
       renderTranslations([{ id: segment.id, text: translated }], "replace");
       source.replaceChildren(document.createTextNode(original));
@@ -421,9 +418,9 @@ describe("content DOM translation extraction", () => {
       return segment;
     }
 
-    it("preserves standalone identity without repeated mutations when the host rebuilds its text", () => {
+    it("preserves standalone identity without repeated mutations when the host rebuilds its text", async () => {
       const source = mount();
-      const segment = recover(source);
+      const segment = await recover(source);
       const output = document.querySelector<HTMLElement>(".wupage-translation")!;
       expect(source.textContent).toBe(original);
       expect(source.contains(output)).toBe(false);
@@ -434,7 +431,7 @@ describe("content DOM translation extraction", () => {
       expect(window.getComputedStyle(output).visibility).toBe("visible");
       source.replaceChildren(document.createTextNode(original.slice(0, 8)), document.createTextNode(original.slice(8)));
       expect(invalidateStaleSegments([source])).not.toContain(segment.id);
-      expect(collectAdditionalTextSegments(document.body)).toEqual([]);
+      expect((await collectAdditionalTextSegmentsProgressive([document.body]))).toEqual([]);
       expect(document.querySelectorAll(".wupage-translation")).toHaveLength(1);
       const observer = new MutationObserver(() => {});
       observer.observe(source.parentElement!, { attributes: true, characterData: true, childList: true, subtree: true });
@@ -444,10 +441,10 @@ describe("content DOM translation extraction", () => {
     });
 
 
-    it("restores host classes and inline styles exactly and remembers safe rendering after clearing results", () => {
+    it("restores host classes and inline styles exactly and remembers safe rendering after clearing results", async () => {
       const source = mount("margin: 3px 0");
       const originalHtml = document.querySelector("main")!.innerHTML;
-      recover(source);
+      await recover(source);
       source.classList.add("host-updated");
       setTranslationDisplayMode("bilingual");
       expect(window.getComputedStyle(source).visibility).toBe("visible");
@@ -459,7 +456,7 @@ describe("content DOM translation extraction", () => {
       clearTranslations();
       expect(document.querySelector("main")!.innerHTML).toBe(originalHtml);
 
-      const [fresh] = collectTextSegments();
+      const [fresh] = (await collectTextSegmentsProgressive());
       renderTranslations([{ id: fresh.id, text: "新的目标语言译文。" }], "replace");
       expect(source.textContent).toBe(original);
       expect(window.getComputedStyle(source).visibility).toBe("hidden");
@@ -467,10 +464,10 @@ describe("content DOM translation extraction", () => {
     });
 
 
-    it("releases a recovered source moved into an unsafe wrapper even when its text nodes are unchanged", () => {
+    it("releases a recovered source moved into an unsafe wrapper even when its text nodes are unchanged", async () => {
       const source = mount();
       const oldContainer = source.parentElement!;
-      const segment = recover(source);
+      const segment = await recover(source);
       const destination = document.createElement("div");
       destination.innerHTML = "<button>Another control</button>";
       document.querySelector("main")!.append(destination);
@@ -484,9 +481,9 @@ describe("content DOM translation extraction", () => {
       expect(destination.querySelector("button")!.textContent).toBe("Another control");
     });
 
-    it("restores the host wrapper when unrelated content or a new layout makes isolation unsafe", () => {
+    it("restores the host wrapper when unrelated content or a new layout makes isolation unsafe", async () => {
       const source = mount();
-      const segment = recover(source);
+      const segment = await recover(source);
       const container = source.parentElement!;
       container.style.display = "flex";
       container.insertAdjacentHTML("beforeend", "<img alt='' src='new-image.png'>");
@@ -499,10 +496,10 @@ describe("content DOM translation extraction", () => {
       expect(document.querySelector(".wupage-translation")).toBeNull();
     });
 
-    it("does not retain a grouped segment's old viewport anchor after moving its source", () => {
+    it("does not retain a grouped segment's old viewport anchor after moving its source", async () => {
       const source = mount();
       source.replaceChildren(document.createTextNode(original), document.createTextNode("..."));
-      const [segment] = collectTextSegments();
+      const [segment] = (await collectTextSegmentsProgressive());
       expect(segment.element).toBe(source.parentElement);
       renderTranslations([{ id: segment.id, text: translated }], "replace");
       source.replaceChildren(document.createTextNode(original), document.createTextNode("..."));
@@ -513,15 +510,15 @@ describe("content DOM translation extraction", () => {
 
       expect(invalidateStaleSegments()).toContain(segment.id);
       expect(window.getComputedStyle(source).visibility).toBe("visible");
-      const [fresh] = collectAdditionalTextSegments(document.body);
+      const [fresh] = (await collectAdditionalTextSegmentsProgressive([document.body]));
       expect(fresh.id).not.toBe(segment.id);
       expect(fresh.element).toBe(destination);
       expect(fresh.text).toBe(original + "...");
     });
 
-    it.each([false, true])("does not expose text hidden by the host after recovery=%s", (alreadyRecovered) => {
+    it.each([false, true])("does not expose text hidden by the host after recovery=%s", async (alreadyRecovered) => {
       const source = mount();
-      const [segment] = collectTextSegments();
+      const [segment] = (await collectTextSegmentsProgressive());
       renderTranslations([{ id: segment.id, text: translated }], "replace");
       if (alreadyRecovered) {
         source.replaceChildren(document.createTextNode(original));
@@ -538,10 +535,10 @@ describe("content DOM translation extraction", () => {
       expect(source.textContent).toBe(original);
     });
 
-    it("does not replace a host's existing grid layout", () => {
+    it("does not replace a host's existing grid layout", async () => {
       const display = "grid";
       const source = mount(`display:${display}`);
-      const [segment] = collectTextSegments();
+      const [segment] = (await collectTextSegmentsProgressive());
       renderTranslations([{ id: segment.id, text: translated }], "replace");
       source.replaceChildren(document.createTextNode(original));
       expect(invalidateStaleSegments([source])).toContain(segment.id);
@@ -553,10 +550,10 @@ describe("content DOM translation extraction", () => {
     it.each([
       '<button>Open story</button>',
       ' Other unrelated text.'
-    ])("does not cover unrelated wrapper content: %s", (sibling) => {
+    ])("does not cover unrelated wrapper content: %s", async (sibling) => {
       const source = mount();
       source.parentElement!.insertAdjacentHTML("beforeend", sibling);
-      const segments = collectTextSegments();
+      const segments = (await collectTextSegmentsProgressive());
       renderTranslations(segments.map(({ id }) => ({ id, text: translated })), "replace");
       source.replaceChildren(document.createTextNode(original));
       invalidateStaleSegments([source]);
@@ -568,11 +565,11 @@ describe("content DOM translation extraction", () => {
     });
   });
 
-  it.each(["span", "div"])("keeps translations inside a %s that owns a flex layout column", (tag) => {
+  it.each(["span", "div"])("keeps translations inside a %s that owns a flex layout column", async (tag) => {
     document.body.innerHTML = `<div id="layout"><${tag} id="column">First sentence in the text column.<br>Second sentence in the text column.</${tag}><img alt="" src="character.png"></div>`;
     stubLayout("rgb(34, 34, 34)", { style: (element) => element.id === "layout" ? { display: "flex" } : {} });
     const column = document.querySelector("#column")!;
-    const segments = collectTextSegments();
+    const segments = (await collectTextSegmentsProgressive());
     renderTranslations(segments.map(segment => ({ id: segment.id, text: "文字栏内的译文。" })));
     const outputs = [...document.querySelectorAll(".wupage-translation")];
     expect(outputs).toHaveLength(2);
@@ -580,7 +577,7 @@ describe("content DOM translation extraction", () => {
     expect(document.querySelector("#layout")!.children).toHaveLength(2);
   });
 
-  it("keeps Reddit comment metadata untouched and translations in the body slot", () => {
+  it("keeps Reddit comment metadata untouched and translations in the body slot", async () => {
     document.body.innerHTML = `
       <main role="main">
         <shreddit-comment>
@@ -589,7 +586,7 @@ describe("content DOM translation extraction", () => {
         </shreddit-comment>
       </main>`;
     stubLayout();
-    const segments = collectTextSegments();
+    const segments = (await collectTextSegmentsProgressive());
     expect(segments.map((segment) => segment.text)).toEqual([
       "Scroll down for 30 seconds and you will find someone like you."
     ]);
@@ -601,10 +598,10 @@ describe("content DOM translation extraction", () => {
     expect(document.querySelector("shreddit-comment > .wupage-translation")).toBeNull();
   });
 
-  it("keeps grouped translations and placeholders inside a named slot", () => {
+  it("keeps grouped translations and placeholders inside a named slot", async () => {
     document.body.innerHTML = `<custom-card><p slot="body">Hello <em>world</em></p></custom-card>`;
     stubLayout();
-    const segments = collectTextSegments();
+    const segments = (await collectTextSegmentsProgressive());
     renderTranslationPlaceholders(segments);
     expect(document.querySelector("p[slot='body'] .wupage-translation-pending")).not.toBeNull();
     renderTranslations([{ id: segments[0].id, text: "你好世界" }]);
@@ -621,7 +618,7 @@ describe("content DOM translation extraction", () => {
     document.body.innerHTML = "";
   });
 
-  it("translates code comments without translating code", () => {
+  it("translates code comments without translating code", async () => {
     document.body.innerHTML = `
       <main>
         <p>Hello world</p>
@@ -631,7 +628,7 @@ describe("content DOM translation extraction", () => {
     `;
     stubLayout();
 
-    const segments = collectTextSegments();
+    const segments = (await collectTextSegmentsProgressive());
 
     expect(segments.map((segment) => segment.text)).toEqual([
       "Hello world",
@@ -648,14 +645,14 @@ describe("content DOM translation extraction", () => {
     expect(translations[1].textContent).toBe("// 解释下一行");
   });
 
-  it("matches block translation color to the translated source element", () => {
+  it("matches block translation color to the translated source element", async () => {
     document.body.innerHTML = `
       <main>
         <p id="source">Readable text on a dark card.</p>
       </main>
     `;
     stubLayout("rgb(224, 232, 240)");
-    const [segment] = collectTextSegments();
+    const [segment] = (await collectTextSegmentsProgressive());
 
     renderTranslations([{ id: segment.id, text: "深色卡片上的可读文本。" }]);
 
@@ -663,10 +660,10 @@ describe("content DOM translation extraction", () => {
       .toBe("rgb(224, 232, 240)");
   });
 
-  it("replaces source text visually and restores it when translations are cleared", () => {
+  it("replaces source text visually and restores it when translations are cleared", async () => {
     document.body.innerHTML = `<main><p id="source">Read the <code>guide</code> today.</p></main>`;
     stubLayout("rgb(34, 34, 34)");
-    const [segment] = collectTextSegments();
+    const [segment] = (await collectTextSegmentsProgressive());
 
     renderTranslations([{ id: segment.id, text: "今天阅读 ⟪WUPAGE0⟫。" }], "replace");
 
@@ -713,10 +710,10 @@ describe("content DOM translation extraction", () => {
     expect(cssContrast(mapped, background)).toBeGreaterThanOrEqual(4.5);
   });
 
-  it("protects translation colors from host color and inherited text-fill rules", () => {
+  it("protects translation colors from host color and inherited text-fill rules", async () => {
     document.body.innerHTML = "<main><p>Readable text with a fixed website color.</p></main>";
     stubLayout("rgb(32, 38, 42)");
-    const [segment] = collectTextSegments();
+    const [segment] = (await collectTextSegmentsProgressive());
     renderTranslations([{ id: segment.id, text: "使用不同颜色显示的译文。" }], "bilingual-accent");
     const output = document.querySelector<HTMLElement>(".wupage-translation")!;
     expect(output.style.getPropertyPriority("color")).toBe("important");
@@ -726,7 +723,7 @@ describe("content DOM translation extraction", () => {
     expect(document.querySelector<HTMLElement>(".wupage-translation")!.style.color).toBe("rgb(32, 38, 42)");
   });
 
-  it("translates x.com post paragraphs at blank lines and preserves single line breaks", () => {
+  it("translates x.com post paragraphs at blank lines and preserves single line breaks", async () => {
     document.body.innerHTML = `
       <main>
         <article>
@@ -738,7 +735,7 @@ describe("content DOM translation extraction", () => {
     `;
     stubLayout();
 
-    const segments = collectTextSegments();
+    const segments = (await collectTextSegmentsProgressive());
 
     expect(segments.map((segment) => segment.text)).toEqual([
       "Operation Cheespeek: Phase 1 Complete",
@@ -767,7 +764,7 @@ describe("content DOM translation extraction", () => {
     expect(translations[2].textContent).toBe("第二阶段：\nAI 观察\n↓\nAI 调整。");
   });
 
-  it("uses consecutive br elements as x.com post paragraph boundaries", () => {
+  it("uses consecutive br elements as x.com post paragraph boundaries", async () => {
     document.body.innerHTML = `
       <main><article><div id="post-text" data-testid="tweetText">
         <span>First paragraph.</span><br><br><span>Second paragraph.</span>
@@ -775,7 +772,7 @@ describe("content DOM translation extraction", () => {
     `;
     stubLayout();
 
-    const segments = collectTextSegments();
+    const segments = (await collectTextSegmentsProgressive());
     expect(segments.map((segment) => segment.text)).toEqual([
       "First paragraph.",
       "Second paragraph."
@@ -793,13 +790,13 @@ describe("content DOM translation extraction", () => {
     expect(translations[1].previousElementSibling).toBe(postText);
   });
 
-  it("keeps a single-node x.com post translation outside its text container", () => {
+  it("keeps a single-node x.com post translation outside its text container", async () => {
     document.body.innerHTML = `
       <main><article><div id="post-text" data-testid="tweetText">A short standalone post.</div></article></main>
     `;
     stubLayout();
 
-    const segments = collectTextSegments();
+    const segments = (await collectTextSegmentsProgressive());
     renderTranslations([{ id: segments[0].id, text: "一条简短的独立推文。" }]);
 
     const postText = document.querySelector("#post-text")!;
@@ -810,7 +807,7 @@ describe("content DOM translation extraction", () => {
     expect(translation.dataset.wupageMode).toBe("block");
   });
 
-  it("translates Partner Center form labels, choices, and placeholders", () => {
+  it("translates Partner Center form labels, choices, and placeholders", async () => {
     document.body.innerHTML = `
       <aside>
         <nav><a href="#overview">Extension overview</a><a href="#packages">Packages</a></nav>
@@ -835,7 +832,7 @@ describe("content DOM translation extraction", () => {
     `;
     stubLayout();
 
-    const segments = collectTextSegments();
+    const segments = (await collectTextSegmentsProgressive());
     const translationBySource = new Map([
       ["Extension overview", "扩展概览"],
       ["Packages", "程序包"],
@@ -868,7 +865,7 @@ describe("content DOM translation extraction", () => {
     expect(notes.placeholder).toBe("e.g. Username: demo@example.com / Password: Test1234");
   });
 
-  it("skips code comments when comment translation is disabled", () => {
+  it("skips code comments when comment translation is disabled", async () => {
     document.body.innerHTML = `
       <main>
         <p>Hello world</p>
@@ -877,14 +874,14 @@ describe("content DOM translation extraction", () => {
     `;
     stubLayout();
 
-    expect(collectTextSegments(false).map((segment) => segment.text)).toEqual(["Hello world"]);
+    expect((await collectTextSegmentsProgressive(false)).map((segment) => segment.text)).toEqual(["Hello world"]);
     expect(collectParagraphTextSegments(document.querySelector("#code")!, false)).toEqual([]);
   });
 
-  it("clears translated comments", () => {
+  it("clears translated comments", async () => {
     document.body.innerHTML = `<pre><code># A comment</code></pre>`;
     stubLayout();
-    const [segment] = collectTextSegments();
+    const [segment] = (await collectTextSegmentsProgressive());
 
     renderTranslations([{ id: segment.id, text: "一条注释" }]);
     clearTranslations();
@@ -931,20 +928,20 @@ describe("content DOM translation extraction", () => {
     expect(findTranslatableParagraph(meta)?.id).toBe("meta");
   });
 
-  it("groups inline text nodes in the same paragraph", () => {
+  it("groups inline text nodes in the same paragraph", async () => {
     document.body.innerHTML = `
       <p>If this mentions <em>any</em> specific language, keep it together.</p>
     `;
     stubLayout();
 
-    const segments = collectTextSegments();
+    const segments = (await collectTextSegmentsProgressive());
 
     expect(segments.map((segment) => segment.text)).toEqual([
       "If this mentions any specific language, keep it together."
     ]);
   });
 
-  it("renders ordinary list prose consistently with and without paragraph wrappers", () => {
+  it("renders ordinary list prose consistently with and without paragraph wrappers", async () => {
     document.body.innerHTML = `<main><ul id="updates">
       <li>New version <a href="/release">released</a> with improved training.</li>
       <li><p>Previous version <a href="/previous">released</a> with improved training.</p></li>
@@ -957,7 +954,7 @@ describe("content DOM translation extraction", () => {
         : element.matches("td") ? "table-cell" : "block"
     }) });
     const original = document.querySelector("main")!.innerHTML;
-    const segments = collectTextSegments();
+    const segments = (await collectTextSegmentsProgressive());
     expect(segments).toHaveLength(6);
     renderTranslationPlaceholders(segments);
     expect([...document.querySelectorAll<HTMLElement>("#updates .wupage-translation-pending")]
@@ -978,7 +975,7 @@ describe("content DOM translation extraction", () => {
     expect(document.querySelector("main")!.innerHTML).toBe(original);
   });
 
-  it("excludes unrendered descendants from a grouped paragraph", () => {
+  it("excludes unrendered descendants from a grouped paragraph", async () => {
     document.body.innerHTML = `
       <p>Visible beginning <span id="hidden">invisible middle</span><em>visible ending.</em></p>
     `;
@@ -986,7 +983,7 @@ describe("content DOM translation extraction", () => {
       style: (element) => element.id === "hidden" ? { display: "none" } : {}
     });
 
-    expect(collectTextSegments().map((segment) => segment.text)).toEqual([
+    expect((await collectTextSegmentsProgressive()).map((segment) => segment.text)).toEqual([
       "Visible beginning visible ending."
     ]);
   });
@@ -1015,7 +1012,7 @@ describe("content DOM translation extraction", () => {
     ]);
   });
 
-  it("protects inline code terms and restores them in translated text", () => {
+  it("protects inline code terms and restores them in translated text", async () => {
     document.body.innerHTML = `
       <main>
         <p id="doc">
@@ -1026,7 +1023,7 @@ describe("content DOM translation extraction", () => {
     `;
     stubLayout();
 
-    const segments = collectTextSegments();
+    const segments = (await collectTextSegmentsProgressive());
 
     expect(segments.map((segment) => segment.text)).toEqual([
       "A ⟪WUPAGE0⟫ that is only valid for a given lifetime."
@@ -1070,7 +1067,7 @@ describe("content DOM translation extraction", () => {
     expect(document.body.textContent).not.toContain("WUPAGE0");
   });
 
-  it.each(["bilingual", "bilingual-accent", "replace"] as const)("keeps source code visible instead of guessing duplicated IDs in %s mode", (mode) => {
+  it.each(["bilingual", "bilingual-accent", "replace"] as const)("keeps source code visible instead of guessing duplicated IDs in %s mode", async (mode) => {
     document.body.innerHTML = `
       <main>
         <p id="doc">
@@ -1081,7 +1078,7 @@ describe("content DOM translation extraction", () => {
     `;
     stubLayout();
 
-    const segments = collectTextSegments();
+    const segments = (await collectTextSegmentsProgressive());
 
     expect(segments.map((segment) => segment.text)).toEqual([
       "Both ⟪WUPAGE0⟫ and ⟪WUPAGE1⟫ enable running concurrent asynchronous operations."
@@ -1100,7 +1097,7 @@ describe("content DOM translation extraction", () => {
     expect(document.querySelector("#doc")!.textContent).toBe(original);
   });
 
-  it("restores distinct inline-code nodes without shifting their source paths", () => {
+  it("restores distinct inline-code nodes without shifting their source paths", async () => {
     document.body.innerHTML = `
       <main>
         <p id="doc">
@@ -1111,7 +1108,7 @@ describe("content DOM translation extraction", () => {
     `;
     stubLayout();
 
-    const segments = collectTextSegments();
+    const segments = (await collectTextSegmentsProgressive());
     renderTranslations([{
       id: segments[0].id,
       text: "⟪WUPAGE0⟫ 和 ⟪WUPAGE1⟫ 都能启用并发异步操作。"
@@ -1121,10 +1118,10 @@ describe("content DOM translation extraction", () => {
       .map((node) => node.textContent)).toEqual(["tokio::spawn", "select!"]);
   });
 
-  it("preserves reordered code identities and normalizes nested token brackets", () => {
+  it("preserves reordered code identities and normalizes nested token brackets", async () => {
     document.body.innerHTML = `<main><p>Compare <code>first()</code> with <code>second()</code>.</p></main>`;
     stubLayout();
-    const [segment] = collectTextSegments();
+    const [segment] = (await collectTextSegmentsProgressive());
     renderTranslations([{ id: segment.id, text: "{{wupage 1}} 与 《WUPAGE0》 相比。" }], "replace");
     expect([...document.querySelectorAll(".wupage-translation code")].map((node) => node.textContent))
       .toEqual(["second()", "first()"]);
@@ -1133,13 +1130,13 @@ describe("content DOM translation extraction", () => {
     expect(document.querySelector("p")?.textContent).toBe("Compare first() with second().");
   });
 
-  it.each([undefined, "", "syntax-symbol"])("restores the original protected node class attribute %s", (className) => {
+  it.each([undefined, "", "syntax-symbol"])("restores the original protected node class attribute %s", async (className) => {
     document.body.innerHTML = `<main><p>Call <code>example()</code> today.</p></main>`;
     const code = document.querySelector("code")!;
     if (className !== undefined) code.setAttribute("class", className);
     const original = document.querySelector("main")!.innerHTML;
     stubLayout();
-    const [segment] = collectTextSegments();
+    const [segment] = (await collectTextSegmentsProgressive());
     renderTranslations([{ id: segment.id, text: "今天调用 ⟪WUPAGE0⟫。" }], "replace");
     setTranslationDisplayMode("bilingual");
     expect(code.getAttribute("class")).toBe(className ?? null);
@@ -1148,7 +1145,7 @@ describe("content DOM translation extraction", () => {
     expect(document.querySelector("main")!.innerHTML).toBe(original);
   });
 
-  it("groups readable headings with inline code into one segment", () => {
+  it("groups readable headings with inline code into one segment", async () => {
     document.body.innerHTML = `
       <main id="main-content">
         <h3 id="impl">
@@ -1162,14 +1159,14 @@ describe("content DOM translation extraction", () => {
     `;
     stubLayout();
 
-    const segments = collectTextSegments();
+    const segments = (await collectTextSegmentsProgressive());
 
     expect(segments.map((segment) => segment.text)).toEqual([
       "impl<'a> Freeze for WakerRef <'a>"
     ]);
   });
 
-  it("does not include heading action buttons in grouped heading text", () => {
+  it("does not include heading action buttons in grouped heading text", async () => {
     document.body.innerHTML = `
       <main>
         <section id="main-content">
@@ -1182,7 +1179,7 @@ describe("content DOM translation extraction", () => {
     `;
     stubLayout();
 
-    const segments = collectTextSegments();
+    const segments = (await collectTextSegmentsProgressive());
 
     expect(segments.map((segment) => segment.text)).toEqual(["Struct WakerRef"]);
 
@@ -1195,7 +1192,7 @@ describe("content DOM translation extraction", () => {
     expect(document.querySelector("#copy-path")?.textContent).toBe("Copy item path");
   });
 
-  it("skips rustdoc breadcrumbs during page translation", () => {
+  it("skips rustdoc breadcrumbs during page translation", async () => {
     document.body.innerHTML = `
       <main>
         <section id="main-content">
@@ -1209,7 +1206,7 @@ describe("content DOM translation extraction", () => {
     `;
     stubLayout();
 
-    const segments = collectTextSegments();
+    const segments = (await collectTextSegmentsProgressive());
 
     expect(segments.map((segment) => segment.text)).toEqual([
       "Struct WakerRef",
@@ -1217,7 +1214,7 @@ describe("content DOM translation extraction", () => {
     ]);
   });
 
-  it("skips standalone code syntax fragments", () => {
+  it("skips standalone code syntax fragments", async () => {
     document.body.innerHTML = `
       <main>
         <span>::</span>
@@ -1228,7 +1225,7 @@ describe("content DOM translation extraction", () => {
     `;
     stubLayout();
 
-    const segments = collectTextSegments();
+    const segments = (await collectTextSegmentsProgressive());
 
     expect(segments.map((segment) => segment.text)).toEqual(["Readable sentence."]);
   });
@@ -1325,7 +1322,7 @@ describe("content DOM translation extraction", () => {
     expect(segments.map((segment) => segment.text)).toEqual(["Blanket Implementations"]);
   });
 
-  it("keeps heading anchor links before the translated title row", () => {
+  it("keeps heading anchor links before the translated title row", async () => {
     document.body.innerHTML = `
       <main id="main-content">
         <h2 id="implementations" class="section-header">
@@ -1335,7 +1332,7 @@ describe("content DOM translation extraction", () => {
     `;
     stubLayout();
 
-    const segments = collectTextSegments();
+    const segments = (await collectTextSegmentsProgressive());
 
     renderTranslations([{ id: segments[0].id, text: "实现" }]);
 
@@ -1347,7 +1344,7 @@ describe("content DOM translation extraction", () => {
     expect(anchor?.textContent).toBe("§");
   });
 
-  it("translates readable headings inside summary toggles", () => {
+  it("translates readable headings inside summary toggles", async () => {
     document.body.innerHTML = `
       <main id="main-content">
         <details open>
@@ -1362,14 +1359,14 @@ describe("content DOM translation extraction", () => {
     `;
     stubLayout();
 
-    const segments = collectTextSegments();
+    const segments = (await collectTextSegmentsProgressive());
 
     expect(segments.map((segment) => segment.text)).toEqual([
       "Methods from Deref<Target = Waker>"
     ]);
   });
 
-  it("translates plain FAQ questions inside readable summary toggles", () => {
+  it("translates plain FAQ questions inside readable summary toggles", async () => {
     document.body.innerHTML = `
       <main>
         <details>
@@ -1380,7 +1377,7 @@ describe("content DOM translation extraction", () => {
     `;
     stubLayout();
 
-    const segments = collectTextSegments();
+    const segments = (await collectTextSegmentsProgressive());
 
     expect(segments.map((segment) => segment.text)).toEqual([
       "🖼️ Do you support slicer projects with multiple build plates?",
@@ -1396,7 +1393,7 @@ describe("content DOM translation extraction", () => {
     expect(translation?.getAttribute("data-wupage-mode")).toBe("inline");
   });
 
-  it("keeps summary controls outside readable content untranslated", () => {
+  it("keeps summary controls outside readable content untranslated", async () => {
     document.body.innerHTML = `
       <details>
         <summary>Application menu</summary>
@@ -1406,7 +1403,7 @@ describe("content DOM translation extraction", () => {
     `;
     stubLayout();
 
-    const segments = collectTextSegments();
+    const segments = (await collectTextSegmentsProgressive());
 
     expect(segments.map((segment) => segment.text)).toEqual(["Readable content"]);
   });
@@ -1427,7 +1424,7 @@ describe("content DOM translation extraction", () => {
     expect(findTranslatableParagraph(navHeading)).toBeNull();
   });
 
-  it("translates rustdoc sidebar navigation as compact inline text", () => {
+  it("translates rustdoc sidebar navigation as compact inline text", async () => {
     document.body.innerHTML = `
       <nav class="sidebar">
         <div class="sidebar-elems">
@@ -1443,7 +1440,7 @@ describe("content DOM translation extraction", () => {
     `;
     stubLayout();
 
-    const segments = collectTextSegments();
+    const segments = (await collectTextSegmentsProgressive());
 
     expect(segments.map((segment) => segment.text)).toEqual([
       "Trait Implementations",
@@ -1463,7 +1460,7 @@ describe("content DOM translation extraction", () => {
     expect(document.querySelector("h3 a")?.textContent).toBe("Trait Implementations特性实现方式");
   });
 
-  it("translates semantic navigation without site-specific class names", () => {
+  it("translates semantic navigation without site-specific class names", async () => {
     document.body.innerHTML = `
       <header>
         <nav role="navigation">
@@ -1484,7 +1481,7 @@ describe("content DOM translation extraction", () => {
     `;
     stubLayout();
 
-    const segments = collectTextSegments();
+    const segments = (await collectTextSegmentsProgressive());
 
     expect(segments.map((segment) => segment.text)).toEqual([
       "Learn",
@@ -1504,7 +1501,7 @@ describe("content DOM translation extraction", () => {
       .toBe("inline");
   });
 
-  it("translates document text in article headers, asides, captions, tables, and footers", () => {
+  it("translates document text in article headers, asides, captions, tables, and footers", async () => {
     document.body.innerHTML = `
       <header>
         <h1>How Symmetric Are the Insides of a Go Network?</h1>
@@ -1528,7 +1525,7 @@ describe("content DOM translation extraction", () => {
     `;
     stubLayout();
 
-    const segments = collectTextSegments();
+    const segments = (await collectTextSegmentsProgressive());
     const texts = segments.map((segment) => segment.text);
 
     expect(texts).toEqual(expect.arrayContaining([
@@ -1544,7 +1541,7 @@ describe("content DOM translation extraction", () => {
     ]));
   });
 
-  it("translates icon navigation labels and compact controls inside their text hosts", () => {
+  it("translates icon navigation labels and compact controls inside their text hosts", async () => {
     document.body.innerHTML = `
       <main>
         <nav aria-label="Secondary Nav">
@@ -1569,7 +1566,7 @@ describe("content DOM translation extraction", () => {
     `;
     stubLayout();
 
-    const segments = collectTextSegments();
+    const segments = (await collectTextSegmentsProgressive());
 
     expect(segments.map((segment) => segment.text)).toEqual([
       "お得な Surface 特別モデル",
@@ -1594,7 +1591,7 @@ describe("content DOM translation extraction", () => {
       .map((node) => node.dataset.wupageMode)).toEqual(["inline", "inline", "inline"]);
   });
 
-  it.each(["grid", "flex", "inline-grid", "inline-flex"])("keeps split control labels inside their %s layout cell", (display) => {
+  it.each(["grid", "flex", "inline-grid", "inline-flex"])("keeps split control labels inside their %s layout cell", async (display) => {
     document.body.innerHTML = `<main><button aria-label="Optimized for: Balance" aria-expanded="false">
       <span class="content"><span class="label"></span></span>
       <span class="action"><svg aria-hidden="true"></svg></span>
@@ -1604,7 +1601,7 @@ describe("content DOM translation extraction", () => {
     label.append(...nodes);
     stubLayout("", { style: element => ({ display: element.matches(".content") ? display : "inline" }) });
     const original = document.querySelector("main")!.innerHTML;
-    const [segment, ...other] = collectTextSegments();
+    const [segment, ...other] = (await collectTextSegmentsProgressive());
     expect(other).toHaveLength(0);
     expect(segment.text).toBe("Optimized for: Balance");
     expect(segment.element).toBe(label);
@@ -1620,7 +1617,7 @@ describe("content DOM translation extraction", () => {
     expect(document.querySelector("main")!.innerHTML).toBe(original);
   });
 
-  it.each(["menuitemradio", "menuitemcheckbox", "option"])("keeps %s labels and descriptions in separate layout fields", (role) => {
+  it.each(["menuitemradio", "menuitemcheckbox", "option"])("keeps %s labels and descriptions in separate layout fields", async (role) => {
     document.body.innerHTML = `<main role="main"><ul><li role="${role}" aria-describedby="description" tabindex="0">
       <div class="layout"><svg aria-hidden="true"></svg><div class="fields">
         <span id="label"><span>Auto</span></span>
@@ -1628,7 +1625,7 @@ describe("content DOM translation extraction", () => {
       </div></div></li></ul></main>`;
     stubLayout("", { style: element => ({ display: element.matches(".layout") ? "grid" : element.matches(".fields") ? "flex" : "block" }) });
     const original = document.querySelector("main")!.innerHTML;
-    const segments = collectTextSegments();
+    const segments = (await collectTextSegmentsProgressive());
     expect(segments.map(({ text }) => text)).toEqual(["Auto", "Optimized for Balance"]);
     renderTranslations(segments.map(({ id }, index) => ({ id, text: ["自动", "针对平衡进行了优化"][index] })), "replace");
     for (const mode of ["replace", "bilingual", "bilingual-accent"] as const) {
@@ -1641,13 +1638,13 @@ describe("content DOM translation extraction", () => {
     expect(document.querySelector("main")!.innerHTML).toBe(original);
   });
 
-  it.each(["/", "Ctrl K"])("preserves the %s shortcut when replacing a control label", (shortcut) => {
+  it.each(["/", "Ctrl K"])("preserves the %s shortcut when replacing a control label", async (shortcut) => {
     document.body.innerHTML = `<header><button><svg aria-hidden="true"></svg>
       <span id="search-label">Type <kbd>${shortcut}</kbd> to search</span></button></header>`;
     stubLayout();
     const original = document.querySelector("header")!.innerHTML;
     const key = document.querySelector("kbd")!;
-    const [segment, ...other] = collectTextSegments();
+    const [segment, ...other] = (await collectTextSegmentsProgressive());
     expect(other).toHaveLength(0);
     expect(segment.text).toBe("Type ⟪WUPAGE0⟫ to search");
     renderTranslations([{ id: segment.id, text: "输入 ⟪WUPAGE0⟫ 进行搜索" }], "replace");
@@ -1663,7 +1660,7 @@ describe("content DOM translation extraction", () => {
     expect(document.querySelector("header")!.innerHTML).toBe(original);
   });
 
-  it("translates custom-element navigation items exposed through listitem roles", () => {
+  it("translates custom-element navigation items exposed through listitem roles", async () => {
     document.body.innerHTML = `
       <main>
         <store-ui-shell role="navigation" aria-label="产品类别">
@@ -1688,7 +1685,7 @@ describe("content DOM translation extraction", () => {
     `;
     stubLayout();
 
-    const segments = collectTextSegments();
+    const segments = (await collectTextSegmentsProgressive());
 
     expect(segments.map((segment) => segment.text)).toEqual([
       "お得な Surface 特別モデル",
@@ -1708,7 +1705,7 @@ describe("content DOM translation extraction", () => {
       .map((node) => node.dataset.wupageMode)).toEqual(["inline", "inline"]);
   });
 
-  it("translates visible animated hero text inside an aria-hidden wrapper", () => {
+  it("translates visible animated hero text inside an aria-hidden wrapper", async () => {
     document.body.innerHTML = `
       <main>
         <section>
@@ -1725,7 +1722,7 @@ describe("content DOM translation extraction", () => {
     `;
     stubLayout("rgb(255, 255, 255)");
 
-    const segments = collectTextSegments();
+    const segments = (await collectTextSegmentsProgressive());
 
     expect(segments.map((segment) => segment.text)).toEqual([
       "パフォーマンスをお楽しみください"
@@ -1741,7 +1738,7 @@ describe("content DOM translation extraction", () => {
     expect(document.querySelector(".sr-only .wupage-translation")).toBeNull();
   });
 
-  it("keeps decorative aria-hidden text excluded without an accessible duplicate", () => {
+  it("keeps decorative aria-hidden text excluded without an accessible duplicate", async () => {
     document.body.innerHTML = `
       <main>
         <p>
@@ -1752,12 +1749,12 @@ describe("content DOM translation extraction", () => {
     `;
     stubLayout();
 
-    expect(collectTextSegments().map((segment) => segment.text)).toEqual([
+    expect((await collectTextSegmentsProgressive()).map((segment) => segment.text)).toEqual([
       "Readable content"
     ]);
   });
 
-  it("does not mistake a page-level breadcrumb state class for breadcrumb navigation", () => {
+  it("does not mistake a page-level breadcrumb state class for breadcrumb navigation", async () => {
     document.documentElement.className = "layout show-table-of-contents show-breadcrumb";
     document.body.innerHTML = `
       <nav aria-label="Breadcrumb">
@@ -1772,7 +1769,7 @@ describe("content DOM translation extraction", () => {
     `;
     stubLayout();
 
-    const segments = collectTextSegments();
+    const segments = (await collectTextSegmentsProgressive());
 
     expect(segments.map((segment) => segment.text)).toEqual([
       "Publish a Microsoft Edge extension",
@@ -1780,7 +1777,7 @@ describe("content DOM translation extraction", () => {
     ]);
   });
 
-  it("does not aggregate nested navigation items into duplicate translations", () => {
+  it("does not aggregate nested navigation items into duplicate translations", async () => {
     document.body.innerHTML = `
       <aside>
         <ul>
@@ -1797,7 +1794,7 @@ describe("content DOM translation extraction", () => {
     `;
     stubLayout();
 
-    const segments = collectTextSegments();
+    const segments = (await collectTextSegmentsProgressive());
 
     expect(segments.map((segment) => segment.text)).toEqual([
       "Tutorial",
@@ -1816,7 +1813,7 @@ describe("content DOM translation extraction", () => {
       .toBe("Async in depth译：Async in depth");
   });
 
-  it("does not render translations that are identical to their source text", () => {
+  it("does not render translations that are identical to their source text", async () => {
     document.body.innerHTML = `
       <nav class="sidebar">
         <div class="sidebar-elems">
@@ -1827,7 +1824,7 @@ describe("content DOM translation extraction", () => {
       </nav>
     `;
     stubLayout();
-    const segments = collectTextSegments();
+    const segments = (await collectTextSegmentsProgressive());
 
     renderTranslationPlaceholders(segments);
     renderTranslations([{ id: segments[0].id, text: "  Freeze  " }]);
@@ -1837,37 +1834,38 @@ describe("content DOM translation extraction", () => {
     expect(hasPageTranslations()).toBe(false);
   });
 
-  it("does not render identical target-level paragraph translations", () => {
+  it("does not render identical paragraph translations", () => {
     document.body.innerHTML = `<p id="target">WakerRef</p>`;
     stubLayout();
     const target = document.querySelector("#target")!;
 
-    renderTargetPlaceholder(target);
-    renderTargetTranslation(target, "WakerRef", "WakerRef");
+    const segments = collectParagraphTextSegments(target);
+    renderTranslationPlaceholders(segments);
+    renderTranslations(segments.map(segment => ({ id: segment.id, text: segment.text })));
 
     expect(target.textContent).toBe("WakerRef");
     expect(hasTranslationsIn(target)).toBe(false);
   });
 
-  it("renders and clears target-level translations", () => {
+  it("renders, clears and retranslates paragraphs", () => {
     document.body.innerHTML = `<h3 id="impl">impl&lt;'a&gt; Freeze for WakerRef&lt;'a&gt;</h3>`;
     stubLayout();
     const target = document.querySelector("#impl")!;
 
-    renderTargetTranslation(target, "实现 Freeze");
+    renderTranslations(collectParagraphTextSegments(target).map(segment => ({ id: segment.id, text: "实现 Freeze" })));
     expect(hasTranslationsIn(target)).toBe(true);
 
     clearTranslationsIn(target);
     expect(hasTranslationsIn(target)).toBe(false);
 
-    renderTargetTranslation(target, "再次实现 Freeze");
+    renderTranslations(collectParagraphTextSegments(target).map(segment => ({ id: segment.id, text: "再次实现 Freeze" })));
     expect(target.querySelector(".wupage-translation")?.textContent).toBe("再次实现 Freeze");
   });
 
-  it("replaces pending translation placeholders with translations", () => {
+  it("replaces pending translation placeholders with translations", async () => {
     document.body.innerHTML = `<p>Hello world</p>`;
     stubLayout();
-    const segments = collectTextSegments();
+    const segments = (await collectTextSegmentsProgressive());
 
     renderTranslationPlaceholders(segments);
     expect(document.querySelector(".wupage-translation-pending")).not.toBeNull();
@@ -1877,12 +1875,12 @@ describe("content DOM translation extraction", () => {
     expect(document.querySelector(".wupage-translation")?.textContent).toBe("你好世界");
   });
 
-  it.each(["bilingual", "bilingual-accent", "replace"] as const)("replaces repeated segment results without appending translations in %s mode", mode => {
+  it.each(["bilingual", "bilingual-accent", "replace"] as const)("replaces repeated segment results without appending translations in %s mode", async mode => {
     document.body.innerHTML = `<main><p>Standalone sentence.</p><p>Read <em>this guide</em> carefully.</p>
       <div><span>First authored sentence.<br>Second authored sentence.<br></span></div></main>`;
     stubLayout();
     const original = document.querySelector("main")!.innerHTML;
-    const segments = collectTextSegments();
+    const segments = (await collectTextSegmentsProgressive());
     expect(segments).toHaveLength(3);
     renderTranslationPlaceholders(segments);
     for (const text of ["初次译文", "更新后的译文", "更新后的译文"]) {
@@ -1896,7 +1894,7 @@ describe("content DOM translation extraction", () => {
     expect(document.querySelector("main")!.innerHTML).toBe(original);
   });
 
-  it("translates a structured commit title without appending a second translation to its grid card", () => {
+  it("translates a structured commit title without appending a second translation to its grid card", async () => {
     document.body.innerHTML = `
       <main>
         <ul>
@@ -1915,7 +1913,7 @@ describe("content DOM translation extraction", () => {
     `;
     stubLayout();
 
-    const segments = collectTextSegments();
+    const segments = (await collectTextSegmentsProgressive());
 
     expect(segments.map((segment) => segment.text)).toEqual([
       "Recover malformed LLM translation batches"
@@ -1931,10 +1929,10 @@ describe("content DOM translation extraction", () => {
     expect(document.querySelector(".metadata .wupage-translation")).toBeNull();
   });
 
-  it("removes translation state when pending placeholders are cleared", () => {
+  it("removes translation state when pending placeholders are cleared", async () => {
     document.body.innerHTML = `<p>Hello <em>world</em></p>`;
     stubLayout();
-    const segments = collectTextSegments();
+    const segments = (await collectTextSegmentsProgressive());
 
     renderTranslationPlaceholders(segments);
     clearTranslationPlaceholders(segments);
@@ -1943,24 +1941,25 @@ describe("content DOM translation extraction", () => {
     expect(hasPageTranslations()).toBe(false);
   });
 
-  it("renders target-level pending placeholders", () => {
+  it("renders paragraph pending placeholders", () => {
     document.body.innerHTML = `<h2 id="title">Blanket Implementations</h2>`;
     stubLayout();
     const target = document.querySelector("#title")!;
 
-    renderTargetPlaceholder(target);
+    const segments = collectParagraphTextSegments(target);
+    renderTranslationPlaceholders(segments);
     expect(target.querySelector(".wupage-translation-pending")).not.toBeNull();
 
-    renderTargetTranslation(target, "覆盖实现");
+    renderTranslations(segments.map(segment => ({ id: segment.id, text: "覆盖实现" })));
     expect(target.querySelector(".wupage-translation-pending")).toBeNull();
     expect(target.querySelector(".wupage-translation")?.textContent).toBe("覆盖实现");
   });
 
-  it("drops every hidden inline run from a grouped block", () => {
+  it("drops every hidden inline run from a grouped block", async () => {
     document.body.innerHTML = `<main><p id="prose">Visible prose <span class="hidden">HIDDEN_ONE</span> continues with <em>readable words</em><span class="hidden">HIDDEN_TWO</span> at the end.</p></main>`;
     stubLayout("", { style: (element) => ({ display: element.closest(".hidden") ? "none" : "block" }) });
 
-    const [segment] = collectTextSegments();
+    const [segment] = (await collectTextSegmentsProgressive());
 
     expect(segment.text).toContain("Visible prose");
     expect(segment.text).toContain("readable words");
@@ -1969,7 +1968,7 @@ describe("content DOM translation extraction", () => {
     expect(segment.text).not.toContain("HIDDEN_TWO");
   });
 
-  it.each([399, 400, 401, 1000])("keeps every one of %i covered paragraphs reachable", (count) => {
+  it.each([399, 400, 401, 1000])("keeps every one of %i covered paragraphs reachable", async (count) => {
     document.body.innerHTML = `<main>${Array.from({ length: count }, (_, index) =>
       `<p>Covered paragraph ${index}.</p>`).join("")}</main>`;
     stubLayout();
@@ -1977,7 +1976,7 @@ describe("content DOM translation extraction", () => {
     document.body.append(overlay);
     Object.defineProperty(document, "elementFromPoint", { configurable: true, value: () => overlay });
     try {
-      expect(collectAdditionalTextSegments(document.body)).toEqual([]);
+      expect((await collectAdditionalTextSegmentsProgressive([document.body]))).toEqual([]);
 
       const seen = new Set<Element>();
       let rounds = 0;
@@ -1990,7 +1989,7 @@ describe("content DOM translation extraction", () => {
         for (const root of roots) {
           seen.add(root);
           // The overlay still covers the text, so this rescan re-queues the root.
-          collectAdditionalTextSegments(root);
+          (await collectAdditionalTextSegmentsProgressive([root]));
         }
       }
 
@@ -2002,7 +2001,7 @@ describe("content DOM translation extraction", () => {
     }
   });
 
-  it.each([400, 128])("reaches overflow while earlier candidates keep re-queuing with a batch of %i", (batchSize) => {
+  it.each([400, 128])("reaches overflow while earlier candidates keep re-queuing with a batch of %i", async (batchSize) => {
     document.body.innerHTML = `<main>${Array.from({ length: 4097 }, (_, index) =>
       `<p id="pending-${index}">Hidden paragraph number ${index}.</p>`).join("")}</main><div id="overlay"></div>`;
     stubLayout("", { style: (element) => ({
@@ -2014,7 +2013,7 @@ describe("content DOM translation extraction", () => {
       configurable: true, value: () => covered ? overlay : document.body
     });
     try {
-      expect(collectAdditionalTextSegments(document.body)).toEqual([]);
+      expect((await collectAdditionalTextSegmentsProgressive([document.body]))).toEqual([]);
       const tail = document.querySelector("#pending-4096")!;
       let retriedTail = false;
       const roundLimit = Math.ceil(4096 / batchSize) + 1;
@@ -2025,7 +2024,7 @@ describe("content DOM translation extraction", () => {
         expect(roots.length).toBeLessThanOrEqual(batchSize);
         for (const root of roots) {
           if (root.contains(tail)) retriedTail = true;
-          expect(collectAdditionalTextSegments(root)).toEqual([]);
+          expect((await collectAdditionalTextSegmentsProgressive([root]))).toEqual([]);
         }
       }
       expect(retriedTail).toBe(true);
@@ -2035,7 +2034,7 @@ describe("content DOM translation extraction", () => {
       for (let round = 0; round < roundLimit && !texts.length; round++) {
         const roots = takeHiddenScanRoots(batchSize);
         expect(roots.length).toBeLessThanOrEqual(batchSize);
-        for (const root of roots) texts.push(...collectAdditionalTextSegments(root).map(segment => segment.text));
+        for (const root of roots) texts.push(...(await collectAdditionalTextSegmentsProgressive([root])).map(segment => segment.text));
       }
       expect(texts).toEqual(["Hidden paragraph number 4096."]);
     } finally {

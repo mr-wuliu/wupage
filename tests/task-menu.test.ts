@@ -1,8 +1,15 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  clearTranslations, collectAdditionalTextSegments, collectTextSegments, hasPageTranslations,
-  hideTranslations, invalidateStaleSegments, renderTranslations, restoreTranslations, setTranslationDisplayMode
+  clearTranslations,
+  collectAdditionalTextSegmentsProgressive,
+  collectTextSegmentsProgressive,
+  hasPageTranslations,
+  hideTranslations,
+  invalidateStaleSegments,
+  renderTranslations,
+  restoreTranslations,
+  setTranslationDisplayMode
 } from "../src/content/dom";
 
 const labels = ["Extension overview", "Packages", "Availability", "Properties", "Privacy", "Store listings", "Analytics", "Reviews"];
@@ -19,11 +26,11 @@ describe("custom task menu translation", () => {
   });
   afterEach(() => {clearTranslations(); vi.restoreAllMocks(); document.body.innerHTML="";});
 
-  it("translates eight task items independently without flattening the menu", () => {
+  it("translates eight task items independently without flattening the menu", async () => {
     const original=document.querySelector("main")!.innerHTML;
     const items=[...document.querySelectorAll("[task-item]")], icons=[...document.querySelectorAll("[slot='end']")];
     const textNodes=items.map(item=>item.firstChild);
-    const segments=collectTextSegments();
+    const segments=(await collectTextSegmentsProgressive());
     expect(segments.map(s=>s.text)).toEqual(labels);
     renderTranslations(segments.map(({id},i)=>({id,text:translated[i]})),"replace");
     for(const mode of ["replace","bilingual","bilingual-accent","replace"] as const) {
@@ -34,7 +41,7 @@ describe("custom task menu translation", () => {
       expect(items.every((item,i)=>item.firstChild===textNodes[i])).toBe(true);
       expect(icons.every(icon=>icon.isConnected&&icon.getAttribute('slot')==='end')).toBe(true);
       expect(invalidateStaleSegments()).toEqual([]);
-      expect(collectAdditionalTextSegments(document.body)).toEqual([]);
+      expect((await collectAdditionalTextSegmentsProgressive([document.body]))).toEqual([]);
       expect(hasPageTranslations()).toBe(true);
     }
     hideTranslations();
@@ -45,13 +52,13 @@ describe("custom task menu translation", () => {
     expect(document.querySelector("main")!.innerHTML).toBe(original);
   });
 
-  it("keeps a new host label when invalidating an in-place text replacement", () => {
-    const segments=collectTextSegments();
+  it("keeps a new host label when invalidating an in-place text replacement", async () => {
+    const segments=(await collectTextSegmentsProgressive());
     renderTranslations(segments.map(({id},i)=>({id,text:translated[i]})),"replace");
     const first=document.querySelector('[task-item]')!;
     first.firstChild!.textContent="Updated overview";
     expect(invalidateStaleSegments()).toContain(segments[0].id);
     expect(first.textContent).toBe("Updated overview");
-    expect(collectAdditionalTextSegments(document.body).map(s=>s.text)).toEqual(["Updated overview"]);
+    expect((await collectAdditionalTextSegmentsProgressive([document.body])).map(s=>s.text)).toEqual(["Updated overview"]);
   });
 });

@@ -40,6 +40,28 @@ it("discovers a video inserted into an already mounted open shadow root", async 
   expect(PlayerSubtitleController).toHaveBeenCalledTimes(2);
 });
 
+it("discovers a late shadow-root video while an existing player stays connected", async () => {
+  document.body.innerHTML = '<div><video></video></div><div id="late-player"></div>';
+  manager = new VideoSubtitleManager();
+  expect(PlayerSubtitleController).toHaveBeenCalledTimes(1);
+  document.querySelector("#late-player")!.attachShadow({ mode: "open" }).innerHTML = '<div><video></video></div>';
+  await vi.advanceTimersByTimeAsync(6100);
+  expect(PlayerSubtitleController).toHaveBeenCalledTimes(2);
+});
+
+it("defers periodic discovery while hidden and resumes when the page becomes visible", async () => {
+  const visibility = vi.spyOn(document, "visibilityState", "get").mockReturnValue("hidden");
+  document.body.innerHTML = '<div><video></video></div><div id="late-player"></div>';
+  manager = new VideoSubtitleManager();
+  document.querySelector("#late-player")!.attachShadow({ mode: "open" }).innerHTML = '<div><video></video></div>';
+  await vi.advanceTimersByTimeAsync(6100);
+  expect(PlayerSubtitleController).toHaveBeenCalledTimes(1);
+  visibility.mockReturnValue("visible");
+  document.dispatchEvent(new Event("visibilitychange"));
+  await vi.advanceTimersByTimeAsync(200);
+  expect(PlayerSubtitleController).toHaveBeenCalledTimes(2);
+});
+
 it("reinitializes discovery after a page returns from the browser back-forward cache", async () => {
   document.body.innerHTML = '<div><video></video></div>';
   initVideoSubtitles();

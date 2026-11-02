@@ -422,7 +422,7 @@ export class PlayerSubtitleController {
             : videoSettings.enabledSites.filter(site => site !== this.site)
         } : {}) } } : {}) };
       const revision = this.settingsRevision;
-      await sendRuntimeRequest({ type: "SAVE_SETTINGS", settings });
+      await sendRuntimeRequest({ type: "SAVE_SETTINGS", settings, previousSettings: latest });
       if (!this.disposed && revision === this.settingsRevision) { this.settingsSnapshot.receive(settings); this.receiveSettings(settings); }
     }).catch(error => { this.view.tell(`设置未保存：${error instanceof Error ? error.message : String(error)}`); });
   }

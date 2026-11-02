@@ -1,8 +1,16 @@
 // @vitest-environment jsdom
 // @vitest-environment-options {"url":"https://steamcommunity.com/app/1281930/"}
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { clearTranslations, collectAdditionalTextSegments, collectParagraphTextSegments, collectTextSegments,
-  findTranslatableParagraph, hasTranslationsIn, renderTranslations, clearTranslationsIn } from "../src/content/dom";
+import {
+  clearTranslations,
+  collectAdditionalTextSegmentsProgressive,
+  collectParagraphTextSegments,
+  collectTextSegmentsProgressive,
+  findTranslatableParagraph,
+  hasTranslationsIn,
+  renderTranslations,
+  clearTranslationsIn
+} from "../src/content/dom";
 import { steamItemTitle } from "../src/content/steam-content";
 
 const intro = "Dig, Fight, and Build your way through the world of player-created mods on Terraria with tModLoader.";
@@ -38,40 +46,40 @@ beforeEach(() => {
 afterEach(() => { clearTranslations(); vi.restoreAllMocks(); document.body.replaceChildren(); });
 
 describe("Steam community content", () => {
-  it("includes game descriptions and announcement prose inside navigable cards", () => {
-    const texts = collectTextSegments().map(segment => segment.text);
+  it("includes game descriptions and announcement prose inside navigable cards", async () => {
+    const texts = (await collectTextSegmentsProgressive()).map(segment => segment.text);
     for (const source of [intro, announcement, progress, "Monthly Stable Update", "Development Progress"])
       expect(texts.filter(text => text === source)).toHaveLength(1);
     expect(texts.join(" ")).not.toContain("Hidden announcement content.");
   });
 
-  it("recognizes short workshop titles from stable item links without relying on generated CSS classes", () => {
-    const texts = collectTextSegments().map(segment => segment.text);
+  it("recognizes short workshop titles from stable item links without relying on generated CSS classes", async () => {
+    const texts = (await collectTextSegmentsProgressive()).map(segment => segment.text);
     expect(texts).toContain("Cheat Sheet"); expect(texts).toContain("Magic Storage");
     expect(steamItemTitle(document.querySelector("#external")!)).toBeNull();
   });
 
-  it("keeps short navigation, section and filter labels in the generated workshop UI", () => {
+  it("keeps short navigation, section and filter labels in the generated workshop UI", async () => {
     document.querySelector("#workshop")!.insertAdjacentHTML("beforeend", `<a href="/app/1281930/">All</a>
       <a href="https://store.steampowered.com/app/1281930/">Store Page</a><div>Mods</div><div>Mod Features</div>
       <a href="https://example.com/guide">Learn More</a><div>In the past week</div>`);
-    const texts = collectTextSegments().map(segment => segment.text);
+    const texts = (await collectTextSegmentsProgressive()).map(segment => segment.text);
     for (const text of ["All", "Store Page", "Mods", "Mod Features", "Learn More", "In the past week"])
       expect(texts).toContain(text);
   });
 
-  it.each(["hidden", "aria-hidden", "contenteditable", "translate", "sr-only"])("keeps the %s exclusion on a navigable card", exclusion => {
+  it.each(["hidden", "aria-hidden", "contenteditable", "translate", "sr-only"])("keeps the %s exclusion on a navigable card", async exclusion => {
     const card = document.querySelector("#card")!;
     if (exclusion === "sr-only") card.classList.add("sr-only");
     else card.setAttribute(exclusion, exclusion === "translate" ? "no" : "true");
-    const texts = collectTextSegments().map(segment => segment.text);
+    const texts = (await collectTextSegmentsProgressive()).map(segment => segment.text);
     expect(texts).not.toContain(announcement); expect(texts).not.toContain("Monthly Stable Update");
     expect(texts).toContain(intro);
   });
 
-  it.each(["bilingual", "bilingual-accent", "replace"] as const)("renders and restores Steam cards and links in %s mode", mode => {
+  it.each(["bilingual", "bilingual-accent", "replace"] as const)("renders and restores Steam cards and links in %s mode", async mode => {
     const original = document.body.innerHTML;
-    const segments = collectTextSegments();
+    const segments = (await collectTextSegmentsProgressive());
     renderTranslations(segments.map(segment => ({ id: segment.id, text: `译文：${segment.text}` })), mode);
     for (const selector of ["#intro", "#title", "#body", "#mod", "#rich-mod"])
       expect(hasTranslationsIn(document.querySelector(selector)!)).toBe(true);
@@ -94,14 +102,14 @@ describe("Steam community content", () => {
     expect(document.body.innerHTML).toBe(original);
   });
 
-  it("collects newly loaded cards and workshop titles without requesting existing text twice", () => {
-    collectTextSegments();
+  it("collects newly loaded cards and workshop titles without requesting existing text twice", async () => {
+    (await collectTextSegmentsProgressive());
     const added = document.createElement("div");
     added.innerHTML = `<div class="apphub_Card" role="button"><div class="apphub_CardContentMain">
       <div class="apphub_CardContentNewsTitle">New Release</div><div class="apphub_CardTextContent">${progress}</div></div></div>
       <a href="/sharedfiles/filedetails/?id=999">Recipe Browser</a>`;
     document.querySelector("[role='main']")!.append(added);
-    const texts = collectAdditionalTextSegments(document.body).map(segment => segment.text);
+    const texts = (await collectAdditionalTextSegmentsProgressive([document.body])).map(segment => segment.text);
     expect(texts).toContain("New Release"); expect(texts).toContain("Recipe Browser"); expect(texts).not.toContain(intro);
   });
 });

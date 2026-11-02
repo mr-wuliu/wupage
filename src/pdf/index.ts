@@ -1163,13 +1163,14 @@ async function saveReaderSettings(): Promise<void> {
   // Update provider controls immediately while the latest stored settings are loading.
   settings = { ...settings, ...readerSettings };
   updateDoubaoControls();
+  const previousSettings = await loadSettings();
   settings = {
-    ...await loadSettings(),
+    ...previousSettings,
     ...readerSettings
   };
   updateTranslationScopeControl();
   if (hasExtensionRuntime()) {
-    await sendRuntimeMessage({ type: "SAVE_SETTINGS", settings });
+    await sendRuntimeMessage({ type: "SAVE_SETTINGS", settings, previousSettings });
   }
 }
 

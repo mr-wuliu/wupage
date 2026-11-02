@@ -1,8 +1,15 @@
 // @vitest-environment jsdom
 // @vitest-environment-options {"url":"https://x.com/home"}
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { clearTranslations, collectAdditionalTextSegments, collectParagraphTextSegments, collectTextSegments,
-  findTranslatableParagraph, invalidateStaleSegments, renderTranslations } from "../src/content/dom";
+import {
+  clearTranslations,
+  collectAdditionalTextSegmentsProgressive,
+  collectParagraphTextSegments,
+  collectTextSegmentsProgressive,
+  findTranslatableParagraph,
+  invalidateStaleSegments,
+  renderTranslations
+} from "../src/content/dom";
 import { configureElementExclusions, isElementExcluded } from "../src/content/element-exclusions";
 import { buildTranslationContext } from "../src/content/translation-context";
 
@@ -18,9 +25,9 @@ beforeEach(() => {
 afterEach(() => { clearTranslations(); configureElementExclusions(undefined); vi.restoreAllMocks(); document.body.replaceChildren(); });
 
 describe("configured element exclusions", () => {
-  it.each(["bilingual", "bilingual-accent", "replace"] as const)("keeps the X navigation intact while translating posts in %s mode", mode => {
+  it.each(["bilingual", "bilingual-accent", "replace"] as const)("keeps the X navigation intact while translating posts in %s mode", async mode => {
     const nav = document.querySelector("header")!, original = nav.outerHTML;
-    const segments = collectTextSegments();
+    const segments = (await collectTextSegmentsProgressive());
     expect(segments.map(segment => segment.text)).toEqual(["Read this complete post before continuing.", "Keep this unrelated sidebar readable."]);
     expect(findTranslatableParagraph(nav.querySelector("a"))).toBeNull();
     renderTranslations(segments.map(segment => ({ id: segment.id, text: `译文：${segment.text}` })), mode);
@@ -28,9 +35,9 @@ describe("configured element exclusions", () => {
     expect(buildTranslationContext() ?? "").not.toContain("Explore");
   });
 
-  it("allows deleting or disabling the preset without excluding other regions", () => {
+  it("allows deleting or disabling the preset without excluding other regions", async () => {
     configureElementExclusions([]);
-    expect(collectTextSegments().map(segment => segment.text)).toContain("Home");
+    expect((await collectTextSegmentsProgressive()).map(segment => segment.text)).toContain("Home");
   });
 
   it("scopes custom exclusions to the configured host and path", () => {
@@ -43,11 +50,11 @@ describe("configured element exclusions", () => {
     expect(isElementExcluded(document.querySelector("#post")!)).toBe(false);
   });
 
-  it("preserves an excluded inline subtree and keeps it out of source and context", () => {
+  it("preserves an excluded inline subtree and keeps it out of source and context", async () => {
     configureElementExclusions(rule([".private"]));
     document.querySelector("main")!.innerHTML = '<p id="post">Read the article <span class="private" translate="yes"><b>Private account label</b></span> before continuing.</p>';
     const excluded = document.querySelector(".private")!, original = excluded.outerHTML;
-    const segments = collectTextSegments();
+    const segments = (await collectTextSegmentsProgressive());
     expect(segments.map(segment => segment.text).join(" ")).not.toContain("Private account label");
     expect(buildTranslationContext()).not.toContain("Private account label");
     renderTranslations(segments.map(segment => ({ id: segment.id, text: `译文：${segment.text}` })), "replace");
@@ -56,25 +63,25 @@ describe("configured element exclusions", () => {
     expect(collectParagraphTextSegments(excluded)).toEqual([]);
   });
 
-  it("applies to future nodes and restores a source that becomes excluded", () => {
+  it("applies to future nodes and restores a source that becomes excluded", async () => {
     configureElementExclusions(rule(["[data-region='ads']"]));
-    const segments = collectTextSegments();
+    const segments = (await collectTextSegmentsProgressive());
     renderTranslations(segments.map(segment => ({ id: segment.id, text: `译文：${segment.text}` })), "replace");
     const post = document.querySelector("#post")!; post.setAttribute("data-region", "ads");
     expect(invalidateStaleSegments().length).toBeGreaterThan(0);
     expect(post.textContent).toBe("Read this complete post before continuing.");
     const added = document.createElement("div"); added.innerHTML = '<p data-region="ads">New excluded recommendation.</p><p>New public article content.</p>';
     document.querySelector("main")!.append(added);
-    const texts = collectAdditionalTextSegments(added).map(segment => segment.text);
+    const texts = (await collectAdditionalTextSegmentsProgressive([added])).map(segment => segment.text);
     expect(texts).toEqual(["New public article content."]);
   });
 
-  it("crosses open component boundaries and ignores invalid imported selectors", () => {
+  it("crosses open component boundaries and ignores invalid imported selectors", async () => {
     configureElementExclusions(rule([".private", "[invalid"]));
     const host = document.createElement("custom-card"); host.className = "private";
     const shadow = host.attachShadow({ mode: "open" }); shadow.innerHTML = '<p translate="yes">Excluded component text.</p>';
     document.querySelector("main")!.append(host);
     expect(isElementExcluded(shadow.querySelector("p")!)).toBe(true);
-    expect(collectAdditionalTextSegments(host)).toEqual([]);
+    expect((await collectAdditionalTextSegmentsProgressive([host]))).toEqual([]);
   });
 });

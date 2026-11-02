@@ -275,7 +275,7 @@ function updatePopupSettings(change: Partial<ExtensionSettings> | ((previous: Ex
     const previous = await settingsSnapshot.read();
     const patch = typeof change === "function" ? change(previous) : change;
     try {
-      await sendRuntimeMessage({ type: "SAVE_SETTINGS", settings: { ...previous, ...patch } });
+      await sendRuntimeMessage({ type: "SAVE_SETTINGS", settings: { ...previous, ...patch }, previousSettings: previous });
       applyPopupSettings(await settingsSnapshot.read());
     } catch (error) {
       applyPopupSettings(settingsSnapshot.current() ?? previous);

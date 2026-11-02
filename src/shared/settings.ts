@@ -17,8 +17,19 @@ export async function getSettings(): Promise<ExtensionSettings> {
   return normalizeSettings(result[SETTINGS_KEY]);
 }
 
-export async function saveSettings(settings: ExtensionSettings): Promise<void> {
-  await chrome.storage.local.set({ [SETTINGS_KEY]: normalizeSettings(settings) });
+let pendingWrite: Promise<unknown> = Promise.resolve();
+
+/** Resolve updates against the latest value inside one shared write queue. */
+export function saveSettings(
+  update: ExtensionSettings | ((latest: ExtensionSettings) => ExtensionSettings | Promise<ExtensionSettings>)
+): Promise<ExtensionSettings> {
+  const write = pendingWrite.catch(() => undefined).then(async () => {
+    const settings = normalizeSettings(typeof update === "function" ? await update(await getSettings()) : update);
+    await chrome.storage.local.set({ [SETTINGS_KEY]: settings });
+    return settings;
+  });
+  pendingWrite = write;
+  return write;
 }
 
 export function normalizeSettings(value: unknown): ExtensionSettings {

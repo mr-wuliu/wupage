@@ -1292,7 +1292,7 @@ export async function setFloatingBallEnabled(enabled: boolean): Promise<void> {
   try {
     const settings = await getSettings();
     if (settings.floatingBallEnabled !== enabled) {
-      await sendRuntimeRequest({ type: "SAVE_SETTINGS", settings: { ...settings, floatingBallEnabled: enabled } } satisfies RuntimeRequest);
+      await sendRuntimeRequest({ type: "SAVE_SETTINGS", settings: { ...settings, floatingBallEnabled: enabled }, previousSettings: settings } satisfies RuntimeRequest);
     }
   } catch (error) {
     floatingBallEnabled = previous;
@@ -1470,7 +1470,7 @@ function updateFloatingSettings(menu: HTMLElement, change: Partial<ExtensionSett
     const patch = typeof change === "function" ? change(previous) : change;
     const settings = { ...previous, ...patch };
     try {
-      await sendRuntimeRequest({ type: "SAVE_SETTINGS", settings } satisfies RuntimeRequest);
+      await sendRuntimeRequest({ type: "SAVE_SETTINGS", settings, previousSettings: previous } satisfies RuntimeRequest);
     } catch (error) {
       applyMenuSettings(menu, settingsSnapshot.current() ?? previous);
       throw error;
