@@ -217,7 +217,8 @@ const SEMANTIC_TEXT_BLOCK_SELECTOR = [
   "th",
   "td"
 ].join(",");
-const X_POST_TEXT_SELECTOR = "[data-testid='tweetText']";
+// Posts whose text is inline spans with literal newlines: X posts and Discord message bodies.
+const X_POST_TEXT_SELECTOR = "[data-testid='tweetText'], [id^='message-content-']";
 const YOUTUBE_DESCRIPTION_SELECTOR = [
   "#description-inline-expander .ytAttributedStringHost",
   "ytd-expandable-video-description-body-renderer .ytAttributedStringHost",
@@ -1864,7 +1865,9 @@ function getXPostParagraphGroups(
   const trackedByNode = new Map(groupNodes.map((tracked) => [tracked.node, tracked]));
   const walker = document.createTreeWalker(block, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT, {
     acceptNode(node) {
-      if ((node.nodeType === Node.ELEMENT_NODE ? node as Element : node.parentElement)?.closest(`.${TRANSLATION_CLASS}`)) {
+      const owner = node.nodeType === Node.ELEMENT_NODE ? node as Element : node.parentElement;
+      // Screen-reader-only text (Discord's full timestamp next to "(edited)") is not part of the post.
+      if (owner?.closest(`.${TRANSLATION_CLASS}, .sr-only, [class*='hiddenVisually']`)) {
         return NodeFilter.FILTER_REJECT;
       }
       if (node.nodeType === Node.TEXT_NODE) return NodeFilter.FILTER_ACCEPT;
@@ -2065,6 +2068,9 @@ function isStructuredListMetadata(element: Element): boolean {
   // Existing heading-based activity cards use the surrounding fields as
   // metadata. A paragraph-only card can have readable labels of its own.
   if (!listItem?.querySelector(HEADING_SELECTOR)) return false;
+  // A chat message (Discord: li > h3 name + div body) wraps an ARIA article: its text is the post, not card metadata.
+  const article = element.closest("[role='article']");
+  if (article && listItem.contains(article)) return false;
 
   return !element.closest(`p, blockquote, ${HEADING_SELECTOR}`);
 }
