@@ -56,7 +56,7 @@ try {
   await options.reload();
   const field = options.locator('#shortcut-toggle-page-translation');
   await options.locator('#shortcut-toggle-page-translation:enabled').waitFor();
-  assert.equal(await options.locator('#shortcutBindings input').count(), 4);
+  assert.equal(await options.locator('#shortcutBindings input').count(), 5);
   assert.equal(await options.getByRole('switch').count(), 8);
   assert.equal(await options.locator('#manageShortcuts').count(), 0);
   const record = async combination => { await field.focus(); await field.press(combination); };

@@ -15,6 +15,7 @@ import { setupSettingsNavigation } from "./navigation";
 import { setupStatisticsControls } from "./statistics";
 import { setupShortcutSettings } from "./shortcuts";
 import { setupAppearanceControls } from "./appearance";
+import { setupInputTranslationControls } from "./input-translation";
 import "../shared/appearance.css";
 import { normalizeSelectionTranslation, type DictionaryProvider, type SelectionTriggerStyle } from "../shared/dictionary";
 import { RequestTemplateError, supportsRequestTemplate, validateRequestTemplate } from "../shared/request-template";
@@ -29,6 +30,7 @@ const settingsNavigation = setupSettingsNavigation(query<HTMLElement>(".settings
 const shortcutControls = setupShortcutSettings(query<HTMLElement>("#shortcutSettings"));
 const appearanceControls = setupAppearanceControls(query<HTMLElement>("#appearanceSettings"));
 const statisticsControls = setupStatisticsControls(query<HTMLElement>("#statisticsSettings"));
+const inputTranslationControls = setupInputTranslationControls(query<HTMLElement>("#inputTranslationSettings"));
 
 const targetLang = query<HTMLSelectElement>("#targetLang");
 const sourceLang = query<HTMLSelectElement>("#sourceLang");
@@ -219,6 +221,7 @@ function render(): void {
   selectionTranslationFields.disabled = !selection.enabled;
   selectionDictionary.value = selection.provider;
   selectionTriggerStyle.value = selection.style;
+  inputTranslationControls.render(settings);
   setImageTranslationToggle(imageTranslationEnabled, settings.imageTranslationEnabled === true);
   translateCodeComments.checked = settings.translateCodeComments;
   translationDisplayMode.innerHTML = TRANSLATION_DISPLAY_MODES
@@ -953,6 +956,7 @@ function readSettingsFromForm(): ExtensionSettings {
       provider: selectionDictionary.value as DictionaryProvider,
       style: selectionTriggerStyle.value as SelectionTriggerStyle
     },
+    inputTranslation: inputTranslationControls.read(),
     imageTranslationEnabled: imageTranslationEnabled.checked,
     translateCodeComments: translateCodeComments.checked,
     translationDisplayMode: translationDisplayMode.value as ExtensionSettings["translationDisplayMode"],
