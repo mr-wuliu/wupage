@@ -497,6 +497,61 @@ describe("ZhipuGlmProvider", () => {
   });
 });
 
+describe("temperature fallback", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  const openai = {
+    type: "openai-compatible" as const, id: "o", label: "O", baseURL: "https://api.openai.com/v1",
+    apiKey: "secret", model: "gpt-5", systemPrompt: "Translate to {{targetLang}}", ollamaCompatibility: false
+  };
+  const request = { texts: ["hello"], sourceLang: "en", targetLang: "zh-CN" };
+  const ok = () => new Response(JSON.stringify({ choices: [{ message: { content: '["你好"]' } }] }));
+
+  it("retries once without temperature when the service rejects it", async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ error: { message: "Unsupported value: 'temperature' does not support 0" } }), { status: 400 }))
+      .mockResolvedValueOnce(ok());
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(createProvider(openai).translateBatch(request)).resolves.toEqual(["你好"]);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(JSON.parse(String((fetchMock.mock.calls[0][1] as RequestInit).body))).toHaveProperty("temperature", 0);
+    const retry = JSON.parse(String((fetchMock.mock.calls[1][1] as RequestInit).body));
+    expect(retry).not.toHaveProperty("temperature");
+    expect(retry).toMatchObject({ model: "gpt-5" });
+  });
+
+  it("does not retry a 400 that is unrelated to temperature", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ error: { message: "model not found" } }), { status: 400 }));
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(createProvider(openai).translateBatch(request)).rejects.toThrow("model not found");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("gives up after a single retry", async () => {
+    const reject = () => new Response(JSON.stringify({ error: { message: "`temperature` is deprecated for this model." } }), { status: 400 });
+    const fetchMock = vi.fn().mockImplementation(async () => reject());
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(createProvider(openai).translateBatch(request)).rejects.toThrow("temperature");
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("also covers an Anthropic template that sets temperature", async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ error: { message: "`temperature` is deprecated for this model." } }), { status: 400 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ content: [{ type: "text", text: '["你好"]' }] })));
+    vi.stubGlobal("fetch", fetchMock);
+    const provider = createProvider({
+      type: "anthropic-compatible", id: "a", label: "A", baseURL: "https://api.anthropic.com/v1", apiKey: "secret",
+      model: "claude-test", systemPrompt: "Translate to {{targetLang}}",
+      requestTemplate: { enabled: true, headers: "{}", body: '{"temperature":0}' }
+    });
+    await expect(provider.translateBatch(request)).resolves.toEqual(["你好"]);
+    expect(JSON.parse(String((fetchMock.mock.calls[1][1] as RequestInit).body))).not.toHaveProperty("temperature");
+  });
+});
+
 describe("AnthropicCompatibleProvider", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
@@ -530,12 +585,11 @@ describe("AnthropicCompatibleProvider", () => {
     expect(url).toBe("https://api.anthropic.com/v1/messages");
     expect(init.headers).toMatchObject({
       "x-api-key": "secret",
-      "anthropic-version": "2023-06-01"
+      "anthropic-version": "2023-06-01",
+      "anthropic-dangerous-direct-browser-access": "true"
     });
-    expect(JSON.parse(String(init.body))).toMatchObject({
-      model: "claude-test",
-      max_tokens: 8192,
-      temperature: 0
-    });
+    const body = JSON.parse(String(init.body));
+    expect(body).toMatchObject({ model: "claude-test", max_tokens: 8192 });
+    expect(body).not.toHaveProperty("temperature");
   });
 });

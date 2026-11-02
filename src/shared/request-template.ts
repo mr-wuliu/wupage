@@ -53,7 +53,11 @@ export function requestTemplateContext(
 export function defaultLlmRequestTemplate(config: LlmTemplateProvider): Pick<LlmRequestTemplate, "headers" | "body"> {
   const anthropic = config.type === "anthropic-compatible";
   const headers: Record<string, string> = { "Content-Type": "application/json" };
-  if (anthropic) headers["anthropic-version"] = "2023-06-01";
+  if (anthropic) {
+    headers["anthropic-version"] = "2023-06-01";
+    // The extension calls the API from a browser context; Anthropic rejects such requests with 401 without this opt-in.
+    headers["anthropic-dangerous-direct-browser-access"] = "true";
+  }
   if (config.apiKey.trim()) {
     if (anthropic) headers["x-api-key"] = "{{apiKey}}";
     else headers.Authorization = "Bearer {{apiKey}}";
@@ -61,7 +65,8 @@ export function defaultLlmRequestTemplate(config: LlmTemplateProvider): Pick<Llm
   const body: JsonObject = {
     model: "{{model}}",
     ...(anthropic ? { max_tokens: 8192 } : {}),
-    temperature: 0,
+    // Newer Claude models reject `temperature` with 400, so Anthropic defaults omit it.
+    ...(anthropic ? {} : { temperature: 0 }),
     ...(config.type === "deepseek" ? { thinking: { type: "disabled" } } : {}),
     ...(anthropic ? { system: "{{systemPrompt}}" } : {}),
     messages: [
