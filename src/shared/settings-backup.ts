@@ -17,6 +17,13 @@ export const SETTINGS_BACKUP_MAX_BYTES = 2 * 1024 * 1024;
  */
 const PROVIDER_KEY_FIELDS = ["apiKey"] as const;
 const SERVICE_KEY_FIELDS = ["apiKey", "accessKeyId", "secretAccessKey"] as const;
+/**
+ * The addresses a provider posts its credential to. The export keeps the text the user wrote but
+ * drops the credential the address itself carries: a Base URL such as
+ * `https://llm.example/v1?api_key=…` sends that parameter with every request, so it is a carrier
+ * exactly like a key field.
+ */
+const PROVIDER_ADDRESS_FIELDS = ["baseURL", "url", "endpoint"] as const;
 
 export interface SettingsBackupFile {
   app: typeof BACKUP_APP;
@@ -298,7 +305,12 @@ function withoutProviderKeys(provider: ProviderConfig): ProviderConfig {
     for (const field of SERVICE_KEY_FIELDS) {
       if (typeof api[field] === "string") api[field] = "";
     }
+    // The service-mode endpoint is a credential receiver like the rest, not an opaque setting.
+    if (typeof api.endpoint === "string") api.endpoint = withoutEndpointCredentials(api.endpoint);
     copy.api = api;
+  }
+  for (const field of PROVIDER_ADDRESS_FIELDS) {
+    if (typeof record[field] === "string") record[field] = withoutEndpointCredentials(record[field] as string);
   }
   if (copy.type === "http-template") {
     copy.headers = Object.fromEntries(Object.entries(copy.headers).map(([name, value]) => [
@@ -307,7 +319,6 @@ function withoutProviderKeys(provider: ProviderConfig): ProviderConfig {
         ? withoutCredentialValue(value)
         : value.replace(LITERAL_CREDENTIAL, "")
     ]));
-    copy.url = withoutEndpointCredentials(copy.url);
     copy.bodyTemplate = withoutTemplateCredentials(copy.bodyTemplate);
   }
   if (supportsRequestTemplate(copy) && copy.requestTemplate) {
@@ -349,6 +360,11 @@ function documentHasCredential(value: unknown, headerMap = false): boolean {
   );
 }
 
+/** Whether an address still carries a credential this export would blank. */
+function addressHasCredential(value: unknown): boolean {
+  return typeof value === "string" && value.trim() !== "" && withoutEndpointCredentials(value) !== value;
+}
+
 /** Whether this provider currently holds a key the user may not want written to a file. */
 export function providerHasStoredKey(provider: ProviderConfig): boolean {
   if (PROVIDER_KEY_FIELDS.some((field) => {
@@ -360,6 +376,10 @@ export function providerHasStoredKey(provider: ProviderConfig): boolean {
       const value = provider.api?.[field];
       return typeof value === "string" && value.trim() !== "";
     })) return true;
+  // A credential carried by the address itself is a stored key too, whichever field holds it.
+  if (PROVIDER_ADDRESS_FIELDS.some((field) =>
+    addressHasCredential((provider as unknown as Record<string, unknown>)[field]))) return true;
+  if (supportsServiceMode(provider) && addressHasCredential(provider.api?.endpoint)) return true;
   // The custom carriers hold credentials this export cannot recognise by field name, so any
   // value left in them counts as a stored key. An HTTP Template renders only the text variables,
   // so a credential-named header there is always a literal, never a safe `{{apiKey}}`.
@@ -371,9 +391,6 @@ export function providerHasStoredKey(provider: ProviderConfig): boolean {
     );
     if (headerHoldsKey) return true;
     if (templateHasCredential(provider.bodyTemplate)) return true;
-    if (provider.url.includes("{{")) {
-      if (templateHasCredential(provider.url)) return true;
-    } else if (provider.url !== withoutEndpointCredentials(provider.url)) return true;
   }
   if (supportsRequestTemplate(provider) && provider.requestTemplate) {
     if (templateHasCredential(provider.requestTemplate.headers, true)) return true;
@@ -483,11 +500,15 @@ export function parseSettingsBackup(text: string): ParsedSettingsBackup {
  * shared configuration or a hand edit, so matching on id alone would hand a stored key to whatever
  * address the file names; only the endpoints that receive the credential identify the service.
  */
-function credentialEndpoints(provider: ProviderConfig): string[] {
+function credentialEndpoints(provider: ProviderConfig): string[] | null {
   const record = provider as unknown as Record<string, unknown>;
   const endpoints: string[] = [];
+  let resolvable = true;
   const push = (value: unknown): void => {
-    if (typeof value === "string" && value.trim()) endpoints.push(normalizeEndpoint(value));
+    if (typeof value !== "string" || !value.trim()) return;
+    const normalized = normalizeEndpoint(value);
+    if (normalized === null) resolvable = false;
+    else endpoints.push(normalized);
   };
   // Every LLM type posts its key to baseURL; it is also where a rewired HTTP Template points.
   push(record.baseURL);
@@ -504,36 +525,47 @@ function credentialEndpoints(provider: ProviderConfig): string[] {
     push(api.folderId);
   }
   push(record.region);
-  return endpoints;
+  return resolvable ? endpoints : null;
 }
 
 /**
- * Compares only what identifies the receiving service: scheme, host, port and path. User info
- * carries basic-auth credentials, a query string or fragment does not address a different
- * service, and a trailing slash or host letter case is the same address, so none of them may
- * block a legitimate restore. A path is case-sensitive and is kept as written. Values that are
- * not URLs (a region or a folder id) compare as the bare scope they name.
+ * The receiving end of one configured address, resolved the way the request path resolves it.
+ * Every request builder here — `chatCompletionsEndpoint`, the translator providers and the HTTP
+ * Template — hands the configured text to `new URL`, so a separator that parser treats specially
+ * must not be read as part of the host here either. A backslash is the case that bites: the
+ * WHATWG parser takes `https://a.example\@b.example/v1` to mean host `a.example`, while reading
+ * the text by hand finds an `@` and concludes `b.example`.
+ *
+ * Returns null when the receiver cannot be established, which stops a key from being reused
+ * instead of guessing: the text does not parse, it is not an HTTP address, or its host is a
+ * `{{variable}}` chosen at request time.
  */
-function normalizeEndpoint(value: string): string {
+function normalizeEndpoint(value: string): string | null {
   const trimmed = value.trim();
-  const address = trimmed.split("#")[0]?.split("?")[0] ?? trimmed;
-  const scheme = /^([a-z][a-z0-9+.-]*:\/\/)/iu.exec(address)?.[1].toLowerCase() ?? "";
-  const rest = scheme ? address.slice(scheme.length) : address;
-  // User info is only valid in the authority, which ends at the first `/`. Reading an `@` from
-  // the path instead would take the text after it as the host, so a path such as
-  // `/proxy@original.example/v1` could be matched against the original host and reuse its key.
-  const authorityEnd = rest.search(/[/?#]/u);
-  const authority = authorityEnd === -1 ? rest : rest.slice(0, authorityEnd);
-  const path = authorityEnd === -1 ? "" : rest.slice(authorityEnd);
-  const host = authority.slice(authority.lastIndexOf("@") + 1).toLowerCase();
-  // A path is case-sensitive, so only the scheme and host are folded.
-  return `${scheme}${host}${path}`.replace(/\/+$/u, "");
+  if (!trimmed) return null;
+  // A value with no scheme is a scope (a region or a folder id), not an address.
+  if (!/^[a-z][a-z0-9+.-]*:/iu.test(trimmed)) return `scope:${trimmed.toLowerCase()}`;
+  let url: URL;
+  try {
+    url = new URL(trimmed);
+  } catch {
+    return null;
+  }
+  if (url.protocol !== "http:" && url.protocol !== "https:") return null;
+  if (url.hostname.includes("{{")) return null;
+  // Scheme, host, port and path identify the service. User info carries basic-auth credentials,
+  // a query string or fragment does not address a different service, a trailing slash and host
+  // letter case are the same address, and a path stays case-sensitive.
+  return `${url.protocol}//${url.host}${url.pathname}`.replace(/\/+$/u, "");
 }
 
 /** Whether the file keeps sending this provider's credential to the address stored here. */
 function keepsCredentialEndpoint(incoming: ProviderConfig, stored: ProviderConfig): boolean {
   const next = credentialEndpoints(incoming);
   const previous = credentialEndpoints(stored);
+  // An address that does not resolve to a fixed receiver could send the key anywhere, so the
+  // answer is no rather than a guess assembled from hand-rolled separators.
+  if (next === null || previous === null) return false;
   // A provider with no endpoint here (an unkeyed built-in) has nothing to compare, and the
   // caller only restores keys when the stored copy holds one.
   if (!previous.length) return true;
@@ -571,11 +603,23 @@ export function mergeStoredKeys(
     // Same union caveat as in withoutProviderKeys: index through the record view.
     const mergedRecord = merged as unknown as Record<string, unknown>;
     const existingRecord = existing as unknown as Record<string, unknown>;
+    // What this browser's own export of the same provider looks like. Every blankable carrier is
+    // restored only while the file still matches it, so an edited file keeps winning.
+    const stripped = withoutProviderKeys(existing);
+    const strippedRecord = stripped as unknown as Record<string, unknown>;
     let changed = false;
     for (const field of PROVIDER_KEY_FIELDS) {
       const stored = existingRecord[field];
       if (mergedRecord[field] === "" && typeof stored === "string" && stored !== "") {
         mergedRecord[field] = stored;
+        changed = true;
+      }
+    }
+    // The addresses are blanked by this same export, so putting them back is what keeps a Base
+    // URL such as `https://llm.example/v1?api_key=…` working after a same-device round trip.
+    for (const field of PROVIDER_ADDRESS_FIELDS) {
+      if (mergedRecord[field] !== existingRecord[field] && mergedRecord[field] === strippedRecord[field]) {
+        mergedRecord[field] = existingRecord[field];
         changed = true;
       }
     }
@@ -588,29 +632,31 @@ export function mergeStoredKeys(
           changed = true;
         }
       }
+      const storedEndpoint = existing.api?.endpoint;
+      const strippedApi = supportsServiceMode(stripped) ? stripped.api : undefined;
+      if (typeof storedEndpoint === "string" && api.endpoint !== storedEndpoint
+        && api.endpoint === strippedApi?.endpoint) {
+        api.endpoint = storedEndpoint;
+        changed = true;
+      }
       if (Object.keys(api).length) merged.api = api;
     }
     // The custom carriers are blanked by the export, so restoring them here is what keeps a
     // same-device round trip working. Only a carrier that still equals this browser's own
     // stripped copy is restored: any other text means the file was edited and the file wins.
     if (merged.type === "http-template" && existing.type === "http-template") {
-      const stripped = withoutProviderKeys(existing) as HttpTemplateConfig;
-      if (!sameJson(merged.headers, existing.headers) && sameJson(merged.headers, stripped.headers)) {
+      const strippedTemplate = stripped as HttpTemplateConfig;
+      if (!sameJson(merged.headers, existing.headers) && sameJson(merged.headers, strippedTemplate.headers)) {
         merged.headers = existing.headers;
         changed = true;
       }
-      if (merged.bodyTemplate !== existing.bodyTemplate && merged.bodyTemplate === stripped.bodyTemplate) {
+      if (merged.bodyTemplate !== existing.bodyTemplate && merged.bodyTemplate === strippedTemplate.bodyTemplate) {
         merged.bodyTemplate = existing.bodyTemplate;
-        changed = true;
-      }
-      if (merged.url !== existing.url && merged.url === stripped.url) {
-        merged.url = existing.url;
         changed = true;
       }
     }
     if (supportsRequestTemplate(merged) && supportsRequestTemplate(existing)
       && merged.requestTemplate && existing.requestTemplate) {
-      const stripped = withoutProviderKeys(existing);
       const strippedTemplate = supportsRequestTemplate(stripped) ? stripped.requestTemplate : undefined;
       if (strippedTemplate && merged.requestTemplate.headers !== existing.requestTemplate.headers
         && merged.requestTemplate.headers === strippedTemplate.headers) {

@@ -84,6 +84,24 @@ function settingsWithCustomCredentials(): ExtensionSettings {
   });
 }
 
+/** The provider entry itself, for the fields only one type carries. */
+function providerOf(settings: ExtensionSettings, id: string): ProviderConfig {
+  const provider = settings.providers.find((candidate) => candidate.id === id);
+  if (!provider) throw new Error(`missing provider ${id}`);
+  return provider;
+}
+
+/** One address field, which the provider union hides behind a record view. */
+function addressOf(settings: ExtensionSettings, id: string, field: string): string | undefined {
+  return (providerOf(settings, id) as unknown as Record<string, unknown>)[field] as string | undefined;
+}
+
+/** The service-mode api block, which only the dual-service providers carry. */
+function apiOf(settings: ExtensionSettings, id: string) {
+  const provider = providerOf(settings, id);
+  return supportsServiceMode(provider) ? provider.api : undefined;
+}
+
 /** An HTTP Template entry whose body is the given free-form text. */
 function httpTemplate(bodyTemplate: string): ExtensionSettings {
   return normalizeSettings({
@@ -428,6 +446,63 @@ describe("settings backup", () => {
     const incoming = structuredClone(parseSettingsBackup(JSON.stringify(createSettingsBackup(current))).settings);
     incoming.providers = incoming.providers.map((provider) => provider.id === "custom-llm"
       ? { ...provider, baseURL: "https://api.example.com/V1" } as ProviderConfig : provider);
+    const { settings: merged, skippedKeys } = mergeStoredKeys(incoming, current);
+    expect(keyOf(merged, "custom-llm")).toBe("");
+    expect(skippedKeys).toBe(1);
+  });
+
+  it("strips a credential the Base URL itself carries", () => {
+    // Reported risk: the address is a carrier too. chatCompletionsEndpoint keeps the query string,
+    // so `?api_key=…` travels with every request even while the key field itself is blank.
+    const address = "https://api.example.com/v1?api_key=0123456789abcdef";
+    const current = normalizeSettings({
+      ...DEFAULT_SETTINGS, activeProviderId: "custom-llm",
+      providers: [{ ...llmProvider(), baseURL: address, apiKey: "" }]
+    });
+    expect(providerHasStoredKey(providerOf(current, "custom-llm"))).toBe(true);
+    const file = createSettingsBackup(current);
+    expect(file.includesKeys).toBe(false);
+    expect(JSON.stringify(file)).not.toContain("0123456789abcdef");
+    // The address keeps its shape so the request still resolves, and the panel agrees it is clean.
+    expect(addressOf(file.settings, "custom-llm", "baseURL")).toBe("https://api.example.com/v1?api_key=");
+    expect(settingsBackupHasKeys(file.settings)).toBe(false);
+    // A same-device round trip has to put the address back, or the restored service stops working.
+    const { settings: merged, restoredKeys } = mergeStoredKeys(
+      parseSettingsBackup(JSON.stringify(file)).settings, current
+    );
+    expect(restoredKeys).toBe(1);
+    expect(addressOf(merged, "custom-llm", "baseURL")).toBe(address);
+  });
+
+  it("strips a credential the service-mode endpoint carries", () => {
+    const endpoint = "https://collector.example/translate?api_key=0123456789abcdef";
+    const current = normalizeSettings({
+      ...DEFAULT_SETTINGS, activeProviderId: "microsoft-web-translate",
+      providers: DEFAULT_SETTINGS.providers.map((provider) => provider.id === "microsoft-web-translate"
+        ? { ...provider, serviceMode: "api", api: { apiKey: "", endpoint } } as ProviderConfig
+        : provider)
+    });
+    const file = createSettingsBackup(current);
+    expect(JSON.stringify(file)).not.toContain("0123456789abcdef");
+    expect(apiOf(file.settings, "microsoft-web-translate")?.endpoint)
+      .toBe("https://collector.example/translate?api_key=");
+    expect(settingsBackupHasKeys(file.settings)).toBe(false);
+    const { settings: merged, restoredKeys } = mergeStoredKeys(
+      parseSettingsBackup(JSON.stringify(file)).settings, current
+    );
+    expect(restoredKeys).toBe(1);
+    expect(apiOf(merged, "microsoft-web-translate")?.endpoint).toBe(endpoint);
+  });
+
+  it("refuses to reuse a key when the Base URL names no fixed receiver", () => {
+    // A host chosen at request time cannot be proven to be the service the key belongs to.
+    const current = normalizeSettings({
+      ...DEFAULT_SETTINGS, activeProviderId: "custom-llm",
+      providers: [{ ...llmProvider(), baseURL: "https://api.example.com/v1", apiKey: "sk-stored-key" }]
+    });
+    const incoming = structuredClone(parseSettingsBackup(JSON.stringify(createSettingsBackup(current))).settings);
+    incoming.providers = incoming.providers.map((provider) => provider.id === "custom-llm"
+      ? { ...provider, baseURL: "https://{{targetLang}}.example/v1" } as ProviderConfig : provider);
     const { settings: merged, skippedKeys } = mergeStoredKeys(incoming, current);
     expect(keyOf(merged, "custom-llm")).toBe("");
     expect(skippedKeys).toBe(1);
