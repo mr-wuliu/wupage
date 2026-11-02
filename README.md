@@ -112,7 +112,9 @@
 
 通过 [Issues](https://github.com/mr-wuliu/wupage/issues) 提交问题，附上浏览器与扩展版本、翻译服务、复现步骤和脱敏后的 Debug 错误信息。
 
-QQ 开发交流群：**582857596**（[群二维码](docs/communicate/qrcode_1793126599797.jpg)）。
+QQ 开发交流群：**582857596**。
+
+<img src="docs/communicate/qrcode_1793126599797.jpg" width="320" alt="WuPage 开发交流群二维码，群号 582857596" />
 
 源码构建、项目结构和验证说明见[开发指南](docs/development.md)。
 
