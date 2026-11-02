@@ -146,11 +146,11 @@ npm run build      # 生成生产构建到 dist/
 
 `shortcutWarning()` 对常用浏览器、编辑和 Ctrl＋Alt 组合给出非阻断警告。警告只显示在对应录入框下方，不设置 `aria-invalid`，不会阻止保存或在设置规范化时重置绑定；重开设置页仍会显示。格式错误和扩展内重复绑定保持原有校验。
 
-`shortcutEnabled` 为四项翻译快捷键与四项局部操作分别保存布尔开关。缺失的旧设置默认启用，原先清空的翻译键迁移为关闭；关闭只改变开关，不清空 `shortcuts`。设置页将两者作为同一份草稿保存，恢复全部默认会重置按键及开关。内容脚本、悬浮球、段落点击和划词卡片通过同一个存储事件同步配置；局部键关闭后仍可使用鼠标按钮。
+`shortcutEnabled` 为五项翻译快捷键与四项局部操作分别保存布尔开关。缺失的旧设置默认启用，原先清空的翻译键迁移为关闭；关闭只改变开关，不清空 `shortcuts`。设置页将两者作为同一份草稿保存，恢复全部默认会重置按键及开关。内容脚本、悬浮球、段落点击和划词卡片通过同一个存储事件同步配置；局部键关闭后仍可使用鼠标按钮。
 
 快捷键保存在扩展设置的 `shortcuts` 中，在设置页直接录入、清空或恢复默认，与其他表单字段一起保存。`src/shared/shortcuts.ts` 统一定义默认值、组合键规范化、事件匹配和已知冲突校验。未配置的新字段补齐默认值，明确清空的值保留为空，非法或重复绑定在读取设置时修复。Chrome / Edge 不提供扩展内改写浏览器快捷键的接口，因此不再声明 Manifest `commands`，避免旧原生绑定与自定义按键同时触发。相关接口范围参见 [Chrome Commands API](https://developer.chrome.com/docs/extensions/reference/api/commands)。
 
-`src/content/keyboard-shortcuts.ts` 在顶层网页捕获按键，根据已加载的配置触发 `src/content/shortcuts.ts` 中共用的翻译动作。使用 `KeyboardEvent.code` 匹配字母和数字物理键；忽略 IME、AltGr、输入和编辑区域、已处理事件与重复执行；仅在匹配时阻止网页默认行为。配置变更通过存储事件同步，初始读取不会覆盖较新的存储变更。快捷键作用于普通网页及已接入的嵌入框架正文，不作用于地址栏或 PDF 查看器。全文开始前的异步读取可被再次按键取消，过期结果不覆盖恢复原文后的提示，连续切换显示模式按保存顺序处理。
+`src/content/keyboard-shortcuts.ts` 在顶层网页捕获按键，根据已加载的配置触发 `src/content/shortcuts.ts` 中共用的翻译动作。使用 `KeyboardEvent.code` 匹配字母和数字物理键；忽略 IME、AltGr、已处理事件与重复执行，输入和编辑区域内只响应 `translate-input`，扩展自身的划词卡片与悬浮球内不响应任何快捷键；仅在匹配时阻止网页默认行为。配置变更通过存储事件同步，初始读取不会覆盖较新的存储变更。快捷键作用于普通网页及已接入的嵌入框架正文，不作用于地址栏或 PDF 查看器。全文开始前的异步读取可被再次按键取消，过期结果不覆盖恢复原文后的提示，连续切换显示模式按保存顺序处理。
 
 段落翻译快捷键复用 `src/content/paragraph-translation.ts` 的原位翻译与恢复逻辑。`src/content/paragraph-shortcut.ts` 将选区内的文字映射为完整段落并去重，无选区时使用鼠标所在或获得焦点的正文段落；不依赖段落模式、右键翻译或划词翻译开关。配置键沿用 `translate-selection`，保留已有自定义按键与开关。
 
@@ -278,6 +278,23 @@ npm run test:page
 `appearance.floatingOpacity` 独立于配色方案，保存 0–100 的整数百分比，旧配置默认 100。滑块与数字输入共用草稿并即时更新预览，数值超出范围或为空时阻止保存；导入设置会将有限数值取整并限制范围。运行时映射为 `--wp-floating-opacity`，作用于球体和预览，拖动时以该值乘原有的 0.92 系数，展开菜单保持正常不透明度。
 
 `tests/appearance.test.ts`、`tests/options-appearance.test.ts` 和 `tests/translation-appearance.test.ts` 覆盖旧设置兼容、异常色值、系统切换、方案复制与删除、草稿保存、透明度联动、数值校验及双色译文更新。`npm run test:appearance` 构建后使用可选 Playwright 与 Chromium 检查实际组件配色、透明度键盘操作与拖动、数字输入与预览、保存后球体及拖动透明度、菜单可读性、保存重开、译文换色不增加请求以及窄屏布局，支持 `PLAYWRIGHT_MODULE`、`PDF_TEST_BROWSER`，报告保存在 `.npm-cache/appearance/`。
+
+### 输入框翻译
+
+快捷键 `translate-input`（默认 `Alt+Shift+K`）登记在 `TRANSLATION_SHORTCUTS` 中，与其他页面快捷键共用录入、冲突检测、开关和设置规范化；旧设置缺少该键时补齐默认值，默认组合已被用户占用时按既有重复规则置空并关闭。功能设置 `inputTranslation`（`enabled`、`providerId`、`prompt`）在 `src/shared/input-translation.ts` 归一化，空提示词恢复为 `DEFAULT_INPUT_PROMPT`；`enabled` 为假时内容脚本不拦截该键。设置页「输入框翻译」分类由 `src/options/input-translation.ts` 渲染，按键仍在「快捷键」分类中修改。
+
+`src/content/input-translation.ts` 读取获得焦点的 `text` / `search` 输入框、文本框或可编辑区域（穿透开放 Shadow DOM，取最外层可编辑根），有选区时只取选区。可编辑区域的文字由 `textWithLineBreaks()` 按块元素和 `<br>` 还原换行，忽略零宽占位符，图片取 `alt`。写回时：
+
+- 输入框和文本框先选中原范围再执行 `insertText`，保留浏览器撤销记录；不可用时通过原生 `value` setter 写入并派发 `input` 事件。
+- 可编辑区域先设置选区，等待 150 ms 让 Slate、Lexical 等编辑器同步选区，再派发携带 `text/plain` 译文的 `paste` 事件；事件被取消视为编辑器已接管，否则依次回退到 `insertText` 和直接修改 DOM。Discord 等自带文档模型的编辑器会忽略只修改 DOM 的写入，发送出去的仍是原文，因此粘贴事件必须优先。不等待选区同步时，译文会插在光标处而非替换原文。
+
+翻译进行中再次触发会被忽略；返回时输入框已从文档移除则不写入。嵌入框架中的按键由 `frame-bootstrap.ts` 在框架内直接处理，不转发到顶层页面。
+
+后台 `TRANSLATE_INPUT` 由 `src/background/input-translation.ts` 处理：依次选用 `providerId` 指定的服务、默认翻译服务、任一可用的大模型服务（`isLlmProvider` 且已填写地址和模型，并有 API Key 或使用本机 / 局域网地址）；没有可用服务时返回配置提示。超过 8,000 字符直接拒绝。目标语言由 `inputTargetLanguage()` 在本地判断：以汉字为主且不含明显假名或韩文时为 English，其余为 Simplified Chinese。请求经 `translateWithSettings()` 复用服务商、并发限制、格式错误重试和 Debug 记录，以 `persistentCache: false` 跳过缓存读写，并临时以输入框提示词替换该服务的系统提示词。
+
+模型回复整体不是合法 JSON 时，`parseTranslationArray()` 在不以未闭合代码块开头的前提下，从末尾向前检查有限数量的 `[...]` 候选，采用最后一个元素数量一致且均为非空字符串的数组；否则仍抛出格式错误，错误信息附带回复开头 200 个字符。截断输出仍按原规则重试。
+
+`tests/input-translation.test.ts` 在 jsdom 中为 `isContentEditable`、`execCommand`、`DataTransfer` 和 `ClipboardEvent` 打桩，覆盖选区替换、原生 setter 回退、换行保留、粘贴接管与等待、`insertText` 和 DOM 回退、输入框移除和重复触发；`tests/background-input.test.ts` 覆盖服务选择、语言方向、长度限制、单次请求和不写缓存；`tests/input-translation-options.test.ts`、`tests/keyboard-shortcuts.test.ts` 与 `tests/shortcuts-settings.test.ts` 覆盖设置页、编辑区域内的按键分流和旧设置迁移。真实网站编辑器的写入行为需要在目标网站手动确认。
 
 ### 划词翻译回归验证
 
