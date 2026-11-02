@@ -21,10 +21,12 @@ describe("LLM request templates", () => {
       expect(defaults.headers).not.toContain(config.apiKey);
       expect(defaults.body).not.toContain(config.model);
       expect(JSON.parse(defaults.headers)).toMatchObject(type === "anthropic-compatible"
-        ? { "x-api-key": "{{apiKey}}", "anthropic-version": "2023-06-01" }
+        ? { "x-api-key": "{{apiKey}}", "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true" }
         : { Authorization: "Bearer {{apiKey}}" });
       const body = JSON.parse(defaults.body);
-      expect(body).toMatchObject({ model: "{{model}}", temperature: 0 });
+      expect(body).toMatchObject({ model: "{{model}}" });
+      if (type === "anthropic-compatible") expect(body).not.toHaveProperty("temperature");
+      else expect(body).toHaveProperty("temperature", 0);
       if (type === "deepseek") expect(body.thinking).toEqual({ type: "disabled" });
       else expect(body).not.toHaveProperty("thinking");
       if (type === "anthropic-compatible") {
@@ -48,7 +50,9 @@ describe("LLM request templates", () => {
 
   it.each(["openai-compatible", "anthropic-compatible"] as const)("omits unused authentication headers from %s defaults", type => {
     expect(JSON.parse(defaultLlmRequestTemplate({ ...config, type, apiKey: "" }).headers))
-      .toEqual(type === "anthropic-compatible" ? { "Content-Type": "application/json", "anthropic-version": "2023-06-01" }
+      .toEqual(type === "anthropic-compatible" ? {
+        "Content-Type": "application/json", "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true"
+      }
         : { "Content-Type": "application/json" });
   });
 
