@@ -244,12 +244,12 @@ function endOfBalanced(text: string, start: number): number {
 /**
  * Drops credentials from an endpoint while keeping the text the user wrote: the URL is edited
  * in place rather than through `URL`, which would reorder and percent-encode the request.
+ * Credential locations decide what to strip; a public host or path may also start with `sk-`.
  * Template variables such as `{{targetLang}}` are left alone, because they are not credentials.
  */
 function withoutEndpointCredentials(value: string): string {
-  const cleaned = value.replace(LITERAL_CREDENTIAL, "");
   // User info in a URL is sent as basic auth on every request.
-  const withoutUserInfo = cleaned.replace(/^([a-z][a-z0-9+.-]*:\/\/)[^/?#]*@/iu, "$1");
+  const withoutUserInfo = value.replace(/^([a-z][a-z0-9+.-]*:\/\/)[^/?#]*@/iu, "$1");
   const hashAt = withoutUserInfo.indexOf("#");
   const fragment = hashAt === -1 ? "" : withoutUserInfo.slice(hashAt);
   const address = hashAt === -1 ? withoutUserInfo : withoutUserInfo.slice(0, hashAt);
@@ -257,20 +257,21 @@ function withoutEndpointCredentials(value: string): string {
   if (queryAt === -1) return withoutUserInfo;
   const query = address.slice(queryAt + 1).split("&").map((part) => {
     const name = part.split("=")[0] ?? "";
-    return credentialName(name) ? `${name}=` : part;
+    return credentialName(name, true) ? `${name}=` : part;
   }).join("&");
   return `${address.slice(0, queryAt)}?${query}${fragment}`;
 }
 
 /** Query parameters and JSON members arrive percent-encoded, so compare the decoded name. */
-function credentialName(name: string): boolean {
+function credentialName(name: string, queryParameter = false): boolean {
   let decoded = name;
   try {
     decoded = decodeURIComponent(name);
   } catch {
     // A malformed escape is not credential-shaped, so it is left for the user to see.
   }
-  return CREDENTIAL_HEADER.test(decoded) || CREDENTIAL_MEMBER.test(decoded);
+  return CREDENTIAL_HEADER.test(decoded) || CREDENTIAL_MEMBER.test(decoded)
+    || (queryParameter && /^(?:key|auth[_-]?key)$/iu.test(decoded));
 }
 
 /**
