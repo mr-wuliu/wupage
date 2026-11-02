@@ -840,10 +840,17 @@ function parseTranslationArray(content: string, expectedLength: number): string[
   try {
     parsed = JSON.parse(trimmed) as unknown;
   } catch {
+    // Some models wrap the array in commentary or correct themselves after it;
+    // the answer is then the last array. An unfinished fence means truncation.
+    const recovered = trimmed.startsWith("```") ? null : lastStringArray(trimmed, expectedLength);
+    if (recovered) {
+      console.info("[wupage] LLM response had commentary around the JSON array; used the last array");
+      return recovered;
+    }
     // Keep plain-text single-item compatibility, but never display truncated
     // JSON or an unfinished Markdown fence as a successful translation.
     if (expectedLength === 1 && trimmed && !/^(?:[\[\{"]|```)/u.test(trimmed)) return [trimmed];
-    throw new TranslationResponseError("LLM response was not valid JSON.");
+    throw new TranslationResponseError(`LLM response was not valid JSON. Received: ${trimmed.slice(0, 200)}`);
   }
   if ((typeof parsed === "string" && !parsed.trim())
     || (Array.isArray(parsed) && parsed.some((item) => typeof item === "string" && !item.trim()))) {
@@ -859,6 +866,24 @@ function parseTranslationArray(content: string, expectedLength: number): string[
     );
   }
   return parsed;
+}
+
+/** The last `[...]` that parses to `expectedLength` non-empty strings; tries a bounded number of candidates. */
+function lastStringArray(text: string, expectedLength: number): string[] | null {
+  const ends: number[] = [];
+  for (let index = text.lastIndexOf("]"); index >= 0 && ends.length < 8; index = text.lastIndexOf("]", index - 1)) ends.push(index);
+  let starts = 0;
+  for (let start = text.lastIndexOf("["); start >= 0 && starts < 8; start = start ? text.lastIndexOf("[", start - 1) : -1, starts++) {
+    for (const end of ends) {
+      if (end < start) continue;
+      try {
+        const value = JSON.parse(text.slice(start, end + 1)) as unknown;
+        if (Array.isArray(value) && value.length === expectedLength
+          && value.every((item) => typeof item === "string" && item.trim())) return value as string[];
+      } catch { /* try the next candidate */ }
+    }
+  }
+  return null;
 }
 
 function stripCodeFence(value: string): string {
