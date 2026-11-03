@@ -150,6 +150,9 @@ body {
 
 .backup-dialog p { margin: 0; }
 .backup-dialog #settingsBackupDialogStatus:empty { display: none; }
+.backup-key-choice { display: flex; align-items: flex-start; gap: 10px; font-size: 14px; }
+.backup-key-choice[hidden] { display: none; }
+.provider-dialog .backup-key-choice input { flex: 0 0 18px; width: 18px; min-height: 18px; margin: 3px 0 0; accent-color: var(--wp-accent, #116466); }
 
 @media (max-width: 960px) {
   .settings {

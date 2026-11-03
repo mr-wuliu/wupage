@@ -9,7 +9,8 @@ export const SETTINGS_BACKUP_MAX_BYTES = 5 * 1024 * 1024;
 export const SETTINGS_BACKUP_KIND = "wupage-settings-backup";
 export interface SettingsBackup {
   kind: typeof SETTINGS_BACKUP_KIND;
-  version: 1;
+  version: 1 | 2;
+  includesKeys: boolean;
   extensionVersion: string;
   createdAt: string;
   settings: ExtensionSettings;
@@ -19,12 +20,13 @@ export interface SettingsImportResult {
   imageTranslationDisabled: boolean;
 }
 
-// This format deliberately contains all credentials. Arbitrary headers, URLs and
-// templates cannot be reliably redacted. Never label this file as safe to share.
-export function createSettingsBackup(settings: ExtensionSettings, extensionVersion: string, now = new Date()): SettingsBackup {
+export function createSettingsBackup(settings: ExtensionSettings, extensionVersion: string, now = new Date(),
+  options: { includeKeys?: boolean } = {}): SettingsBackup {
+  const includesKeys = options.includeKeys === true;
+  const saved = readSettings(normalizeSettings(settings), false);
   const backup: SettingsBackup = {
-    kind: SETTINGS_BACKUP_KIND, version: 1, extensionVersion, createdAt: now.toISOString(),
-    settings: readSettings(normalizeSettings(settings), false)
+    kind: SETTINGS_BACKUP_KIND, version: 2, includesKeys, extensionVersion, createdAt: now.toISOString(),
+    settings: includesKeys ? saved : withoutSettingsKeys(saved)
   };
   checkTree(backup);
   serializeSettingsBackup(backup);
@@ -44,12 +46,43 @@ export function parseSettingsBackup(text: string): SettingsBackup {
   catch { throw new Error("无法读取备份，请选择有效的 JSON 文件。"); }
   checkTree(value);
   if (!isRecord(value) || value.kind !== SETTINGS_BACKUP_KIND) throw new Error("这不是 WuPage 设置备份文件。");
-  if (value.version !== 1) throw new Error("不支持此备份格式版本，请使用支持该格式的 WuPage。");
+  if (value.version !== 1 && value.version !== 2) throw new Error("不支持此备份格式版本，请使用支持该格式的 WuPage。");
+  if (value.version === 2 && typeof value.includesKeys !== "boolean") invalid("includesKeys");
   if (typeof value.createdAt !== "string" || !/^\d{4}-\d{2}-\d{2}T/u.test(value.createdAt)
     || !Number.isFinite(Date.parse(value.createdAt)) || typeof value.extensionVersion !== "string"
     || !/^\d+\.\d+\.\d+(?:[.\-+][\w.\-]+)?$/u.test(value.extensionVersion)) invalid("备份信息");
-  return { kind: SETTINGS_BACKUP_KIND, version: 1, extensionVersion: value.extensionVersion,
-    createdAt: value.createdAt, settings: readSettings(value.settings, true) };
+  const settings = readSettings(value.settings, true);
+  // Version 1 was always a full backup. New keyless files must actually follow
+  // the conservative projection; never trust a false includesKeys flag alone.
+  const includesKeys = value.version === 1 || value.includesKeys === true;
+  if (!includesKeys && stableJson(settings) !== stableJson(withoutSettingsKeys(settings))) invalid("settings.credentials");
+  return { kind: SETTINGS_BACKUP_KIND, version: value.version, includesKeys, extensionVersion: value.extensionVersion,
+    createdAt: value.createdAt, settings };
+}
+
+/** Remove entire user-controlled credential carriers, not guessed key names or
+ * token patterns. Headers, URLs and template dialects can hold arbitrary keys.
+ * Only exact public defaults are safe to retain in those fields. */
+function withoutSettingsKeys(settings: ExtensionSettings): ExtensionSettings {
+  return { ...settings, providers: settings.providers.map(provider => {
+    const result = structuredClone(provider);
+    const defaults = DEFAULT_SETTINGS.providers.find(entry => entry.type === provider.type);
+    const publicValue = (field: string, value: string): string => defaults
+      && field in defaults && (defaults as unknown as Record<string, unknown>)[field] === value ? value : "";
+    if ("apiKey" in result) result.apiKey = "";
+    if ("baseURL" in result) result.baseURL = publicValue("baseURL", result.baseURL);
+    if ("endpoint" in result) result.endpoint = publicValue("endpoint", result.endpoint);
+    if ("region" in result) result.region = "";
+    if ("api" in result && result.api) result.api = {};
+    if ("systemPrompt" in result) result.systemPrompt = publicValue("systemPrompt", result.systemPrompt);
+    if ("requestTemplate" in result) result.requestTemplate = { enabled: false, headers: "{}", body: "{}" };
+    if (result.type === "http-template") {
+      result.url = publicValue("url", result.url);
+      result.headers = {};
+      result.bodyTemplate = publicValue("bodyTemplate", result.bodyTemplate);
+    }
+    return result;
+  }) };
 }
 
 export function settingsBackupFilename(backup: SettingsBackup): string {

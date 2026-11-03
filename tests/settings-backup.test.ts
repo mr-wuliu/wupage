@@ -25,9 +25,9 @@ function fixture(): ExtensionSettings {
 describe("settings backup format", () => {
   it("round-trips every supported setting and arbitrary credential carrier without modifying its source", () => {
     const settings = fixture(), before = structuredClone(settings);
-    const backup = createSettingsBackup(settings, "1.6.1", now);
+    const backup = createSettingsBackup(settings, "1.6.1", now, { includeKeys: true });
     const restored = parseSettingsBackup(JSON.stringify(backup));
-    expect(restored).toMatchObject({ kind: "wupage-settings-backup", version: 1, extensionVersion: "1.6.1", createdAt: now.toISOString() });
+    expect(restored).toMatchObject({ kind: "wupage-settings-backup", version: 2, includesKeys: true, extensionVersion: "1.6.1", createdAt: now.toISOString() });
     expect(restored.settings).toEqual(settings);
     expect(settings).toEqual(before);
     expect(JSON.stringify(restored)).toContain("short-secret");
@@ -53,7 +53,9 @@ describe("settings backup format", () => {
     ["truncated JSON", (b: any) => JSON.stringify(b).slice(0, -10)],
     ["raw settings", (b: any) => JSON.stringify(b.settings)],
     ["wrong kind", (b: any) => JSON.stringify({ ...b, kind: "another-extension" })],
-    ["future version", (b: any) => JSON.stringify({ ...b, version: 2 })],
+    ["future version", (b: any) => JSON.stringify({ ...b, version: 3 })],
+    ["missing key policy", (b: any) => { delete b.includesKeys; return JSON.stringify(b); }],
+    ["invalid key policy", (b: any) => { b.includesKeys = "false"; return JSON.stringify(b); }],
     ["invalid date", (b: any) => JSON.stringify({ ...b, createdAt: "unknown" })],
     ["missing core setting", (b: any) => { delete b.settings.targetLang; return JSON.stringify(b); }],
     ["wrong nested type", (b: any) => { b.settings.providers[0].api.apiKey = {}; return JSON.stringify(b); }],
@@ -81,5 +83,66 @@ describe("settings backup format", () => {
     const text = JSON.stringify({ note: "汉".repeat(SETTINGS_BACKUP_MAX_BYTES / 2) });
     expect(text.length).toBeLessThan(SETTINGS_BACKUP_MAX_BYTES);
     expect(() => parseSettingsBackup(text)).toThrow("5 MiB");
+  });
+
+  it("omits all credentials by default while keeping preferences and service identities", () => {
+    const settings = fixture(), before = structuredClone(settings);
+    const backup = createSettingsBackup(settings, "1.6.1", now);
+    expect(backup.includesKeys).toBe(false);
+    const text = JSON.stringify(backup);
+    for (const secret of ["saved-key", "azure-key", "signing-key", "password", "short-secret", "opaque-value", "plain-value", "another-secret", "eastasia"]) {
+      expect(text).not.toContain(secret);
+    }
+    expect(settings).toEqual(before);
+    const restored = parseSettingsBackup(text).settings;
+    expect(restored.providers.map(p => [p.id, p.label, "model" in p ? p.model : ""]))
+      .toEqual(settings.providers.map(p => [p.id, p.label, "model" in p ? p.model : ""]));
+    for (const key of ["appearance", "autoTranslation", "shortcuts", "localShortcuts", "videoTranslation", "elementExclusions"] as const) {
+      expect(restored[key]).toEqual(settings[key]);
+    }
+    expect(restored.providers.find(p => p.type === "deepseek")).toMatchObject({ apiKey: "", baseURL: "https://api.deepseek.com" });
+  });
+
+  it.each([
+    ['{"api_key":"<secret>","q":{{json texts}}}'],
+    ['q={{texts}}&unusual-credential=<secret>'],
+    ['<request><custom><secret></custom>{{texts}}</request>'],
+    ['not even valid JSON <secret> {{json texts}}']
+  ])("removes an entire custom HTTP template regardless of its dialect: %s", template => {
+    const settings = fixture();
+    const http = settings.providers.find(p => p.id === "custom-http")!;
+    Object.assign(http, { headers: { "X-Signature2": "short", "Completely-Unknown": "0123456789abcdef", "secret-name": "a" },
+      url: "https://secret-host.example/path/secret-path?unknown=secret-query#secret-fragment", bodyTemplate: template.replace("<secret>", "template-credential") });
+    const backup = createSettingsBackup(settings, "1.6.1", now);
+    const text = JSON.stringify(backup);
+    expect(text).not.toMatch(/secret-name|0123456789abcdef|secret-host|secret-path|secret-query|secret-fragment|template-credential/);
+    expect(backup.settings.providers.find(p => p.id === "custom-http"))
+      .toMatchObject({ headers: {}, url: "", bodyTemplate: "" });
+    expect(() => parseSettingsBackup(text)).not.toThrow();
+  });
+
+  it("removes custom base URLs, service endpoints, prompts, and even disabled request templates", () => {
+    const settings = fixture();
+    const llm = settings.providers.find(p => p.type === "deepseek")!;
+    Object.assign(llm, { baseURL: "https://key-user:key-pass@example.com/api/key-in-path", systemPrompt: "custom-key-in-prompt",
+      requestTemplate: { enabled: false, headers: '{"X": "short-key"}', body: '{"opaque":"body-key"}' } });
+    const file = createSettingsBackup(settings, "1.6.1", now);
+    expect(JSON.stringify(file)).not.toMatch(/key-user|key-pass|key-in-path|key-in-prompt|short-key|body-key|api.example.com/);
+    expect(file.settings.providers.find(p => p.type === "deepseek"))
+      .toMatchObject({ baseURL: "", apiKey: "", systemPrompt: "", requestTemplate: { enabled: false, headers: "{}", body: "{}" } });
+  });
+
+  it("rejects keyless metadata that conceals credentials instead of trusting the flag", () => {
+    const file = createSettingsBackup(fixture(), "1.6.1", now, { includeKeys: true });
+    file.includesKeys = false;
+    expect(() => parseSettingsBackup(JSON.stringify(file))).toThrow("settings.credentials");
+  });
+
+  it("accepts legacy full backups as containing credentials regardless of extra metadata", () => {
+    const full = createSettingsBackup(fixture(), "1.6.1", now, { includeKeys: true });
+    const { includesKeys: _ignored, ...legacy } = full;
+    const parsed = parseSettingsBackup(JSON.stringify({ ...legacy, version: 1, includesKeys: false }));
+    expect(parsed.includesKeys).toBe(true);
+    expect(parsed.settings).toEqual(full.settings);
   });
 });

@@ -417,13 +417,14 @@
               <h2 id="backupSettingsTitle">备份与恢复</h2>
               <p>备份已保存的设置，或在其他浏览器恢复配置。</p>
             </div>
-            <p class="hint">备份包含翻译服务、密钥、请求模板、站点规则、快捷键和外观等设置。文件未加密，请妥善保管，不要公开分享。</p>
+            <p class="hint">默认导出不包含密钥。导出时可主动勾选「包含密钥」，保存未加密的完整备份，请妥善保管。</p>
             <div class="backup-actions">
               <button id="exportSettings" type="button">导出设置</button>
               <button id="importSettings" type="button" class="secondary">导入设置</button>
               <input id="settingsBackupFile" type="file" accept=".json,application/json" aria-label="选择设置备份" hidden />
             </div>
             <p class="field-description">导出仅包含已保存的设置，编辑后请先点击「保存」。导入经确认后立即覆盖设置，无需再次保存。</p>
+            <p class="field-description">无密钥模式会清空凭据、自定义请求头与模板，以及非内置的服务地址、提示词等请求内容。导入后需重新配置这些内容，本机旧密钥也会被清空。分享前请检查站点规则、服务名称等个人信息。</p>
             <p class="field-description">不包含翻译缓存、统计记录、浏览器登录状态、模型、PDF 字体和浏览器权限。缺少的模型与字体需在当前浏览器单独安装。</p>
           </section>
         </div>
@@ -439,6 +440,10 @@
     <dialog id="settingsBackupDialog" class="provider-dialog backup-dialog" aria-labelledby="settingsBackupDialogTitle" aria-describedby="settingsBackupWarning">
       <h2 id="settingsBackupDialogTitle"></h2>
       <p id="settingsBackupSummary" class="field-description"></p>
+      <label id="settingsBackupKeysField" class="backup-key-choice" hidden>
+        <input id="settingsBackupIncludeKeys" type="checkbox" autocomplete="off" />
+        <span>包含密钥（未加密，仅用于完整备份）</span>
+      </label>
       <p id="settingsBackupWarning"></p>
       <p id="settingsBackupDialogStatus" class="hint" role="status" aria-live="polite"></p>
       <div class="dialog-actions">
