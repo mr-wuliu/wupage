@@ -32,7 +32,7 @@ export async function translateParagraph(target: Element, action: "toggle" | "tr
     if (!segments.length) throw new Error("此处没有可翻译的段落。");
     renderTranslationPlaceholders(segments);
     const data = await sendRuntimeRequest<TranslateBatchResponse>({
-      type: "TRANSLATE_BATCH", texts: segments.map(segment => segment.text), preservePlaceholders: true,
+      type: "TRANSLATE_BATCH", texts: segments.map(segment => segment.requestText ?? segment.text), preservePlaceholders: true,
       context: buildTranslationContext([target]), sourceLang: settings.sourceLang,
       targetLang: settings.targetLang, providerId: settings.activeProviderId
     });

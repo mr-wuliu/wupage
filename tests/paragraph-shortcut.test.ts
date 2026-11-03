@@ -5,6 +5,7 @@ import { translateShortcutParagraphs } from "../src/content/paragraph-shortcut";
 import { clearPageTranslation, setPageTranslationDisplayMode } from "../src/content/page-translation";
 import { sendRuntimeRequest } from "../src/content/runtime";
 import { hasTranslationsIn } from "../src/content/dom";
+import { structuredTranslation } from "./helpers/structured-translation";
 
 vi.mock("../src/content/runtime", () => ({ sendRuntimeRequest: vi.fn() }));
 
@@ -14,7 +15,7 @@ beforeEach(() => {
     selectionTranslation: { enabled: false, provider: "bing", style: "underline" } };
   vi.mocked(sendRuntimeRequest).mockImplementation(async request => {
     if (request.type === "GET_SETTINGS") return settings;
-    if (request.type === "TRANSLATE_BATCH") return { translations: request.texts.map(() => "这是完整段落的译文。"), cached: 0 };
+    if (request.type === "TRANSLATE_BATCH") return { translations: request.texts.map(text => structuredTranslation(text, "这是完整段落的译文。")), cached: 0 };
   });
   vi.spyOn(Element.prototype, "getBoundingClientRect").mockReturnValue({ left: 10, top: 10, right: 610, bottom: 40, width: 600, height: 30, x: 10, y: 10, toJSON: () => ({}) });
   window.getSelection()?.removeAllRanges();

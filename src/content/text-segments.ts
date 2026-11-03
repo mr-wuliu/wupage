@@ -1,6 +1,8 @@
 export interface TextSegment {
   id: string;
   text: string;
+  /** Validated format markers for transport; plain text stays available for scheduling. */
+  readonly requestText?: string;
   element: Element;
 }
 

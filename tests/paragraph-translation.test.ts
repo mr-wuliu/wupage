@@ -5,6 +5,7 @@ import { findTranslatableParagraph } from "../src/content/dom";
 import { clearPageTranslation, setPageTranslationDisplayMode } from "../src/content/page-translation";
 import { translateParagraph } from "../src/content/paragraph-translation";
 import { sendRuntimeRequest } from "../src/content/runtime";
+import { structuredTranslation, withoutMarkup } from "./helpers/structured-translation";
 
 vi.mock("../src/content/runtime", () => ({ sendRuntimeRequest: vi.fn() }));
 
@@ -15,7 +16,7 @@ beforeEach(() => {
   setPageTranslationDisplayMode("bilingual");
   vi.mocked(sendRuntimeRequest).mockImplementation(async request => {
     if (request.type === "GET_SETTINGS") return structuredClone(DEFAULT_SETTINGS);
-    if (request.type === "TRANSLATE_BATCH") return { translations: request.texts.map(() => "这是完整段落的译文。"), cached: 0 };
+    if (request.type === "TRANSLATE_BATCH") return { translations: request.texts.map(text => structuredTranslation(text, "这是完整段落的译文。")), cached: 0 };
   });
 });
 
@@ -40,7 +41,7 @@ describe("paragraph translation clicks", () => {
     for (let index = 0; index < 3; index++) {
       await translateParagraph(targetAt("#first"));
       expect(document.querySelectorAll(".wupage-translation")).toHaveLength(1);
-      expect(requests().at(-1)!.texts).toEqual(["Read this complete guide before continuing."]);
+      expect(requests().at(-1)!.texts.map(withoutMarkup)).toEqual(["Read this complete guide before continuing."]);
       await translateParagraph(targetAt("#second"));
       expect(document.querySelectorAll(".wupage-translation")).toHaveLength(0);
       expect(paragraph.innerHTML).toBe(original);
@@ -58,7 +59,7 @@ describe("paragraph translation clicks", () => {
     finish(structuredClone(DEFAULT_SETTINGS));
     await Promise.all([first, second]);
     expect(requests()).toHaveLength(1);
-    expect(requests()[0].texts).toEqual(["Read this complete guide carefully before continuing to the next chapter."]);
+    expect(requests()[0].texts.map(withoutMarkup)).toEqual(["Read this complete guide carefully before continuing to the next chapter."]);
     expect(document.querySelectorAll(".wupage-translation")).toHaveLength(1);
   });
 
@@ -78,6 +79,7 @@ describe("paragraph translation clicks", () => {
     await old;
     expect(requests()).toHaveLength(2);
     expect(document.querySelectorAll(".wupage-translation")).toHaveLength(1);
-    expect(document.querySelector(".wupage-translation")!.textContent).toBe("这是完整段落的译文。");
+    expect(document.querySelector(".wupage-translation")!.textContent).toContain("这是完整段落的译文。");
+    expect(document.body.textContent).not.toContain("不应追加的旧译文");
   });
 });
