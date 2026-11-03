@@ -1,7 +1,15 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { clearTranslations, collectTextSegments, collectTextSegmentsProgressive, hasPageTranslations, hideTranslations,
-  invalidateStaleSegments, renderTranslations, restoreTranslations, setTranslationDisplayMode } from "../src/content/dom";
+import {
+  clearTranslations,
+  collectTextSegmentsProgressive,
+  hasPageTranslations,
+  hideTranslations,
+  invalidateStaleSegments,
+  renderTranslations,
+  restoreTranslations,
+  setTranslationDisplayMode
+} from "../src/content/dom";
 import { buildTranslationContext } from "../src/content/translation-context";
 import { injectContentStyles } from "../src/content/styles";
 
@@ -26,7 +34,7 @@ describe("open component prose", () => {
   it.each([false, true])("collects nested roots and restores every display mode, progressive=%s", async progressive => {
     const { root, nested } = mount();
     injectContentStyles();
-    const segments = progressive ? await collectTextSegmentsProgressive() : collectTextSegments();
+    const segments = progressive ? await collectTextSegmentsProgressive() : (await collectTextSegmentsProgressive());
     expect(segments.map(segment => segment.text).sort()).toEqual([
       "Light DOM prose.", "Read ⟪WUPAGE0⟫ before continuing.", "Search documents", "Nested component prose."
     ].sort());
@@ -50,16 +58,16 @@ describe("open component prose", () => {
     expect(nested.querySelector(".wupage-translation")).not.toBeNull();
   });
 
-  it.each(["hidden", "contenteditable", "translate", "class"])("respects host %s across nested roots", attribute => {
+  it.each(["hidden", "contenteditable", "translate", "class"])("respects host %s across nested roots", async attribute => {
     const { host, nested } = mount();
     host.setAttribute(attribute, attribute === "translate" ? "no" : attribute === "class" ? "notranslate" : "");
-    expect(collectTextSegments().some(segment => segment.text.includes("Nested component"))).toBe(false);
+    expect((await collectTextSegmentsProgressive()).some(segment => segment.text.includes("Nested component"))).toBe(false);
     expect(buildTranslationContext([nested.querySelector("p")!]) ?? "").not.toContain("Nested component");
   });
 
-  it("withdraws translated prose and placeholders when a host opts out", () => {
+  it("withdraws translated prose and placeholders when a host opts out", async () => {
     const { host, root } = mount();
-    const segments = collectTextSegments();
+    const segments = (await collectTextSegmentsProgressive());
     renderTranslations(segments.map(segment => ({ id: segment.id, text: `译文：${segment.text}` })), "replace");
     host.setAttribute("translate", "no");
     expect(invalidateStaleSegments().length).toBeGreaterThan(0);

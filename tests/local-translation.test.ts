@@ -63,6 +63,11 @@ describe("Firefox local translation", () => {
 });
 
 describe("shared browser source-language detection", () => {
+  it("does not let format IDs bias the detected language of short text", async () => {
+    detectLanguage.mockResolvedValue({ languages: [{ language: "ja", percentage: 100 }] });
+    expect(await detectSourceLanguage(["⟪WUPAGEOPEN0⟫保存⟪WUPAGECLOSE0⟫ ⟪WUPAGE8⟫"])).toBe("ja");
+    expect(detectLanguage).toHaveBeenCalledWith("保存 ");
+  });
   it("samples joined input using the existing 12000-character limit and accepts the 50-percent threshold", async () => {
     detectLanguage.mockResolvedValue({ languages: [{ language: "en-US", percentage: 50 }] });
     expect(await detectSourceLanguage(["Heading", "a".repeat(13000)])).toBe("en-US");

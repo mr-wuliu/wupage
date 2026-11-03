@@ -70,7 +70,8 @@ try {
     currentUrl = `${origin}/${suffix}`; await browser.navigate(currentUrl);
     await waitFor(() => browser.evaluate('return !!document.querySelector("#wupage-floating-ball");'), Boolean, 'content initialization');
   };
-  const inspect = () => browser.evaluate(`return {translations:document.querySelectorAll('.wupage-translation:not(.wupage-translation-pending)').length,
+  const inspect = () => browser.evaluate(`return {translations:document.querySelectorAll('.wupage-translation:not(.wupage-translation-pending)').length
+      + ((document.querySelector('#action')?.textContent||'').startsWith('译文：')&&!document.querySelector('#action .wupage-translation')?1:0),
     math:document.querySelectorAll('.wupage-translation math').length,
     hidden:document.querySelectorAll('.wupage-replaced-source').length,
     text:document.querySelector('main')?.textContent,bodyWidth:document.documentElement.scrollWidth,viewport:innerWidth};`);

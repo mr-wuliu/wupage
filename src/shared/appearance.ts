@@ -84,7 +84,31 @@ export const BUILT_IN_SCHEMES: readonly ColorScheme[] = [
   { id: "midnight", name: "午夜蓝", tone: "dark", colors: createColors({
     background: "#151b2b", surface: "#202a40", foreground: "#e6ecfa", muted: "#a4b2d0",
     accent: "#9cbcff", border: "#394866", success: "#8bd5b0", danger: "#ffaaa9"
-  }, { "translation-light": "#2563eb", "translation-dark": "#9cbcff", "floating-hover": "#b7ceff" }) }
+  }, { "translation-light": "#2563eb", "translation-dark": "#9cbcff", "floating-hover": "#b7ceff" }) },
+  { id: "sakura", name: "樱粉", tone: "light", colors: createColors({
+    background: "#fff6f9", surface: "#ffffff", foreground: "#38212d", muted: "#806271",
+    accent: "#b33970", border: "#ead4df", success: "#2c734d", danger: "#b4233c"
+  }, { "translation-dark": "#f5aacb", "floating-hover": "#92295a" }) },
+  { id: "rose-night", name: "玫夜", tone: "dark", colors: createColors({
+    background: "#241820", surface: "#33232d", foreground: "#f8e7ef", muted: "#c5a9b9",
+    accent: "#f0a2c5", border: "#604453", success: "#a0d6ad", danger: "#ffaaa9"
+  }, { "translation-light": "#b33970", "translation-dark": "#f0a2c5", "floating-hover": "#f7bfd8" }) },
+  { id: "sky-blue", name: "晴蓝", tone: "light", colors: createColors({
+    background: "#f3f8ff", surface: "#ffffff", foreground: "#1c2d45", muted: "#5d708d",
+    accent: "#245db5", border: "#d0deef", success: "#267149", danger: "#b42332"
+  }, { "translation-dark": "#93c5fd", "floating-hover": "#1b488f" }) },
+  { id: "deep-sea", name: "深海", tone: "dark", colors: createColors({
+    background: "#101e2b", surface: "#1c2e40", foreground: "#e4f0fa", muted: "#a3b9cc",
+    accent: "#82caff", border: "#38536b", success: "#8ed9b4", danger: "#ffb0ab"
+  }, { "translation-light": "#245db5", "translation-dark": "#82caff", "floating-hover": "#a6daff" }) },
+  { id: "monochrome-light", name: "素白", tone: "light", colors: createColors({
+    background: "#f5f5f5", surface: "#ffffff", foreground: "#171717", muted: "#666666",
+    accent: "#303030", border: "#d6d6d6", success: "#4d4d4d", danger: "#171717"
+  }, { "translation-light": "#333333", "translation-dark": "#e0e0e0", "floating-hover": "#4a4a4a" }) },
+  { id: "monochrome-dark", name: "墨黑", tone: "dark", colors: createColors({
+    background: "#121212", surface: "#202020", foreground: "#f1f1f1", muted: "#b3b3b3",
+    accent: "#e0e0e0", border: "#484848", success: "#d0d0d0", danger: "#ffffff"
+  }, { "translation-light": "#333333", "translation-dark": "#e0e0e0", "floating-hover": "#ffffff" }) }
 ];
 
 export const DEFAULT_APPEARANCE: AppearanceSettings = {

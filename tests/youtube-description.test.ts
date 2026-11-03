@@ -3,9 +3,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   clearTranslations,
-  collectAdditionalTextSegments,
+  collectAdditionalTextSegmentsProgressive,
   collectParagraphTextSegments,
-  collectTextSegments,
+  collectTextSegmentsProgressive,
   findTranslatableParagraph,
   invalidateStaleSegments,
   renderTranslationPlaceholders,
@@ -32,11 +32,11 @@ describe("YouTube description layout", () => {
     document.body.innerHTML = "";
   });
 
-  it("pairs each authored line with a block translation while preserving links and blank lines", () => {
+  it("pairs each authored line with a block translation while preserving links and blank lines", async () => {
     const host = document.querySelector(".ytAttributedStringHost")!;
     const originalHtml = host.innerHTML;
     const links = [...host.querySelectorAll("a")];
-    const segments = collectTextSegments();
+    const segments = (await collectTextSegmentsProgressive());
     expect(segments.map(({ text }) => text)).toEqual([
       "Support-free horizontal overhangs on a standard FDM printer.",
       "📄 The paper (open access)",
@@ -62,15 +62,15 @@ describe("YouTube description layout", () => {
     expect([...host.querySelectorAll("a")]).toEqual(links);
     expect(links[0].textContent).toBe("https://doi.org/paper");
     expect(links[2].querySelector(".wupage-translation")?.getAttribute("data-wupage-mode")).toBe("inline");
-    expect(collectAdditionalTextSegments(host)).toEqual([]);
+    expect((await collectAdditionalTextSegmentsProgressive([host]))).toEqual([]);
     clearTranslations();
     expect(host.innerHTML).toBe(originalHtml);
   });
 
-  it("keeps replacement translations in source order and restores the original description", () => {
+  it("keeps replacement translations in source order and restores the original description", async () => {
     const host = document.querySelector(".ytAttributedStringHost")!;
     const originalHtml = host.innerHTML;
-    const segments = collectTextSegments();
+    const segments = (await collectTextSegmentsProgressive());
     renderTranslations(segments.map(({ id }, index) => ({ id, text: `译文${index}` })), "replace");
     expect(host.textContent).toBe("译文0\n\n译文1\nhttps://doi.org/paper\n\n译文2\n译文3\nhttps://github.com/example/slicer\n译文4\n译文7\n\n译文5\n译文6");
     expect(invalidateStaleSegments()).toEqual([]);
@@ -89,13 +89,13 @@ describe("YouTube description layout", () => {
     expect(host.querySelector(".wupage-translation")?.nextSibling?.nodeName).toBe("BR");
   });
 
-  it("recollects changed descriptions without accumulating old translations", () => {
+  it("recollects changed descriptions without accumulating old translations", async () => {
     const host = document.querySelector(".ytAttributedStringHost")!;
-    const segments = collectTextSegments();
+    const segments = (await collectTextSegmentsProgressive());
     renderTranslations(segments.map(({ id }, index) => ({ id, text: `译文${index}` })));
     host.firstChild!.firstChild!.textContent = "Updated introduction.";
     expect(invalidateStaleSegments()).toContain(segments[0].id);
-    const updated = collectAdditionalTextSegments(host);
+    const updated = (await collectAdditionalTextSegmentsProgressive([host]));
     expect(updated[0].text).toBe("Updated introduction.");
     renderTranslations(updated.map(({ id }, index) => ({ id, text: `新译文${index}` })));
     expect(host.querySelectorAll(".wupage-translation")).toHaveLength(8);

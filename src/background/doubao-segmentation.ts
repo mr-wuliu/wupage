@@ -6,8 +6,8 @@ export interface DoubaoSegment {
   translate: boolean;
 }
 
-const PROTECTED_TOKEN = /⟪WUPAGE\d+⟫/gu;
-const ATOM = /⟪WUPAGE\d+⟫|[\s\S]/gu;
+const PROTECTED_TOKEN = /⟪WUPAGE(?:OPEN|CLOSE)?\d+⟫/gu;
+const ATOM = /⟪WUPAGE(?:OPEN|CLOSE)?\d+⟫|[\s\S]/gu;
 
 function validateLimit(value: number): void {
   if (!Number.isInteger(value) || value < 1) throw new RangeError("Expected a positive integer.");

@@ -1186,4 +1186,30 @@ describe("viewport page translation", () => {
 
     expect(document.querySelector(".wupage-translation")).toBeNull();
   });
+
+  it("settles structured writes without retranslating them and still discovers real edits", async () => {
+    vi.useFakeTimers();
+    try {
+      vi.mocked(window.getComputedStyle).mockImplementation(element => ({
+        display: element.matches("strong") ? "inline" : "block", visibility: "visible", opacity: "1"
+      }) as CSSStyleDeclaration);
+      document.body.innerHTML = '<main><p>Read <strong>the complete guide</strong> carefully.</p></main>';
+      const strong = document.querySelector("strong")!;
+      const source = strong.firstChild;
+      translateNormally();
+      await startPageTranslation({ ...settings, translationDisplayMode: "replace" });
+      expect(vi.mocked(sendRuntimeRequest).mock.calls[0][0]).toMatchObject({ texts: [expect.stringContaining("WUPAGEOPEN0")] });
+      await vi.advanceTimersByTimeAsync(2000);
+      expect(sendRuntimeRequest).toHaveBeenCalledTimes(1);
+      expect(getPageTranslationState()).toMatchObject({ translated: 1, failed: 0, pending: 0 });
+      expect(document.querySelector("strong")).toBe(strong);
+      expect(strong.firstChild).toBe(source);
+      source!.textContent = "an updated guide";
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(sendRuntimeRequest).toHaveBeenCalledTimes(2);
+      expect(strong.textContent).toContain("an updated guide");
+      clearPageTranslation();
+      expect(strong.textContent).toBe("an updated guide");
+    } finally { vi.useRealTimers(); }
+  });
 });

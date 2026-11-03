@@ -3,7 +3,12 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import type { ExtensionSettings, RuntimeRequest } from "../src/shared/types";
 vi.mock("../src/content/runtime", () => ({ sendRuntimeRequest: vi.fn() }));
 import { sendRuntimeRequest } from "../src/content/runtime";
-import { clearTranslations, collectAdditionalTextSegments, collectAdditionalTextSegmentsProgressive, collectTextSegmentsProgressive, renderTranslations } from "../src/content/dom";
+import {
+  clearTranslations,
+  collectAdditionalTextSegmentsProgressive,
+  collectTextSegmentsProgressive,
+  renderTranslations
+} from "../src/content/dom";
 import { clearPageTranslation, getLocalPageTranslationState, hideLocalPageTranslation, startLocalPageTranslation, setPageTranslationDisplayMode, updatePageTranslationSettings } from "../src/content/page-translation";
 const settings: ExtensionSettings = {
   targetLang: "zh-CN", sourceLang: "auto", activeProviderId: "test", chunkSize: 1200, concurrency: 2,
@@ -42,7 +47,7 @@ it("does not resume node tracking after a yielding scan was cleared", async () =
   const scan = collectTextSegmentsProgressive();
   clearTranslations(); release();
   expect(await scan).toEqual([]);
-  expect(collectAdditionalTextSegments(document.body).map(segment => segment.text)).toEqual(["First paragraph.", "Second paragraph."]);
+  expect((await collectAdditionalTextSegmentsProgressive([document.body])).map(segment => segment.text)).toEqual(["First paragraph.", "Second paragraph."]);
 });
 it("reports stopped immediately while an initial scan is paused", async () => {
   document.body.innerHTML = "<p>Source paragraph.</p>";
@@ -118,7 +123,7 @@ it("yields an incremental full-root scan and cancels before processing the rest"
 });
 it("preserves completed translations during an incremental full-root scan", async () => {
   document.body.innerHTML = "<main><p id='kept'>Keep this paragraph.</p><p>New paragraph.</p></main>";
-  const kept = collectAdditionalTextSegments(document.querySelector("#kept")!);
+  const kept = (await collectAdditionalTextSegmentsProgressive([document.querySelector("#kept")!]));
   renderTranslations(kept.map(segment => ({ id: segment.id, text: "已有译文。" })));
   const found = await collectAdditionalTextSegmentsProgressive([document.body]);
   expect(found.map(segment => segment.text)).toEqual(["New paragraph."]);

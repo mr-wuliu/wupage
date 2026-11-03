@@ -1,3 +1,6 @@
+import { scanTextRootsProgressive } from "./progressive-scan";
+import type { ProgressiveScanOptions, TextSegment } from "./text-segments";
+export type { TextSegment } from "./text-segments";
 import { getEffectiveBackgroundColor, mapTranslationTextColor, type TranslationColors } from "../shared/translation-colors";
 export { mapTranslationTextColor } from "../shared/translation-colors";
 import {
@@ -16,14 +19,13 @@ import {
 import { videoPlatform } from "../video/platforms";
 import { clearTranslationTypography, linkTranslationTypography } from "./translation-typography";
 import { isNonProseElement, isTranslationOptedOut, NON_PROSE_SELECTOR } from "./content-policy";
-import { composedContains, discoverShadowRoots, mutationElement, onTranslationRoot, queryTranslationElements, translationRoots } from "./dom-roots";
+import { componentShadowRoot, composedContains, projectedSlot, queryTranslationElements,
+  sameTranslationNodePath, translationNodePath } from "./dom-roots";
+import { constrainTranslationOwner, translationOwner } from "./translation-boundaries";
+import { InlineTranslationPlan } from "./inline-translation";
 import { injectContentStyles } from "./styles";
-
-export interface TextSegment {
-  id: string;
-  text: string;
-  element: Element;
-}
+import { isSteamCommunity, isSteamContentCard, steamItemTitle, steamTextBlock } from "./steam-content";
+import { containsExcludedElement, isElementExcluded } from "./element-exclusions";
 
 interface TrackedNode {
   id: string;
@@ -31,6 +33,8 @@ interface TrackedNode {
   mode: RenderMode;
   sourceValue: string;
   sourceParent: Element;
+  sourcePath: Node[];
+  sourceOwner?: Element | null;
   replaced?: boolean;
   replacementValue?: string;
   commentPrefix?: string;
@@ -53,6 +57,7 @@ interface TrackedAttribute {
   element: HTMLElement;
   name: "placeholder";
   sourceValue: string;
+  sourcePath: Node[];
   translatedValue?: string;
 }
 
@@ -60,6 +65,7 @@ interface TrackedImageText {
   id: string;
   image: HTMLImageElement;
   sourceValue: string;
+  sourcePath: Node[];
   replaced?: boolean;
   renderedSource?: string;
   waitingForImage?: boolean;
@@ -199,6 +205,8 @@ const NAVIGATION_CONTAINER_SELECTOR = [
   KNOWN_COMPACT_NAV_SELECTOR
 ].join(",");
 const HEADING_SELECTOR = "h1,h2,h3,h4,h5,h6";
+const COMPACT_CONTROL_SELECTOR = "button,a,[role='button'],[role='tab'],[role='menuitem'],"
+  + "[role='menuitemradio'],[role='menuitemcheckbox'],[role='option']";
 const DOCUMENT_SEMANTIC_REGION_SELECTOR = [
   "header",
   "aside",
@@ -241,6 +249,14 @@ const CODE_COMMENT_TARGET_SELECTOR = ".react-code-text, .blob-code, pre, code, .
 const IMMUTABLE_INLINE_SELECTOR = "[translate='no' i],.notranslate,math";
 
 let trackedNodes: TrackedNode[] = [];
+let trackedByText = new WeakMap<Text, TrackedNode>();
+function trackTextNodes(...nodes: TrackedNode[]): void {
+  for (const node of nodes) {
+    node.sourceOwner = translationOwner(node.sourceParent);
+    trackedByText.set(node.node, node);
+    trackedNodes.push(node);
+  }
+}
 let trackedGroups: TrackedGroup[] = [];
 let trackedAttributes: TrackedAttribute[] = [];
 let trackedImageTexts: TrackedImageText[] = [];
@@ -249,6 +265,9 @@ let sourceTextById = new Map<string, string>();
 const renderedById = new Map<string, HTMLElement | Text>();
 const translatedTextById = new Map<string, string>();
 const stableReplacementsById = new Map<string, StableReplacement>();
+const inlinePlans = new Map<string, InlineTranslationPlan>();
+let inlinePlansByBlock = new WeakMap<Element, { id: string; plan: InlineTranslationPlan }>();
+const preparedIds = new Set<string>();
 const stableReplacementSources = new WeakSet<Element>();
 let targetIdCounter = 0;
 let segmentIdCounter = 0;
@@ -347,6 +366,8 @@ function resolveDeferredBlockText(id: string): string {
 
 /** Source text of a segment, reading a deferred block on first use. */
 function readSourceText(id: string): string {
+  const inline = inlinePlans.get(id);
+  if (inline) return inline.source;
   if (deferredBlockTexts.has(id)) return resolveDeferredBlockText(id);
   return sourceTextById.get(id) ?? "";
 }
@@ -377,11 +398,6 @@ const PARAGRAPH_SELECTOR = [
   YOUTUBE_COMMENT_SELECTOR
 ].join(",");
 
-export function collectTextSegments(translateCodeComments = true): TextSegment[] {
-  clearNodeTracking();
-  return document.body ? collectAdditionalTextSegments(document.body, translateCodeComments) : [];
-}
-
 export function collectParagraphTextSegments(
   element: Element,
   translateCodeComments = true
@@ -395,92 +411,7 @@ export function collectParagraphTextSegments(
     tracked.image !== element && !element.contains(tracked.image)
   );
   pruneTranslationResults();
-  return collectTextSegmentsFromRoot(element, false, translateCodeComments);
-}
-
-export function collectAdditionalTextSegments(
-  element: Element,
-  translateCodeComments = true
-): TextSegment[] {
-  const segments = collectTextSegmentsFromRoot(element, false, translateCodeComments);
-  for (const shadow of discoverShadowRoots(element)) {
-    for (const child of shadow.children) segments.push(...collectAdditionalTextSegments(child, translateCodeComments));
-  }
-  return segments;
-}
-
-const SCAN_CHUNK_NODES = 120;
-const SCAN_SLICE_MS = 12;
-const SCAN_MUTATION_ROOT_LIMIT = 200;
-
-export interface ProgressiveScanOptions {
-  signal?: AbortSignal;
-  onSegments?: (segments: TextSegment[]) => void;
-  onPendingRoots?: (roots: Element[]) => void;
-  observeChanges?: boolean;
-}
-
-function yieldToMain(signal?: AbortSignal): Promise<void> {
-  return new Promise<void>((resolve) => {
-    let channel: MessageChannel | undefined;
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    const finish = () => {
-      signal?.removeEventListener("abort", finish);
-      channel?.port1.close();
-      channel?.port2.close();
-      clearTimeout(timer);
-      resolve();
-    };
-    if (signal?.aborted) { finish(); return; }
-    signal?.addEventListener("abort", finish, { once: true });
-    const scheduler = (globalThis as { scheduler?: { yield?: () => Promise<void> } }).scheduler;
-    if (typeof scheduler?.yield === "function") {
-      scheduler.yield().then(finish, finish);
-    } else if (typeof MessageChannel !== "undefined") {
-      channel = new MessageChannel();
-      channel.port1.onmessage = finish;
-      channel.port2.postMessage(0);
-    } else timer = setTimeout(finish, 0);
-  });
-}
-
-interface ScanChunk {
-  root: Element;
-  directTextOnly: boolean;
-}
-
-// Discover chunks lazily so planning a large document also yields. Keep authored
-// paragraphs intact: splitting inline runs changes grouping and line breaks.
-function* collectScanChunks(root: Element): Generator<ScanChunk> {
-  const stack = [root];
-  while (stack.length) {
-    const element = stack.pop()!;
-    if (!element.isConnected) continue;
-    const walker = element.ownerDocument.createTreeWalker(element, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT);
-    let count = 0;
-    while (count <= SCAN_CHUNK_NODES && walker.nextNode()) count += 1;
-    if (count <= SCAN_CHUNK_NODES || !element.firstElementChild
-      || element.matches(PARAGRAPH_SELECTOR + ",[data-wupage-scientific-source]")) {
-      for (const shadow of discoverShadowRoots(element)) {
-        for (const child of Array.from(shadow.children).reverse()) stack.push(child);
-      }
-      yield { root: element, directTextOnly: false };
-      continue;
-    }
-    yield { root: element, directTextOnly: true };
-    for (const shadow of discoverShadowRoots(element, false)) {
-      for (const child of Array.from(shadow.children).reverse()) stack.push(child);
-    }
-    for (let child = element.lastElementChild; child; child = child.previousElementSibling) stack.push(child);
-  }
-}
-
-function addCoveredScanRoot(roots: Set<Element>, element: Element): void {
-  for (const root of roots) {
-    if (root.contains(element)) return;
-    if (element.contains(root)) roots.delete(root);
-  }
-  roots.add(element);
+  return collectTextSegmentsFromRoot(element, translateCodeComments);
 }
 
 export async function collectTextSegmentsProgressive(
@@ -491,83 +422,27 @@ export async function collectTextSegmentsProgressive(
   clearNodeTracking();
   if (!document.body) return [];
   prepareLegacyScientificParagraphs(document.body);
-  return scanTextRootsProgressive([document.body], translateCodeComments, options, true);
+  return scanTrackedTextRoots([document.body], translateCodeComments, options, true);
 }
 
 /** Incremental scans retain existing translations and use the same time budget. */
 export function collectAdditionalTextSegmentsProgressive(
   roots: Element[], translateCodeComments = true, options: ProgressiveScanOptions = {}
 ): Promise<TextSegment[]> {
-  return scanTextRootsProgressive(roots, translateCodeComments, options, options.observeChanges ?? true);
+  return scanTrackedTextRoots(roots, translateCodeComments, options, options.observeChanges ?? true);
 }
 
-async function scanTextRootsProgressive(
+function scanTrackedTextRoots(
   roots: Element[], translateCodeComments: boolean, options: ProgressiveScanOptions, observeChanges: boolean
 ): Promise<TextSegment[]> {
   const epoch = nodeTrackingEpoch;
-  const cancelled = () => options.signal?.aborted || epoch !== nodeTrackingEpoch;
-  if (cancelled()) return [];
-  const segments = new Map<string, TextSegment>();
-  const touched = new Set<Element>();
-  const recordMutations = (records: MutationRecord[]) => {
-    for (const record of records) {
-      const element = mutationElement(record.target);
-      if (!element?.isConnected) continue;
-      addCoveredScanRoot(touched, element);
-      if (touched.size > SCAN_MUTATION_ROOT_LIMIT) { touched.clear(); touched.add(document.body); }
-    }
-  };
-  const observer = observeChanges ? new MutationObserver(recordMutations) : undefined;
-  const observerOptions = { childList: true, characterData: true, subtree: true, attributes: true,
-    attributeFilter: ["class", "style", "hidden", "aria-hidden", "placeholder", "alt", "open", "translate", "contenteditable", "role"] };
-  for (const root of translationRoots()) observer?.observe(root, observerOptions);
-  const unsubscribe = onTranslationRoot(root => observer?.observe(root, observerOptions));
-  let sliceStarted = performance.now();
-  const scan = async (pending: Element[]) => {
-    const candidates = new Set(pending.filter(root => root.isConnected));
-    const covered = [...candidates].filter(root => {
-      for (let ancestor = root.parentElement; ancestor; ancestor = ancestor.parentElement) {
-        if (candidates.has(ancestor)) return false;
-      }
-      return true;
-    });
-    for (const root of covered) {
-      if (root === document.body || root === document.documentElement) clearHiddenScanCandidates();
-      for (const chunk of collectScanChunks(root)) {
-        if (cancelled()) return;
-        recordMutations(observer?.takeRecords() ?? []);
-        const found = collectTextSegmentsFromRoot(chunk.root, false, translateCodeComments, chunk.directTextOnly);
-        // Text normalization performed by the collector is already represented in
-        // found; do not mistake its own node splits for host changes.
-        observer?.takeRecords();
-        for (const segment of found) segments.set(segment.id, segment);
-        options.onSegments?.(found);
-        if (performance.now() - sliceStarted < SCAN_SLICE_MS) continue;
-        await yieldToMain(options.signal);
-        if (cancelled()) return;
-        sliceStarted = performance.now();
-      }
-    }
-  };
-  try {
-    await scan(roots);
-    // Reconcile bursts without letting a continuously updating page keep the
-    // initial scan open forever. The page session takes over any remaining work.
-    for (let pass = 0; pass < 2 && !cancelled(); pass++) {
-      recordMutations(observer?.takeRecords() ?? []);
-      if (!touched.size) break;
-      const changed = [...touched]; touched.clear();
-      for (const id of invalidateStaleSegments(changed)) segments.delete(id);
-      await scan(changed);
-    }
-    if (cancelled()) return [];
-    recordMutations(observer?.takeRecords() ?? []);
-    if (touched.size) {
-      for (const id of invalidateStaleSegments([...touched])) segments.delete(id);
-      options.onPendingRoots?.([...touched]);
-    }
-    return [...segments.values()];
-  } finally { unsubscribe(); observer?.disconnect(); }
+  return scanTextRootsProgressive(roots, { ...options, observeChanges }, {
+    isCurrent: () => epoch === nodeTrackingEpoch,
+    isParagraph: element => element.matches(PARAGRAPH_SELECTOR + ",[data-wupage-scientific-source]"),
+    collect: (root, directTextOnly) => collectTextSegmentsFromRoot(root, translateCodeComments, directTextOnly),
+    clearHiddenCandidates: clearHiddenScanCandidates,
+    invalidate: invalidateStaleSegments
+  });
 }
 
 /**
@@ -601,6 +476,7 @@ export function takeHiddenScanRoots(limit = HIDDEN_SCAN_ROOT_BATCH): Element[] {
 // its tracking so the next scan can translate the current source again.
 export function invalidateStaleSegments(changedRoots: Element[] = []): string[] {
   const stale = new Set<string>();
+  for (const [id, plan] of inlinePlans) if (!plan.isCurrent()) stale.add(id);
   for (const [id, tokens] of protectedTokensById) {
     if (tokens.some(token => !token.sourceNode.isConnected
       || protectedSourceSignature(token.sourceNode, Boolean(token.sourceHidden)) !== token.sourceSignature)) stale.add(id);
@@ -613,6 +489,8 @@ export function invalidateStaleSegments(changedRoots: Element[] = []): string[] 
   }
   const changed = (tracked: TrackedNode): boolean => !tracked.node.isConnected
     || tracked.node.parentElement !== tracked.sourceParent
+    || !sameTranslationNodePath(tracked.node, tracked.sourcePath)
+    || translationOwner(tracked.sourceParent) !== (tracked.sourceOwner ?? null)
     || isNonProseElement(tracked.sourceParent) || isTranslationOptedOut(tracked.sourceParent)
     || tracked.node.data !== (tracked.replaced ? tracked.replacementValue ?? "" : tracked.sourceValue);
   for (const tracked of trackedNodes) {
@@ -633,6 +511,7 @@ export function invalidateStaleSegments(changedRoots: Element[] = []): string[] 
   }
   for (const tracked of trackedAttributes) {
     if (!tracked.element.isConnected
+      || !sameTranslationNodePath(tracked.element, tracked.sourcePath)
       || isTranslationOptedOut(tracked.element)
       || tracked.element.getAttribute(tracked.name) !== (tracked.translatedValue ?? tracked.sourceValue)) {
       stale.add(tracked.id);
@@ -646,6 +525,7 @@ export function invalidateStaleSegments(changedRoots: Element[] = []): string[] 
     const anchor = tracked.image.closest("picture") ?? tracked.image;
     const output = renderedById.get(tracked.id);
     if (!tracked.image.isConnected || tracked.image.getAttribute("alt") !== tracked.sourceValue
+      || !sameTranslationNodePath(tracked.image, tracked.sourcePath)
       || isTranslationOptedOut(tracked.image) || isNonProseElement(tracked.image)
       || (tracked.renderedSource && tracked.renderedSource !== (tracked.image.currentSrc || tracked.image.src))
       || (tracked.waitingForImage && tracked.image.complete && tracked.image.naturalWidth > 0)
@@ -658,15 +538,21 @@ export function invalidateStaleSegments(changedRoots: Element[] = []): string[] 
       tracked.image.removeAttribute(TARGET_ATTR);
     }
   }
+  for (const id of stale) inlinePlans.get(id)?.restore();
   for (const tracked of trackedNodes) {
     if (!stale.has(tracked.id)) continue;
     // Never overwrite a new value supplied by the host application.
     if (tracked.replaced && tracked.node.data === (tracked.replacementValue ?? "")) tracked.node.data = tracked.sourceValue;
+    tracked.replaced = false;
+    tracked.replacementValue = undefined;
+    if (trackedByText.get(tracked.node) === tracked) trackedByText.delete(tracked.node);
   }
   for (const group of trackedGroups) {
     if (stale.has(group.id)) restoreGroupedSource(group);
   }
   for (const id of stale) {
+    inlinePlans.delete(id);
+    preparedIds.delete(id);
     restoreStableReplacement(id);
     removeRenderedTranslation(id);
     removePendingForId(id);
@@ -733,6 +619,7 @@ function recoverRewrittenReplacementSegments(): Set<string> {
     if (!groupedNodes.has(node)) candidates.set(node.id, [node]);
   }
   for (const [id, oldNodes] of candidates) {
+    if (oldNodes.some(node => isElementExcluded(node.sourceParent))) continue;
     const output = renderedById.get(id);
     if (output instanceof Text) continue;
     const translation = translatedTextById.get(id);
@@ -757,11 +644,12 @@ function recoverRewrittenReplacementSegments(): Set<string> {
     if (nodes.length !== oldNodes.length || nodes.some((node, index) => oldNodes[index].node !== node
       || oldNodes[index].sourceValue !== node.data || oldNodes[index].replaced)) {
       rebound = nodes.map((node): TrackedNode => ({
-        id, node, mode: oldNodes[0].mode, sourceValue: node.data, sourceParent: source
+        id, node, mode: oldNodes[0].mode, sourceValue: node.data, sourceParent: source,
+        sourcePath: translationNodePath(node)
       }));
       const old = new Set(oldNodes);
       trackedNodes = trackedNodes.filter((node) => !old.has(node));
-      trackedNodes.push(...rebound);
+      trackTextNodes(...rebound);
       if (group) group.nodes = rebound;
       else if (rebound.length > 1) {
         trackedGroups.push({ id, nodes: rebound, block: source, mode: rebound[0].mode });
@@ -828,6 +716,11 @@ export function findTranslatableParagraph(start: Element | null): Element | null
     return findCodeCommentBlock(start);
   }
 
+  if (start && !shouldSkipElement(start)) {
+    const steamBlock = steamTextBlock(start);
+    if (steamBlock && !shouldSkipElement(steamBlock)) return steamBlock;
+  }
+
   let current: Element | null = start;
   while (current && current !== document.body) {
     if (!shouldSkipElement(current) && current.matches(PARAGRAPH_SELECTOR)) {
@@ -841,7 +734,11 @@ export function findTranslatableParagraph(start: Element | null): Element | null
     }
     current = current.parentElement;
   }
-  return findNearestTextBlock(start);
+  const fallback = findNearestTextBlock(start);
+  // Inline fallback targets must share the renderer's enclosing prose boundary;
+  // its translation may be a sibling outside the clicked span or emphasis.
+  const block = fallback && computeGroupingBlock(fallback);
+  return block && !shouldSkipElement(block) ? block : fallback;
 }
 
 export function clearTranslationsIn(element: Element): void {
@@ -907,11 +804,9 @@ const NON_BLANK_TEXT = /\S/;
 
 function collectTextSegmentsFromRoot(
   root: Element,
-  resetTracking: boolean,
   translateCodeComments: boolean,
   directTextOnly = false
 ): TextSegment[] {
-  if (resetTracking) clearNodeTracking();
   // A whole-document scan starts from a clean slate; the progressive scanner
   // already cleared the candidates and its per-chunk results must survive the
   // body sweep.
@@ -970,9 +865,10 @@ function collectTextSegmentsFromRoot(
       mode: codeComment ? "code-comment" : getRenderMode(node.parentElement),
       sourceValue: node.data,
       sourceParent: node.parentElement!,
+      sourcePath: translationNodePath(node),
       commentPrefix: codeComment?.prefix
     };
-    trackedNodes.push(tracked);
+    trackTextNodes(tracked);
     textNodes.push(tracked);
     segments.push({ id, text: sourceText, element: node.parentElement! });
   }
@@ -982,6 +878,21 @@ function collectTextSegmentsFromRoot(
   const imageTextSegments = directTextOnly ? [] : collectImageTextSegments(root, visibility);
   const collectedSegments = [...groupedSegments, ...attributeSegments, ...imageTextSegments];
   collectedSegments.forEach((segment) => {
+    Object.defineProperty(segment, "requestText", { get: () => {
+      if (!preparedIds.has(segment.id)) {
+        // Resolve protected tokens before deciding whether the entire inline
+        // tree can be represented without touching independent content.
+        readSourceText(segment.id);
+        preparedIds.add(segment.id);
+        const group = trackedGroups.find(entry => entry.id === segment.id);
+        if (group && !group.authoredLines
+          && !group.insertionBefore && !group.insertionAfter) {
+          const plan = InlineTranslationPlan.create(group.block, new Set(group.nodes.map(entry => entry.node)), protectedTokensById.get(segment.id));
+          if (plan) { inlinePlans.set(segment.id, plan); inlinePlansByBlock.set(group.block, { id: segment.id, plan }); }
+        }
+      }
+      return readSourceText(segment.id);
+    } });
     // Deferred block text is recorded when the segment is finally requested.
     if (deferredBlockTexts.has(segment.id)) return;
     sourceTextById.set(segment.id, segment.text);
@@ -992,15 +903,30 @@ function collectTextSegmentsFromRoot(
 export function renderTranslations(
   translations: Array<{ id: string; text: string }>,
   displayMode: TranslationDisplayMode = "bilingual"
-): void {
+): string[] {
   injectContentStyles();
+  const counts = new Map<string, number>();
+  translations.forEach(({ id }) => counts.set(id, (counts.get(id) ?? 0) + 1));
+  const groupsById = new Map(trackedGroups.map(group => [group.id, group]));
+  const nodesById = new Map<string, TrackedNode[]>();
+  for (const node of trackedNodes) {
+    if (!counts.has(node.id) || groupsById.has(node.id)) continue;
+    const nodes = nodesById.get(node.id) ?? [];
+    nodes.push(node); nodesById.set(node.id, nodes);
+  }
   translations = translations.flatMap(({ id, text }) => {
+    if (counts.get(id) !== 1 || typeof text !== "string" || !text.trim()
+      || (!sourceTextById.has(id) && !deferredBlockTexts.has(id)) || !isTranslationBindingCurrent(id, groupsById, nodesById)) {
+      removePendingForId(id);
+      return [];
+    }
     // A caller can render a segment that never reached a batch, so the deferred
     // block text is resolved first; it is also what registers the tokens.
     const sourceText = readSourceText(id);
-    if (!protectedTokensById.has(id)) return [{ id, text }];
     const normalized = normalizeProtectedText(sourceText, text);
-    if (normalized !== undefined) return [{ id, text: normalized }];
+    if (normalized !== undefined && (!inlinePlans.has(id) || inlinePlans.get(id)!.accepts(normalized))) {
+      return [{ id, text: normalized }];
+    }
     // Keep the original visible if an unvalidated result reaches the renderer.
     // Formula/code identity cannot safely be reconstructed from occurrence order.
     removePendingForId(id);
@@ -1018,8 +944,19 @@ export function renderTranslations(
 
     removePendingForId(group.id);
     if (isSameTranslation(group.id, translation)) continue;
+    removeRenderedTranslation(group.id);
     const targetId = ensureTranslationTarget(block);
-    if (displayMode === "replace" && renderSlottedNavigationReplacement(group.id, group.nodes, block, translation)) {
+    const plan = inlinePlans.get(group.id);
+    if (displayMode === "replace" && plan) {
+      const anchor = plan.write(translation);
+      if (anchor) {
+        group.nodes.forEach(entry => { entry.replaced = true; entry.replacementValue = entry.node.data; });
+        renderedById.set(group.id, anchor);
+        block.setAttribute(TRANSLATED_ATTR, "true");
+      }
+      continue;
+    }
+    if (displayMode === "replace" && renderBoundTextReplacement(group.id, group.nodes, block, translation)) {
       block.setAttribute(TRANSLATED_ATTR, "true");
       continue;
     }
@@ -1029,7 +966,8 @@ export function renderTranslations(
     element.dataset.wupageDisplayMode = displayMode;
     if (group.preserveWhitespace) element.dataset.wupagePreserveWhitespace = "true";
     applyTranslationTextColor(element, block, displayMode);
-    renderProtectedText(element, group.id, translation);
+    if (plan) plan.appendCopy(element, translation);
+    else renderProtectedText(element, group.id, translation);
     element.setAttribute("lang", "translated");
     if (displayMode !== "replace") element.setAttribute("aria-hidden", "true");
     element.setAttribute(TRANSLATION_TARGET_ATTR, targetId);
@@ -1060,7 +998,8 @@ export function renderTranslations(
 
     removePendingForId(tracked.id);
     if (isSameTranslation(tracked.id, translation)) continue;
-    if (displayMode === "replace" && renderSlottedNavigationReplacement(tracked.id, [tracked], parent, translation)) {
+    removeRenderedTranslation(tracked.id);
+    if (displayMode === "replace" && renderBoundTextReplacement(tracked.id, [tracked], parent, translation)) {
       parent.setAttribute(TRANSLATED_ATTR, "true");
       continue;
     }
@@ -1117,6 +1056,8 @@ export function renderTranslations(
     insertImageTextTranslation(tracked, element);
     renderedById.set(tracked.id, element);
   }
+  return translations.filter(({ id, text }) => renderedById.has(id) || isSameTranslation(id, text)
+    || trackedAttributes.some(attribute => attribute.id === id && attribute.translatedValue !== undefined)).map(({ id }) => id);
 }
 
 // A site's !important span rule must never leave the replacement blank. Keep
@@ -1150,33 +1091,6 @@ export function setTranslationDisplayMode(displayMode: TranslationDisplayMode): 
   }
   restoreReplacedSourcesIn(document.documentElement);
   renderTranslations([...translatedTextById].map(([id, text]) => ({ id, text })), displayMode);
-}
-
-export function renderTargetTranslation(
-  element: Element,
-  text: string,
-  sourceText?: string,
-  displayMode: TranslationDisplayMode = "bilingual"
-): void {
-  const targetId = ensureTranslationTarget(element);
-  findTargetTranslations(targetId).forEach((node) => node.remove());
-  if (sourceText !== undefined && normalizeText(sourceText) === normalizeText(text)) {
-    element.removeAttribute(TRANSLATED_ATTR);
-    element.removeAttribute(TARGET_ATTR);
-    return;
-  }
-
-  const translation = document.createElement("span");
-  translation.className = TRANSLATION_CLASS;
-  translation.dataset.wupageMode = getRenderMode(element);
-  translation.dataset.wupageDisplayMode = displayMode;
-  applyTranslationTextColor(translation, element, displayMode);
-  translation.textContent = text;
-  translation.setAttribute("lang", "translated");
-  if (displayMode !== "replace") translation.setAttribute("aria-hidden", "true");
-  translation.setAttribute(TRANSLATION_TARGET_ATTR, targetId);
-  element.setAttribute(TRANSLATED_ATTR, "true");
-  element.append(translation);
 }
 
 export function renderTranslationPlaceholders(segments: TextSegment[]): void {
@@ -1221,16 +1135,6 @@ export function clearTranslationPlaceholders(segments: TextSegment[]): void {
   }
 }
 
-export function renderTargetPlaceholder(element: Element): void {
-  const targetId = ensureTranslationTarget(element);
-  findTargetTranslations(targetId).forEach((node) => node.remove());
-  const pending = createPendingElement(targetId, getRenderMode(element));
-  applyTranslationTextColor(pending, element, "bilingual");
-  pending.setAttribute(TRANSLATION_TARGET_ATTR, targetId);
-  element.setAttribute(TRANSLATED_ATTR, "true");
-  element.append(pending);
-}
-
 export function clearTranslations(): void {
   hideTranslations();
   clearNodeTracking();
@@ -1272,10 +1176,15 @@ export function restoreTranslations(displayMode: TranslationDisplayMode): void {
 }
 
 function clearNodeTracking(): void {
+  for (const plan of inlinePlans.values()) plan.restore();
+  inlinePlans.clear();
+  inlinePlansByBlock = new WeakMap();
+  preparedIds.clear();
   nodeTrackingEpoch += 1;
   for (const id of stableReplacementsById.keys()) restoreStableReplacement(id);
   clearLegacyScientificParagraphs();
   trackedNodes = [];
+  trackedByText = new WeakMap();
   trackedGroups = [];
   trackedAttributes = [];
   trackedImageTexts = [];
@@ -1289,9 +1198,10 @@ function clearNodeTracking(): void {
 
 function pruneTranslationResults(): void {
   const ids = new Set([...trackedNodes, ...trackedGroups, ...trackedAttributes, ...trackedImageTexts].map((entry) => entry.id));
-  for (const map of [translatedTextById, sourceTextById, protectedTokensById, deferredBlockTexts]) {
+  for (const map of [translatedTextById, sourceTextById, protectedTokensById, deferredBlockTexts, inlinePlans]) {
     for (const id of map.keys()) if (!ids.has(id)) map.delete(id);
   }
+  for (const id of preparedIds) if (!ids.has(id)) preparedIds.delete(id);
 }
 
 function collectImageTextSegments(
@@ -1321,7 +1231,7 @@ function collectImageTextSegments(
     if (normalizeText(sourceValue).length < 80 || !/\p{L}/u.test(sourceValue)) continue;
     const text = sourceValue.split(/\r?\n/).map(normalizeText).filter(Boolean).join("\n\n");
     const id = `seg-${Date.now()}-${segmentIdCounter++}`;
-    trackedImageTexts.push({ id, image: candidate, sourceValue });
+    trackedImageTexts.push({ id, image: candidate, sourceValue, sourcePath: translationNodePath(candidate) });
     segments.push({ id, text, element: candidate });
   }
   return segments;
@@ -1429,7 +1339,7 @@ function collectAttributeSegments(
     const sourceText = normalizeText(sourceValue);
     if (sourceText.length < 2 || isNonTranslatableFragment(sourceText)) continue;
     const id = `seg-${Date.now()}-${segmentIdCounter++}`;
-    trackedAttributes.push({ id, element: candidate, name: "placeholder", sourceValue });
+    trackedAttributes.push({ id, element: candidate, name: "placeholder", sourceValue, sourcePath: translationNodePath(candidate) });
     segments.push({ id, text: sourceText, element: candidate });
   }
 
@@ -1462,13 +1372,14 @@ function replaceTrackedSource(nodes: TrackedNode[], protectedTokenId?: string): 
   }
 }
 
-// Custom navigation items project their light-DOM labels through shadow slots.
-// Reuse the original Text node so replacement keeps its projection and cannot
-// turn into a separate menu child or displace an icon in another named slot.
-function renderSlottedNavigationReplacement(id: string, nodes: TrackedNode[], source: Element, text: string): boolean {
+// Prepared controls and custom navigation labels reuse their original Text
+// nodes, preserving projection and framework references without a new UI child.
+function renderBoundTextReplacement(id: string, nodes: TrackedNode[], source: Element, text: string): boolean {
   const item = source.closest("[role='listitem']");
+  const prepared = preparedIds.has(id) && (translationOwner(source) || isCompactControlText(source))
+    && nodes.every(node => node.sourceParent === source);
   if (protectedTokensById.has(id) || nodes.some(node => node.mode !== "inline")
-    || !item?.localName.includes("-") || !isCompactNavigationText(source)) return false;
+    || (!prepared && (!item?.localName.includes("-") || !isCompactNavigationText(source)))) return false;
   const first = nodes.find(node => node.sourceValue.trim());
   if (!first) return false;
   removeRenderedTranslation(id);
@@ -1480,6 +1391,44 @@ function renderSlottedNavigationReplacement(id: string, nodes: TrackedNode[], so
   }
   renderedById.set(id, first.node);
   return true;
+}
+
+function isTranslationBindingCurrent(id: string, groups: Map<string, TrackedGroup>, standalone: Map<string, TrackedNode[]>): boolean {
+  if (inlinePlans.has(id) && !inlinePlans.get(id)!.isCurrent()) return false;
+  const group = groups.get(id);
+  const nodes = group?.nodes ?? standalone.get(id) ?? [];
+  if (nodes.some(entry => !entry.node.isConnected || entry.node.parentElement !== entry.sourceParent
+    || !sameTranslationNodePath(entry.node, entry.sourcePath)
+    || translationOwner(entry.sourceParent) !== (entry.sourceOwner ?? null)
+    || entry.node.data !== (entry.replaced ? entry.replacementValue ?? "" : entry.sourceValue)
+    || isNonProseElement(entry.sourceParent) || isTranslationOptedOut(entry.sourceParent))) return false;
+  if (group && (!group.block.isConnected || nodes.some(entry => !group.block.contains(entry.node)))) return false;
+  if (group?.insertionBefore && !group.block.contains(group.insertionBefore)) return false;
+  if (group?.insertionAfter && !group.block.contains(group.insertionAfter)) return false;
+  if ((protectedTokensById.get(id) ?? []).some(token => !token.sourceNode.isConnected
+    || protectedSourceSignature(token.sourceNode, Boolean(token.sourceHidden)) !== token.sourceSignature)) return false;
+  const attribute = trackedAttributes.find(entry => entry.id === id);
+  if (attribute && (!attribute.element.isConnected || isTranslationOptedOut(attribute.element)
+    || !sameTranslationNodePath(attribute.element, attribute.sourcePath)
+    || attribute.element.getAttribute(attribute.name) !== (attribute.translatedValue ?? attribute.sourceValue))) return false;
+  const image = trackedImageTexts.find(entry => entry.id === id);
+  if (!nodes.length && !attribute && !image) return false;
+  return !image || (image.image.isConnected && !isTranslationOptedOut(image.image)
+    && !isNonProseElement(image.image) && sameTranslationNodePath(image.image, image.sourcePath)
+    && image.image.getAttribute("alt") === image.sourceValue);
+}
+
+/** Recognize our completed writes by their current bindings, not by a timer. */
+export function isTranslationMutation(record: MutationRecord): boolean {
+  const tracked = record.target instanceof Text ? trackedByText.get(record.target) : undefined;
+  if (tracked?.replaced && tracked.node.data === (tracked.replacementValue ?? "")) return true;
+  let element = record.target instanceof Element ? record.target : record.target.parentElement;
+  while (element) {
+    const entry = inlinePlansByBlock.get(element);
+    if (entry && inlinePlans.get(entry.id) === entry.plan && entry.plan.isCurrent()) return true;
+    element = element.parentElement;
+  }
+  return false;
 }
 
 function removeRenderedTranslation(id: string): void {
@@ -1509,6 +1458,9 @@ function restoreProtectedSource(token: ProtectedToken): void {
 
 function restoreReplacedSourcesIn(root: Element): void {
   const all = root === document.documentElement;
+  for (const plan of inlinePlans.values()) {
+    if (all || plan.block === root || composedContains(root, plan.block)) plan.restore();
+  }
   for (const [id, replacement] of stableReplacementsById) {
     if (all || replacement.source === root || composedContains(root, replacement.source)) restoreStableReplacement(id);
   }
@@ -1647,11 +1599,16 @@ function groupTextSegments(
 ): TextSegment[] {
   const groups = new Map<Element, TrackedNode[]>();
   const standalone = new Set(fallback.map((segment) => segment.id));
+  const exclusionBoundaries = new Map<Element, boolean>();
 
   for (const tracked of nodes) {
     if (tracked.mode === "code-comment") continue;
     const block = findGroupingBlock(tracked.node.parentElement);
     if (!block) continue;
+    // Keep excluded inline regions in place instead of merging their content
+    // into a larger paragraph or hiding them during replacement.
+    if (!exclusionBoundaries.has(block)) exclusionBoundaries.set(block, containsExcludedElement(block));
+    if (exclusionBoundaries.get(block)) continue;
     if (block.querySelector(`.${TRANSLATION_CLASS}`) && !block.matches(YOUTUBE_DESCRIPTION_SELECTOR)) continue;
     const group = groups.get(block) ?? [];
     group.push(tracked);
@@ -1755,14 +1712,15 @@ function completeGroupedSourceNodes(
     // ordinary prose would mutate the protection source during replacement.
     if (citation && isScientificCitation(citation)) continue;
     if (tracked.has(node) || !parent || findGroupingBlock(parent) !== block
-      || parent.closest("code,kbd,samp,button,input,textarea,select,option,[role='button']")
+      || hasSkippedAncestor(parent, "code,kbd,samp,button,input,textarea,select,option,[role='button']")
       || shouldSkipElement(parent, true, visibility) || !visibility.isTextNodeVisuallyRendered(node)) continue;
     // Short words, punctuation and whitespace can be in the complete paragraph
     // even when they were unsuitable as standalone translation requests.
     const entry: TrackedNode = {
-      id: nodes[0].id, node, mode: nodes[0].mode, sourceValue: node.data, sourceParent: parent
+      id: nodes[0].id, node, mode: nodes[0].mode, sourceValue: node.data, sourceParent: parent,
+      sourcePath: translationNodePath(node)
     };
-    trackedNodes.push(entry);
+    trackTextNodes(entry);
     tracked.add(node);
     complete.push(entry);
   }
@@ -1820,9 +1778,10 @@ function getYouTubeDescriptionLines(
         const existing = trackedByNode.get(node);
         if (existing) return existing;
         const tracked: TrackedNode = {
-          id, node, mode: "block", sourceValue: node.data, sourceParent: node.parentElement!
+          id, node, mode: "block", sourceValue: node.data, sourceParent: node.parentElement!,
+          sourcePath: translationNodePath(node)
         };
-        trackedNodes.push(tracked);
+        trackTextNodes(tracked);
         return tracked;
       });
       lines.push({ nodes, text });
@@ -1925,7 +1884,7 @@ let groupingBlockCache = new WeakMap<Element, Element | null>();
 function findGroupingBlock(element: Element | null): Element | null {
   if (!element) return null;
   if (groupingBlockCache.has(element)) return groupingBlockCache.get(element) ?? null;
-  const candidate = computeGroupingBlock(element);
+  const candidate = constrainTranslationOwner(element, computeGroupingBlock(element));
   // An explicitly re-enabled child of translate=no owns its own text. Never
   // aggregate it into an opted-out paragraph and replace that paragraph.
   const block = candidate && !isTranslationOptedOut(candidate) ? candidate : null;
@@ -1938,20 +1897,27 @@ function computeGroupingBlock(element: Element): Element | null {
   if (description) return element.closest("a") ? null : description;
   const comment = element.closest(YOUTUBE_COMMENT_SELECTOR);
   if (comment) return comment;
-  const compactNavigationTarget = getCompactNavigationTarget(element);
-  if (compactNavigationTarget) return compactNavigationTarget;
+  const workshopTitle = steamItemTitle(element);
+  if (workshopTitle) return workshopTitle;
   const compactControlTarget = getCompactControlTarget(element);
   if (compactControlTarget) return compactControlTarget;
+  const compactNavigationTarget = getCompactNavigationTarget(element);
+  if (compactNavigationTarget) return compactNavigationTarget;
   const singleLineTarget = getSingleLineTextTarget(element);
   if (singleLineTarget) return constrainGroupingToLayoutSlot(element, singleLineTarget);
 
+  const listItem = element.closest("li");
   const readableBlock = element.closest(
     `${SEMANTIC_TEXT_BLOCK_SELECTOR}, label, summary, ${X_POST_TEXT_SELECTOR}`
   );
-  if (readableBlock?.matches("summary") && !isInsideReadableSummary(readableBlock)) {
-    return null;
+  // Layout tables and blockquotes can wrap entire documents. Their semantic
+  // boundary must not absorb nearer list items; replacement would empty those
+  // items and move their combined translation to the outer container's end.
+  // Paragraphs and cells *inside* a list item still own their own content.
+  if (readableBlock && (!listItem || listItem.contains(readableBlock))) {
+    if (readableBlock.matches("summary") && !isInsideReadableSummary(readableBlock)) return null;
+    return constrainGroupingToLayoutSlot(element, readableBlock);
   }
-  if (readableBlock) return constrainGroupingToLayoutSlot(element, readableBlock);
   const scientificBlock = legacyScientificProseBlock(element);
   if (scientificBlock) return scientificBlock;
 
@@ -1968,7 +1934,6 @@ function computeGroupingBlock(element: Element): Element | null {
   const div = element.closest("div");
   if (div && isDivProseBlock(div)) return constrainGroupingToLayoutSlot(element, div);
 
-  const listItem = element.closest("li");
   if (!listItem) return null;
   const slot = constrainGroupingToLayoutSlot(element, listItem);
   if (slot !== listItem) return slot;
@@ -2041,7 +2006,7 @@ function constrainGroupingToLayoutSlot(element: Element, block: Element, respect
 
 function isAuthoredLineTextBlock(element: Element): boolean {
   if (!element.matches("span") || !element.querySelector("br")) return false;
-  if (element.closest("a,button,nav,[role='navigation'],[role='button'],[role='tab']")) return false;
+  if (hasSkippedAncestor(element, "a,button,nav,[role='navigation'],[role='button'],[role='tab']")) return false;
   if (element.querySelector("div,p,ul,ol,table,img,picture,video,iframe,input,textarea,select,button,[contenteditable]")) return false;
   if (normalizeText(element.textContent ?? "").length < 24) return false;
   if (/^(?:inline-)?(?:flex|grid)$/u.test(window.getComputedStyle(element).display)) return false;
@@ -2104,27 +2069,38 @@ function decideSkipElement(
   if (element.closest(REDDIT_METADATA_SELECTOR)) return true;
   if (isInsideCodeBlock(element)) return false;
   if (isCompactControlText(element)) {
-    return Boolean(element.closest(COMPACT_CONTROL_SKIP_SELECTOR));
+    return hasSkippedAncestor(element, COMPACT_CONTROL_SKIP_SELECTOR);
   }
   if (SKIP_TAGS.has(element.tagName.toUpperCase())) return true;
   if (isCompactNavigationText(element)) {
     if (!includeNavigation && !element.closest(KNOWN_COMPACT_NAV_SELECTOR)) return true;
-    return Boolean(element.closest(COMPACT_NAV_SKIP_SELECTOR));
+    return hasSkippedAncestor(element, COMPACT_NAV_SKIP_SELECTOR);
   }
   if (isInsideDocumentSemanticText(element)) {
-    return Boolean(element.closest(COMPACT_NAV_SKIP_SELECTOR));
+    return hasSkippedAncestor(element, COMPACT_NAV_SKIP_SELECTOR);
   }
   if (isInsideReadableHeadingContent(element)) {
-    return Boolean(element.closest(READABLE_SUMMARY_SKIP_SELECTOR));
+    return hasSkippedAncestor(element, READABLE_SUMMARY_SKIP_SELECTOR);
   }
   if (isInsideReadableSummary(element)) {
-    return Boolean(element.closest(READABLE_SUMMARY_SKIP_SELECTOR));
+    return hasSkippedAncestor(element, READABLE_SUMMARY_SKIP_SELECTOR);
   }
   const skipSelector = isVisuallyRenderedAriaHiddenText(element, visibility)
     ? VISIBLE_ARIA_HIDDEN_SKIP_SELECTOR
     : SKIP_SELECTOR;
-  if (element.closest(skipSelector)) return true;
-  return false;
+  return hasSkippedAncestor(element, skipSelector);
+}
+
+function hasSkippedAncestor(element: Element, selector: string): boolean {
+  let skipped = element.closest(selector);
+  while (skipped && isSteamContentCard(skipped)) {
+    // Only the navigable-card role is exempt; hidden/editor/navigation rules
+    // on the very same element must still apply.
+    const otherSelectors = selector.split(",").filter(part => part.trim() !== "[role='button']").join(",");
+    if (otherSelectors && skipped.matches(otherSelectors)) return true;
+    skipped = skipped.parentElement?.closest(selector) ?? null;
+  }
+  return Boolean(skipped);
 }
 
 function isVisuallyRenderedAriaHiddenText(
@@ -2324,7 +2300,8 @@ function removeUnrenderedCloneText(
       : visibility.isTextNodeVisuallyRendered(sourceText);
     // A descendant may belong to its own label, control or paragraph. Its
     // text must never also appear in an ancestor's translation request.
-    if (!keep || findGroupingBlock(sourceText.parentElement) !== source) {
+    if (!keep || (sourceText.parentElement && isElementExcluded(sourceText.parentElement))
+      || findGroupingBlock(sourceText.parentElement) !== source) {
       hidden.push(cloneWalker.currentNode as Text);
     }
   }
@@ -2477,6 +2454,10 @@ function isCompactUiElement(element: Element): boolean {
 
 function isLikelyUiToken(text: string, element: Element | null): boolean {
   if (!element) return false;
+  if (translationOwner(element)) return false;
+  // Steam's generated div/link UI also carries short headings, filters and
+  // mod names. Keep these readable labels; normal content exclusions still apply.
+  if (isSteamCommunity(element)) return false;
   if (legacyScientificProseBlock(element)) return false;
   if (element.closest(YOUTUBE_DESCRIPTION_SELECTOR)) return false;
   if (element.closest(YOUTUBE_COMMENT_SELECTOR)) return false;
@@ -2558,16 +2539,28 @@ function isCompactControlText(element: Element): boolean {
 }
 
 function getCompactControlTarget(element: Element): Element | null {
-  const control = element.closest(
-    "button,a,[role='button'],[role='tab'],[role='menuitem'],"
-    + "[role='menuitemradio'],[role='menuitemcheckbox'],[role='option']"
-  );
+  const control = element.closest(COMPACT_CONTROL_SELECTOR) ?? getSlottedControlHost(element);
   if (!control || control.closest(HEADING_SELECTOR)) return null;
+  if (isSteamContentCard(control)) return null;
   if (control.matches("a:not([role='button'])") && !control.querySelector("img,svg,canvas")) return null;
   if (control.querySelector("input,select,textarea,[contenteditable='true']")) return null;
   const text = normalizeText(control.textContent ?? "");
   if (text.length < 2 || text.length > 120) return null;
   return getNestedTextHost(element, control);
+}
+
+// A custom element may expose its button only inside an open shadow root.
+// Its light-DOM label still belongs to that button's slot, not the surrounding
+// action row. Check the actual projection so prose beside a button is unaffected.
+function getSlottedControlHost(element: Element): Element | null {
+  let child: Element | null = null;
+  for (let host: Element | null = element; host; child = host, host = host.parentElement) {
+    if (!componentShadowRoot(host)) continue;
+    const slots = child ? [projectedSlot(child)] : Array.from(host.childNodes).flatMap(node =>
+      node instanceof Text ? [projectedSlot(node)] : []);
+    if (slots.some(slot => slot?.closest(COMPACT_CONTROL_SELECTOR))) return host;
+  }
+  return null;
 }
 
 function getNestedTextHost(element: Element, container: Element): Element {

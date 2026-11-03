@@ -1,8 +1,8 @@
 name: Sync website with release
 
 # Triggered manually OR by release.yml after a successful release.
-# Updates 6 hardcoded version references in wupage-web/index.html,
-# then commits + pushes (which fires wupage-web's deploy.yml).
+# Updates legacy hardcoded version references in wupage-web/index.html,
+# then commits + pushes. Pages using releases/latest need no rewrite.
 #
 # Requires repository secret WUPAGE_WEB_PAT in mr-wuliu/wupage:
 #   Fine-grained PAT, resource owner = mr-wuliu,
@@ -109,6 +109,5 @@ jobs:
           git commit -m "Auto-sync with wupage ${{ steps.release.outputs.tag }}
 
           Triggered by workflow_dispatch after release ${{ steps.release.outputs.tag }}
-          on mr-wuliu/wupage. Updated 6 references: version badge, sidebar nav,
-          showcase desc, ZIP name + size, download button, release notes link."
+          on mr-wuliu/wupage. Updated release download references."
           git push

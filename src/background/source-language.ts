@@ -2,7 +2,9 @@
 export async function detectSourceLanguage(texts: readonly string[], signal?: AbortSignal): Promise<string | undefined> {
   signal?.throwIfAborted();
   if (!texts.length) return undefined;
-  const detection = chrome.i18n.detectLanguage(texts.join("\n").slice(0, 12000));
+  const sample = texts.join("\n").replace(/⟪WUPAGE(?:OPEN|CLOSE)?\d+⟫/gu, "").slice(0, 12000);
+  if (!sample.trim()) return undefined;
+  const detection = chrome.i18n.detectLanguage(sample);
   let onAbort: (() => void) | undefined;
   try {
     const result = signal ? await new Promise<chrome.i18n.LanguageDetectionResult>((resolve, reject) => {

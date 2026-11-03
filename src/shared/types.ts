@@ -181,6 +181,7 @@ export type DualServiceProviderConfig = Extract<ProviderConfig, DualServiceConfi
 }>;
 
 export interface ExtensionSettings {
+  elementExclusions?: import("./element-exclusions").ElementExclusionRule[];
   frameTranslation?: import("./frame-session").FrameTranslationSettings;
   videoTranslation?: VideoTranslationSettings;
   shortcuts?: ShortcutSettings;
@@ -346,7 +347,7 @@ export type RuntimeRequest =
   | { type: "GET_SETTINGS" }
   | { type: "OPEN_OPTIONS_PAGE" }
   | { type: "OPEN_EMBEDDED_PDF"; url: string }
-  | { type: "SAVE_SETTINGS"; settings: ExtensionSettings }
+  | { type: "SAVE_SETTINGS"; settings: ExtensionSettings; previousSettings?: ExtensionSettings }
   | { type: "TEST_PROVIDER"; providerId?: string };
 
 export type RuntimeResponse =

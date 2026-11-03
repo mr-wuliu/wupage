@@ -1,5 +1,6 @@
 import type { LocalModel } from "./models";
 import { readLocalModel } from "./model-store";
+import { fromStructuredHTML, toStructuredHTML } from "./structured-html";
 
 // Use the upstream worker protocol directly. This avoids its default remote
 // registry/downloader and gives every failed worker call a bounded lifetime.
@@ -66,12 +67,18 @@ export class LocalTranslationEngine {
       await this.ensureRoute(route);
       const result = await this.call("translate", [{
         models: route.map(({ from, to }) => ({ from, to })),
-        texts: texts.map((text) => ({ text, html: false, qualityScores: false }))
+        texts: texts.map((text) => {
+          const html = toStructuredHTML(text);
+          return { text: html ?? text, html: html !== undefined, qualityScores: false };
+        })
       }]) as { target: { text: string } }[];
       if (!Array.isArray(result) || result.length !== texts.length || result.some((item) => typeof item?.target?.text !== "string")) {
         throw new Error("本地翻译返回了不完整的结果，请重试。");
       }
-      return result.map((item) => item.target.text);
+      // Malformed/dropped markup stays invalid for the shared protected-text
+      // validator, which retries only that item and can fall back to fragments.
+      return result.map((item, index) => toStructuredHTML(texts[index]) === undefined
+        ? item.target.text : fromStructuredHTML(item.target.text) ?? item.target.text);
     } catch (error) {
       this.release();
       throw error;

@@ -36,18 +36,22 @@ beforeEach(() => {
   controller = new SelectionTranslationController({ enabled: true, provider: "youdao", style: "dot" });
 });
 afterEach(() => {
+  vi.useRealTimers();
   controller.dispose(); window.getSelection()?.removeAllRanges(); document.body.replaceChildren();
   delete (Range.prototype as Partial<Range>).getClientRects; vi.restoreAllMocks(); vi.mocked(sendRuntimeRequest).mockReset();
 });
 
 describe("selection dictionary UI", () => {
-  it("rejects a selection that crosses an editor even when both endpoints are ordinary prose", () => {
+  it("rejects a selection that crosses an editor even when both endpoints are ordinary prose", async () => {
+    vi.useFakeTimers();
     document.body.innerHTML = '<main><p id="start">Public introduction.</p><div contenteditable="plaintext-only">Private unsent draft.</div><p id="end">Public conclusion.</p></main>';
     const range = document.createRange();
     range.setStart(document.querySelector("#start")!.firstChild!, 0);
     range.setEnd(document.querySelector("#end")!.firstChild!, 18);
     window.getSelection()!.removeAllRanges(); window.getSelection()!.addRange(range);
-    expect(() => controller.openFromShortcut()).toThrow("输入框和编辑区");
+    document.dispatchEvent(new Event("selectionchange"));
+    await vi.advanceTimersByTimeAsync(50);
+    expect(root().querySelector(".trigger-dot,.trigger-line")).toBeNull();
     expect(sendRuntimeRequest).not.toHaveBeenCalled();
   });
   it("applies custom submission and dismissal immediately without intercepting normal editor input", async () => {
@@ -66,21 +70,17 @@ describe("selection dictionary UI", () => {
     source().dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", altKey: true, bubbles: true }));
     expect(card().hidden).toBe(true);
   });
-  it("opens directly from an immediate keyboard selection without waiting for entry points", async () => {
-    select(); controller.openFromShortcut();
-    await vi.waitFor(() => expect(root().querySelector(".meanings")?.textContent).toContain("例子"));
-    expect(sendRuntimeRequest).toHaveBeenCalledWith({ type: "LOOKUP_DICTIONARY", provider: "youdao", query: "example" });
-    const count = vi.mocked(sendRuntimeRequest).mock.calls.length;
-    controller.openFromShortcut();
-    expect(sendRuntimeRequest).toHaveBeenCalledTimes(count);
-    expect(root().activeElement).toBe(card());
-  });
-  it("rejects missing selections, editable text and disabled selection shortcuts", () => {
+  it("hides entry points for missing selections, editable text and disabled selection translation", async () => {
+    vi.useFakeTimers();
     window.getSelection()?.removeAllRanges();
-    expect(() => controller.openFromShortcut()).toThrow("请先选中");
-    select("editable"); expect(() => controller.openFromShortcut()).toThrow("输入框");
+    document.dispatchEvent(new Event("selectionchange"));
+    await vi.advanceTimersByTimeAsync(50);
+    expect(root().querySelector(".trigger-dot,.trigger-line")).toBeNull();
+    select("editable"); await vi.advanceTimersByTimeAsync(50);
+    expect(root().querySelector(".trigger-dot,.trigger-line")).toBeNull();
     controller.update({ enabled: false, provider: "youdao", style: "dot" });
-    select(); expect(() => controller.openFromShortcut()).toThrow("启用划词翻译");
+    select(); await vi.advanceTimersByTimeAsync(50);
+    expect(root().querySelector(".trigger-dot,.trigger-line")).toBeNull();
     expect(sendRuntimeRequest).not.toHaveBeenCalled();
   });
   it("only queries after activation, retains the browser selection and renders pronunciation and meanings", async () => {

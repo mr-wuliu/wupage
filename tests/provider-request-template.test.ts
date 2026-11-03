@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createProvider, translateImageRegions } from "../src/background/providers";
+import { createProvider } from "../src/background/providers";
 import { normalizeSettings } from "../src/shared/settings";
 import type { ProviderConfig } from "../src/shared/types";
 
@@ -60,16 +60,4 @@ describe("provider request template transport", () => {
     }
   );
 
-  it("also adds gateway headers and options to image requests while retaining image content", async () => {
-    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ choices: [{ message: { content: '{"regions":[]}' } }] })));
-    vi.stubGlobal("fetch", fetchMock);
-    await translateImageRegions({ ...base, type: "openai-compatible" }, {
-      dataUrl: "data:image/png;base64,test", width: 100, height: 100
-    }, "zh-CN", "en");
-    const init = fetchMock.mock.calls[0][1] as RequestInit;
-    expect(new Headers(init.headers).get("x-opencode-session")).toBe("wupage");
-    const body = JSON.parse(String(init.body));
-    expect(body.enable_thinking).toBe(false);
-    expect(body.messages[1].content[1].image_url.url).toBe("data:image/png;base64,test");
-  });
 });

@@ -65,7 +65,7 @@ function initializeContent(): void {
   // Ignore an older initial read if the user saves a newer appearance while it is pending.
   let appearanceRevision = 0;
   void sendRuntimeRequest<ExtensionSettings>({ type: "GET_SETTINGS" }).then(settings => {
-    if (!appearanceRevision) appearance?.update(settings.appearance);
+    if (!appearanceRevision) { appearance?.update(settings.appearance); updatePageTranslationSettings(settings); }
   }).catch(() => undefined);
   initializeFeature("floating controls", initFloatingBall);
   initializeFeature("image translation", initImageTranslation);
