@@ -428,12 +428,22 @@
 
         <footer class="settings-actions">
           <button id="save" type="button">保存</button>
-          <button id="restore" type="button" class="secondary">恢复默认设置</button>
+          <button id="restore" type="button" class="danger">完全重置设置</button>
           <p id="status" role="status"></p>
         </footer>
       </div>
     </main>
 
+    <dialog id="settingsResetDialog" class="provider-dialog reset-dialog" aria-labelledby="settingsResetTitle" aria-describedby="settingsResetWarning settingsResetCaution">
+      <h2 id="settingsResetTitle">完全重置设置？</h2>
+      <p id="settingsResetWarning">这会将所有设置恢复为默认值，删除全部已保存的密钥与自定义翻译服务，并丢弃未保存的修改。</p>
+      <p id="settingsResetCaution"><strong>此操作无法撤销。</strong>建议先导出包含密钥的完整备份。</p>
+      <p id="settingsResetStatus" class="hint" role="status" aria-live="polite"></p>
+      <div class="dialog-actions">
+        <button id="cancelSettingsReset" class="secondary" type="button" autofocus>取消</button>
+        <button id="confirmSettingsReset" class="danger" type="button">确认完全重置</button>
+      </div>
+    </dialog>
     <dialog id="settingsBackupDialog" class="provider-dialog backup-dialog" aria-labelledby="settingsBackupDialogTitle" aria-describedby="settingsBackupWarning">
       <h2 id="settingsBackupDialogTitle"></h2>
       <p id="settingsBackupSummary" class="field-description"></p>

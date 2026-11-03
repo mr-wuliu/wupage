@@ -19,9 +19,16 @@ describe("appearance editor", () => {
       if (request.type === "GET_SETTINGS") return { ok: true, data: stored };
       if (request.type === "GET_OCR_STATUS") return { ok: true, data: { state: "not-installed" } };
       if (request.type === "SAVE_SETTINGS") stored = normalizeSettings(request.settings);
+      if (request.type === "RESET_SETTINGS") {
+        stored = normalizeSettings(structuredClone(DEFAULT_SETTINGS));
+        return { ok: true, data: structuredClone(stored) };
+      }
       return { ok: true, data: null };
     });
     vi.stubGlobal("chrome", { runtime: { sendMessage } });
+    const resetDialog = document.querySelector<HTMLDialogElement>("#settingsResetDialog")!;
+    resetDialog.showModal = function () { this.open = true; };
+    resetDialog.close = function () { this.open = false; };
   });
   afterEach(() => {
     window.dispatchEvent(new Event("pagehide")); vi.unstubAllGlobals(); vi.restoreAllMocks();
@@ -115,6 +122,7 @@ describe("appearance editor", () => {
     query<HTMLButtonElement>("#save").click();
     await vi.waitFor(() => expect(stored.appearance).toMatchObject({ mode: "system", lightSchemeId: "paper", darkSchemeId: "wupage-dark", customSchemes: [] }));
     query<HTMLButtonElement>("#restore").click();
+    query<HTMLButtonElement>("#confirmSettingsReset").click();
     await vi.waitFor(() => expect(stored.appearance).toEqual(DEFAULT_APPEARANCE));
   });
 
@@ -176,6 +184,7 @@ describe("appearance editor", () => {
     await vi.waitFor(() => expect(stored.appearance?.floatingOpacity).toBe(62));
     expect(stored.appearance?.customSchemes).toEqual([]);
     query<HTMLButtonElement>("#restore").click();
+    query<HTMLButtonElement>("#confirmSettingsReset").click();
     await vi.waitFor(() => {
       expect(stored.appearance?.floatingOpacity).toBe(100);
       expect(query<HTMLInputElement>("#floatingOpacityNumber").value).toBe("100");

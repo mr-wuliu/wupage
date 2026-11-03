@@ -52,8 +52,11 @@ describe("background settings writes", () => {
   it("supports an explicit full reset without retaining the old configuration", async () => {
     stored.targetLang = "ja";
     stored.videoTranslation = { enabled: false, showOriginal: false, fontSize: 26, background: "none", preferredSource: "en", enabledSites: [] };
-    await request({ type: "SAVE_SETTINGS", settings: structuredClone(DEFAULT_SETTINGS) });
+    Object.assign(stored.providers.find(p => p.type === "deepseek")!, { apiKey: "private-key" });
+    const result = await request({ type: "RESET_SETTINGS" }) as ExtensionSettings;
     expect(stored.targetLang).toBe(DEFAULT_SETTINGS.targetLang);
     expect(stored.videoTranslation).toBeUndefined();
+    expect(stored.providers.find(p => p.type === "deepseek")).toMatchObject({ apiKey: "" });
+    expect(result).toEqual(stored);
   });
 });

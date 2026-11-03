@@ -52,7 +52,9 @@ flowchart LR
 
 `npm run test:structured:edge` 和 `npm run test:structured:firefox` 使用独立浏览器配置与本地翻译服务，检查开放/封闭组件、原节点身份、格式顺序、点击行为、动态更新及精确恢复。真实本地模型验证使用 `npm run test:structured:local`，需先构建 Firefox，并通过 `LOCAL_MODEL_FIXTURE_DIR` 指向已有的 `en-zh-Hans` 模型目录；测试校验模型文件哈希，不下载模型。模型 HTML 对齐结果不符合结构约束时，测试同时检查受保护文本回退。
 
-普通配置保存通过 `SAVE_SETTINGS` 同时提交编辑结果和读取时的 `previousSettings`。后台按顺序合并本次变更，保留其他页面修改的字段；服务配置按稳定 ID 合并，避免覆盖其他服务的凭据或重新创建已删除服务。显式恢复默认设置时省略 `previousSettings`，执行完整替换。新增保存入口应遵循同一约定，避免直接写入整个配置对象。
+普通配置保存通过 `SAVE_SETTINGS` 同时提交编辑结果和读取时的 `previousSettings`。后台按顺序合并本次变更，保留其他页面修改的字段；服务配置按稳定 ID 合并，避免覆盖其他服务的凭据或重新创建已删除服务。完全重置由确认窗口触发 `RESET_SETTINGS`，在共享写入队列中完整替换为默认配置，并返回该次写入结果。界面等待已有保存完成，且只在重置成功后更新表单与保存基线；取消或写入失败保留原配置、密钥及草稿。新增保存入口应遵循同一约定，避免直接写入整个配置对象。
+
+重置确认与交互保护位于 `src/options/reset-settings.ts`。入口和确认按钮复用警告色 `--wp-danger`，通过 `--wp-on-danger` 自动选择可读文字色。确认窗口默认聚焦取消；未提交时支持 Esc，写入期间禁止重复确认与提前关闭。使用 `npm run test:settings-reset`、`npm run test:settings-reset:edge`、`npm run test:settings-reset:firefox` 验证真实取消、确认、密钥清除、不同配色对比度和窄屏布局，均使用独立测试配置。
 
 设置备份格式与字段校验位于 `src/shared/settings-backup.ts`，界面位于 `src/options/settings-backup.ts`。配置仅使用 TOML，由固定版本的 `smol-toml` 解析与序列化，禁止不安全键并限制嵌套深度。TOML 格式 v1 带有固定类型标记、格式版本、扩展版本、导出时间和 `includesKeys` 标记，仅导出声明的配置字段。`pdfTranslationPageRadius` 在文件中用 `"all"` 表示内部的无限范围空值；多行提示词与模板复用库的转义规则输出为 TOML 多行字符串。解析错误仅提示行列，不显示可能含凭据的源码片段。
 

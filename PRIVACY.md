@@ -60,7 +60,7 @@ Users can:
 - pause local model downloads, resume them, import model files offline, or remove downloaded models;
 - export PDFs without downloading fonts, or install and remove the optional complete export font;
 - clear displayed translations from a webpage;
-- reset extension settings; and
+- fully reset extension settings and delete saved credentials after an explicit confirmation; and
 - remove all locally stored extension data by uninstalling WuPage.
 
 ## Changes to This Policy
