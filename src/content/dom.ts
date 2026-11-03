@@ -198,6 +198,8 @@ const NAVIGATION_CONTAINER_SELECTOR = [
   KNOWN_COMPACT_NAV_SELECTOR
 ].join(",");
 const HEADING_SELECTOR = "h1,h2,h3,h4,h5,h6";
+const COMPACT_CONTROL_SELECTOR = "button,a,[role='button'],[role='tab'],[role='menuitem'],"
+  + "[role='menuitemradio'],[role='menuitemcheckbox'],[role='option']";
 const DOCUMENT_SEMANTIC_REGION_SELECTOR = [
   "header",
   "aside",
@@ -1768,10 +1770,10 @@ function computeGroupingBlock(element: Element): Element | null {
   if (comment) return comment;
   const workshopTitle = steamItemTitle(element);
   if (workshopTitle) return workshopTitle;
-  const compactNavigationTarget = getCompactNavigationTarget(element);
-  if (compactNavigationTarget) return compactNavigationTarget;
   const compactControlTarget = getCompactControlTarget(element);
   if (compactControlTarget) return compactControlTarget;
+  const compactNavigationTarget = getCompactNavigationTarget(element);
+  if (compactNavigationTarget) return compactNavigationTarget;
   const singleLineTarget = getSingleLineTextTarget(element);
   if (singleLineTarget) return constrainGroupingToLayoutSlot(element, singleLineTarget);
 
@@ -2404,10 +2406,7 @@ function isCompactControlText(element: Element): boolean {
 }
 
 function getCompactControlTarget(element: Element): Element | null {
-  const control = element.closest(
-    "button,a,[role='button'],[role='tab'],[role='menuitem'],"
-    + "[role='menuitemradio'],[role='menuitemcheckbox'],[role='option']"
-  );
+  const control = element.closest(COMPACT_CONTROL_SELECTOR) ?? getSlottedControlHost(element);
   if (!control || control.closest(HEADING_SELECTOR)) return null;
   if (isSteamContentCard(control)) return null;
   if (control.matches("a:not([role='button'])") && !control.querySelector("img,svg,canvas")) return null;
@@ -2415,6 +2414,20 @@ function getCompactControlTarget(element: Element): Element | null {
   const text = normalizeText(control.textContent ?? "");
   if (text.length < 2 || text.length > 120) return null;
   return getNestedTextHost(element, control);
+}
+
+// A custom element may expose its button only inside an open shadow root.
+// Its light-DOM label still belongs to that button's slot, not the surrounding
+// action row. Check the actual projection so prose beside a button is unaffected.
+function getSlottedControlHost(element: Element): Element | null {
+  let child: Element | null = null;
+  for (let host: Element | null = element; host; child = host, host = host.parentElement) {
+    if (!host.shadowRoot) continue;
+    const slots = child ? [child.assignedSlot] : Array.from(host.childNodes).flatMap(node =>
+      node instanceof Text ? [node.assignedSlot] : []);
+    if (slots.some(slot => slot?.closest(COMPACT_CONTROL_SELECTOR))) return host;
+  }
+  return null;
 }
 
 function getNestedTextHost(element: Element, container: Element): Element {
