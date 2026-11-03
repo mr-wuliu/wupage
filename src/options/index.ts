@@ -23,6 +23,7 @@ import { readRequestTemplate, setupProviderTabs } from "./provider-advanced";
 import { isDoubaoBrowserSupported } from "../shared/doubao";
 import { formatDoubaoStatus, isDoubaoProviderUnavailable, syncDoubaoTargetControls } from "../shared/doubao-ui";
 import { renderUiIcons, uiIconMarkup } from "../shared/ui-icons";
+import { setupSettingsBackupControls } from "./settings-backup";
 
 renderUiIcons();
 
@@ -129,6 +130,14 @@ async function init(): Promise<void> {
   settings = await sendRuntimeMessage<ExtensionSettings>({ type: "GET_SETTINGS" });
   savedSettings = cloneSettings(settings);
   render();
+  setupSettingsBackupControls({ status: setStatus, imported: imported => {
+    invalidateProviderTest();
+    settings = imported;
+    savedSettings = cloneSettings(imported);
+    editingProviderId = undefined;
+    setProviderMenuOpen(false);
+    render();
+  } });
   setupOcrControl(imageTranslationEnabled, () => { settings.imageTranslationEnabled = false; setImageTranslationToggle(imageTranslationEnabled, false); });
   const imageNotice = new URLSearchParams(location.search).get("imageTranslationNotice");
   if (imageNotice === "setup") setStatus("使用右键图片翻译前，请先点击扳手安装 OCR 模型，开启图片翻译并保存。");

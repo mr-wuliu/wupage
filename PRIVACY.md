@@ -1,6 +1,6 @@
 # WuPage Privacy Policy
 
-Effective date: November 2, 2026
+Effective date: November 3, 2026
 
 WuPage is a Firefox, Microsoft Edge and Chromium-compatible browser extension that translates webpage text, selected text, recognized image text and PDF text using a translation provider selected and configured by the user.
 
@@ -41,6 +41,8 @@ WuPage does not sell user data. WuPage does not transfer user data for advertisi
 Settings, provider credentials, and optional translation cache entries are stored locally through the browser's extension storage. They remain until the user changes or clears them, resets the extension settings, clears extension data, or uninstalls WuPage. Debug task information is temporary and is discarded when the extension's background context is reset.
 
 Provider responses and request metadata can be retained by the selected provider according to that provider's policies. WuPage does not control a provider's retention practices.
+
+Users can explicitly export saved settings to a local JSON backup. Backups are unencrypted and contain all configured credentials, including keys, custom headers, URLs and request templates. A warning is shown before export. They exclude translation caches, usage records, login sessions, downloaded models, PDF fonts and browser permissions. Importing a trusted backup replaces settings and credentials after confirmation; it does not upload the backup or reuse existing local credentials. The configured endpoints determine where subsequent translation requests and credentials are sent. Users control the retention and deletion of exported backup files; uninstalling the extension does not delete those files.
 
 ## Security
 

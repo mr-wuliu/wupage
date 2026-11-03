@@ -127,6 +127,30 @@ body {
   display: none;
 }
 
+.backup-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.provider-dialog.backup-dialog {
+  box-sizing: border-box;
+  width: 520px;
+  max-width: min(520px, calc(100vw - 32px));
+  max-height: calc(100dvh - 32px);
+  padding: 24px;
+  overflow-wrap: anywhere;
+  line-height: 1.7;
+}
+
+.backup-dialog[open] {
+  display: grid;
+  gap: 16px;
+}
+
+.backup-dialog p { margin: 0; }
+.backup-dialog #settingsBackupDialogStatus:empty { display: none; }
+
 @media (max-width: 960px) {
   .settings {
     grid-template-columns: 180px minmax(0, 1fr);
