@@ -54,6 +54,10 @@ flowchart LR
 
 普通配置保存通过 `SAVE_SETTINGS` 同时提交编辑结果和读取时的 `previousSettings`。后台按顺序合并本次变更，保留其他页面修改的字段；服务配置按稳定 ID 合并，避免覆盖其他服务的凭据或重新创建已删除服务。显式恢复默认设置时省略 `previousSettings`，执行完整替换。新增保存入口应遵循同一约定，避免直接写入整个配置对象。
 
+设置备份格式与字段校验位于 `src/shared/settings-backup.ts`，界面位于 `src/options/settings-backup.ts`。备份带有固定类型标记、格式版本、扩展版本和导出时间，仅导出声明的配置字段，始终包含全部凭据。导入通过 `IMPORT_SETTINGS` 在后台重复校验文件，再经共享写入队列完整替换设置；不合并本机凭据。后台在写入前检查 OCR 模型，缺失时只关闭图片翻译。校验或写入失败不会更新表单基线，也不会清空其他存储。新增配置字段或服务类型时须同步更新备份字段声明；不兼容的结构调整须升级格式版本并实现迁移。
+
+使用 `npm run test:settings-backup`、`npm run test:settings-backup:edge` 或 `npm run test:settings-backup:firefox` 验证实际下载、导入确认、配置与表单同步、缺失模型、后续普通保存及窄屏布局。测试使用独立浏览器配置和模拟凭据，不调用翻译服务。
+
 Chrome / Edge 使用后台 Service Worker，并通过 offscreen 文档承载需要 DOM 或 Worker 的本地能力；Firefox 使用后台事件页和隐藏 iframe。相关适配入口为 `build/manifest.ts` 与 `src/background/offscreen.ts`。
 
 ## 环境搭建

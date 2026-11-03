@@ -49,6 +49,10 @@
             <span data-wupage-icon="display" aria-hidden="true"></span>
             <span>使用统计</span>
           </a>
+          <a href="#backupSettings" aria-controls="backupSettings">
+            <span data-wupage-icon="adjustment" aria-hidden="true"></span>
+            <span>备份与恢复</span>
+          </a>
         </nav>
       </aside>
 
@@ -408,6 +412,20 @@
               </ul>
             </details>
           </section>
+          <section id="backupSettings" class="settings-panel" aria-labelledby="backupSettingsTitle" hidden>
+            <div class="settings-panel-heading">
+              <h2 id="backupSettingsTitle">备份与恢复</h2>
+              <p>备份已保存的设置，或在其他浏览器恢复配置。</p>
+            </div>
+            <p class="hint">备份包含翻译服务、密钥、请求模板、站点规则、快捷键和外观等设置。文件未加密，请妥善保管，不要公开分享。</p>
+            <div class="backup-actions">
+              <button id="exportSettings" type="button">导出设置</button>
+              <button id="importSettings" type="button" class="secondary">导入设置</button>
+              <input id="settingsBackupFile" type="file" accept=".json,application/json" aria-label="选择设置备份" hidden />
+            </div>
+            <p class="field-description">导出仅包含已保存的设置，编辑后请先点击「保存」。导入经确认后立即覆盖设置，无需再次保存。</p>
+            <p class="field-description">不包含翻译缓存、统计记录、浏览器登录状态、模型、PDF 字体和浏览器权限。缺少的模型与字体需在当前浏览器单独安装。</p>
+          </section>
         </div>
 
         <footer class="settings-actions">
@@ -418,6 +436,16 @@
       </div>
     </main>
 
+    <dialog id="settingsBackupDialog" class="provider-dialog backup-dialog" aria-labelledby="settingsBackupDialogTitle" aria-describedby="settingsBackupWarning">
+      <h2 id="settingsBackupDialogTitle"></h2>
+      <p id="settingsBackupSummary" class="field-description"></p>
+      <p id="settingsBackupWarning"></p>
+      <p id="settingsBackupDialogStatus" class="hint" role="status" aria-live="polite"></p>
+      <div class="dialog-actions">
+        <button id="cancelSettingsBackup" class="secondary" type="button" autofocus>取消</button>
+        <button id="confirmSettingsBackup" type="button">确认</button>
+      </div>
+    </dialog>
     <dialog id="providerDialog" class="provider-dialog">
       <form id="providerDialogForm">
         <header class="dialog-header">
