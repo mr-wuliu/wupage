@@ -141,7 +141,7 @@ describe("settings category navigation", () => {
   it("saves the input translation panel with the other categories", async () => {
     await mount();
     navigate("inputTranslationSettings");
-    expect(query("#inputTranslationProviderStatus").textContent).toContain("需要大模型服务");
+    expect(query("#inputTranslationProviderStatus").textContent).toContain("将使用");
     query<HTMLTextAreaElement>("#inputTranslationPrompt").value = "Keep it short.";
     query<HTMLInputElement>("#inputTranslationEnabled").click();
     query<HTMLButtonElement>("#save").click();

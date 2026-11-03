@@ -17,17 +17,22 @@ beforeEach(() => { vi.stubGlobal("chrome", { storage: { local: storage } }); });
 afterEach(() => { vi.unstubAllGlobals(); vi.clearAllMocks(); });
 
 describe("input translation service choice", () => {
-  it("prefers the chosen LLM, then the default service when it is an LLM, then any configured LLM", () => {
+  it("prefers the chosen service, then the default service, then any other enabled service that is configured", () => {
     const providers = [google, llm({ id: "a", apiKey: "" }), llm({ id: "b" }), llm({ id: "c" })];
-    expect(pickInputProvider(settingsWith(providers))?.id).toBe("b");
+    expect(pickInputProvider(settingsWith(providers))?.id).toBe("google-web-translate");
     expect(pickInputProvider(settingsWith(providers, "c"))?.id).toBe("c");
     expect(pickInputProvider(settingsWith(providers, "c", { inputTranslation: { enabled: true, providerId: "b", prompt: "p" } }))?.id).toBe("b");
     // A chosen service that was removed or lost its key falls back instead of failing.
     expect(pickInputProvider(settingsWith(providers, "c", { inputTranslation: { enabled: true, providerId: "a", prompt: "p" } }))?.id).toBe("c");
-    expect(pickInputProvider(settingsWith([google, llm({ enabled: false })]))).toBeUndefined();
+    expect(pickInputProvider(settingsWith([{ ...google, enabled: false }, llm({ enabled: false })]))).toBeUndefined();
+  });
+  it("accepts machine translation services as well as LLMs", () => {
+    expect(pickInputProvider(settingsWith([google]))?.id).toBe("google-web-translate");
+    expect(pickInputProvider(settingsWith([{ ...google, enabled: false }, llm()], "google-web-translate"))?.id).toBe("oa");
   });
   it("ignores the untouched built-in LLM entries but accepts keyless local endpoints and Anthropic-compatible services", () => {
-    expect(pickInputProvider(settingsWith(DEFAULT_SETTINGS.providers))).toBeUndefined();
+    expect(pickInputProvider(settingsWith([llm({ apiKey: "" })], "missing"))).toBeUndefined();
+    expect(pickInputProvider(settingsWith(DEFAULT_SETTINGS.providers, DEFAULT_SETTINGS.activeProviderId))?.id).toBe(DEFAULT_SETTINGS.activeProviderId);
     expect(pickInputProvider(settingsWith([llm({ apiKey: "", baseURL: "http://localhost:11434/v1" })]))?.id).toBe("oa");
     expect(pickInputProvider(settingsWith([llm({ apiKey: "", baseURL: "http://192.168.1.5:8000/v1" })]))?.id).toBe("oa");
     expect(pickInputProvider(settingsWith([{ ...llm({ id: "claude" }), type: "anthropic-compatible" } as ProviderConfig]))?.id).toBe("claude");
@@ -64,10 +69,26 @@ describe("input translation settings", () => {
 });
 
 describe("input translation request", () => {
-  it("explains that an LLM service is required when none is configured", async () => {
+  it("explains that a translation service is required when none is enabled", async () => {
     const fetchMock = vi.fn(); vi.stubGlobal("fetch", fetchMock);
-    await expect(translateInput(settingsWith([google]), "你好")).rejects.toThrow("输入框翻译需要大模型服务，请先在设置中配置");
+    await expect(translateInput(settingsWith([{ ...google, enabled: false }]), "你好")).rejects.toThrow("输入框翻译需要可用的翻译服务");
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+  it("uses a machine translation service without sending the LLM prompt", async () => {
+    const fetchMock = vi.fn(async (_url: string) => new Response(JSON.stringify([[["See you tomorrow", "明天见"]]]))); vi.stubGlobal("fetch", fetchMock);
+    const result = await translateInput(settingsWith([google, llm()]), "明天见");
+    expect(result).toEqual({ translation: "See you tomorrow", providerLabel: "Google 翻译" });
+    expect(fetchMock).toHaveBeenCalledOnce();
+    const url = String(fetchMock.mock.calls[0][0]);
+    expect(url).toContain("translate.googleapis.com");
+    expect(url).toContain("tl=English");
+  });
+  it("falls back past a chosen service whose settings are incomplete", async () => {
+    const fetchMock = reply('["你好"]'); vi.stubGlobal("fetch", fetchMock);
+    const cloud = { type: "google-cloud-translation", id: "gc", label: "Google Cloud", enabled: true, apiKey: "" } as ProviderConfig;
+    const result = await translateInput(settingsWith([cloud, llm()], "gc"), "Hello");
+    expect(result.providerLabel).toBe("OA");
+    expect(fetchMock).toHaveBeenCalledOnce();
   });
   it("rejects empty, oversized or disabled requests before calling the model", async () => {
     const fetchMock = vi.fn(); vi.stubGlobal("fetch", fetchMock);
@@ -79,7 +100,8 @@ describe("input translation request", () => {
   });
   it("sends one request with the input prompt and target language and never touches the cache", async () => {
     const fetchMock = reply('["See you tomorrow"]'); vi.stubGlobal("fetch", fetchMock);
-    const result = await translateInput(settingsWith([google, llm()], "google-web-translate", { cacheEnabled: true }), "明天见");
+    const result = await translateInput(settingsWith([google, llm()], "google-web-translate",
+      { cacheEnabled: true, inputTranslation: { enabled: true, providerId: "oa", prompt: DEFAULT_INPUT_PROMPT } }), "明天见");
     expect(result).toEqual({ translation: "See you tomorrow", providerLabel: "OA" });
     expect(fetchMock).toHaveBeenCalledOnce();
     const body = String(fetchMock.mock.calls[0][1].body);

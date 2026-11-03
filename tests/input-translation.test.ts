@@ -176,12 +176,12 @@ describe("request lifecycle", () => {
     finish({ translation: "Hello", providerLabel: "OA" }); await first;
     expect(document.querySelector("textarea")!.value).toBe("Hello");
   });
-  it("shows the service error, such as a missing LLM", async () => {
+  it("shows the service error, such as no enabled translation service", async () => {
     document.body.innerHTML = "<textarea>你好</textarea>";
     document.querySelector("textarea")!.focus();
-    send.mockRejectedValue(new Error("输入框翻译需要大模型服务，请先在设置中配置。"));
+    send.mockRejectedValue(new Error("输入框翻译需要可用的翻译服务，请先在设置中启用一个服务。"));
     await translateFocusedInput();
-    expect(notice()?.textContent).toContain("需要大模型服务");
+    expect(notice()?.textContent).toContain("需要可用的翻译服务");
     expect(document.querySelector("textarea")!.value).toBe("你好");
   });
 });

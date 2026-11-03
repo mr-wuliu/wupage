@@ -1,7 +1,11 @@
 import { DEFAULT_INPUT_PROMPT, isInputTranslationProvider, normalizeInputTranslation, pickInputProvider,
   type InputTranslationSettings } from "../shared/input-translation";
-import { isLlmProvider } from "../shared/performance";
-import type { ExtensionSettings } from "../shared/types";
+import type { ExtensionSettings, ProviderConfig } from "../shared/types";
+
+function optionLabel(provider: ProviderConfig): string {
+  if (provider.enabled === false) return `${provider.label}（已停用）`;
+  return isInputTranslationProvider(provider) ? provider.label : `${provider.label}（未配置）`;
+}
 
 export function setupInputTranslationControls(root: HTMLElement): {
   render: (settings: ExtensionSettings) => void;
@@ -19,7 +23,7 @@ export function setupInputTranslationControls(root: HTMLElement): {
     if (!settings) return;
     const chosen = pickInputProvider({ ...settings, inputTranslation: { ...normalizeInputTranslation(settings.inputTranslation), providerId: provider.value } });
     status.textContent = !chosen
-      ? "输入框翻译需要大模型服务，请先在「翻译服务」中配置 OpenAI 兼容或 Anthropic 兼容服务的地址、模型和 API Key。"
+      ? "输入框翻译需要可用的翻译服务，请先在「翻译服务」中启用并配置一个服务。"
       : provider.value && chosen.id !== provider.value ? `所选服务不可用，将使用「${chosen.label}」。` : `将使用「${chosen.label}」。`;
     status.dataset.state = chosen ? "ready" : "missing";
   }
@@ -33,9 +37,7 @@ export function setupInputTranslationControls(root: HTMLElement): {
       settings = value;
       const current = normalizeInputTranslation(value.inputTranslation);
       const options = [new Option("自动选择", "")];
-      for (const item of value.providers.filter(isLlmProvider)) {
-        options.push(new Option(isInputTranslationProvider(item) ? item.label : `${item.label}（未配置）`, item.id));
-      }
+      for (const item of value.providers) options.push(new Option(optionLabel(item), item.id));
       if (current.providerId && !options.some(option => option.value === current.providerId)) {
         options.push(new Option("已移除的服务", current.providerId));
       }

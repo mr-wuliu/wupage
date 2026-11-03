@@ -20,7 +20,7 @@ export const DEFAULT_INPUT_PROMPT = [
 
 export interface InputTranslationSettings {
   enabled: boolean;
-  /** LLM service id; empty uses the default service when it is an LLM, then any other configured LLM. */
+  /** Service id; empty uses the default service, then the other enabled services in settings order. */
   providerId: string;
   prompt: string;
 }
@@ -47,18 +47,27 @@ function isLocalEndpoint(baseURL: string): boolean {
   } catch { return false; }
 }
 
-/** An enabled LLM service with an address, a model and an API key (not needed for local endpoints). */
+/** An enabled service that may translate input. An LLM also needs its address, model and key (local endpoints need no key);
+ * other services are accepted here and checked by their own validation when used. */
 export function isInputTranslationProvider(provider: ProviderConfig): boolean {
-  if (!isLlmProvider(provider) || provider.enabled === false || !("baseURL" in provider)) return false;
-  return Boolean(provider.baseURL.trim() && provider.model.trim() && (provider.apiKey.trim() || isLocalEndpoint(provider.baseURL)));
+  if (provider.enabled === false) return false;
+  if (!isLlmProvider(provider)) return true;
+  return "baseURL" in provider && Boolean(provider.baseURL.trim() && provider.model.trim()
+    && (provider.apiKey.trim() || isLocalEndpoint(provider.baseURL)));
 }
 
-/** The chosen LLM service, else the default service when it is an LLM, else the first configured LLM. */
+/** Services to try in order: the chosen one, the default service, then the rest in settings order. */
+export function inputProviderCandidates(settings: ExtensionSettings): ProviderConfig[] {
+  const chosen = normalizeInputTranslation(settings.inputTranslation).providerId;
+  const preferred = [chosen, settings.activeProviderId]
+    .flatMap(id => id ? settings.providers.filter(provider => provider.id === id) : []);
+  const ordered = [...preferred, ...settings.providers];
+  return ordered.filter((provider, index) => ordered.findIndex(entry => entry.id === provider.id) === index
+    && isInputTranslationProvider(provider));
+}
+
 export function pickInputProvider(settings: ExtensionSettings): ProviderConfig | undefined {
-  const usable = (id: string) => id ? settings.providers.find(provider => provider.id === id && isInputTranslationProvider(provider)) : undefined;
-  return usable(normalizeInputTranslation(settings.inputTranslation).providerId)
-    ?? usable(settings.activeProviderId)
-    ?? settings.providers.find(isInputTranslationProvider);
+  return inputProviderCandidates(settings)[0];
 }
 
 /** Text written mainly in Chinese goes to English; anything else goes to Simplified Chinese. */
