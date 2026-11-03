@@ -1,3 +1,5 @@
+import chromiumSigning from "./chromium-signing.json";
+
 interface ManifestV3 {
   background: { service_worker?: string; scripts?: string[]; type?: string };
   permissions: string[];
@@ -9,8 +11,12 @@ interface ManifestV3 {
 }
 
 export function browserManifest(manifest: ManifestV3, firefox: boolean): ManifestV3 {
-  if (!firefox) return structuredClone(manifest);
   const result = structuredClone(manifest);
+  // Unpacked Chromium builds share the signing identity; store packages never
+  // point at the independent CRX update channel.
+  delete result.update_url;
+  if (!firefox) return { ...result, key: chromiumSigning.publicKey };
+  delete result.key;
   result.background = { scripts: ["background.js"], type: "module" };
   result.permissions = result.permissions.filter((permission) => permission !== "offscreen");
   result.browser_specific_settings = {

@@ -109,6 +109,11 @@ jobs:
             fi
           done
 
+      - name: Sign independent Chromium package and prepare stable update feed
+        env:
+          CRX_PRIVATE_KEY: ${{ secrets.CRX_PRIVATE_KEY }}
+        run: python3 -B scripts/package-crx.py --tag "$GITHUB_REF_NAME"
+
       - name: Package unsigned Firefox extension for testing
         shell: bash
         run: |
@@ -143,7 +148,10 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: wupage-${{ github.ref_name }}-browsers
-          path: release/*.zip
+          path: |
+            release/*.zip
+            release/*.crx
+            release/chromium.xml
           if-no-files-found: error
 
       - name: Create or update GitHub Release
@@ -153,8 +161,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          assets=(release/*.zip release/*.crx)
+          if [[ -f release/chromium.xml ]]; then assets+=(release/chromium.xml); fi
           if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
-            gh release upload "$GITHUB_REF_NAME" release/*.zip --clobber
+            gh release upload "$GITHUB_REF_NAME" "${assets[@]}" --clobber
             if [[ "$RELEASE_VERSION" == *-* ]]; then
               gh release edit "$GITHUB_REF_NAME" --prerelease
             fi
@@ -163,7 +173,7 @@ jobs:
             if [[ "$RELEASE_VERSION" == *-* ]]; then
               release_flags+=(--prerelease)
             fi
-            gh release create "$GITHUB_REF_NAME" release/*.zip \
+            gh release create "$GITHUB_REF_NAME" "${assets[@]}" \
               --verify-tag \
               --generate-notes \
               --title "WuPage $GITHUB_REF_NAME" \
@@ -179,8 +189,8 @@ jobs:
         run: |
           set -euo pipefail
           # Dispatch sync-web.yml on default branch with the release tag.
-          # sync-web.yml reads release info via `gh release view` and updates
-          # 6 hardcoded version references in wupage-web/index.html, then
+          # sync-web.yml validates release assets and synchronizes download links
+          # plus the stable Chromium XML feed in wupage-web, then
           # commits + pushes (which fires wupage-web's deploy.yml).
           #
           # Why dispatch instead of `on: release: published`?

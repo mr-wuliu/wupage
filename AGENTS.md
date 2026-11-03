@@ -56,6 +56,17 @@ git push origin main v1.1.0
 
 网站同步兼容旧版固定版本文案与新版 `releases/latest` 下载入口。页面已使用最新版链接且没有固定版本或安装包名时，无需改写网页，同步正常结束。
 
+### 独立 Chromium CRX 与自动更新
+
+- `build/chromium-signing.json` 固定独立分发的公钥、扩展 ID 和更新地址。普通 Chromium 构建在 Manifest 中写入该公钥，以固定解压加载时的 ID；Firefox 不包含此字段。共享构建和商店 ZIP 不包含自托管 `update_url`。
+- GitHub Actions Secret `CRX_PRIVATE_KEY` 保存对应的 PEM 私钥。正式发布前必须配置；缺失或与公钥不符时打包失败。私钥只保存在仓库外的安全位置和 Secrets 中，不得提交、附加到 Release 或输出到日志，也不得在每次发布时重新生成。`*.pem`、`*.key` 和 `release/` 已排除出 Git。
+- `scripts/package-crx.py` 使用 Python 标准库与 OpenSSL，按 Chromium CRX3 格式签名，生成 `wupage-<version>-chromium.crx`。只有签名包内加入 `update_url = https://wupage.mrwuliu.top/updates/chromium.xml`；CRX 同样小于 10,000,000 字节，禁止嵌套 Manifest、私钥文件、符号链接和 source map。
+- 所有稳定版本（含补丁版）额外发布 `chromium.xml`，包含固定 ID、数字版本、对应 GitHub Release CRX 地址、大小及 SHA-256。预发布版可生成测试 CRX，但不生成稳定更新清单，也不修改网站。
+- `scripts/prepare-web-sync.py` 从 GitHub Release API 选择 Chrome ZIP、CRX 和 XML；`scripts/sync-web.py` 对照固定 ID、版本、下载地址与 GitHub 附件 digest 校验后，将 XML 写入网站仓库的 `updates/chromium.xml`。重跑旧标签不回退现有更新清单；旧 Release 没有签名产物时仅兼容同步原有下载文案。网站同步按串行任务执行，提交后沿用网站现有部署工作流。
+- 网站构建须将 `updates/chromium.xml` 复制到公开资源目录，响应类型为 `application/xml; charset=utf-8`，缓存为 `public, max-age=300, must-revalidate`。首个签名版本发布前，清单返回 `noupdate`，不得填入不存在的 CRX 地址。
+- 固定 ID 和更新地址不能绕过浏览器安装政策。Windows/macOS 普通 Chrome 继续提供解压安装；解压安装仍需手动更新。首次切换到固定 ID 前提示导出设置，避免将其描述为旧 ID 的无缝迁移。
+- 验证命令仍为 `python -B -m unittest discover -s tests -p 'test_publish_*.py'`，其中 CRX 测试使用临时测试密钥，不使用发布私钥、不访问商店。
+
 ### Firefox 构建
 
 `npm run build:firefox` 从共享 Manifest 生成 `dist-firefox/`，最低 Firefox 154。`browser_specific_settings.gecko.id` 固定为 `wupage@mr-wuliu.github.io`，正式提交 AMO 后不得随意变更。数据传输声明包含 `websiteContent` 和 `authenticationInfo`，后者对应用户配置后发送给服务商的 API 凭据；功能的数据处理行为变化时须同步检查声明。

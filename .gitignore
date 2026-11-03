@@ -5,3 +5,6 @@ dist-video-preview/
 .env
 .DS_Store
 .npm-cache/
+*.pem
+*.key
+release/

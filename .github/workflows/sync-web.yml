@@ -2,7 +2,7 @@ name: Sync website with release
 
 # Triggered manually OR by release.yml after a successful release.
 # Updates legacy hardcoded version references in wupage-web/index.html,
-# then commits + pushes. Pages using releases/latest need no rewrite.
+# and syncs the validated stable Chromium update feed before committing.
 #
 # Requires repository secret WUPAGE_WEB_PAT in mr-wuliu/wupage:
 #   Fine-grained PAT, resource owner = mr-wuliu,
@@ -27,6 +27,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: sync-wupage-website
+  cancel-in-progress: false
+
 jobs:
   sync-website:
     name: Push version to wupage-web
@@ -47,67 +51,45 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ inputs.tag }}
-        run: |
-          python3 - <<'PY'
-          import json, os, subprocess, sys
-          tag = os.environ['TAG']
-          try:
-              result = subprocess.run(
-                  ['gh', 'release', 'view', tag, '--json', 'tagName,assets'],
-                  capture_output=True, text=True, check=True,
-              )
-          except subprocess.CalledProcessError as e:
-              print(f"ERROR: gh release view {tag} failed: {e.stderr}", file=sys.stderr)
-              sys.exit(1)
-          data = json.loads(result.stdout)
-          assets = data.get('assets') or []
-          zip_asset = next(
-              (a for a in assets
-               if a.get('name', '').lower().endswith('.zip')
-               and not a.get('name', '').lower().endswith('.sha256')),
-              None,
-          )
-          if not zip_asset:
-              raise SystemExit(f'No .zip asset in release {tag}')
+        run: python3 -B scripts/prepare-web-sync.py "$TAG"
 
-          size = int(zip_asset.get('size') or 0)
-          if size < 1024:
-              size_str = f"{size} B"
-          elif size < 1024 * 1024:
-              size_str = f"{round(size / 1024)} KB"
-          else:
-              size_str = f"{size / 1024 / 1024:.1f} MB"
-
-          with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as f:
-              f.write(f"tag={data['tagName']}\n")
-              f.write(f"zip_name={zip_asset['name']}\n")
-              f.write(f"zip_url={zip_asset['url']}\n")
-              f.write(f"zip_size={size_str}\n")
-
-          print(f"tag={data['tagName']} zip={zip_asset['name']} size={size_str}")
-          PY
+      - name: Download published stable update manifest
+        if: steps.release.outputs.sync == 'true' && steps.release.outputs.crx_name != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.release.outputs.tag }}
+        run: gh release download "$RELEASE_TAG" --pattern chromium.xml --dir .npm-cache/release-updates
 
       - name: Run sync script
+        if: steps.release.outputs.sync == 'true'
         env:
           NEW_TAG: ${{ steps.release.outputs.tag }}
           NEW_ZIP_NAME: ${{ steps.release.outputs.zip_name }}
           NEW_ZIP_URL: ${{ steps.release.outputs.zip_url }}
           NEW_ZIP_SIZE: ${{ steps.release.outputs.zip_size }}
           TARGET_DIR: wupage-web
+          NEW_CRX_NAME: ${{ steps.release.outputs.crx_name }}
+          NEW_CRX_SHA256: ${{ steps.release.outputs.crx_sha256 }}
+          NEW_CRX_SIZE: ${{ steps.release.outputs.crx_size }}
+          NEW_UPDATE_XML: ${{ steps.release.outputs.crx_name != '' && '.npm-cache/release-updates/chromium.xml' || '' }}
         run: python3 scripts/sync-web.py
 
       - name: Commit and push
+        if: steps.release.outputs.sync == 'true'
         working-directory: wupage-web
+        env:
+          RELEASE_TAG: ${{ steps.release.outputs.tag }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add index.html
+          if [ -f updates/chromium.xml ]; then git add updates/chromium.xml; fi
           if git diff --cached --quiet; then
-            echo "No changes — index.html already in sync."
+            echo "No changes — website and update feed already in sync."
             exit 0
           fi
-          git commit -m "Auto-sync with wupage ${{ steps.release.outputs.tag }}
+          git commit -m "Auto-sync with wupage $RELEASE_TAG
 
-          Triggered by workflow_dispatch after release ${{ steps.release.outputs.tag }}
-          on mr-wuliu/wupage. Updated release download references."
+          Triggered by workflow_dispatch after release $RELEASE_TAG
+          on mr-wuliu/wupage. Updated release download references and stable update feed."
           git push
