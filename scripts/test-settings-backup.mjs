@@ -20,6 +20,7 @@ async function waitFor(source) {
   throw new Error(`Timed out: ${source}`);
 }
 const click = id => browser.evaluate(`document.getElementById(${JSON.stringify(id)}).click();`);
+const navigate = id => browser.evaluate(`document.querySelector('.settings-nav a[aria-controls="${id}"]').click();`);
 const stored = () => browser.api('return (await chrome.storage.local.get("wupage.settings"))["wupage.settings"];');
 async function choose(text) {
   await browser.evaluate(`const transfer = new DataTransfer();
@@ -47,6 +48,12 @@ try {
     await chrome.storage.local.set({'backup-test-unrelated':'keep-me'}); return settings;`, ['多行提示词 """\n保留中文、引号与 C:\\Users\\test\n{{targetLang}}']);
   await browser.navigate(url);
   await waitFor('return !!document.querySelector("#providerForm [data-field]");');
+  assert.equal(await browser.evaluate('return document.getElementById("save").getClientRects().length;'), 0);
+  await navigate('generalSettings');
+  assert.ok(await browser.evaluate('return document.getElementById("save").getClientRects().length;'));
+  await navigate('backupSettings');
+  assert.equal(await browser.evaluate('return document.getElementById("save").getClientRects().length;'), 0);
+  checks.push('backup hides the global save button and extra copy; editable categories retain save');
   await browser.evaluate('document.getElementById("chunkSize").value="777";');
   await click('exportSettings'); await preview();
   assert.equal(await browser.evaluate('return document.activeElement.id;'), 'cancelSettingsBackup');
@@ -104,9 +111,10 @@ try {
   assert.equal(await browser.evaluate('return document.getElementById("providerTriggerLabel").textContent;'), '<b>Example</b>');
   assert.equal(await browser.evaluate('return !!document.querySelector("#providerTriggerLabel b");'), false);
   assert.equal(await browser.api('return (await chrome.storage.local.get("backup-test-unrelated"))["backup-test-unrelated"];'), 'keep-me');
-  await click('save');
+  await navigate('generalSettings'); await click('save');
   await waitFor('return document.getElementById("status").textContent==="已保存。";');
   assert.deepEqual(await stored(), restored);
+  await navigate('backupSettings');
   checks.push('import preview, same-file retry, complete restore, unavailable OCR handling, escaped labels and subsequent ordinary save');
 
   await browser.navigate(url); await waitFor('return !!document.querySelector("#providerForm [data-field]");');
@@ -138,9 +146,10 @@ try {
   await click('confirmSettingsBackup');
   await waitFor('return !document.getElementById("settingsBackupDialog").open && document.getElementById("status").textContent.includes("无密钥备份");');
   for (const secret of ['llm','header','body','service','url','opaque','template']) assert.ok(!stringifyToml(await stored()).includes(`fixture-${secret}-secret`));
-  await click('save');
+  await navigate('generalSettings'); await click('save');
   await waitFor('return document.getElementById("status").textContent==="已保存。";');
   assert.ok(!stringifyToml(await stored()).includes('fixture-'));
+  await navigate('backupSettings');
   checks.push('keyless import clears local credentials and subsequent ordinary saves cannot restore them');
 
   for (const width of [1400, 390]) {

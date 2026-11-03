@@ -127,6 +127,10 @@ body {
   display: none;
 }
 
+.settings:has(#backupSettings:not([hidden])) #save {
+  display: none;
+}
+
 .backup-actions {
   display: flex;
   flex-wrap: wrap;
