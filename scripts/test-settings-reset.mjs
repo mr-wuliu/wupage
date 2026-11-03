@@ -16,8 +16,16 @@ async function waitFor(source) {
   throw new Error(`Timed out: ${source}`);
 }
 const click = id => browser.evaluate(`document.getElementById(${JSON.stringify(id)}).click();`);
+async function clickWithFeedback(id) {
+  const feedback = await browser.evaluate(`const button=document.getElementById(${JSON.stringify(id)});button.click();
+    return {reduced:matchMedia('(prefers-reduced-motion: reduce)').matches,label:button.textContent,
+      durations:button.getAnimations().map(animation=>animation.effect.getTiming().duration)};`);
+  assert.ok(feedback.label.trim(), 'the button label stays visible');
+  if (feedback.reduced) assert.equal(feedback.durations.length, 0);
+  else assert.ok(feedback.durations.includes(180), `${id}: shares the save-button press animation`);
+}
 const settings = () => browser.api('return (await chrome.runtime.sendMessage({type:"GET_SETTINGS"})).data;');
-const open = async () => { await click('restore'); await waitFor('return document.getElementById("settingsResetDialog").open;'); };
+const open = async () => { await clickWithFeedback('restore'); await waitFor('return document.getElementById("settingsResetDialog").open;'); };
 const closed = () => waitFor('return !document.getElementById("settingsResetDialog").open;');
 function luminance(color) {
   const rgb = color.match(/[\d.]+/g).slice(0, 3).map(Number).map(v => v / 255)
@@ -87,16 +95,32 @@ try {
   await click('cancelSettingsReset'); await closed();
   await browser.resize(1400, 900);
   await browser.evaluate('document.getElementById("chunkSize").value="777";');
-  await open(); await click('confirmSettingsReset');
+  await open(); await clickWithFeedback('confirmSettingsReset');
   await closed();
   await waitFor('return document.getElementById("status").textContent==="已完全重置设置。";');
   assert.deepEqual(await settings(), defaults);
   assert.equal(await browser.evaluate('return document.getElementById("chunkSize").value;'), String(defaults.chunkSize));
   assert.equal(await browser.api('return (await chrome.storage.local.get("reset-test-unrelated"))["reset-test-unrelated"];'), 'keep-me');
-  await browser.evaluate(`document.querySelector('.settings-nav a[aria-controls="generalSettings"]').click();document.getElementById('save').click();`);
+  await waitFor('return document.getElementById("status").textContent==="";');
+  await browser.evaluate(`document.querySelector('.settings-nav a[aria-controls="generalSettings"]').click();`);
+  await clickWithFeedback('save');
   await waitFor('return document.getElementById("status").textContent==="已保存。";');
   assert.equal((await settings()).providers.find(p=>p.type==='deepseek').apiKey, '');
   assert.equal((await settings()).providers.some(p=>p.id==='custom-reset-fixture'), false);
+  await waitFor('return document.getElementById("status").textContent==="";');
+  await browser.evaluate(`document.querySelector('.settings-nav a[aria-controls="shortcutSettings"]').click();`);
+  await clickWithFeedback('resetShortcuts');
+  await waitFor('return document.getElementById("shortcutStatus").textContent.includes("已恢复默认");');
+  await waitFor('return document.getElementById("shortcutStatus").textContent==="";');
+  await browser.evaluate(`document.querySelector('.settings-nav a[aria-controls="appearanceSettings"]').click();document.getElementById('appearanceMenuTab').click();`);
+  await clickWithFeedback('resetPopupMenu');
+  await waitFor('return document.getElementById("popupMenuStatus").textContent.includes("已恢复默认");');
+  await waitFor('return document.getElementById("popupMenuStatus").textContent==="";');
+  await browser.evaluate(`document.getElementById('appearanceColorsTab').click();document.getElementById('duplicateScheme').click();`);
+  await clickWithFeedback('resetSchemeColors');
+  await waitFor('return document.getElementById("appearanceStatus").textContent.includes("已重置");');
+  await waitFor('return document.getElementById("appearanceStatus").textContent==="";');
+  checks.push('save, full reset and local default/reset controls share press feedback; their success messages disappear automatically while button labels stay visible');
   await browser.navigate(url); await waitFor('return document.getElementById("providerTriggerLabel").textContent==="Microsoft 翻译";');
   assert.equal((await settings()).targetLang, defaults.targetLang);
   checks.push('narrow dialog fits, explicit confirmation resets all settings and credentials, unrelated storage survives, subsequent save and reload cannot restore old keys');

@@ -2,6 +2,7 @@ import { applyPopupMenuLayout, DEFAULT_POPUP_MENU, isPopupMenuLink, normalizePop
   type PopupMenuItem, type PopupMenuLayout } from "../shared/popup-menu";
 import { uiIconMarkup } from "../shared/ui-icons";
 import "./popup-menu.css";
+import { showActionStatus } from "./action-feedback";
 
 export function setupPopupMenuControls(root: HTMLElement): { render: (value: unknown) => void; read: () => PopupMenuLayout } {
   const query = <T extends HTMLElement>(selector: string) => root.querySelector<T>(selector)!;
@@ -202,7 +203,7 @@ export function setupPopupMenuControls(root: HTMLElement): { render: (value: unk
   window.addEventListener("blur", () => finish(true));
   window.addEventListener("pagehide", () => finish(true));
   root.querySelector("#resetPopupMenu")!.addEventListener("click", () => {
-    finish(true); draft = normalizePopupMenu(DEFAULT_POPUP_MENU); paint(); status.textContent = "已恢复默认布局，保存后生效。";
+    finish(true); draft = normalizePopupMenu(DEFAULT_POPUP_MENU); paint(); showActionStatus(status, "已恢复默认布局，保存后生效。");
   });
   return {
     render(value) { finish(true); draft = normalizePopupMenu(value); status.textContent = ""; paint(); },

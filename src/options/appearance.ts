@@ -4,6 +4,7 @@ import { setupAppearance } from "../shared/appearance-runtime";
 import { mapTranslationTextColor } from "../shared/translation-colors";
 import "./appearance.css";
 import { setupPopupMenuControls } from "./popup-menu";
+import { showActionStatus } from "./action-feedback";
 
 export function setupAppearanceControls(root: HTMLElement): {
   render: (value: unknown) => void;
@@ -205,7 +206,7 @@ export function setupAppearanceControls(root: HTMLElement): {
     const scheme = custom();
     if (!scheme) return;
     scheme.colors = { ...getColorScheme(DEFAULT_APPEARANCE, tone).colors };
-    status.textContent = "已重置为默认配色，保存后生效。"; renderEditor();
+    renderEditor(); showActionStatus(status, "已重置为默认配色，保存后生效。");
   });
   query<HTMLButtonElement>("#deleteScheme").addEventListener("click", () => {
     const scheme = custom();

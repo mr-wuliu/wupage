@@ -1011,13 +1011,13 @@ button.danger:hover:enabled { box-shadow: 0 0 0 3px var(--wp-danger-soft, #fff0f
 button.danger:focus-visible { outline: 2px solid var(--wp-danger, #b42318); outline-offset: 3px; }
 button.danger:disabled { opacity: .6; cursor: wait; }
 
-#save:active {
+button[data-settings-feedback]:active {
   transform: translateY(2px) scale(.96);
   filter: brightness(.9);
 }
 
 @media (prefers-reduced-motion: reduce) {
-  #save:active { transform: none; }
+  button[data-settings-feedback]:active { transform: none; }
 }
 
 .provider-dialog {
