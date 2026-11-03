@@ -393,10 +393,10 @@ async function loadPdf(data: ArrayBuffer, name: string, autoTranslate: boolean, 
       // fonts. Load the real font metadata before identifying formula runs.
       const operators = await page.getOperatorList?.();
       assertCurrentOpen(operation);
-      const visibleItems = filterVisiblePdfText(textContent.items, operators, OPS, optionalContent);
       const fonts = new Map(Object.keys(textContent.styles).flatMap((name) =>
         page.commonObjs?.has(name) ? [[name, page.commonObjs.get(name)] as const] : []
       ));
+      const visibleItems = filterVisiblePdfText(textContent.items, operators, OPS, optionalContent, fonts);
       const measureContext = fonts.size ? document.createElement("canvas").getContext("2d") : null;
       const textItems = visibleItems.flatMap((item) => {
         if (!("str" in item)) return [];
@@ -928,6 +928,10 @@ function refreshTranslationRange(session: PdfTranslationSession): void {
       if (page.translatedCanvasShell.classList.contains("has-error")) {
         renderPageTranslations(page, page.translations, session.context);
       }
+    } else if (!page.blocks.some(block => block.translatable)) {
+      // Bibliography-only and image-only pages still need a visible right
+      // panel, even though they require no translation request.
+      renderPageTranslations(page, page.blocks.map(block => block.text), session.context);
     } else if (page.blocks.some((block) => block.translatable) && !session.active.has(page) && !session.failed.has(page)) {
       session.pending.add(page);
     }

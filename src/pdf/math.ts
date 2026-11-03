@@ -106,17 +106,17 @@ export function protectPdfMath(items: ReadonlyArray<PdfTextItemLike>, measure?: 
         const measured = metrics && typeof metrics !== "number"
           && Number.isFinite(metrics.actualBoundingBoxAscent) && Number.isFinite(metrics.actualBoundingBoxDescent);
         return {
-          top: Number(item.transform[5]) + (measured ? metrics.actualBoundingBoxAscent : (item.fontAscent ?? 0.9) * itemSize(item)),
+          top: Number(item.transform[5]) + (measured ? metrics.actualBoundingBoxAscent : fontMetric(item.fontAscent, 0.9) * itemSize(item)),
           bottom: measured ? Number(item.transform[5]) - metrics.actualBoundingBoxDescent
             : Number(item.transform[5]) + (!inline && EXTENSION_FONT.test(item.fontName ?? "")
-              ? Math.min(-1.4, item.fontDescent ?? 0) : item.fontDescent ?? -0.24) * itemSize(item)
+              ? Math.min(-1.4, fontMetric(item.fontDescent, 0)) : fontMetric(item.fontDescent, -0.24)) * itemSize(item)
         };
       });
       let bottom = Math.min(...glyphBounds.map((bounds) => bounds.bottom)) - padding;
       // Extensible delimiters descend below the font's ordinary text metrics.
       // Allow their lower curves, but stop before the following prose line.
       if (!inline && next && isProse(next.str) && !isMathItem(next)) {
-        const nextTop = Number(next.transform[5]) + (next.fontAscent ?? 0.9) * itemSize(next);
+        const nextTop = Number(next.transform[5]) + fontMetric(next.fontAscent, 0.9) * itemSize(next);
         const lowestBaseline = Math.min(...visible.map((item) => Number(item.transform[5])));
         if (nextTop < lowestBaseline) bottom = Math.max(bottom, nextTop + size * 0.08);
       }
@@ -146,7 +146,8 @@ export function protectPdfMath(items: ReadonlyArray<PdfTextItemLike>, measure?: 
     pending = [];
   };
   for (const [index, token] of tokens.entries()) {
-    if (/^[•●▪◦·‣⁃]$/u.test(token.str.trim())) {
+    if (/^[•●▪◦·‣⁃]$/u.test(token.str.trim())
+      && (token.str.trim() !== "·" || isMiddleDotListMarker(tokens, index, isMathItem))) {
       flush(token);
       const prose = tokens.slice(index + 1).find((item) => item.str.trim());
       // A bullet is structural text, even when encoded in a math font. Keep
@@ -191,6 +192,29 @@ export function protectPdfMath(items: ReadonlyArray<PdfTextItemLike>, measure?: 
   }
   flush();
   return { items: output, formulas };
+}
+
+function fontMetric(value: number | undefined, fallback: number): number {
+  return typeof value === "number" && Number.isFinite(value) ? value : fallback;
+}
+
+function isMiddleDotListMarker(
+  tokens: ReadonlyArray<PdfTextItemLike>, index: number, isMathItem: (item: PdfTextItemLike) => boolean
+): boolean {
+  const token = tokens[index];
+  let previous: PdfTextItemLike | undefined, next: PdfTextItemLike | undefined;
+  for (let cursor = index - 1; cursor >= 0; cursor -= 1) {
+    if (tokens[cursor].str.trim()) { previous = tokens[cursor]; break; }
+  }
+  for (let cursor = index + 1; cursor < tokens.length; cursor += 1) {
+    if (tokens[cursor].str.trim()) { next = tokens[cursor]; break; }
+  }
+  // A multiplication dot continues a math run, including at a wrapped line's
+  // start. Only a line-leading dot followed by prose is a list marker.
+  return Boolean(next && !isMathItem(next) && isProse(next.str)
+    && Math.abs(Number(next.transform[5]) - Number(token.transform[5])) < itemSize(token) * 0.7
+    && (!previous || Math.abs(Number(previous.transform[5]) - Number(token.transform[5]))
+      > Math.max(itemSize(previous), itemSize(token)) * 0.7));
 }
 
 function isMathFontItem(item: PdfTextItemLike): boolean {

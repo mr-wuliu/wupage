@@ -1,5 +1,6 @@
 import { validatePdfMathTranslation } from "./math";
 import type { PdfTextBlock } from "./model";
+import { normalizeProtectedText } from "../shared/protected-text";
 
 export interface PdfDocumentPage {
   blocks: PdfTextBlock[];
@@ -126,14 +127,21 @@ export function preparePdfTranslation(block: PdfTextBlock, abbreviations: Readon
     literals.push({ placeholder, text });
     return placeholder;
   };
-  let text = block.text.split(/(⟪WUPAGE\d+⟫)/gu).map((part) => {
-    if (/^⟪WUPAGE\d+⟫$/u.test(part)) return part;
+  const source = block.boldPrefix && block.text.startsWith(block.boldPrefix)
+    ? `⟪WUPAGEOPEN0⟫${block.boldPrefix}⟪WUPAGECLOSE0⟫${block.text.slice(block.boldPrefix.length)}` : block.text;
+  let text = source.split(/(⟪WUPAGE(?:OPEN|CLOSE)?\d+⟫)/gu).map((part) => {
+    if (/^⟪WUPAGE(?:OPEN|CLOSE)?\d+⟫$/u.test(part)) return part;
     return part.replace(/https?:\/\/[^\s]+|\b[A-Z][A-Z\d-]{1,11}\b|(?<![\p{L}\p{N}])\d+(?:[·.,]\d+)*(?:\s*[–−-]\s*\d+(?:[·.,]\d+)*)?(?:%|‰)?(?!\p{L})/gu,
       (value) => /^https?:/u.test(value) || abbreviations.has(value)
         || (/^\d/u.test(value) && (abbreviations.size > 0 || /[·.,%‰–−-]/u.test(value))) ? protect(value) : value);
   }).join("");
   if (block.role === "figure-label") text = text.replace(/^([A-Z])(?=\s)/u, protect);
   return { text, restore: (translation) => {
+    if (block.boldPrefix) {
+      const normalized = normalizeProtectedText(text, translation);
+      if (normalized === undefined) throw new Error("翻译服务未完整保留文字格式，请重试或切换翻译服务。");
+      translation = normalized;
+    }
     validatePdfMathTranslation(translation, [...(block.formulas ?? []), ...literals]);
     for (const literal of literals) translation = translation.replace(literal.placeholder, literal.text);
     return translation;

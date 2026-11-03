@@ -2,13 +2,45 @@
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createEditableTranslationBlock } from "../src/pdf/editor";
-import { paintTranslationLayer } from "../src/pdf/export";
+import { collectPdfExportScene, paintTranslationLayer } from "../src/pdf/export";
 import { getFormulaViewportRect, readFormulaText } from "../src/pdf/math-rendering";
 import type { PdfFormula } from "../src/pdf/math";
 
 afterEach(() => { vi.restoreAllMocks(); document.body.replaceChildren(); });
 
 describe("PDF inline formula rendering", () => {
+  it("keeps a translated bold lead-in editable and preserves its weight in both exports", async () => {
+    const layer = document.createElement("div"); layer.style.width = "400px";
+    const source = "⟪WUPAGEOPEN0⟫标题。⟪WUPAGECLOSE0⟫正文。";
+    const block = createEditableTranslationBlock(layer, {
+      id: "emphasis", text: source, fontSize: 20, fontFamily: "Arial", fontWeight: 400,
+      color: "#222", lineHeight: 24, left: 10, top: 20, width: 300, height: 80
+    });
+    layer.append(block); document.body.append(layer);
+    const editor = block.querySelector<HTMLElement>(".translation-block-text")!;
+    expect(editor.textContent).toBe("标题。正文。");
+    expect(editor.querySelector("strong")!.textContent).toBe("标题。");
+    expect(readFormulaText(editor)).toBe(source);
+    editor.querySelector("strong")!.firstChild!.textContent = "修订。";
+    expect(readFormulaText(editor)).toBe("⟪WUPAGEOPEN0⟫修订。⟪WUPAGECLOSE0⟫正文。");
+    vi.spyOn(layer, "getBoundingClientRect").mockReturnValue(new DOMRect(0, 0, 400, 400));
+    vi.spyOn(editor, "getBoundingClientRect").mockReturnValue(new DOMRect(10, 20, 300, 80));
+    vi.spyOn(document, "createRange").mockReturnValue({ setStart: vi.fn(), setEnd: vi.fn(),
+      getBoundingClientRect: () => new DOMRect(10, 20, 20, 24) } as unknown as Range);
+    const painted: Array<{ text: string; font: string }> = [];
+    const context = { save: vi.fn(), restore: vi.fn(), beginPath: vi.fn(), rect: vi.fn(), clip: vi.fn(),
+      font: "", fillText: (text: string) => painted.push({ text, font: context.font }),
+      measureText: () => ({ width: 20, fontBoundingBoxDescent: 4 }) } as unknown as CanvasRenderingContext2D;
+    paintTranslationLayer(context, layer);
+    expect(painted.find(run => run.text === "修")!.font).toBe("700 20px Arial");
+    expect(painted.find(run => run.text === "正")!.font).toBe("400 20px Arial");
+    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(context);
+    const original = document.createElement("canvas"); original.width = 400;
+    const scene = await collectPdfExportScene(original, layer, [], 400, 400, [1, 0, 0, -1, 0, 400]);
+    expect(scene.text.find(run => run.text === "修")!.bold).toBe(true);
+    expect(scene.text.find(run => run.text === "正")!.bold).toBe(false);
+  });
+
   it("includes both fractional pixel edges when cropping formula glyphs and vector bars", () => {
     const rect = getFormulaViewportRect({
       placeholder: "⟪WUPAGE0⟫", text: "x", x: 10.4, y: 20.4, width: 10.2, height: 5.2,

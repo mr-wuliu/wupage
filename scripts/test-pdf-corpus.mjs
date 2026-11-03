@@ -65,7 +65,7 @@ const moduleName = process.env.PLAYWRIGHT_MODULE || "playwright";
 const { chromium } = await import(path.isAbsolute(moduleName) ? pathToFileURL(moduleName).href : moduleName);
 let calls = 0;
 let damaged = 0;
-const translate = (source) => source.split(/(⟪WUPAGE\d+⟫)/gu).map((part) => {
+const translate = (source) => source.split(/(⟪WUPAGE(?:OPEN|CLOSE)?\d+⟫)/gu).map((part) => {
   if (/^⟪WUPAGE/u.test(part) || !/\p{L}/u.test(part)) return part;
   if (!args.includes("--expanded") && Object.hasOwn(admmTranslations, part.trim())) {
     return part.replace(part.trim(), admmTranslations[part.trim()]);

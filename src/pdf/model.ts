@@ -33,6 +33,7 @@ export interface PdfTextBlock {
   fontFamily: string;
   fontWeight: number;
   fontSize: number;
+  boldPrefix?: string;
   preserveOriginal?: boolean;
   formulas?: PdfFormula[];
   tocPart?: "title" | "leader";
@@ -47,6 +48,7 @@ interface TextLine {
   height: number;
   fontFamily: string;
   fontWeight: number;
+  boldPrefix?: string;
   preserveOriginal?: boolean;
   tocPart?: "title" | "leader";
   families: Map<string, number>;
@@ -231,13 +233,16 @@ function collectLines(items: ReadonlyArray<PdfTextItemLike>): TextLine[] {
         fontWeight: item.fontWeight ?? 400,
         families: new Map([[item.fontFamily || "Arial, sans-serif", text.length]]),
         weights: new Map([[item.fontWeight ?? 400, text.length]]),
+        ...((item.fontWeight ?? 400) >= 600 ? { boldPrefix: text } : {}),
         ...(item.preserveOriginal ? { preserveOriginal: true } : {}),
         ...(item.tocPart ? { tocPart: item.tocPart } : {})
       };
       lines.push(current);
     } else {
+      const extendBoldPrefix = current.boldPrefix === current.text && (item.fontWeight ?? 400) >= 600;
       const touches = x - previousX <= height * 0.12 && !explicitSpace && /\p{L}$/u.test(current.text) && /^\p{L}/u.test(text);
       current.text = touches ? current.text + text : joinText(current.text, text);
+      if (extendBoldPrefix) current.boldPrefix = current.text;
       current.x = Math.min(current.x, x);
       current.right = Math.max(current.right, x + width);
       current.height = Math.max(current.height, height);
@@ -279,6 +284,9 @@ function collectParagraphs(lines: TextLine[]): Omit<PdfTextBlock, "id" | "transl
 
   const commit = (): void => {
     if (!current.length) return;
+    const weights = new Map<number, number>();
+    for (const line of current) for (const [weight, count] of line.weights) weights.set(weight, (weights.get(weight) ?? 0) + count);
+    const fontWeight = [...weights].sort((left, right) => right[1] - left[1])[0][0];
     const normalizedLines = current.map((line) => ({
       text: normalizeText(line.text),
       x: line.x,
@@ -290,8 +298,9 @@ function collectParagraphs(lines: TextLine[]): Omit<PdfTextBlock, "id" | "transl
       text: joinParagraphLines(normalizedLines),
       lines: normalizedLines,
       fontFamily: current[0].fontFamily,
-      fontWeight: Math.max(...current.map((line) => line.fontWeight)),
+      fontWeight,
       fontSize: Math.max(...current.map((line) => line.height)),
+      ...(fontWeight < 600 && current[0].boldPrefix ? { boldPrefix: current[0].boldPrefix } : {}),
       ...(current.some((line) => line.preserveOriginal) ? { preserveOriginal: true } : {}),
       ...(current[0].tocPart ? { tocPart: current[0].tocPart } : {})
     });
@@ -313,8 +322,10 @@ function canJoinParagraph(previous: TextLine, next: TextLine, paragraph: TextLin
   const averageHeight = (previous.height + next.height) / 2;
   const sameColumn = Math.abs(previous.x - next.x) <= Math.max(18, averageHeight * 1.7);
   const sameSize = Math.max(previous.height, next.height) / Math.max(1, Math.min(previous.height, next.height)) < 1.35;
+  // A run-in bold heading and its regular continuation form one paragraph.
+  // Fully bold standalone headings still have no shared regular style.
   const sameStyle = previous.fontFamily === next.fontFamily
-    && Math.abs(previous.fontWeight - next.fontWeight) < 300;
+    && [...previous.weights.keys()].some(weight => [...next.weights.keys()].some(other => Math.abs(weight - other) < 300));
   const previousEndsSentence = /[.!?。！？:：]$/u.test(previous.text.trim());
   const nextStartsList = /^[•●▪◦·‣⁃\-*]\s*/u.test(next.text.trim());
   const paragraphWidth = Math.max(...paragraph.map((line) => line.right)) - Math.min(...paragraph.map((line) => line.x));

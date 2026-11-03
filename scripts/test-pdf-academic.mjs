@@ -51,14 +51,19 @@ cropped.drawRectangle({x:70,y:500,width:180,height:45,color:rgb(0.1,0.7,0.3)});
 const rotated = source.addPage([600,800]);rotated.setRotation(degrees(90));
 rotated.drawText('Upright text on a rotated page.',{x:120,y:100,size:14,rotate:degrees(90),font:regular});
 rotated.drawRectangle({x:240,y:300,width:180,height:45,color:rgb(0.1,0.7,0.3)});
+// A page with only a numeric label and artwork needs no provider request,
+// but its translated panel and exported page must still preserve the source.
+const retained = source.addPage([600,800]);
+add(retained,'42',40,740,10);
+retained.drawRectangle({x:100,y:500,width:180,height:45,color:rgb(0.1,0.7,0.3)});
 const fixture = path.join(output, 'academic-source.pdf'); await fs.writeFile(fixture, await source.save());
 const file = process.argv.find(arg => arg.startsWith('--file='))?.slice(7);
 const documents = [{ id: 'fixture', file: fixture }, ...(file ? [{ id: 'paper', file: path.resolve(file) }] : [])];
 const words = new Map([['References','参考文献'],['Appendix','附录'],['Background','背景'],['Training','训练'],['Test','测试'],['State','状态'],
  ['Bleeding','出血'],['Mortality','死亡风险'],['Renal failure','肾功能衰竭'],['Clinical reference tool','临床参考工具'],['Features','特征'],['Prediction','预测']]);
 function translate(text) {
- return text.split(/(⟪WUPAGE\d+⟫)/gu).map(part => {
-  if (/^⟪WUPAGE\d+⟫$/u.test(part) || !/\p{L}/u.test(part)) return part;
+ return text.split(/(⟪WUPAGE(?:OPEN|CLOSE)?\d+⟫)/gu).map(part => {
+  if (/^⟪WUPAGE(?:OPEN|CLOSE)?\d+⟫$/u.test(part) || !/\p{L}/u.test(part)) return part;
   if (words.has(part.trim())) return part.replace(part.trim(), words.get(part.trim()));
   const count = Math.max(2, Math.ceil(part.length * 0.33));
   return '这是用于验证论文段落排版与保护规则的本地模拟译文。'.repeat(Math.ceil(count/26)).slice(0,count);
@@ -109,6 +114,7 @@ try{
   for(let number=1;number<=pages;number++){
    await browser.evaluate(`document.querySelector('article[data-page="${number}"]').scrollIntoView({block:'start'});`);
    await wait(()=>browser.evaluate(`return !!document.querySelector('article[data-page="${number}"] .canvas-shell.is-rendered');`),Boolean,'render page');
+   await wait(()=>browser.evaluate(`return document.querySelector('article[data-page="${number}"] .translation-prompt').hidden;`),Boolean,'translated or retained page displayed');
    await new Promise(resolve=>setTimeout(resolve,100));
    if(document.id==='fixture'||[1,3,5,6,9,10].includes(number))await browser.capture(`${document.id}-${number}.png`);
   }

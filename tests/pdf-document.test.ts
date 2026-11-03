@@ -11,6 +11,16 @@ function page(blocks: PdfTextBlock[], sourceText = blocks.map((block) => block.t
 }
 
 describe("academic PDF document boundaries", () => {
+  it("preserves a run-in heading's format markers while protecting numeric literals", () => {
+    const paragraph = { ...block("Step 1. The noisy action is mapped to an embedding.", 20, 100), boldPrefix: "Step 1." };
+    const input = preparePdfTranslation(paragraph, new Map([["VLA", "vision language action"]]));
+    expect(input.text).toBe("⟪WUPAGEOPEN0⟫Step ⟪WUPAGE0⟫.⟪WUPAGECLOSE0⟫ The noisy action is mapped to an embedding.");
+    const result = input.restore("⟪WUPAGEOPEN0⟫步骤 ⟪WUPAGE0⟫。⟪WUPAGECLOSE0⟫带噪动作被映射到嵌入。");
+    expect(result).toBe("⟪WUPAGEOPEN0⟫步骤 1。⟪WUPAGECLOSE0⟫带噪动作被映射到嵌入。");
+    expect(() => input.restore("步骤 ⟪WUPAGE0⟫。带噪动作被映射到嵌入。")).toThrow("文字格式");
+    expect(() => input.restore("⟪WUPAGECLOSE0⟫步骤 ⟪WUPAGE0⟫。⟪WUPAGEOPEN0⟫带噪动作被映射到嵌入。")).toThrow("文字格式");
+  });
+
   it("preserves a right-column bibliography and its continuation without skipping the left-column discussion", () => {
     const discussion = block("Discussion of these findings continues here.", 40, 300);
     const pages = [page([discussion, block("References", 330, 500, true),
