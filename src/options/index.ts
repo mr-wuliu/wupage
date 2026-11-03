@@ -24,6 +24,7 @@ import { isDoubaoBrowserSupported } from "../shared/doubao";
 import { formatDoubaoStatus, isDoubaoProviderUnavailable, syncDoubaoTargetControls } from "../shared/doubao-ui";
 import { renderUiIcons, uiIconMarkup } from "../shared/ui-icons";
 import { setupSettingsBackupControls } from "./settings-backup";
+import { setupSettingsResetControls } from "./reset-settings";
 
 renderUiIcons();
 
@@ -68,7 +69,6 @@ const customProviderKind = query<HTMLSelectElement>("#customProviderKind");
 const customLlmFormatField = query<HTMLLabelElement>("#customLlmFormatField");
 const customLlmFormat = query<HTMLSelectElement>("#customLlmFormat");
 const saveButton = query<HTMLButtonElement>("#save");
-const restoreButton = query<HTMLButtonElement>("#restore");
 const status = query<HTMLParagraphElement>("#status");
 const autoTranslationControls = setupAutoTranslationControls(
   query<HTMLElement>("#autoTranslationSettings"), field => {
@@ -113,6 +113,7 @@ let doubaoStatusRevision = 0;
 let doubaoRetryTimer: ReturnType<typeof setTimeout> | undefined;
 let statusTimer: ReturnType<typeof setTimeout> | undefined;
 let saveButtonAnimation: Animation | undefined;
+const pendingSettingsWrites = new Set<Promise<void>>();
 let optionsClosed = false;
 
 window.addEventListener("pagehide", () => {
@@ -193,7 +194,7 @@ async function init(): Promise<void> {
     }
     void save().catch(() => {});
   });
-  restoreButton.addEventListener("click", restoreDefaults);
+  setupSettingsResetControls(resetSettings);
   providerForm.addEventListener("input", invalidateProviderTest);
   providerForm.addEventListener("change", invalidateProviderTest);
   const updateUsageOnEdit = (event: Event): void => {
@@ -857,15 +858,21 @@ async function save(showSavedStatus = true): Promise<void> {
   }
 }
 
-async function persistSettings(showSavedStatus: boolean, replace = false): Promise<void> {
+function persistSettings(showSavedStatus: boolean): Promise<void> {
+  const write = persistSettingsNow(showSavedStatus);
+  pendingSettingsWrites.add(write);
+  void write.then(() => pendingSettingsWrites.delete(write), () => pendingSettingsWrites.delete(write));
+  return write;
+}
+
+async function persistSettingsNow(showSavedStatus: boolean): Promise<void> {
   const previousSettings = cloneSettings(savedSettings);
   // A service test leaves the current form mounted. Compare its fields with
   // what that form displayed, even if the previous save merged external edits.
   const formSettings = providerFormSettings;
   if (formSettings) previousSettings.providers = previousSettings.providers.map(provider =>
     provider.id === formSettings.id ? formSettings : provider);
-  await sendRuntimeMessage({ type: "SAVE_SETTINGS", settings,
-    ...(!replace ? { previousSettings } : {}) });
+  await sendRuntimeMessage({ type: "SAVE_SETTINGS", settings, previousSettings });
   settings = await sendRuntimeMessage<ExtensionSettings>({ type: "GET_SETTINGS" });
   savedSettings = cloneSettings(settings);
   // Provider actions can save without rebuilding the provider form (for
@@ -918,16 +925,20 @@ async function testProvider(): Promise<void> {
   }
 }
 
-async function restoreDefaults(): Promise<void> {
-  try {
-    settings = cloneSettings(DEFAULT_SETTINGS);
-    editingProviderId = undefined;
-    await persistSettings(false, true);
-    render();
-    setStatus("已恢复默认设置。");
-  } catch (error) {
-    setStatus(error instanceof Error ? error.message : String(error));
-  }
+async function resetSettings(): Promise<void> {
+  // Commit first: cancellation or failed storage must not replace the draft or
+  // its baseline. The background returns the value from this exact write.
+  // Finish existing saves and their UI continuations before replacing state.
+  await Promise.allSettled([...pendingSettingsWrites]);
+  const reset = await sendRuntimeMessage<ExtensionSettings>({ type: "RESET_SETTINGS" });
+  if (optionsClosed) return;
+  invalidateProviderTest();
+  settings = reset;
+  savedSettings = cloneSettings(reset);
+  editingProviderId = undefined;
+  setProviderMenuOpen(false);
+  render();
+  setStatus("已完全重置设置。");
 }
 
 function readSettingsFromForm(): ExtensionSettings {

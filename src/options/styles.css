@@ -137,7 +137,8 @@ body {
   gap: 12px;
 }
 
-.provider-dialog.backup-dialog {
+.provider-dialog.backup-dialog,
+.provider-dialog.reset-dialog {
   box-sizing: border-box;
   width: 520px;
   max-width: min(520px, calc(100vw - 32px));
@@ -147,13 +148,15 @@ body {
   line-height: 1.7;
 }
 
-.backup-dialog[open] {
+.backup-dialog[open],
+.reset-dialog[open] {
   display: grid;
   gap: 16px;
 }
 
-.backup-dialog p { margin: 0; }
-.backup-dialog #settingsBackupDialogStatus:empty { display: none; }
+.backup-dialog p, .reset-dialog p { margin: 0; }
+.backup-dialog #settingsBackupDialogStatus:empty, #settingsResetStatus:empty { display: none; }
+#settingsResetCaution { padding: 12px; border-inline-start: 4px solid var(--wp-danger, #b42318); background: var(--wp-danger-soft, #fff0f0); }
 .backup-key-choice { display: flex; align-items: flex-start; gap: 10px; font-size: 14px; }
 .backup-key-choice[hidden] { display: none; }
 .provider-dialog .backup-key-choice input { flex: 0 0 18px; width: 18px; min-height: 18px; margin: 3px 0 0; accent-color: var(--wp-accent, #116466); }
@@ -997,6 +1000,16 @@ button.secondary {
   color: var(--wp-foreground, #172026);
   background: var(--wp-border, #dfe8e5);
 }
+
+button.danger {
+  color: var(--wp-on-danger, #ffffff);
+  background: var(--wp-danger, #b42318);
+  border: 1px solid var(--wp-danger, #b42318);
+}
+
+button.danger:hover:enabled { box-shadow: 0 0 0 3px var(--wp-danger-soft, #fff0f0); }
+button.danger:focus-visible { outline: 2px solid var(--wp-danger, #b42318); outline-offset: 3px; }
+button.danger:disabled { opacity: .6; cursor: wait; }
 
 #save:active {
   transform: translateY(2px) scale(.96);

@@ -1,4 +1,5 @@
 import { getSettings, saveSettings } from "../shared/settings";
+import { DEFAULT_SETTINGS } from "../shared/defaults";
 import { mergeSettingsChanges } from "../shared/settings-changes";
 import { importSettingsBackup } from "./settings-backup";
 import { clearStatistics, getStatistics, initStatistics, statisticsPageKey } from "./statistics";
@@ -134,6 +135,8 @@ async function handleMessage(request: RuntimeRequest, sender: chrome.runtime.Mes
     }
     case "IMPORT_SETTINGS":
       return importSettingsBackup(request.backup);
+    case "RESET_SETTINGS":
+      return saveSettings(structuredClone(DEFAULT_SETTINGS));
     case "SAVE_SETTINGS":
       // Checking a new opt-in is required. An unavailable optional cache must
       // not prevent changing languages or services while OCR is already on.

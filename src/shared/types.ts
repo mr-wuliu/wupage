@@ -347,6 +347,7 @@ export type RuntimeRequest =
   | ({ type: "TRANSLATE_IMAGE" } & TranslateImageRequest)
   | ({ type: "TRANSLATE_BATCH" } & TranslateBatchRequest)
   | { type: "GET_SETTINGS" }
+  | { type: "RESET_SETTINGS" }
   | { type: "IMPORT_SETTINGS"; backup: string }
   | { type: "OPEN_OPTIONS_PAGE" }
   | { type: "OPEN_EMBEDDED_PDF"; url: string }

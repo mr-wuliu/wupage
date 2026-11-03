@@ -8,6 +8,7 @@
   --wp-success: #25734c;
   --wp-danger: #b42318;
   --wp-on-accent: #ffffff;
+  --wp-on-danger: #ffffff;
 }
 
 /* Derived colors must resolve on each themed surface, including the isolated preview. */
