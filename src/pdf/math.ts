@@ -45,11 +45,23 @@ export function protectPdfMath(items: ReadonlyArray<PdfTextItemLike>, measure?: 
     const next = tokens[nextIndex];
     return /^[A-Za-z][A-Za-z0-9]+$/u.test(item.str.trim()) && next
       && /^\s*\(/u.test(next.str) && (!isProse(next.str) || isMathFontItem(next))
+      && hasMathArguments(tokens, nextIndex, item.str.trim())
       && !/^\s*\(\s*[A-Za-z]\s*=\s*[\d.,]+\s*\)\s*$/u.test(next.str)
       && Math.abs(Number(item.transform[5]) - Number(next.transform[5])) < itemSize(item) * 0.5
       && Math.abs(Number(next.transform[4]) - Number(item.transform[4]) - (item.width ?? 0)) < itemSize(item);
   }));
   const isMathItem = (item: PdfTextItemLike): boolean => isMathFontItem(item) || functionNames.has(item) || citations.has(item);
+  const prosePrefixes = new Set(tokens.filter((item, index) => {
+    const next = tokens[index + 1];
+    if (!next || !/^[A-Z]$/u.test(item.str) || !/^[A-Z]{2,}$/u.test(next.str)
+      || isMathItem(item) || isMathItem(next) || item.fontName !== next.fontName) return false;
+    const size = itemSize(item), gap = Number(next.transform[4]) - Number(item.transform[4]) - (item.width ?? 0);
+    // Small caps often encode MODEL as a full-size M followed by smaller ODEL.
+    // Keep its initial out of an immediately preceding formula crop.
+    return Math.abs(Number(next.transform[5]) - Number(item.transform[5])) < size * 0.15
+      && itemSize(next) >= size * 0.65 && itemSize(next) <= size * 1.05
+      && gap >= -size * 0.1 && gap <= size * 0.15;
+  }));
   const output: PdfTextItemLike[] = [];
   const formulas: PdfFormula[] = [];
   let pending: PdfTextItemLike[] = [];
@@ -106,17 +118,17 @@ export function protectPdfMath(items: ReadonlyArray<PdfTextItemLike>, measure?: 
         const measured = metrics && typeof metrics !== "number"
           && Number.isFinite(metrics.actualBoundingBoxAscent) && Number.isFinite(metrics.actualBoundingBoxDescent);
         return {
-          top: Number(item.transform[5]) + (measured ? metrics.actualBoundingBoxAscent : (item.fontAscent ?? 0.9) * itemSize(item)),
+          top: Number(item.transform[5]) + (measured ? metrics.actualBoundingBoxAscent : fontMetric(item.fontAscent, 0.9) * itemSize(item)),
           bottom: measured ? Number(item.transform[5]) - metrics.actualBoundingBoxDescent
             : Number(item.transform[5]) + (!inline && EXTENSION_FONT.test(item.fontName ?? "")
-              ? Math.min(-1.4, item.fontDescent ?? 0) : item.fontDescent ?? -0.24) * itemSize(item)
+              ? Math.min(-1.4, fontMetric(item.fontDescent, 0)) : fontMetric(item.fontDescent, -0.24)) * itemSize(item)
         };
       });
       let bottom = Math.min(...glyphBounds.map((bounds) => bounds.bottom)) - padding;
       // Extensible delimiters descend below the font's ordinary text metrics.
       // Allow their lower curves, but stop before the following prose line.
       if (!inline && next && isProse(next.str) && !isMathItem(next)) {
-        const nextTop = Number(next.transform[5]) + (next.fontAscent ?? 0.9) * itemSize(next);
+        const nextTop = Number(next.transform[5]) + fontMetric(next.fontAscent, 0.9) * itemSize(next);
         const lowestBaseline = Math.min(...visible.map((item) => Number(item.transform[5])));
         if (nextTop < lowestBaseline) bottom = Math.max(bottom, nextTop + size * 0.08);
       }
@@ -146,7 +158,8 @@ export function protectPdfMath(items: ReadonlyArray<PdfTextItemLike>, measure?: 
     pending = [];
   };
   for (const [index, token] of tokens.entries()) {
-    if (/^[•●▪◦·‣⁃]$/u.test(token.str.trim())) {
+    if (/^[•●▪◦·‣⁃]$/u.test(token.str.trim())
+      && (token.str.trim() !== "·" || isMiddleDotListMarker(tokens, index, isMathItem))) {
       flush(token);
       const prose = tokens.slice(index + 1).find((item) => item.str.trim());
       // A bullet is structural text, even when encoded in a math font. Keep
@@ -159,7 +172,7 @@ export function protectPdfMath(items: ReadonlyArray<PdfTextItemLike>, measure?: 
       output.push(token);
       continue;
     }
-    if (isProse(token.str) && !isMathItem(token)) {
+    if ((isProse(token.str) || prosePrefixes.has(token)) && !isMathItem(token)) {
       flush(token);
       output.push(token);
       continue;
@@ -191,6 +204,43 @@ export function protectPdfMath(items: ReadonlyArray<PdfTextItemLike>, measure?: 
   }
   flush();
   return { items: output, formulas };
+}
+
+function fontMetric(value: number | undefined, fallback: number): number {
+  return typeof value === "number" && Number.isFinite(value) ? value : fallback;
+}
+
+function hasMathArguments(tokens: ReadonlyArray<PdfTextItemLike>, index: number, name: string): boolean {
+  const opening = tokens[index];
+  let argument = opening.str.replace(/^\s*\(\s*/u, "");
+  let token = opening;
+  if (!argument.trim()) {
+    token = tokens.slice(index + 1).find(item => item.str.trim()) ?? opening;
+    argument = token === opening ? "" : token.str;
+  }
+  // A plain opening parenthesis before an explanation is not function syntax:
+  // "annotations (fine-grained labels ...)" must remain translatable prose.
+  return Boolean(argument.trim() && (!isProse(argument) || isMathFontItem(token))
+    && (isMathFontItem(token) || MATH_SYMBOL.test(argument) || /[A-Za-zΑ-Ωα-ω]/u.test(argument) || MATH_WORD.test(name)));
+}
+
+function isMiddleDotListMarker(
+  tokens: ReadonlyArray<PdfTextItemLike>, index: number, isMathItem: (item: PdfTextItemLike) => boolean
+): boolean {
+  const token = tokens[index];
+  let previous: PdfTextItemLike | undefined, next: PdfTextItemLike | undefined;
+  for (let cursor = index - 1; cursor >= 0; cursor -= 1) {
+    if (tokens[cursor].str.trim()) { previous = tokens[cursor]; break; }
+  }
+  for (let cursor = index + 1; cursor < tokens.length; cursor += 1) {
+    if (tokens[cursor].str.trim()) { next = tokens[cursor]; break; }
+  }
+  // A multiplication dot continues a math run, including at a wrapped line's
+  // start. Only a line-leading dot followed by prose is a list marker.
+  return Boolean(next && !isMathItem(next) && isProse(next.str)
+    && Math.abs(Number(next.transform[5]) - Number(token.transform[5])) < itemSize(token) * 0.7
+    && (!previous || Math.abs(Number(previous.transform[5]) - Number(token.transform[5]))
+      > Math.max(itemSize(previous), itemSize(token)) * 0.7));
 }
 
 function isMathFontItem(item: PdfTextItemLike): boolean {

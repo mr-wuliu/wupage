@@ -7,6 +7,73 @@ function item(str: string, x: number, y: number, size = 11, fontName = "CMR10", 
 }
 
 describe("PDF formula preservation", () => {
+  it("keeps an italic term before an explanatory parenthesis available for translation", () => {
+    const result = protectPdfMath([
+      item("task names and segment", 10, 100, 10, "Times-Roman", 98),
+      item("annotations", 112, 100, 10, "Times-Italic", 48),
+      item("(", 165, 100, 10, "Times-Roman", 3),
+      item("fine-grained labels for sub-trajectories", 170, 100, 10, "Times-Roman", 150),
+      item(").", 322, 100, 10, "Times-Roman", 6)
+    ]);
+    expect(result.formulas).toEqual([]);
+    expect(result.items.map(token => token.str).join(" ")).toContain("segment annotations");
+  });
+
+  it("keeps a small-caps heading word outside the preceding model symbol", () => {
+    const blocks = extractTextBlocks([
+      item("IV. THE", 380, 377, 10, "Times-Roman", 49),
+      item("π", 434, 377, 10, "CMMI10", 6), item("0", 440, 375.5, 7, "CMR7", 4),
+      item("M", 447, 377, 10, "Times-Roman", 9), item("ODEL", 456.5, 377, 8, "Times-Roman", 23)
+    ], 4);
+    expect(blocks).toHaveLength(1);
+    expect(blocks[0].text).toBe("IV. THE ⟪WUPAGE0⟫ MODEL");
+    expect(blocks[0].translatable).toBe(true);
+    expect(blocks[0].formulas?.map(formula => formula.text)).toEqual(["π0"]);
+  });
+
+  it.each([Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY])("uses finite bounds when font metrics are %s", metric => {
+    const result = protectPdfMath([
+      { ...item("x = y", 20, 100, 10, "CMMI10"), fontAscent: metric, fontDescent: metric },
+      { ...item("The next paragraph.", 20, 70), fontAscent: metric }
+    ]);
+    expect(result.formulas).toHaveLength(1);
+    expect(Object.values(result.formulas[0]).filter(value => typeof value === "number").every(Number.isFinite)).toBe(true);
+  });
+
+  it("keeps multiplication dots and nested named functions in one inline formula", () => {
+    const result = protectPdfMath([
+      item("The embedding is", 10, 100, 10, "Times-Roman", 70),
+      item("W3", 82, 100, 10, "CMMI10", 12), item("·", 96, 100, 10, "CMSY10", 3),
+      item("swish", 102, 100, 10, "Times-Roman", 23), item("(", 125, 100, 10, "CMR10", 4),
+      item("W2", 129, 100, 10, "CMMI10", 12), item("·", 143, 100, 10, "CMSY10", 3),
+      item("concat", 149, 100, 10, "Times-Roman", 26), item("(", 175, 100, 10, "CMR10", 4),
+      item("W1", 179, 100, 10, "CMMI10", 12), item("·", 193, 100, 10, "CMSY10", 3),
+      item("a", 199, 100, 10, "CMMI10", 6), item(")))", 205, 100, 10, "CMR10", 12),
+      item(", where", 219, 100, 10, "Times-Roman", 30)
+    ]);
+    expect(result.formulas.map(formula => ({ text: formula.text, display: formula.display }))).toEqual([
+      { text: "W3·swish(W2·concat(W1·a)))", display: false }
+    ]);
+  });
+
+  it("keeps a line-leading multiplication dot attached to a wrapped math continuation", () => {
+    const result = protectPdfMath([
+      item("The result is", 10, 100, 10, "Times-Roman", 55), item("x", 100, 100, 10, "CMMI10", 6),
+      item("·", 10, 85, 10, "CMSY10", 3), item("y", 16, 85, 10, "CMMI10", 6),
+      item("in this model.", 25, 85, 10, "Times-Roman", 60)
+    ]);
+    expect(result.formulas.at(-1)).toMatchObject({ text: "·y", display: false });
+  });
+
+  it("preserves genuine middle-dot list markers before prose", () => {
+    const blocks = extractTextBlocks([
+      item("·", 20, 100, 10, "CMSY10", 4), item("First list item", 30, 100, 10, "Times-Roman", 70),
+      item("·", 20, 85, 10, "CMSY10", 4), item("Second list item", 30, 85, 10, "Times-Roman", 75)
+    ], 5);
+    expect(blocks.map(block => block.text)).toEqual(["· First list item", "· Second list item"]);
+    expect(blocks.every(block => block.translatable && !block.formulas?.length)).toBe(true);
+  });
+
   it("leaves unmatched prose parentheses outside formulas while retaining function arguments", () => {
     const result = protectPdfMath([
       item("Assume", 10, 100), item("f", 50, 100, 10, "CMMI10"), item("(", 55, 100, 10, "CMSS10"),

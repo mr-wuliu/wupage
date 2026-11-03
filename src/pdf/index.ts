@@ -13,13 +13,11 @@ import { DEFAULT_SETTINGS } from "../shared/defaults";
 import { SOURCE_LANGUAGES, TARGET_LANGUAGES } from "../shared/languages";
 import { enhanceProviderSelect } from "../shared/provider-picker";
 import { sendRuntimeMessage } from "../shared/messaging";
+import { requestPdfTranslation } from "../shared/pdf-translation";
+import { getEffectiveProviderPerformance } from "../shared/performance";
 import { ProviderError } from "../shared/errors";
 import { doubaoProviderNotice, isDoubaoProviderUnavailable, syncDoubaoTargetControls } from "../shared/doubao-ui";
-import type {
-  ExtensionSettings,
-  RuntimeRequest,
-  TranslateBatchResponse
-} from "../shared/types";
+import type { ExtensionSettings } from "../shared/types";
 import {
   estimateForegroundColor,
   toCssRgb,
@@ -45,7 +43,8 @@ import { filterVisiblePdfText } from "./visibility";
 import { validatePdfMathTranslation } from "./math";
 import { preparePdfDocument, preparePdfTranslation, pdfPageTranslationContext, type PdfDocumentContext } from "./document";
 import { createFormulaImages, getFormulaViewportRect } from "./math-rendering";
-import { findReadingPage, selectPdfTranslationPages, takeNearestPage } from "./scheduling";
+import { findReadingPage, selectPdfTranslationPages } from "./scheduling";
+import { PdfTranslationQueue, type PdfQueuePage, type PdfQueuePageStatus } from "./translation-queue";
 import "./styles.css";
 
 renderUiIcons();
@@ -55,7 +54,6 @@ GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
 const PDF_DOWNLOAD_TIMEOUT_MS = 30_000;
 const PDF_OPEN_TIMEOUT_MS = 45_000;
-const TRANSLATION_PAGE_TIMEOUT_MS = 120_000;
 const TRANSLATION_SCROLL_DELAY_MS = 200;
 let documentContext: PdfDocumentContext = { context: "", abbreviations: new Map() };
 
@@ -74,14 +72,20 @@ interface PdfPageState {
   translatedCanvasShell: HTMLElement;
   translationLayer: HTMLElement;
   translationPrompt: HTMLElement;
+  translationRetryButton: HTMLButtonElement;
   translationLayerObserver?: ResizeObserver;
   translations?: string[];
   translationContext?: string;
+  renderedTranslationContext?: string;
   translationPending?: boolean;
+  translationProgress?: PdfQueuePageStatus;
+  translationDraft?: { context: string; page: PdfQueuePage; inputs: Map<number, ReturnType<typeof preparePdfTranslation>> };
   renderViewport?: ReturnType<PDFPageProxy["getViewport"]>;
 }
 
 interface PdfTranslationSession {
+  controller: AbortController;
+  queue: PdfTranslationQueue;
   runId: number;
   forDownload: boolean;
   finished: Promise<void>;
@@ -91,13 +95,10 @@ interface PdfTranslationSession {
   context: string;
   readingPage: number;
   scopePages: PdfPageState[];
-  pending: Set<PdfPageState>;
-  active: Set<PdfPageState>;
   failed: Set<PdfPageState>;
   followReading: boolean;
   scrolling: boolean;
   busy: boolean;
-  completed: number;
   translated: number;
   cached: number;
   failedPages: number;
@@ -242,14 +243,18 @@ function bindEvents(): void {
 
 function onReaderSettingsChange(): void {
   if (downloadButton.classList.contains("is-loading")) return;
+  for (const page of pageStates) page.translationRetryButton.hidden = true;
   // A different language or service requires an explicit start with that config.
   const session = translationSession;
   if (session) {
+    cancelTranslationSession();
+    translateButton.classList.remove("is-loading");
+    translateButton.disabled = false;
+    updateDownloadButtonState();
     session.followReading = false;
-    session.pending.clear();
-    session.scrolling = false;
-    window.clearTimeout(translationScrollTimer);
-    pumpTranslationQueue(session);
+    for (const number of session.queue.activePages) renderPageError(pageStates[number - 1], new Error("翻译设置已更改，请点击翻译按钮重新开始。"));
+    progressBar.style.width = "0%";
+    showStatus("翻译设置已更改，请点击翻译按钮重新开始。", "info");
   }
   void saveReaderSettings();
 }
@@ -393,10 +398,10 @@ async function loadPdf(data: ArrayBuffer, name: string, autoTranslate: boolean, 
       // fonts. Load the real font metadata before identifying formula runs.
       const operators = await page.getOperatorList?.();
       assertCurrentOpen(operation);
-      const visibleItems = filterVisiblePdfText(textContent.items, operators, OPS, optionalContent);
       const fonts = new Map(Object.keys(textContent.styles).flatMap((name) =>
         page.commonObjs?.has(name) ? [[name, page.commonObjs.get(name)] as const] : []
       ));
+      const visibleItems = filterVisiblePdfText(textContent.items, operators, OPS, optionalContent, fonts);
       const measureContext = fonts.size ? document.createElement("canvas").getContext("2d") : null;
       const textItems = visibleItems.flatMap((item) => {
         if (!("str" in item)) return [];
@@ -514,7 +519,21 @@ function createPageState(
   const prompt = document.createElement("p");
   prompt.className = "translation-prompt";
   prompt.textContent = blocks.length ? "此页尚未翻译；开始翻译后，滚动会自动补译附近页面。" : "此页未检测到可翻译文字";
-  translatedCanvasShell.append(translatedCanvas, translationViewport, prompt);
+  const retryButton = document.createElement("button");
+  retryButton.className = "translation-retry";
+  retryButton.textContent = "补译未完成段落";
+  retryButton.setAttribute("aria-label", `重试第 ${pageNumber} 页未完成段落`);
+  retryButton.hidden = true;
+  retryButton.addEventListener("click", () => {
+    const session = translationSession;
+    if (!session || session.pauseError) return;
+    window.clearTimeout(translationScrollTimer);
+    session.scrolling = false;
+    session.readingPage = pageNumber;
+    refreshTranslationRange(session);
+    session.queue.retryPage(pageNumber);
+  });
+  translatedCanvasShell.append(translatedCanvas, translationViewport, prompt, retryButton);
   translatedPanel.append(translatedCanvasShell);
 
   row.append(originalPanel, translatedPanel);
@@ -532,7 +551,8 @@ function createPageState(
     translatedBaseCanvas,
     translatedCanvasShell,
     translationLayer,
-    translationPrompt: prompt
+    translationPrompt: prompt,
+    translationRetryButton: retryButton
   };
 }
 
@@ -543,7 +563,7 @@ function setupRenderObserver(): void {
       const pageState = pageStates.find((state) => state.canvasShell === entry.target);
       if (!pageState) continue;
       renderObserver?.unobserve(entry.target);
-      void renderPdfPage(pageState);
+      void renderPdfPage(pageState).catch(error => renderPageError(pageState, error));
     }
   }, { rootMargin: "900px 0px" });
 }
@@ -579,7 +599,7 @@ async function renderPdfPageOnce(pageState: PdfPageState): Promise<void> {
   await renderPageWithoutText(page, pageState.translatedBaseCanvas, viewport);
   renderedPages.add(pageState.pageNumber);
   pageState.canvasShell.classList.add("is-rendered");
-  if (pageState.translations && !pageState.translationPending) renderTranslatedPdfPage(pageState);
+  if (pageState.translations || pageState.translationDraft?.page.values.some((value, index) => pageState.blocks[index].translatable && value !== undefined)) renderTranslatedPdfPage(pageState);
 }
 
 async function renderOriginalTextLayer(
@@ -614,7 +634,7 @@ function syncOriginalTextLayer(pageState: PdfPageState, internalWidth: number): 
 
 function renderTranslatedPdfPage(pageState: PdfPageState): void {
   const renderViewport = pageState.renderViewport;
-  const translations = pageState.translations;
+  const translations = pageState.translations ?? pageState.translationDraft?.page.values;
   if (!renderViewport || !translations) return;
   const scale = renderViewport.width / pageState.pdfWidth;
   const viewport = {
@@ -666,9 +686,14 @@ function renderTranslatedPdfPage(pageState: PdfPageState): void {
     context.fillStyle = toCssRgb(originalContext ? sampleBackgroundColor(originalContext, rect) : [255, 255, 255]);
     context.fillRect(rect.x, rect.y, rect.width, rect.height);
   }
-  pageState.translationLayer.replaceChildren();
+  const previousBlocks = new Map(pageState.renderedTranslationContext === pageState.translationDraft?.context
+    ? [...pageState.translationLayer.querySelectorAll<HTMLElement>(".translation-block")].map(block => [block.dataset.blockId!, block] as const) : []);
+  pageState.renderedTranslationContext = pageState.translationDraft?.context ?? pageState.translationContext;
+  for (const child of [...pageState.translationLayer.children]) {
+    if (!previousBlocks.has((child as HTMLElement).dataset.blockId ?? "")) child.remove();
+  }
   layouts.forEach((layout, index) => {
-    if (!layout.block.translatable) {
+    if (!layout.block.translatable || translations[index] === undefined) {
       // Copy original glyphs, including scripts and equation numbers. Replacing
       // them with ordinary canvas text would lose the PDF's math typography.
       for (const rect of layout.lineRects) {
@@ -681,6 +706,11 @@ function renderTranslatedPdfPage(pageState: PdfPageState): void {
       return;
     }
     const text = translations[index] ?? layout.block.text;
+    const previousBlock = previousBlocks.get(layout.block.id);
+    if (previousBlock?.dataset.translationValue === text) {
+      return;
+    }
+    previousBlock?.remove();
     const blockLayout = getTranslatedBlockLayout(
       context,
       text,
@@ -720,6 +750,7 @@ function renderTranslatedPdfPage(pageState: PdfPageState): void {
       height: blockLayout.height * coordinateScale,
       onTextChange: (value) => {
         translations[index] = value;
+        editableBlock.dataset.translationValue = value;
         updateDownloadButtonState();
       },
       onDelete: () => {
@@ -727,7 +758,10 @@ function renderTranslatedPdfPage(pageState: PdfPageState): void {
         updateDownloadButtonState();
       }
     });
-    pageState.translationLayer.append(editableBlock);
+    editableBlock.dataset.translationValue = text;
+    const nextBlock = [...pageState.translationLayer.children].find(child =>
+      layouts.findIndex(entry => entry.block.id === (child as HTMLElement).dataset.blockId) > index);
+    pageState.translationLayer.insertBefore(editableBlock, nextBlock ?? null);
     fitTranslationBlock(editableBlock);
   });
   for (const rect of titleBackgrounds) {
@@ -742,6 +776,7 @@ function renderTranslatedPdfPage(pageState: PdfPageState): void {
 
   pageState.translationPrompt.hidden = true;
   pageState.translatedCanvasShell.className = "canvas-shell translation-canvas-shell is-rendered";
+  if (!pageState.translations) updatePartialPageStatus(pageState);
 }
 
 function getViewportLineRect(
@@ -861,6 +896,8 @@ function updateTranslationScopeControl(): void {
 }
 
 function cancelTranslationSession(): void {
+  translationSession?.queue.cancel();
+  translationSession?.controller.abort();
   translationSession?.resolveFinished();
   translationSession = undefined;
   window.clearTimeout(translationScrollTimer);
@@ -892,11 +929,61 @@ async function translateDocument(forDownload = false): Promise<PdfTranslationSes
   const context = JSON.stringify([requestOptions, settings.providers.find((entry) => entry.id === requestOptions.providerId)]);
   let resolveFinished!: () => void;
   const finished = new Promise<void>((resolve) => { resolveFinished = resolve; });
-  const session: PdfTranslationSession = {
+  let session!: PdfTranslationSession;
+  const performance = getEffectiveProviderPerformance(settings, requestOptions.providerId);
+  const queue = new PdfTranslationQueue({
+    concurrency: Math.max(1, Math.min(2, performance.concurrency)), maxChars: Math.min(1600, performance.chunkSize),
+    translate: (entry, indexes, signal) => {
+      const page = pageStates[entry.pageNumber - 1], draft = page.translationDraft!;
+      return requestPdfTranslation({
+        texts: indexes.map(index => draft.inputs.get(index)!.text),
+        context: pdfPageTranslationContext(documentContext, page.blocks), preservePlaceholders: true,
+        translationStyle: "academic", ...session.requestOptions
+      }, page.pageNumber, anySignal([signal, session.controller.signal]));
+    },
+    restore: (entry, index, raw) => {
+      const page = pageStates[entry.pageNumber - 1];
+      const value = page.translationDraft!.inputs.get(index)!.restore(raw);
+      validatePdfMathTranslation(value, page.blocks[index].formulas);
+      session.translated += 1;
+      return value;
+    },
+    onChange: (entry, status) => {
+      if (translationSession !== session) return;
+      const page = pageStates[entry.pageNumber - 1];
+      page.translationProgress = status;
+      page.translationPending = status.running || status.pending;
+      try {
+        if (status.completed === status.total) {
+          session.failed.delete(page);
+          renderPageTranslations(page, entry.values as string[], session.context);
+        } else {
+          if (status.error) session.failed.add(page);
+          else session.failed.delete(page);
+          if (status.completed && renderedPages.has(page.pageNumber)) renderTranslatedPdfPage(page);
+          updatePartialPageStatus(page);
+        }
+      } catch (error) {
+        // A page display failure must not strand the remaining network queue.
+        session.failed.add(page);
+        renderPageError(page, error);
+      }
+      session.cached = queue.cached;
+      if (queue.pauseError) {
+        session.pauseError = queue.pauseError; session.followReading = false; session.scrolling = false;
+        window.clearTimeout(translationScrollTimer);
+      }
+      pumpTranslationQueue(session);
+    },
+    onIdle: () => { if (translationSession === session && session.busy) finishTranslationBatch(session); }
+  });
+  session = {
+    controller: new AbortController(),
+    queue,
     runId, forDownload, finished, resolveFinished,
     radius: forDownload ? null : settings.pdfTranslationPageRadius, requestOptions, context,
-    readingPage: startingPage, scopePages: [], pending: new Set(), active: new Set(), failed: new Set(),
-    followReading: !forDownload, scrolling: false, busy: true, completed: 0, translated: 0, cached: 0, failedPages: 0
+    readingPage: startingPage, scopePages: [], failed: new Set(),
+    followReading: !forDownload, scrolling: false, busy: true, translated: 0, cached: 0, failedPages: 0
   };
   translationSession = session;
   refreshTranslationRange(session);
@@ -910,6 +997,7 @@ function scheduleReadingTranslation(): void {
   // Stop dispatching while the viewport is moving; keep at most the two
   // requests already in flight, then replace the waiting range after it settles.
   session.scrolling = true;
+  session.queue.suspend();
   window.clearTimeout(translationScrollTimer);
   translationScrollTimer = window.setTimeout(() => {
     if (translationSession !== session || !session.followReading) return;
@@ -922,94 +1010,59 @@ function scheduleReadingTranslation(): void {
 
 function refreshTranslationRange(session: PdfTranslationSession): void {
   session.scopePages = selectPdfTranslationPages(pageStates, session.readingPage, session.radius);
-  session.pending.clear();
   for (const page of session.scopePages) {
     if (page.translations && page.translationContext === session.context) {
       if (page.translatedCanvasShell.classList.contains("has-error")) {
         renderPageTranslations(page, page.translations, session.context);
       }
-    } else if (page.blocks.some((block) => block.translatable) && !session.active.has(page) && !session.failed.has(page)) {
-      session.pending.add(page);
+    } else if (!page.blocks.some(block => block.translatable)) {
+      // Bibliography-only and image-only pages still need a visible right
+      // panel, even though they require no translation request.
+      renderPageTranslations(page, page.blocks.map(block => block.text), session.context);
     }
   }
+  const pages = session.scopePages.filter(page => page.blocks.some(block => block.translatable)).map(page => {
+    if (page.translationDraft?.context !== session.context) {
+      const inputs = new Map(page.blocks.flatMap((block, index) => block.translatable
+        ? [[index, preparePdfTranslation(block, documentContext.abbreviations)] as const] : []));
+      page.translationDraft = { context: session.context, inputs, page: {
+        pageNumber: page.pageNumber, items: [...inputs].map(([index, input]) => ({ index, text: input.text })),
+        values: page.translationContext === session.context && page.translations ? page.translations
+          : page.blocks.map(block => block.translatable ? undefined : block.text)
+      } };
+      if (page.translationContext !== session.context) page.translations = undefined;
+    }
+    return page.translationDraft.page;
+  });
+  session.queue.setScope(pages, session.readingPage);
 }
 
 function pumpTranslationQueue(session: PdfTranslationSession): void {
   if (translationSession !== session || session.runId !== translationRun || session.scrolling
     || (downloadButton.classList.contains("is-loading") && !session.forDownload)) return;
-  if (session.pending.size && !session.busy) {
+  if (session.queue.busy && !session.busy) {
     session.busy = true;
-    session.completed = session.translated = session.cached = session.failedPages = 0;
+    session.translated = session.cached = session.failedPages = 0;
   }
-  while (!session.pauseError && session.pending.size && session.active.size < 2) {
-    const page = takeNearestPage(session.pending, session.readingPage)!;
-    session.active.add(page);
-    renderTranslationSkeleton(page);
-    void translatePage(session, page);
-  }
-  if (session.active.size || session.pending.size) {
+  session.failedPages = session.scopePages.filter(page => session.failed.has(page)).length;
+  if (session.queue.busy) {
     translateButton.disabled = true;
     translateButton.classList.add("is-loading");
     updateDownloadButtonState();
-    const total = session.completed + session.active.size + session.pending.size;
-    progressBar.style.width = `${Math.round(session.completed / total * 100)}%`;
+    const scope = session.scopePages.map(page => page.translationProgress).filter((status): status is PdfQueuePageStatus => Boolean(status));
+    const total = scope.reduce((sum, status) => sum + status.total, 0);
+    const completed = scope.reduce((sum, status) => sum + status.completed, 0);
+    progressBar.style.width = `${Math.round(completed / Math.max(1, total) * 100)}%`;
     const label = session.radius === null ? "全文"
       : `第 ${session.scopePages[0].pageNumber}–${session.scopePages.at(-1)!.pageNumber} 页`;
     if (session.pauseError) {
-      showStatus(`翻译已暂停：${formatTranslationError(session.pauseError)} 正在等待已发出的 ${session.active.size} 页请求结束，随后可点击翻译按钮重试。`, "error", true);
+      showStatus(`翻译已暂停：${formatTranslationError(session.pauseError)} 正在等待已发出的 ${session.queue.activeCount} 个请求结束，随后可点击翻译按钮重试。`, "error", true);
     } else {
       const action = session.forDownload ? "下载前正在补全翻译" : "正在翻译";
-      showStatus(`${action}${label}：${session.completed} / ${total} 页…`, "info", true);
+      showStatus(`${action}${label}：${completed} / ${total} 段…`, "info", true);
     }
   } else if (session.busy) {
     finishTranslationBatch(session);
-  }
-}
-
-async function translatePage(session: PdfTranslationSession, page: PdfPageState): Promise<void> {
-  try {
-    const translatableBlocks = page.blocks.filter((block) => block.translatable);
-    const inputs = translatableBlocks.map((block) => preparePdfTranslation(block, documentContext.abbreviations));
-    const result = await withTimeout(
-      sendRuntimeMessage<TranslateBatchResponse>({
-        type: "TRANSLATE_BATCH", texts: inputs.map((input) => input.text),
-        context: pdfPageTranslationContext(documentContext, page.blocks), preservePlaceholders: true, ...session.requestOptions
-      } satisfies RuntimeRequest),
-      TRANSLATION_PAGE_TIMEOUT_MS, `第 ${page.pageNumber} 页翻译`
-    );
-    if (translationSession !== session) return;
-    let translationIndex = 0;
-    const translations = page.blocks.map((block) => {
-      if (!block.translatable) return block.text;
-      const input = inputs[translationIndex];
-      const raw = result.translations[translationIndex++];
-      const translation = raw?.trim() ? input.restore(raw) : raw;
-      if (!translation?.trim()) throw new Error("翻译服务返回的译文不完整，请重试。");
-      validatePdfMathTranslation(translation, block.formulas);
-      return translation;
-    });
-    renderPageTranslations(page, translations, session.context);
-    session.translated += result.translations.length;
-    session.cached += result.cached;
-  } catch (error) {
-    if (translationSession !== session) return;
-    session.failed.add(page); // Retry explicitly, never repeatedly on scroll.
-    session.failedPages += 1;
-    if (error instanceof ProviderError && ["login-required", "service-rejected", "rate-limited", "permission-required",
-      "unsupported-browser", "unsupported-language", "protocol-changed"].includes(error.errorCode)) {
-      session.pauseError ??= error;
-      session.pending.clear();
-      session.followReading = false;
-      session.scrolling = false;
-      window.clearTimeout(translationScrollTimer);
-    }
-    renderPageError(page, error);
-  } finally {
-    if (translationSession === session) {
-      session.active.delete(page);
-      session.completed += 1;
-      pumpTranslationQueue(session);
-    }
   }
 }
 
@@ -1023,7 +1076,9 @@ function finishTranslationBatch(session: PdfTranslationSession): void {
   if (session.pauseError) {
     showStatus(`翻译已暂停：${formatTranslationError(session.pauseError)} 已完成 ${session.translated} 段，处理后可直接点击翻译按钮重试。`, "error", true);
   } else if (session.failedPages) {
-    showStatus(`翻译完成：${session.translated} 段成功，${session.failedPages} 页失败，可点击翻译按钮重试。`, "error");
+    const remaining = session.scopePages.reduce((sum, page) => sum + (page.translationProgress
+      ? page.translationProgress.total - page.translationProgress.completed : 0), 0);
+    showStatus(`翻译完成：${session.translated} 段成功，${remaining} 段失败（${session.failedPages} 页）；已完成译文已保留，可补译未完成段落。`, "error");
   } else {
     const detail = session.radius === null || !session.followReading ? "" : "滚动后自动补译附近尚未翻译的页面。";
     showStatus(`翻译完成：${session.translated} 段译文，缓存命中 ${session.cached} 段。${detail}`, "success");
@@ -1033,19 +1088,37 @@ function finishTranslationBatch(session: PdfTranslationSession): void {
   }, 1200);
 }
 
-function renderTranslationSkeleton(page: PdfPageState): void {
-  page.translationPending = true;
-  page.translatedCanvasShell.className = "canvas-shell translation-canvas-shell is-loading";
-  page.translationLayer.replaceChildren();
+function updatePartialPageStatus(page: PdfPageState): void {
+  const status = page.translationProgress;
+  if (!status || page.translations) return;
+  const partial = status.completed > 0;
+  page.translationRetryButton.hidden = !status.error || Boolean(translationSession?.queue.pauseError);
+  const visible = partial && renderedPages.has(page.pageNumber);
+  page.translatedCanvasShell.className = `canvas-shell translation-canvas-shell ${visible ? "is-rendered is-partial" : "is-pending"}`
+    + (status.running ? " is-loading" : "") + (status.error ? " has-error" : "");
+  if (!partial) page.translationLayer.replaceChildren();
+  const progress = `已翻译 ${status.completed} / ${status.total} 段`;
   page.translationPrompt.hidden = false;
-  page.translationPrompt.textContent = "正在生成版式译文…";
+  page.translationPrompt.textContent = status.error
+    ? `${progress}；未完成段落翻译失败：${formatTranslationError(status.error)}${partial ? " 已完成译文已保留。" : ""}`
+    : status.retrying ? `${progress}；连接中断，正在重试未完成的段落…`
+    : status.running ? `${progress}；正在翻译本页…`
+    : `${progress}；本页排队中，优先翻译正在阅读的页面。`;
 }
 
 function renderPageTranslations(page: PdfPageState, translations: string[], context: string): void {
   page.translations = translations;
   page.translationContext = context;
   page.translationPending = false;
+  page.translationRetryButton.hidden = true;
   if (renderedPages.has(page.pageNumber)) renderTranslatedPdfPage(page);
+  else {
+    // Translation can finish before lazy canvas rendering. Do not leave a
+    // completed offscreen page displaying the old spinner or failure state.
+    page.translatedCanvasShell.className = "canvas-shell translation-canvas-shell is-pending";
+    page.translationPrompt.hidden = false;
+    page.translationPrompt.textContent = "译文已就绪，滚动到本页后显示。";
+  }
 }
 
 async function downloadTranslatedDocument(): Promise<void> {
@@ -1140,6 +1213,10 @@ function updateDownloadButtonState(): void {
 
 function renderPageError(page: PdfPageState, error: unknown): void {
   page.translationPending = false;
+  if (!page.translations && page.translationDraft && page.translationProgress?.completed) {
+    page.translationProgress = { ...page.translationProgress, running: false, pending: false, error };
+    updatePartialPageStatus(page); return;
+  }
   page.translatedCanvasShell.className = "canvas-shell translation-canvas-shell has-error";
   page.translationLayer.replaceChildren();
   page.translationPrompt.hidden = false;
@@ -1148,6 +1225,9 @@ function renderPageError(page: PdfPageState, error: unknown): void {
 
 function formatTranslationError(error: unknown): string {
   const message = error instanceof Error ? error.message : String(error);
+  if (/translation response was interrupted|translation request timed out|cannot connect to the translation service/iu.test(message)) {
+    return "翻译服务连接中断或响应超时，请稍后重试。";
+  }
   if (provider.value === "google-web-translate" && /timed out|timeout|超时/iu.test(message)) {
     return "Google Web Translate 连接超时。该免密服务在部分网络中不稳定，请重试或在顶部切换其他翻译服务。";
   }

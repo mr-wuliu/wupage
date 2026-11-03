@@ -54,7 +54,9 @@ export function createEditableTranslationBlock(
     text.style.paddingLeft = `${options.hangingIndent}px`;
     text.style.textIndent = `${-options.hangingIndent}px`;
   }
-  if (options.formulaImages?.length) renderFormulaText(text, options.text, options.formulaImages, options.fontSize);
+  if (options.formulaImages?.length || /⟪WUPAGEOPEN\d+⟫/u.test(options.text)) {
+    renderFormulaText(text, options.text, options.formulaImages ?? [], options.fontSize);
+  }
   else text.textContent = options.text;
   text.addEventListener("input", () => options.onTextChange?.(readFormulaText(text)));
 

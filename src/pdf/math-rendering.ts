@@ -32,10 +32,22 @@ export function createFormulaImages(
 
 export function renderFormulaText(element: HTMLElement, text: string, images: ReadonlyArray<PdfFormulaImage>, fontSize: number): void {
   const byToken = new Map(images.map((image) => [image.formula.placeholder, image]));
-  for (const part of text.split(/(⟪WUPAGE\d+⟫)/gu)) {
+  const parents = [element];
+  for (const part of text.split(/(⟪WUPAGE(?:OPEN|CLOSE)?\d+⟫)/gu)) {
+    const format = /^⟪WUPAGE(OPEN|CLOSE)(\d+)⟫$/u.exec(part);
+    if (format) {
+      if (format[1] === "OPEN") {
+        const strong = document.createElement("strong");
+        strong.dataset.pdfFormatId = format[2];
+        strong.style.fontWeight = "700";
+        parents.at(-1)!.append(strong);
+        parents.push(strong);
+      } else if (parents.length > 1 && parents.at(-1)!.dataset.pdfFormatId === format[2]) parents.pop();
+      continue;
+    }
     const image = byToken.get(part);
     if (!image) {
-      element.append(document.createTextNode(part));
+      parents.at(-1)!.append(document.createTextNode(part));
       continue;
     }
     const { formula } = image;
@@ -51,12 +63,16 @@ export function renderFormulaText(element: HTMLElement, text: string, images: Re
     canvas.style.width = `${formula.width / formula.fontSize * fontSize}px`;
     canvas.style.height = `${formula.height / formula.fontSize * fontSize}px`;
     canvas.style.verticalAlign = `${-(formula.baselineY - formula.y) / formula.fontSize * fontSize}px`;
-    element.append(canvas);
+    parents.at(-1)!.append(canvas);
   }
 }
 
 export function readFormulaText(element: Node): string {
   if (element instanceof HTMLElement && element.dataset.formulaToken) return element.dataset.formulaToken;
+  if (element instanceof HTMLElement && element.dataset.pdfFormatId !== undefined) {
+    const id = element.dataset.pdfFormatId;
+    return `⟪WUPAGEOPEN${id}⟫${Array.from(element.childNodes, readFormulaText).join("")}⟪WUPAGECLOSE${id}⟫`;
+  }
   if (element.nodeType === Node.TEXT_NODE) return element.textContent ?? "";
   if (element instanceof HTMLBRElement) return "\n";
   return Array.from(element.childNodes, readFormulaText).join("");
@@ -77,6 +93,9 @@ export function paintFormulaText(context: CanvasRenderingContext2D, layer: HTMLE
       const point = position(rect);
       context.drawImage(node, point.x, point.y - rect.height / scale, rect.width / scale, rect.height / scale);
     } else if (node.nodeType === Node.TEXT_NODE) {
+      const style = getComputedStyle(node.parentElement ?? element);
+      const size = Number.parseFloat(style.fontSize) || Number.parseFloat(element.style.fontSize);
+      if (size) context.font = `${style.fontWeight || element.style.fontWeight || "400"} ${size}px ${style.fontFamily || element.style.fontFamily || "sans-serif"}`;
       const range = document.createRange();
       let offset = 0;
       for (const character of node.textContent ?? "") {

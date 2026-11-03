@@ -18,7 +18,7 @@ beforeEach(async () => {
     ...await vi.importActual("../src/ocr/model-store"), installedRevision: async () => undefined
   }));
   vi.stubGlobal("chrome", {
-    runtime: { onMessage: { addListener: (listener: typeof receive) => { receive ??= listener; } } },
+    runtime: { onMessage: { addListener: (listener: typeof receive) => { receive ??= listener; } }, onConnect: { addListener: vi.fn() } },
     storage: { local: {
       get: async () => ({ [SETTINGS_KEY]: structuredClone(stored) }),
       set: async (value: Record<string, ExtensionSettings>) => { await Promise.resolve(); stored = structuredClone(value[SETTINGS_KEY]); }

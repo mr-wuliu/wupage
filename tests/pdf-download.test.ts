@@ -5,6 +5,7 @@ import { resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from "vitest";
 import { DEFAULT_SETTINGS } from "../src/shared/defaults";
 import type { RuntimeRequest, RuntimeResponse } from "../src/shared/types";
+import { pdfPortFixture } from "./helpers/pdf-port";
 
 const { getDocument, buildRasterPdf, composeTranslatedPageCanvas, downloadPdfBytes } = vi.hoisted(() => ({
   getDocument: vi.fn(), buildRasterPdf: vi.fn(), composeTranslatedPageCanvas: vi.fn(), downloadPdfBytes: vi.fn()
@@ -67,7 +68,7 @@ describe("PDF full document download", () => {
       };
       return { ok: true };
     });
-    vi.stubGlobal("chrome", { runtime: { id: "test-extension", sendMessage } });
+    vi.stubGlobal("chrome", { runtime: { id: "test-extension", sendMessage, connect: pdfPortFixture(sendMessage) } });
     vi.stubGlobal("fetch", vi.fn(async () => new Response("%PDF-test")));
     buildRasterPdf.mockReset().mockResolvedValue(new Uint8Array([2]));
     composeTranslatedPageCanvas.mockReset().mockImplementation((canvas) => canvas);

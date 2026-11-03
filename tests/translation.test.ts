@@ -368,7 +368,7 @@ describe("LLM provider queue", () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
-  it("invalidates cached output after model, prompt, or source language changes", async () => {
+  it("invalidates cached output after model, prompt, source language, or academic style changes", async () => {
     const stored = new Map<string, string>();
     vi.stubGlobal("chrome", { storage: { local: {
       get: vi.fn(async (key: string | string[]) => {
@@ -396,7 +396,11 @@ describe("LLM provider queue", () => {
     provider.systemPrompt = "Translate formal emails into {{targetLang}}";
     expect((await translateWithSettings(settings, request)).cached).toBe(0);
     expect((await translateWithSettings(settings, { ...request, sourceLang: "auto" })).cached).toBe(0);
-    expect(fetchMock).toHaveBeenCalledTimes(4);
+    const academic = { ...request, translationStyle: "academic" as const };
+    expect((await translateWithSettings(settings, academic)).cached).toBe(0);
+    expect((await translateWithSettings(settings, academic)).cached).toBe(1);
+    expect((await translateWithSettings(settings, request)).cached).toBe(1);
+    expect(fetchMock).toHaveBeenCalledTimes(5);
   });
 
   it("recovers empty LLM items instead of caching them as successful translations", async () => {

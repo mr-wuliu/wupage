@@ -2,6 +2,30 @@ import { describe, expect, it } from "vitest";
 import { extractTextBlocks, normalizePdfTextItems } from "../src/pdf/model";
 
 describe("PDF text extraction", () => {
+  it("joins a bold run-in heading with regular prose without making the whole paragraph bold", () => {
+    const items = [
+      { str: "Flow matching.", transform: [10, 0, 0, 10, 30, 100], width: 65, fontWeight: 700 },
+      { str: " The noisy", transform: [10, 0, 0, 10, 95, 100], width: 45, fontWeight: 400 },
+      { str: "action chunk is mapped to an embedding.", transform: [10, 0, 0, 10, 20, 88], width: 180, fontWeight: 400 }
+    ].map(item => ({ ...item, height: 10, fontFamily: "serif" }));
+    const blocks = extractTextBlocks(items, 15);
+    expect(blocks).toHaveLength(1);
+    expect(blocks[0]).toMatchObject({
+      text: "Flow matching. The noisy action chunk is mapped to an embedding.",
+      fontWeight: 400, boldPrefix: "Flow matching.", translatable: true
+    });
+  });
+
+  it("keeps a standalone bold heading separate from its following paragraph", () => {
+    const blocks = extractTextBlocks([
+      { str: "Section heading", transform: [10, 0, 0, 10, 20, 100], width: 80, fontWeight: 700 },
+      { str: "A regular paragraph begins here.", transform: [10, 0, 0, 10, 20, 88], width: 160, fontWeight: 400 }
+    ].map(item => ({ ...item, height: 10, fontFamily: "serif" })), 1);
+    expect(blocks).toHaveLength(2);
+    expect(blocks[0]).toMatchObject({ fontWeight: 700 });
+    expect(blocks[0].boldPrefix).toBeUndefined();
+  });
+
   it("normalizes a rotated page before deciding which labels need preservation", () => {
     const items = normalizePdfTextItems([
       { str: "Upright in the viewer.", transform: [0, 10, -10, 0, 100, 200], width: 100, height: 10 }

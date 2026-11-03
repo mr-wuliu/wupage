@@ -87,6 +87,10 @@ export async function collectPdfExportScene(original: HTMLCanvasElement, layer: 
         scene.text.push({ text: node.getAttribute("aria-label") ?? "", x: position.x, y: position.y,
           width: rect.width * toPdf, size: fontSize / coordinateScale / pixelScale, color, invisible: true });
       } else if (node.nodeType === Node.TEXT_NODE) {
+        const runStyle = getComputedStyle(node.parentElement ?? element);
+        const runSize = Number.parseFloat(runStyle.fontSize) || fontSize;
+        const runWeight = runStyle.fontWeight || style.fontWeight;
+        if (measure) measure.font = `${runWeight} ${runSize}px ${runStyle.fontFamily || style.fontFamily}`;
         const range = document.createRange();
         let offset = 0;
         for (const character of node.textContent ?? "") {
@@ -95,7 +99,7 @@ export async function collectPdfExportScene(original: HTMLCanvasElement, layer: 
           if (!rect.width || rect.bottom <= bounds.top || rect.top >= bounds.bottom || rect.right <= bounds.left || rect.left >= bounds.right) continue;
           const position = point(rect), descent = measure?.measureText(character).fontBoundingBoxDescent || 0;
           const run: PdfExportText = { text: character, x: position.x, y: position.y - descent / coordinateScale / pixelScale,
-            width: rect.width * toPdf, size: fontSize / coordinateScale / pixelScale, color, bold: Number(style.fontWeight) >= 600 };
+            width: rect.width * toPdf, size: runSize / coordinateScale / pixelScale, color, bold: Number(runWeight) >= 600 };
           scene.text.push(run);
         }
       } else for (const child of node.childNodes) await read(child);
