@@ -86,6 +86,8 @@ async function translateConfigured(
       ...(providerConfig.type === "google-web-translate" && providerConfig.serviceMode !== "api" ? { googleContextVersion: 1 } : {}),
       ...(providerConfig.type === "firefox-local" ? { models: LOCAL_MODELS.map(({ id, version }) => [id, version]) } : {}),
       ...(providerConfig.type === "doubao-web" ? { doubaoProtocolVersion: DOUBAO_PROTOCOL_VERSION, translateService: "1" } : {}),
+      // Bump the style version when its built-in translation instructions change.
+      ...(request.translationStyle ? { translationStyle: request.translationStyle, translationStyleVersion: 1 } : {}),
       ...(request.preservePlaceholders ? { protectedTextVersion: 1 } : {}) }))}`
     : providerId;
   const cachedTranslations = new Map<number, string>();

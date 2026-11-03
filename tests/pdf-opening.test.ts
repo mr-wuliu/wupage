@@ -138,7 +138,7 @@ describe("PDF source opening", () => {
     await launch(fileUrl);
     await vi.waitFor(() => expect(translated()).toBe(true));
     expect(fileAccess).toHaveBeenCalledOnce();
-    expect(sendMessage).toHaveBeenCalledWith(expect.objectContaining({ type: "TRANSLATE_BATCH", preservePlaceholders: true }));
+    expect(sendMessage).toHaveBeenCalledWith(expect.objectContaining({ type: "TRANSLATE_BATCH", preservePlaceholders: true, translationStyle: "academic" }));
     expect(fetchPdf).toHaveBeenCalledWith(fileUrl, expect.objectContaining({ signal: expect.any(AbortSignal) }));
     expect(getDocument).toHaveBeenCalledWith({ data: expect.any(Uint8Array) });
     expect(document.querySelector("#documentName")?.textContent).toBe("Annual report.pdf");

@@ -57,12 +57,14 @@ export function preparePdfDocument(pages: PdfDocumentPage[], name: string): PdfD
   }
   const firstPage = pages[0];
   const title = firstPage?.blocks.filter((block) => block.translatable && block.text.length > 20)
-    .sort((a, b) => b.fontSize - a.fontSize)[0]?.text ?? name;
-  const abstract = firstPage?.blocks.filter((block) => block.translatable && block.lines.length >= 3)
-    .slice(0, 4).map(sourceBlockText).join(" ").slice(0, 2200) ?? "";
+    .sort((a, b) => b.fontSize - a.fontSize)[0];
+  const abstractIndex = firstPage?.blocks.findIndex(block => /^(?:abstract\b|摘要)/iu.test(block.text.trim())) ?? -1;
+  const overviewBlocks = abstractIndex >= 0 ? firstPage!.blocks.slice(abstractIndex, abstractIndex + 3)
+    : firstPage?.blocks.filter(block => block.translatable && block.lines.length >= 3).slice(0, 4) ?? [];
+  const abstract = overviewBlocks.filter(block => block.translatable).map(sourceBlockText).join(" ").slice(0, 2200);
   const glossary = [...abbreviations].slice(0, 60).map(([term, expansion]) => `${term} = ${expansion}`).join("\n");
   return { abbreviations, context: [
-    `Academic document: ${title.slice(0, 300)}`,
+    `Academic document: ${(title ? sourceBlockText(title) : name).slice(0, 300)}`,
     abstract && `Document overview (source material): ${abstract}`,
     glossary && `Abbreviations defined by this document (preserve identifiers and use these meanings):\n${glossary}`,
     "Translate prose only. Preserve statistical values, identifiers, citation markers and figure panel letters. Use consistent technical terminology."
@@ -131,8 +133,8 @@ export function preparePdfTranslation(block: PdfTextBlock, abbreviations: Readon
     ? `⟪WUPAGEOPEN0⟫${block.boldPrefix}⟪WUPAGECLOSE0⟫${block.text.slice(block.boldPrefix.length)}` : block.text;
   let text = source.split(/(⟪WUPAGE(?:OPEN|CLOSE)?\d+⟫)/gu).map((part) => {
     if (/^⟪WUPAGE(?:OPEN|CLOSE)?\d+⟫$/u.test(part)) return part;
-    return part.replace(/https?:\/\/[^\s]+|\b[A-Z][A-Z\d-]{1,11}\b|(?<![\p{L}\p{N}])\d+(?:[·.,]\d+)*(?:\s*[–−-]\s*\d+(?:[·.,]\d+)*)?(?:%|‰)?(?!\p{L})/gu,
-      (value) => /^https?:/u.test(value) || abbreviations.has(value)
+    return part.replace(/\[\d+(?:\s*[,;–−-]\s*\d+)*\]|https?:\/\/[^\s]+|\b[A-Z][A-Z\d-]{1,11}\b|(?<![\p{L}\p{N}])\d+(?:[·.,]\d+)*(?:\s*[–−-]\s*\d+(?:[·.,]\d+)*)?(?:%|‰)?(?!\p{L})/gu,
+      (value) => /^\[\d/u.test(value) || /^https?:/u.test(value) || abbreviations.has(value)
         || (/^\d/u.test(value) && (abbreviations.size > 0 || /[·.,%‰–−-]/u.test(value))) ? protect(value) : value);
   }).join("");
   if (block.role === "figure-label") text = text.replace(/^([A-Z])(?=\s)/u, protect);

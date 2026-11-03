@@ -19,6 +19,7 @@ const fontBytes = await fs.readFile(process.env.PDF_FONT_FIXTURE || path.join(ro
 let fontRequests = 0;
 const source = await PDFDocument.create();
 const regular = await source.embedFont(StandardFonts.TimesRoman), bold = await source.embedFont(StandardFonts.HelveticaBold), italic = await source.embedFont(StandardFonts.TimesRomanItalic);
+const symbol = await source.embedFont(StandardFonts.Symbol);
 const add = (page, text, x, y, size = 10, font = regular) => page.drawText(text, { x, y, size, font });
 const first = source.addPage([600, 800]);
 add(first, 'Clinical prediction of complications', 40, 740, 17, bold);
@@ -45,6 +46,14 @@ second.drawLine({ start: { x: 40, y: 535 }, end: { x: 250, y: 545 }, color: rgb(
 add(second, 'RNN', 300, 550, 7); add(second, 'Clinical reference tool', 300, 541.6, 7);
 add(second, 'State', 40, 250, 8); add(second, 's', 60, 250, 8, italic);
 add(second, 's', 180, 250, 8, italic); add(second, 't', 183, 247.5, 5, italic);
+// Small caps next to math, and italic prose before an explanation, must reach
+// the translator as ordinary words rather than being baked into formula crops.
+add(second, 'IV. THE', 40, 180); add(second, 'π', 80, 180, 10, symbol); add(second, '0', 86, 178.5, 7);
+add(second, 'M', 94, 180, 10); add(second, 'ODEL', 103.5, 180, 8);
+add(second, 'We use segment', 40, 150);
+const termX = 40 + regular.widthOfTextAtSize('We use segment', 10) + 3;
+add(second, 'annotations', termX, 150, 10, italic);
+add(second, '(fine-grained labels for sub-trajectories).', termX + italic.widthOfTextAtSize('annotations', 10) + 3, 150);
 const cropped = source.addPage([600,800]); cropped.setCropBox(50,80,500,600);
 add(cropped,'A cropped page with its original vector graphics.',70,620,13);
 cropped.drawRectangle({x:70,y:500,width:180,height:45,color:rgb(0.1,0.7,0.3)});
@@ -178,6 +187,8 @@ try{
  }
  assert.ok(requests.every(input=>input.context?.includes('Academic document:')));
  assert.ok(requests.every(input=>!input.texts.some(text=>/^(?:PPV|NPV|RNN)$/u.test(text))));
+ assert.ok(requests.some(input=>input.texts.some(text=>text.includes('segment annotations (fine-grained'))),'italic annotations remain translatable');
+ assert.ok(requests.some(input=>input.texts.some(text=>/^IV\. THE ⟪WUPAGE\d+⟫ MODEL$/u.test(text))),'small-caps MODEL stays outside the symbol crop');
  await fs.writeFile(path.join(output,'report.json'),JSON.stringify({passed:true,browser:target.kind,userAgent,mock:true,checks,requests},null,2));
  console.log(JSON.stringify({passed:true,browser:target.kind,userAgent,checks}));
 }catch(error){await fs.writeFile(path.join(output,'report.json'),JSON.stringify({passed:false,browser:target.kind,checks,error:String(error)},null,2));throw error;}

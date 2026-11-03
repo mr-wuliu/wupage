@@ -45,11 +45,23 @@ export function protectPdfMath(items: ReadonlyArray<PdfTextItemLike>, measure?: 
     const next = tokens[nextIndex];
     return /^[A-Za-z][A-Za-z0-9]+$/u.test(item.str.trim()) && next
       && /^\s*\(/u.test(next.str) && (!isProse(next.str) || isMathFontItem(next))
+      && hasMathArguments(tokens, nextIndex, item.str.trim())
       && !/^\s*\(\s*[A-Za-z]\s*=\s*[\d.,]+\s*\)\s*$/u.test(next.str)
       && Math.abs(Number(item.transform[5]) - Number(next.transform[5])) < itemSize(item) * 0.5
       && Math.abs(Number(next.transform[4]) - Number(item.transform[4]) - (item.width ?? 0)) < itemSize(item);
   }));
   const isMathItem = (item: PdfTextItemLike): boolean => isMathFontItem(item) || functionNames.has(item) || citations.has(item);
+  const prosePrefixes = new Set(tokens.filter((item, index) => {
+    const next = tokens[index + 1];
+    if (!next || !/^[A-Z]$/u.test(item.str) || !/^[A-Z]{2,}$/u.test(next.str)
+      || isMathItem(item) || isMathItem(next) || item.fontName !== next.fontName) return false;
+    const size = itemSize(item), gap = Number(next.transform[4]) - Number(item.transform[4]) - (item.width ?? 0);
+    // Small caps often encode MODEL as a full-size M followed by smaller ODEL.
+    // Keep its initial out of an immediately preceding formula crop.
+    return Math.abs(Number(next.transform[5]) - Number(item.transform[5])) < size * 0.15
+      && itemSize(next) >= size * 0.65 && itemSize(next) <= size * 1.05
+      && gap >= -size * 0.1 && gap <= size * 0.15;
+  }));
   const output: PdfTextItemLike[] = [];
   const formulas: PdfFormula[] = [];
   let pending: PdfTextItemLike[] = [];
@@ -160,7 +172,7 @@ export function protectPdfMath(items: ReadonlyArray<PdfTextItemLike>, measure?: 
       output.push(token);
       continue;
     }
-    if (isProse(token.str) && !isMathItem(token)) {
+    if ((isProse(token.str) || prosePrefixes.has(token)) && !isMathItem(token)) {
       flush(token);
       output.push(token);
       continue;
@@ -196,6 +208,20 @@ export function protectPdfMath(items: ReadonlyArray<PdfTextItemLike>, measure?: 
 
 function fontMetric(value: number | undefined, fallback: number): number {
   return typeof value === "number" && Number.isFinite(value) ? value : fallback;
+}
+
+function hasMathArguments(tokens: ReadonlyArray<PdfTextItemLike>, index: number, name: string): boolean {
+  const opening = tokens[index];
+  let argument = opening.str.replace(/^\s*\(\s*/u, "");
+  let token = opening;
+  if (!argument.trim()) {
+    token = tokens.slice(index + 1).find(item => item.str.trim()) ?? opening;
+    argument = token === opening ? "" : token.str;
+  }
+  // A plain opening parenthesis before an explanation is not function syntax:
+  // "annotations (fine-grained labels ...)" must remain translatable prose.
+  return Boolean(argument.trim() && (!isProse(argument) || isMathFontItem(token))
+    && (isMathFontItem(token) || MATH_SYMBOL.test(argument) || /[A-Za-zΑ-Ωα-ω]/u.test(argument) || MATH_WORD.test(name)));
 }
 
 function isMiddleDotListMarker(

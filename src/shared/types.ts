@@ -228,6 +228,8 @@ export interface TranslateBatchRequest {
   texts: string[];
   /** Verify protected PDF formula markers before caching a translation. */
   preservePlaceholders?: boolean;
+  /** Apply academic prose guidance without changing ordinary webpage translation. */
+  translationStyle?: "academic";
   context?: string;
   sourceLang?: string;
   targetLang: string;

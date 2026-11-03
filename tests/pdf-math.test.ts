@@ -7,6 +7,30 @@ function item(str: string, x: number, y: number, size = 11, fontName = "CMR10", 
 }
 
 describe("PDF formula preservation", () => {
+  it("keeps an italic term before an explanatory parenthesis available for translation", () => {
+    const result = protectPdfMath([
+      item("task names and segment", 10, 100, 10, "Times-Roman", 98),
+      item("annotations", 112, 100, 10, "Times-Italic", 48),
+      item("(", 165, 100, 10, "Times-Roman", 3),
+      item("fine-grained labels for sub-trajectories", 170, 100, 10, "Times-Roman", 150),
+      item(").", 322, 100, 10, "Times-Roman", 6)
+    ]);
+    expect(result.formulas).toEqual([]);
+    expect(result.items.map(token => token.str).join(" ")).toContain("segment annotations");
+  });
+
+  it("keeps a small-caps heading word outside the preceding model symbol", () => {
+    const blocks = extractTextBlocks([
+      item("IV. THE", 380, 377, 10, "Times-Roman", 49),
+      item("π", 434, 377, 10, "CMMI10", 6), item("0", 440, 375.5, 7, "CMR7", 4),
+      item("M", 447, 377, 10, "Times-Roman", 9), item("ODEL", 456.5, 377, 8, "Times-Roman", 23)
+    ], 4);
+    expect(blocks).toHaveLength(1);
+    expect(blocks[0].text).toBe("IV. THE ⟪WUPAGE0⟫ MODEL");
+    expect(blocks[0].translatable).toBe(true);
+    expect(blocks[0].formulas?.map(formula => formula.text)).toEqual(["π0"]);
+  });
+
   it.each([Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY])("uses finite bounds when font metrics are %s", metric => {
     const result = protectPdfMath([
       { ...item("x = y", 20, 100, 10, "CMMI10"), fontAscent: metric, fontDescent: metric },

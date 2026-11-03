@@ -978,7 +978,8 @@ async function translatePage(session: PdfTranslationSession, page: PdfPageState)
     const inputs = translatableBlocks.map((block) => preparePdfTranslation(block, documentContext.abbreviations));
     const result = await requestPdfTranslation({
       texts: inputs.map((input) => input.text),
-      context: pdfPageTranslationContext(documentContext, page.blocks), preservePlaceholders: true, ...session.requestOptions
+      context: pdfPageTranslationContext(documentContext, page.blocks), preservePlaceholders: true,
+      translationStyle: "academic", ...session.requestOptions
     }, page.pageNumber, session.controller.signal);
     if (translationSession !== session) return;
     let translationIndex = 0;
