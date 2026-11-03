@@ -36,7 +36,7 @@ export function requestPdfTranslation(
     const onDisconnect = () => {
       // Reading lastError also acknowledges Chrome's disconnected-port error.
       const detail = chrome.runtime.lastError?.message;
-      finish(undefined, new Error(`翻译连接已中断，请点击翻译按钮重试。${detail ? ` ${detail}` : ""}`));
+      finish(undefined, new ProviderError(`翻译连接已中断，请点击翻译按钮重试。${detail ? ` ${detail}` : ""}`, "service-unavailable"));
     };
     const onMessage = (message: PdfTranslationMessage) => {
       if (message.type !== "result") return;

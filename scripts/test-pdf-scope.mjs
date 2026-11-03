@@ -164,7 +164,7 @@ try {
   assert.equal(new Set(calls).size, 40);
   assert((await reader.locator("#translateDocument").textContent()).includes("翻译全文"));
 
-  // Exercise a jump while both translation slots are occupied.
+  // A settled jump must preempt obsolete slow requests and start the new page.
   await options.locator("#pdfTranslationScope").selectOption("nearby");
   await options.locator("#pdfTranslationPageRadius").fill("5");
   await options.locator("#save").click();
@@ -176,15 +176,13 @@ try {
   await scrollTo(10);
   await clickTranslate();
   await assertEventually(() => assert.equal(gates.length, 2));
-  assert.deepEqual(calls, [10, 9]);
+  assert.deepEqual(calls, [10, 11]);
   await scrollTo(30);
   await reader.waitForTimeout(300);
-  assert((await reader.locator("#statusToast").textContent()).includes("第 25–35 页"));
-  assert.equal(calls.length, 2, "No third request may start while both slots are occupied");
-  gates[0]();
+  assert(/第 25–35 页|翻译完成/u.test(await reader.locator("#statusToast").textContent()));
   await assertEventually(() => assert.equal(calls[2], 30));
-  gates[1]();
   await waitIdle(13);
+  gates.forEach(release => release());
   assert.deepEqual(calls.slice(2).sort((a, b) => a - b), Array.from({ length: 11 }, (_, i) => i + 25));
   assert.equal(new Set(calls).size, 13);
   const activeJumpCalls = [...calls];

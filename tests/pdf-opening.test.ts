@@ -207,7 +207,7 @@ describe("PDF source opening", () => {
       ? new Promise<RuntimeResponse>((resolve) => gates.push(resolve)) : original(request));
     const requests = () => sendMessage.mock.calls.flatMap(([request]) => request.type === "TRANSLATE_BATCH" ? [request.texts[0]] : []);
     await launch(fileUrl);
-    await vi.waitFor(() => expect(requests()).toEqual(["Page 10 contents.", "Page 9 contents."]));
+    await vi.waitFor(() => expect(requests()).toEqual(["Page 10 contents.", "Page 11 contents."]));
     readingPage = 20;
     window.dispatchEvent(new Event("scroll"));
     readingPage = 30;
@@ -303,7 +303,7 @@ describe("PDF source opening", () => {
       ? Promise.resolve({ ok: false, error: "Service unavailable" }) : original(request));
     await launch(fileUrl);
     const button = document.querySelector<HTMLButtonElement>("#translateDocument")!;
-    await vi.waitFor(() => expect(document.querySelector("#statusToast")?.textContent).toContain("1 页失败"));
+    await vi.waitFor(() => expect(document.querySelector("#statusToast")?.textContent).toContain("1 段失败"));
     for (let index = 0; index < 3; index++) window.dispatchEvent(new Event("scroll"));
     await new Promise((resolve) => window.setTimeout(resolve, 250));
     expect(sendMessage.mock.calls.filter(([request]) => request.type === "TRANSLATE_BATCH")).toHaveLength(1);
@@ -327,7 +327,7 @@ describe("PDF source opening", () => {
     const original = sendMessage.getMockImplementation()!;
     sendMessage.mockImplementation((request: RuntimeRequest) => {
       if (request.type === "GET_SETTINGS") return Promise.resolve({ ok: true, data: structuredClone(stored) });
-      if (request.type === "TRANSLATE_BATCH" && gates.length < 2) {
+      if (request.type === "TRANSLATE_BATCH" && gates.length < 1) {
         return new Promise<RuntimeResponse>((resolve) => gates.push(resolve));
       }
       return original(request);
@@ -339,20 +339,19 @@ describe("PDF source opening", () => {
       await vi.waitFor(() => expect(download.disabled).toBe(false));
       download.click();
     }
-    await vi.waitFor(() => expect(requests()).toEqual(["Page 1 contents.", "Page 2 contents."]));
+    await vi.waitFor(() => expect(requests()).toEqual(["Page 1 contents."]));
     const originals = [...document.querySelectorAll(".original-panel canvas")];
     const button = document.querySelector<HTMLButtonElement>("#translateDocument")!;
     readingPage = 6;
     window.dispatchEvent(new Event("scroll")); // A previously scheduled range change must also stop.
     gates[0]({ ok: false, error: "请处理连接后重试。", errorCode, ...(errorCode === "rate-limited" ? { retryAfterMs: 100 } : {}) });
-    await vi.waitFor(() => expect(document.querySelector("#statusToast")?.textContent).toContain("翻译已暂停"));
-    expect(button.disabled).toBe(true); // The other in-flight page is allowed to settle.
-    gates[1]({ ok: true, data: { translations: ["第二页译文"], cached: 0 } });
+    await vi.waitFor(() => expect(document.querySelector("#statusToast")?.textContent).toContain(forDownload ? "下载失败" : "翻译已暂停"));
+    // Doubao's configured single-request limit is respected by the PDF queue.
     await vi.waitFor(() => expect(button.disabled).toBe(false));
     window.dispatchEvent(new Event("scroll"));
     window.dispatchEvent(new Event("resize"));
     await new Promise((resolve) => window.setTimeout(resolve, 250));
-    expect(requests()).toHaveLength(2);
+    expect(requests()).toHaveLength(1);
     expect(document.querySelector("#statusToast")?.textContent).toContain(forDownload ? "下载失败：请处理连接后重试" : "可直接点击翻译按钮重试");
     expect(document.querySelector<HTMLElement>("#statusToast")?.hidden).toBe(false);
     expect(document.querySelector('article[data-page="1"] .translation-canvas-shell')?.classList.contains("has-error")).toBe(true);
@@ -362,9 +361,38 @@ describe("PDF source opening", () => {
     button.click();
     await vi.waitFor(() => expect(requests()).toHaveLength(7));
     await vi.waitFor(() => expect(button.disabled).toBe(false));
-    expect(requests().filter((text) => text === "Page 2 contents.")).toHaveLength(1); // Retain the completed in-flight page.
+    expect(requests().filter((text) => text === "Page 2 contents.")).toHaveLength(1);
     expect(document.querySelector("#statusToast")?.textContent).toContain("翻译完成");
     expect(sendMessage.mock.calls.some(([request]) => request.type === "CHECK_DOUBAO")).toBe(false);
+  });
+
+  it("keeps completed paragraphs after a partial-page failure and retries only the missing paragraphs", async () => {
+    const normal = await getDocument.getMockImplementation()!().promise;
+    const sample = await normal.getPage(1);
+    getDocument.mockReturnValue({ promise: Promise.resolve({ numPages: 1, getPage: async () => ({ ...sample,
+      getTextContent: async () => ({ items: Array.from({ length: 6 }, (_, index) => ({
+        str: `Paragraph ${String.fromCharCode(65 + index)} contents.`, transform: [1, 0, 0, 12, 20, 700 - index * 85],
+        width: 180, fontName: "font" })), styles: { font: { fontFamily: "Arial" } } })
+    }) }), destroy: vi.fn() });
+    const original = sendMessage.getMockImplementation()!;
+    let fail = true;
+    sendMessage.mockImplementation(request => {
+      if (request.type !== "TRANSLATE_BATCH") return original(request);
+      if (fail && request.texts.some(text => text.includes("Paragraph E"))) return Promise.resolve({ ok: false, error: "Only this group failed" });
+      return Promise.resolve({ ok: true, data: { translations: request.texts.map(text => `译文：${text}`), cached: 0 } });
+    });
+    await launch(fileUrl);
+    await vi.waitFor(() => expect(document.querySelector("#statusToast")?.textContent).toContain("2 段失败"));
+    expect(document.querySelector(".translation-prompt")!.textContent).toContain("已翻译 4 / 6 段");
+    const requests = () => sendMessage.mock.calls.flatMap(([request]) => request.type === "TRANSLATE_BATCH" ? [request.texts] : []);
+    expect(requests().map(texts => texts.length)).toEqual([4, 2]);
+    fail = false;
+    document.querySelector<HTMLButtonElement>("#translateDocument")!.click();
+    await vi.waitFor(() => expect(requests()).toHaveLength(3));
+    await vi.waitFor(() => expect(document.querySelector("#statusToast")?.textContent).toContain("翻译完成"));
+    expect(requests()).toHaveLength(3);
+    expect(requests()[2]).toEqual(["Paragraph E contents.", "Paragraph F contents."]);
+    expect(document.querySelector(".has-error,.is-partial")).toBeNull();
   });
 
   it("continues other waiting pages after an ordinary provider error", async () => {
@@ -379,7 +407,7 @@ describe("PDF source opening", () => {
       return original(request);
     });
     await launch(fileUrl);
-    await vi.waitFor(() => expect(document.querySelector("#statusToast")?.textContent).toContain("1 页失败"));
+    await vi.waitFor(() => expect(document.querySelector("#statusToast")?.textContent).toContain("1 段失败"));
     expect(sendMessage.mock.calls.filter(([request]) => request.type === "TRANSLATE_BATCH")).toHaveLength(6);
     expect(document.querySelector<HTMLButtonElement>("#translateDocument")!.disabled).toBe(false);
     expect(document.querySelector("#statusToast")?.textContent).not.toContain("翻译已暂停");

@@ -88,6 +88,8 @@
     "test:pdf-scope": "node scripts/test-pdf-scope.mjs",
     "test:pdf-lifetime:edge": "node scripts/test-pdf-lifetime.mjs --edge",
     "test:pdf-lifetime:firefox": "node scripts/test-pdf-lifetime.mjs --firefox",
+    "test:pdf-partial:edge": "node scripts/test-pdf-partial.mjs --edge",
+    "test:pdf-partial:firefox": "node scripts/test-pdf-partial.mjs --firefox",
     "test:github-code": "node scripts/test-github-code-comments.mjs",
     "test:image-resolution": "node scripts/test-image-resolution.mjs",
     "typecheck": "tsc --noEmit",

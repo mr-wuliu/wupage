@@ -51,7 +51,9 @@ npm run build:firefox
 npm run test:pdf-lifetime:firefox
 ```
 
-测试生成三页 PDF，使用本地服务模拟不返回正文、延迟 35 秒回复与正常回复，检查超时后终止网络请求、失败页重试、切换语言及离开页面时取消旧任务，并确认后台队列清空。测试会缩短阅读器的等待时间；后台完整任务的两分钟期限、排队取消和公式标记恢复期间的取消由 `tests/pdf-translation.test.ts` 覆盖。报告保存在 `.npm-cache/pdf-lifetime/`。
+测试生成三页 PDF，使用本地服务模拟不返回正文、延迟 35 秒回复与正常回复，检查超时后终止网络请求、失败部分重试、切换语言及离开页面时取消旧任务，并确认后台队列清空。测试会缩短阅读器的等待时间；后台单批次任务的两分钟期限、排队取消和公式标记恢复期间的取消由 `tests/pdf-translation.test.ts` 覆盖。报告保存在 `.npm-cache/pdf-lifetime/`。
+
+`npm run test:pdf-partial:edge` 与 `npm run test:pdf-partial:firefox` 使用多段落 PDF，主动截断 HTTP 回复正文，检查成功段落立即显示、自动重试有上限、按页补译只发送缺失段落、手动修改及输入焦点保留，以及跳页后取消远处请求并优先处理新阅读页。报告与部分失败截图保存在 `.npm-cache/pdf-partial/`。
 
 ## 结果与边界
 
