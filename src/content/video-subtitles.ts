@@ -7,7 +7,7 @@ import { createSettingsSnapshot } from "../shared/settings-snapshot";
 import type { ExtensionSettings } from "../shared/types";
 
 let current: VideoSubtitleManager | undefined;
-let feature: { ready: Promise<void>; refresh: () => Promise<void> } | undefined;
+let feature: { ready: Promise<void> } | undefined;
 
 export function initVideoSubtitles(): void {
   if (feature || typeof location === "undefined" || typeof document === "undefined" || !/^https?:$/u.test(location.protocol) || !document.documentElement) return;
@@ -32,7 +32,7 @@ export function initVideoSubtitles(): void {
     window.removeEventListener("pageshow", restored); window.removeEventListener("pagehide", leave);
     current?.dispose(); feature = undefined;
   };
-  feature = { ready: Promise.resolve(), refresh };
+  feature = { ready: Promise.resolve() };
   chrome.storage?.onChanged?.addListener(changed);
   window.addEventListener("pageshow", restored); window.addEventListener("pagehide", leave);
   feature.ready = refresh().catch(() => {});
@@ -71,8 +71,10 @@ export class VideoSubtitleManager {
     });
     this.observer.observe(document.documentElement, { childList: true, subtree: true });
     this.timer = setInterval(() => {
-      if (!this.players.size || [...this.players.values()].some(player => !player.connected)) this.refresh();
-      this.announce();
+      // attachShadow() does not mutate the light DOM. Revisit connected hosts
+      // too, even while another player remains mounted on the page.
+      if (document.visibilityState !== "hidden") this.refresh();
+      else this.announce();
     }, 6000);
     window.addEventListener("pagehide", this.pagehide);
     window.addEventListener("pageshow", this.navigate);
@@ -80,6 +82,7 @@ export class VideoSubtitleManager {
     window.addEventListener("scroll", this.scrolled, { passive: true });
     window.addEventListener("resize", this.navigate);
     document.addEventListener("yt-navigate-finish", this.navigate);
+    document.addEventListener("visibilitychange", this.navigate);
     document.addEventListener("loadedmetadata", this.navigate, true);
     document.addEventListener("playing", this.navigate, true);
     this.refresh();
@@ -145,6 +148,7 @@ export class VideoSubtitleManager {
     window.removeEventListener("pagehide", this.pagehide); window.removeEventListener("pageshow", this.navigate); window.removeEventListener("popstate", this.navigate);
     window.removeEventListener("scroll", this.scrolled); window.removeEventListener("resize", this.navigate);
     document.removeEventListener("yt-navigate-finish", this.navigate);
+    document.removeEventListener("visibilitychange", this.navigate);
     document.removeEventListener("loadedmetadata", this.navigate, true);
     document.removeEventListener("playing", this.navigate, true);
     for (const player of this.players.values()) player.dispose(); this.players.clear();

@@ -5,6 +5,7 @@ import { uiIconMarkup } from "../shared/ui-icons";
 import { setHtmlContent } from "../shared/html";
 
 let nextView = 0;
+const NOTICE_DURATION_MS = 5000;
 export interface VideoViewActions {
   toggle: () => void;
   frame: () => void;
@@ -83,6 +84,7 @@ export class VideoView {
   private readonly notice: HTMLElement;
   private readonly retry: HTMLButtonElement;
   private noticeTimer?: ReturnType<typeof setTimeout>;
+  private frameStatusTimer?: ReturnType<typeof setTimeout>;
   private hasTranslation = false;
   private showOriginal = true;
   private controlOffset = 0;
@@ -165,6 +167,7 @@ export class VideoView {
   showFrame(canvas: HTMLCanvasElement): void { this.frameLayer.replaceChildren(canvas); }
 
   setFrameState(phase: "idle" | "loading" | "active" | "original", message = ""): void {
+    clearTimeout(this.frameStatusTimer); this.frameStatusTimer = undefined;
     const active = phase === "active";
     this.host.toggleAttribute("data-frame-visible", active);
     this.frameButton.setAttribute("aria-pressed", String(active));
@@ -172,7 +175,12 @@ export class VideoView {
     const label = phase === "loading" ? "取消画面翻译" : active ? "显示原画面" : phase === "original" ? "显示画面译文" : "暂停并翻译画面";
     this.frameButton.title = label; this.frameButton.setAttribute("aria-label", label);
     this.setText(this.frameStatus, message); this.frameStatus.hidden = !message;
-    if (message) this.setControls(true);
+    if (message) {
+      this.setControls(true);
+      if (phase !== "loading") this.frameStatusTimer = setTimeout(() => {
+        this.frameStatus.hidden = true; this.setText(this.frameStatus, ""); this.frameStatusTimer = undefined;
+      }, NOTICE_DURATION_MS);
+    }
   }
 
   mountControls(container?: HTMLElement, before?: Element, reference?: Element): void {
@@ -292,9 +300,12 @@ export class VideoView {
 
   tell(message: string): void {
     clearTimeout(this.noticeTimer); this.setControls(true); this.notice.hidden = false; this.setText(this.notice, message);
-    this.noticeTimer = setTimeout(() => { this.notice.hidden = true; }, 5000);
+    this.noticeTimer = setTimeout(() => { this.notice.hidden = true; }, NOTICE_DURATION_MS);
   }
 
   private setText(element: Element, value: string): void { if (element.textContent !== value) element.textContent = value; }
-  dispose(): void { this.setPanel(false); clearTimeout(this.noticeTimer); for (const cleanup of this.cleanups) cleanup(); this.cleanups = []; this.controlsHost.remove(); this.host.remove(); }
+  dispose(): void {
+    this.setPanel(false); clearTimeout(this.noticeTimer); clearTimeout(this.frameStatusTimer);
+    for (const cleanup of this.cleanups) cleanup(); this.cleanups = []; this.controlsHost.remove(); this.host.remove();
+  }
 }

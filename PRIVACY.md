@@ -1,6 +1,6 @@
 # WuPage Privacy Policy
 
-Effective date: November 2, 2026
+Effective date: November 4, 2026
 
 WuPage is a Firefox, Microsoft Edge and Chromium-compatible browser extension that translates webpage text, selected text, text typed into input boxes, recognized image text and PDF text using a translation provider selected and configured by the user.
 
@@ -42,6 +42,8 @@ WuPage does not sell user data. WuPage does not transfer user data for advertisi
 Settings, provider credentials, and optional translation cache entries are stored locally through the browser's extension storage. They remain until the user changes or clears them, resets the extension settings, clears extension data, or uninstalls WuPage. Debug task information is temporary and is discarded when the extension's background context is reset.
 
 Provider responses and request metadata can be retained by the selected provider according to that provider's policies. WuPage does not control a provider's retention practices.
+
+Users can explicitly export saved settings to a local TOML backup. Exports exclude credentials by default. This mode clears credential fields, custom headers and request templates, and non-default URLs, prompts and other request content that may carry arbitrary credentials; only exact known public defaults are retained in those fields. Preferences, site rules, service names and model selections remain, so users should review personal information before sharing. Every export dialog starts with "Include keys" unchecked. Users can explicitly select it to export a complete, unencrypted backup containing all credentials and custom request configuration, with a warning before confirmation. Backups exclude translation caches, usage records, login sessions, downloaded models, PDF fonts and browser permissions. Importing a trusted backup replaces settings and credentials after confirmation; importing a backup without keys also clears existing local credentials and requires affected services to be configured again. It does not upload the backup or graft existing local credentials onto imported endpoints. The configured endpoints determine where subsequent translation requests and credentials are sent. Users control the retention and deletion of exported backup files; uninstalling the extension does not delete those files.
 
 ## Security
 

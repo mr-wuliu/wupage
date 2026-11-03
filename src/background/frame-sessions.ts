@@ -7,6 +7,7 @@ import {
 import { getSettings } from "../shared/settings";
 import { SETTINGS_KEY } from "../shared/defaults";
 import { ProviderError } from "../shared/errors";
+import { elementExclusionIdentity } from "../shared/element-exclusions";
 
 const PREFIX = "wupage.frame-session.";
 interface Frame extends FrameDiagnostic { documentKey: string; documentId?: string }
@@ -364,9 +365,14 @@ export class FrameSessionManager {
     tab.settingsRevision++;
     const changed = frameTranslationIdentity(tab.settings) !== frameTranslationIdentity(settings);
     const modeChanged = tab.settings.translationDisplayMode !== settings.translationDisplayMode;
+    const exclusionsChanged = elementExclusionIdentity(tab.settings.elementExclusions) !== elementExclusionIdentity(settings.elementExclusions);
+    if (exclusionsChanged) for (const frame of tab.frames.values()) {
+      if (elementExclusionIdentity(tab.settings.elementExclusions, frame.url) === elementExclusionIdentity(settings.elementExclusions, frame.url)) continue;
+      tab.documents.get(frame.frameId)?.abort(); tab.documents.delete(frame.frameId);
+    }
     tab.settings = settings;
     if (changed && tab.active) this.resetGeneration(tab);
-    if (changed || modeChanged) {
+    if (changed || modeChanged || exclusionsChanged) {
       tab.revision++; await this.persist(tabId, tab); await this.applyAll(tabId, tab, !changed); this.publish(tabId, tab);
     }
   }

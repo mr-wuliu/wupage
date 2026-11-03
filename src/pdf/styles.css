@@ -920,3 +920,39 @@ button:disabled {
 
 .language-arrow svg { width: 14px; height: 14px; }
 .translation-block-control svg { display: block; width: 1em; height: 1em; }
+
+.translation-canvas-shell.is-partial .translation-prompt {
+  grid-area: 1 / 1;
+  position: sticky;
+  align-self: end;
+  justify-self: stretch;
+  top: auto;
+  bottom: 8px;
+  left: auto;
+  right: auto;
+  width: auto;
+  max-width: none;
+  margin: 12px;
+  padding: 8px 12px;
+  transform: none;
+  border-radius: 6px;
+  background: rgba(246, 250, 247, 0.96);
+  color: #49635a;
+  font-size: 12px;
+  text-align: left;
+}
+.translation-canvas-shell.is-partial.has-error .translation-prompt { color: #873e34; }
+.translation-canvas-shell.is-partial > canvas { grid-area: 1 / 1; }
+.translation-retry {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 3;
+  padding: 7px 12px;
+  border: 1px solid #b9cfc4;
+  border-radius: 6px;
+  background: #edf6f1;
+  color: #285a45;
+  font-size: 12px;
+  cursor: pointer;
+}

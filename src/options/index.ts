@@ -10,6 +10,7 @@ import { setImageTranslationToggle, setupOcrControl } from "../shared/ocr-contro
 import { setupLocalModelControl } from "../local/control";
 import { ensureProviderIconStyles, providerIconMarkup } from "../shared/provider-icons";
 import { setupAutoTranslationControls } from "./auto-translation";
+import { setupElementExclusionControls } from "./element-exclusions";
 import { renderProviderUsage, updateProviderScheduling } from "./provider-usage";
 import { setupSettingsNavigation } from "./navigation";
 import { setupStatisticsControls } from "./statistics";
@@ -23,6 +24,7 @@ import { readRequestTemplate, setupProviderTabs } from "./provider-advanced";
 import { isDoubaoBrowserSupported } from "../shared/doubao";
 import { formatDoubaoStatus, isDoubaoProviderUnavailable, syncDoubaoTargetControls } from "../shared/doubao-ui";
 import { renderUiIcons, uiIconMarkup } from "../shared/ui-icons";
+import { setupSettingsBackupControls } from "./settings-backup";
 
 renderUiIcons();
 
@@ -77,6 +79,9 @@ const autoTranslationControls = setupAutoTranslationControls(
   }
 );
 const frameTranslationEnabled = query<HTMLInputElement>("#frameTranslationEnabled");
+const elementExclusionControls = setupElementExclusionControls(query<HTMLElement>("#elementExclusionSettings"), field => {
+  settingsNavigation.reveal(field); field.scrollIntoView?.({ block: "center" });
+});
 const frameTranslationExcluded = query<HTMLTextAreaElement>("#frameTranslationExcluded");
 
 const LLM_MODEL_OPTIONS = [
@@ -98,6 +103,8 @@ const DEFAULT_LLM_PROMPT =
   "You are a translation engine. Translate each input item into {{targetLang}}. Preserve meaning, numbers, links, code-like tokens, placeholders like ⟪WUPAGE0⟫, and formatting. Return only a JSON array of strings in the same order.";
 
 let settings: ExtensionSettings;
+let savedSettings: ExtensionSettings;
+let providerFormSettings: ProviderConfig | undefined;
 let editingProviderId: string | undefined;
 let disposeLocalControl: (() => void) | undefined;
 let activeProviderTest: { providerId: string; status: HTMLElement; message: string } | undefined;
@@ -123,7 +130,16 @@ void init().catch((error: unknown) => {
 
 async function init(): Promise<void> {
   settings = await sendRuntimeMessage<ExtensionSettings>({ type: "GET_SETTINGS" });
+  savedSettings = cloneSettings(settings);
   render();
+  setupSettingsBackupControls({ status: setStatus, imported: imported => {
+    invalidateProviderTest();
+    settings = imported;
+    savedSettings = cloneSettings(imported);
+    editingProviderId = undefined;
+    setProviderMenuOpen(false);
+    render();
+  } });
   setupOcrControl(imageTranslationEnabled, () => { settings.imageTranslationEnabled = false; setImageTranslationToggle(imageTranslationEnabled, false); });
   const imageNotice = new URLSearchParams(location.search).get("imageTranslationNotice");
   if (imageNotice === "setup") setStatus("使用右键图片翻译前，请先点击扳手安装 OCR 模型，开启图片翻译并保存。");
@@ -200,10 +216,17 @@ async function init(): Promise<void> {
 }
 
 function render(): void {
+  renderGeneralSettings();
+  renderProviderPicker(false);
+  renderProviderForm();
+}
+
+function renderGeneralSettings(): void {
   statisticsControls.render(settings.statisticsEnabled === true);
   shortcutControls.render(settings.shortcuts, settings.shortcutEnabled, settings.localShortcuts);
   appearanceControls.render(settings.appearance);
   autoTranslationControls.render(settings.autoTranslation);
+  elementExclusionControls.render(settings.elementExclusions);
   const frameTranslation = normalizeFrameTranslation(settings.frameTranslation);
   frameTranslationEnabled.checked = frameTranslation.enabled;
   frameTranslationExcluded.value = frameTranslation.excludeMatches.join("\n");
@@ -229,8 +252,6 @@ function render(): void {
     .join("");
   translationDisplayMode.value = settings.translationDisplayMode;
   updateTranslationDisplayModeDescription();
-  renderProviderPicker(false);
-  renderProviderForm();
 }
 
 translationDisplayMode.addEventListener("change", updateTranslationDisplayModeDescription);
@@ -320,6 +341,7 @@ function renderProviderForm(): void {
   clearTimeout(doubaoRetryTimer);
   disposeLocalControl?.(); disposeLocalControl = undefined;
   const provider = getEditingProvider();
+  providerFormSettings = structuredClone(provider);
   providerPerformance.innerHTML = provider.type === "firefox-local"
     ? '<p class="hint">本地翻译使用固定分块大小 800、并发数 1。</p>'
     : provider.type === "doubao-web"
@@ -838,9 +860,21 @@ async function save(showSavedStatus = true): Promise<void> {
   }
 }
 
-async function persistSettings(showSavedStatus: boolean): Promise<void> {
-  await sendRuntimeMessage({ type: "SAVE_SETTINGS", settings });
+async function persistSettings(showSavedStatus: boolean, replace = false): Promise<void> {
+  const previousSettings = cloneSettings(savedSettings);
+  // A service test leaves the current form mounted. Compare its fields with
+  // what that form displayed, even if the previous save merged external edits.
+  const formSettings = providerFormSettings;
+  if (formSettings) previousSettings.providers = previousSettings.providers.map(provider =>
+    provider.id === formSettings.id ? formSettings : provider);
+  await sendRuntimeMessage({ type: "SAVE_SETTINGS", settings,
+    ...(!replace ? { previousSettings } : {}) });
   settings = await sendRuntimeMessage<ExtensionSettings>({ type: "GET_SETTINGS" });
+  savedSettings = cloneSettings(settings);
+  // Provider actions can save without rebuilding the provider form (for
+  // example while a service test owns its status node). Keep every other
+  // control aligned with the merged settings used as the next edit baseline.
+  renderGeneralSettings();
   if (showSavedStatus) setStatus("已保存。", 1200);
 }
 
@@ -891,7 +925,7 @@ async function restoreDefaults(): Promise<void> {
   try {
     settings = cloneSettings(DEFAULT_SETTINGS);
     editingProviderId = undefined;
-    await persistSettings(false);
+    await persistSettings(false, true);
     render();
     setStatus("已恢复默认设置。");
   } catch (error) {
@@ -939,6 +973,7 @@ function readSettingsFromForm(): ExtensionSettings {
     localShortcuts: shortcutControls.readLocal(),
     shortcutEnabled: shortcutControls.readEnabled(),
     autoTranslation: autoTranslationControls.read(),
+    elementExclusions: elementExclusionControls.read(),
     frameTranslation: normalizeFrameTranslation({ enabled: frameTranslationEnabled.checked,
       excludeMatches: frameTranslationExcluded.value.split(/\r?\n/u) }),
     targetLang: targetLang.value.trim() || "zh-CN",

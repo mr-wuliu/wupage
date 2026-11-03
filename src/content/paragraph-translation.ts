@@ -3,10 +3,11 @@ import {
   clearTranslationsIn, collectParagraphTextSegments, hasTranslationsIn, invalidateStaleSegments,
   renderTranslationPlaceholders, renderTranslations
 } from "./dom";
-import { getPageTranslationDisplayMode } from "./page-translation";
+import { clearPageTranslation, getPageTranslationDisplayMode } from "./page-translation";
 import { sendRuntimeRequest } from "./runtime";
 import { buildTranslationContext } from "./translation-context";
 import { documentTranslationRevision } from "./translation-lifecycle";
+import { configureElementExclusions } from "./element-exclusions";
 
 const pending = new WeakMap<Element, object>();
 
@@ -20,16 +21,18 @@ export async function translateParagraph(target: Element, action: "toggle" | "tr
   }
   if (pending.has(target) || hasTranslationsIn(target)) return;
   const task = {};
-  const revision = documentTranslationRevision();
+  let revision = documentTranslationRevision();
   pending.set(target, task);
   try {
     const settings = await sendRuntimeRequest<ExtensionSettings>({ type: "GET_SETTINGS" });
     if (pending.get(target) !== task || revision !== documentTranslationRevision() || !target.isConnected) return;
+    if (configureElementExclusions(settings.elementExclusions)) { clearPageTranslation(); revision = documentTranslationRevision(); }
+    if (!target.isConnected) return;
     const segments = collectParagraphTextSegments(target, settings.translateCodeComments);
     if (!segments.length) throw new Error("此处没有可翻译的段落。");
     renderTranslationPlaceholders(segments);
     const data = await sendRuntimeRequest<TranslateBatchResponse>({
-      type: "TRANSLATE_BATCH", texts: segments.map(segment => segment.text), preservePlaceholders: true,
+      type: "TRANSLATE_BATCH", texts: segments.map(segment => segment.requestText ?? segment.text), preservePlaceholders: true,
       context: buildTranslationContext([target]), sourceLang: settings.sourceLang,
       targetLang: settings.targetLang, providerId: settings.activeProviderId
     });

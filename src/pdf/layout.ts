@@ -101,7 +101,8 @@ export function getTranslatedBlockLayout(
   const height = Math.max(4, bounds.height);
   const preferredSize = Math.max(1, block.fontSize * scale * 0.98);
   const family = normalizeCanvasFontFamily(block.fontFamily);
-  const measure = (value: string): number => value.split(/(⟪WUPAGE\d+⟫)/gu).reduce((width, part) => {
+  const measure = (value: string): number => value.split(/(⟪WUPAGE(?:OPEN|CLOSE)?\d+⟫)/gu).reduce((width, part) => {
+    if (/^⟪WUPAGE(?:OPEN|CLOSE)\d+⟫$/u.test(part)) return width;
     const formula = block.formulas?.find((entry) => entry.placeholder === part);
     const size = Number(/([\d.]+)px/u.exec(context.font)?.[1]) || preferredSize;
     return width + (formula ? formula.width / formula.fontSize * size : context.measureText(part).width);

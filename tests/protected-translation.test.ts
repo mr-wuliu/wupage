@@ -21,6 +21,17 @@ describe("protected formula token normalization", () => {
 const request: TranslateBatchRequest = { texts: [], targetLang: "zh-CN", preservePlaceholders: true };
 
 describe("protected text translation recovery", () => {
+  it("recovers missing, empty and incorrectly nested format scopes without losing their original structure", async () => {
+    const source = "Read ⟪WUPAGEOPEN0⟫the ⟪WUPAGEOPEN1⟫complete⟪WUPAGECLOSE1⟫ guide⟪WUPAGECLOSE0⟫ now.";
+    const translate = vi.fn(async (part: TranslateBatchRequest) => part.texts.map(text => text.includes("WUPAGE")
+      ? "⟪WUPAGEOPEN0⟫⟪WUPAGEOPEN1⟫⟪WUPAGECLOSE1⟫⟪WUPAGECLOSE0⟫"
+      : `译文：${text}`));
+    const [result] = await translateProtectedText({ ...request, texts: [source] }, translate);
+    expect(normalizeProtectedText(source, result)).toBe(result);
+    expect(result).toContain("⟪WUPAGEOPEN1⟫译文：complete⟪WUPAGECLOSE1⟫");
+    expect(translate).toHaveBeenCalledTimes(3);
+  });
+
   it("normalizes harmless typography changes without additional provider calls", async () => {
     const translate = vi.fn(async () => ["设 《 wupage 0 》 为常数。"]);
     await expect(translateProtectedText({ ...request, texts: ["Let ⟪WUPAGE0⟫ be fixed."] }, translate))

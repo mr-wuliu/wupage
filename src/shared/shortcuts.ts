@@ -22,10 +22,6 @@ export const DEFAULT_SHORTCUT_ENABLED = Object.fromEntries(
   [...TRANSLATION_SHORTCUTS, ...LOCAL_SHORTCUTS].map(({ name }) => [name, true])
 ) as ShortcutEnabledSettings;
 
-export function isTranslationShortcut(name: string): name is TranslationShortcut {
-  return TRANSLATION_SHORTCUTS.some(shortcut => shortcut.name === name);
-}
-
 export type ShortcutSettings = Record<TranslationShortcut, string>;
 
 export const DEFAULT_SHORTCUTS: ShortcutSettings = {

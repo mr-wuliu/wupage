@@ -4,6 +4,7 @@
 Invoked by .github/workflows/sync-web.yml when a new release is published
 on mr-wuliu/wupage. Updates all hardcoded version/asset references in the
 target index.html so the marketing site stays in sync without client-side JS.
+Sites using a releases/latest link without pinned versions need no rewrite.
 
 Targets (6 sites in index.html):
   - showcase section-desc:  "WuPage Translator vX.Y.Z ..."
@@ -23,7 +24,20 @@ Env vars (all required):
 import os
 import re
 import sys
+from html.parser import HTMLParser
 from pathlib import Path
+
+
+class LatestReleaseLinkParser(HTMLParser):
+    def __init__(self):
+        super().__init__()
+        self.found = False
+
+    def handle_starttag(self, tag, attrs):
+        if tag == 'a':
+            href = dict(attrs).get('href') or ''
+            if href.rstrip('/') == 'https://github.com/mr-wuliu/wupage/releases/latest':
+                self.found = True
 
 
 def main() -> int:
@@ -45,15 +59,22 @@ def main() -> int:
 
     content = index_path.read_text(encoding='utf-8')
 
+    # A pinned ZIP still needs updating even if a latest-release link exists.
+    zip_match = re.search(r'wupage-\d+\.\d+\.\d+-[^"\s<>]+\.zip', content)
+
     # Find current version (vX.Y.Z pattern, first occurrence in the file)
     match = re.search(r'\bv\d+\.\d+\.\d+\b', content)
     if not match:
+        links = LatestReleaseLinkParser()
+        links.feed(content)
+        if links.found and not zip_match:
+            print(f"OK: {index_path} already links to the latest release; no rewrite needed.")
+            return 0
         print("ERROR: could not find current vX.Y.Z pattern in index.html", file=sys.stderr)
         return 1
     old_tag = match.group(0)
 
     # Find current zip filename (wupage-X.Y.Z-anything.zip)
-    zip_match = re.search(r'wupage-\d+\.\d+\.\d+-[^"\s<>]+\.zip', content)
     old_zip = zip_match.group(0) if zip_match else None
 
     # Find current size string ("约 N KB" / "约 N MB" / "约 N B")

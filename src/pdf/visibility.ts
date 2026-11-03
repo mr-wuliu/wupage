@@ -3,6 +3,11 @@ interface OperatorList {
   argsArray: ReadonlyArray<ReadonlyArray<unknown>>;
 }
 
+export interface PdfFontVisibility {
+  isType3Font?: boolean;
+  charProcOperatorList?: Readonly<Record<string, { fnArray: ReadonlyArray<number> }>>;
+}
+
 interface Bounds { left: number; bottom: number; right: number; top: number }
 type Matrix = number[];
 
@@ -38,11 +43,24 @@ export function filterVisiblePdfText<T extends object>(
   items: ReadonlyArray<T>,
   operators: OperatorList | undefined,
   ops: Readonly<Record<string, number>>,
-  optionalContent?: { isVisible(group: unknown): boolean }
+  optionalContent?: { isVisible(group: unknown): boolean },
+  fonts?: ReadonlyMap<string, PdfFontVisibility>
 ): T[] {
+  // Some figures carry text in Type 3 fonts whose glyph programs only declare
+  // metrics. They draw nothing, even when the text rendering mode is visible.
+  // Unknown operations remain visible; a missing Unicode map alone says
+  // nothing about whether the original glyph paints.
+  const nonPaintingOps = new Set([ops.setCharWidth, ops.setCharWidthAndBounds, ops.transform, ops.save, ops.restore]
+    .filter((operation): operation is number => operation !== undefined));
+  const emptyFonts = new Set([...(fonts ?? [])].flatMap(([name, font]) => {
+    const programs = Object.values(font.charProcOperatorList ?? {});
+    return font.isType3Font && programs.length && programs.every(program => program.fnArray.every(op => nonPaintingOps.has(op)))
+      ? [name] : [];
+  }));
+  items = items.filter(item => !("fontName" in item && emptyFonts.has(String(item.fontName))));
   if (!operators) return [...items];
   const groups = [true];
-  let state: { mode: number; fill: number; stroke: number; matrix: Matrix; clip?: Bounds } = {
+  let state: { mode: number; fill: number; stroke: number; matrix: Matrix; clip?: Bounds; font?: string } = {
     mode: 0, fill: 1, stroke: 1, matrix: [1, 0, 0, 1, 0, 0]
   };
   const saved: typeof state[] = [];
@@ -65,6 +83,7 @@ export function filterVisiblePdfText<T extends object>(
           right: Math.min(state.clip.right, box.right), top: Math.min(state.clip.top, box.top) } : box;
       }
     } else if (operation === ops.paintFormXObjectEnd) state = saved.pop() ?? state;
+    else if (operation === ops.setFont) state.font = String(args[0]);
     else if (operation === ops.setTextRenderingMode) state.mode = Number(args[0]);
     else if (operation === ops.setGState) {
       for (const [key, value] of (args[0] ?? []) as Array<[string, unknown]>) {
@@ -78,6 +97,7 @@ export function filterVisiblePdfText<T extends object>(
     } else if (operation === ops.endMarkedContent) {
       if (groups.length > 1) groups.pop();
     } else if ([ops.showText, ops.showSpacedText, ops.nextLineShowText, ops.nextLineSetSpacingShowText].includes(operation)) {
+      if (state.font && emptyFonts.has(state.font)) return;
       const glyphs = args.at(-1);
       if (!Array.isArray(glyphs)) return;
       const text = normalize(glyphs.map((glyph: unknown) => typeof glyph === "object" && glyph !== null && "unicode" in glyph

@@ -10,7 +10,7 @@ const output = path.join(root, ".npm-cache/github-code-comments");
 await fs.mkdir(output, { recursive: true });
 const bundle = path.join(output, "content.js");
 await build({
-  stdin: { contents: `export { collectTextSegments, renderTranslationPlaceholders, clearTranslations, renderTranslations, setTranslationDisplayMode } from "./src/content/dom";
+  stdin: { contents: `export { collectTextSegmentsProgressive, renderTranslationPlaceholders, clearTranslations, renderTranslations, setTranslationDisplayMode } from "./src/content/dom";
     export { injectContentStyles } from "./src/content/styles";`, resolveDir: root, loader: "ts" },
   bundle: true, format: "iife", globalName: "WuPageTest", outfile: bundle
 });
@@ -48,7 +48,7 @@ try {
     await page.setContent(html(layout));
     await page.addScriptTag({ path: bundle });
     for (const mode of ["bilingual", "bilingual-accent", "replace"]) {
-      const report = await page.evaluate(({ mode, layout }) => {
+      const report = await page.evaluate(async ({ mode, layout }) => {
         WuPageTest.injectContentStyles();
         const root = document.querySelector("main");
         const original = root.innerHTML;
@@ -58,7 +58,7 @@ try {
           return { top: rect.top, height: rect.height };
         });
         const before = measure();
-        const segments = WuPageTest.collectTextSegments().filter((segment) => segment.element.closest(".react-code-text,.blob-code"));
+        const segments = (await WuPageTest.collectTextSegmentsProgressive()).filter((segment) => segment.element.closest(".react-code-text,.blob-code"));
         WuPageTest.renderTranslationPlaceholders(segments);
         const pending = measure();
         WuPageTest.renderTranslations(segments.map((segment) => ({ id: segment.id,

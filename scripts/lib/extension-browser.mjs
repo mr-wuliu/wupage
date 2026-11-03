@@ -10,7 +10,7 @@ export async function openExtensionBrowser(root, output, firefox = false) {
   if (firefox) {
     const browser = await startFirefox(output, path.join(root, 'dist-firefox'), {
       'browser.download.folderList': 2, 'browser.download.dir': path.resolve(output),
-      'browser.download.useDownloadDir': true, 'browser.helperApps.neverAsk.saveToDisk': 'application/pdf',
+      'browser.download.useDownloadDir': true, 'browser.helperApps.neverAsk.saveToDisk': 'application/pdf,application/toml',
       'pdfjs.disabled': true
     });
     try {
@@ -60,7 +60,7 @@ export async function openExtensionBrowser(root, output, firefox = false) {
           for (let attempt = 0; attempt < 600; attempt++) {
             const files = await fs.readdir(output);
             const added = files.filter(name => !before.has(name));
-            const file = added.find(name => name.endsWith('.pdf'));
+            const file = added.find(name => name.endsWith(path.extname(destination)));
             // Firefox creates an empty destination before its randomly named
             // .part file finishes; checking only "<name>.pdf.part" races it.
             if (file && !added.some(name => name.endsWith('.part')) && (await fs.stat(path.join(output, file))).size > 0) {
@@ -68,7 +68,7 @@ export async function openExtensionBrowser(root, output, firefox = false) {
             }
             await new Promise(resolve => setTimeout(resolve, 200));
           }
-          throw new Error('Firefox PDF download timed out');
+          throw new Error('Firefox download timed out');
         },
         close: () => browser.close()
       };

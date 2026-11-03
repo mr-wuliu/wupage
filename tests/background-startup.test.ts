@@ -11,7 +11,7 @@ describe("background startup compatibility", () => {
     const stored = { [SETTINGS_KEY]: { ...structuredClone(DEFAULT_SETTINGS), imageTranslationEnabled: true } };
     const addListener = vi.fn();
     vi.spyOn(console, "warn").mockImplementation(() => {});
-    vi.stubGlobal("chrome", { runtime: { onMessage: { addListener } }, storage: { local: {
+    vi.stubGlobal("chrome", { runtime: { onMessage: { addListener }, onConnect: { addListener: vi.fn() } }, storage: { local: {
       get: async () => structuredClone(stored), set: vi.fn()
     } } });
     await import("../src/background/index");
@@ -33,7 +33,7 @@ describe("background startup compatibility", () => {
     const stored: Record<string, unknown> = { [SETTINGS_KEY]: { ...structuredClone(DEFAULT_SETTINGS), imageTranslationEnabled: true } };
     const addListener = vi.fn();
     vi.spyOn(console, "warn").mockImplementation(() => {});
-    vi.stubGlobal("chrome", { runtime: { onMessage: { addListener } }, storage: { local: {
+    vi.stubGlobal("chrome", { runtime: { onMessage: { addListener }, onConnect: { addListener: vi.fn() } }, storage: { local: {
       get: async () => structuredClone(stored),
       set: async (value: Record<string, unknown>) => { Object.assign(stored, structuredClone(value)); }
     } } });
@@ -58,7 +58,7 @@ describe("background startup compatibility", () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ choices: [{ message: { content: '["你好"]' } }] })));
     vi.stubGlobal("fetch", fetchMock);
     vi.stubGlobal("chrome", {
-      runtime: { onMessage: { addListener } },
+      runtime: { onMessage: { addListener }, onConnect: { addListener: vi.fn() } },
       storage: { local: { get: async () => stored, set: async (value: Record<string, unknown>) => { Object.assign(stored, value); } } }
     });
     await import("../src/background/index");
@@ -78,7 +78,7 @@ describe("background startup compatibility", () => {
     const addListener = vi.fn();
     const warning = vi.spyOn(console, "warn").mockImplementation(() => {});
     const create = vi.fn();
-    const runtime = { onMessage: { addListener }, lastError: undefined as { message: string } | undefined };
+    const runtime = { onMessage: { addListener }, onConnect: { addListener: vi.fn() }, lastError: undefined as { message: string } | undefined };
     vi.stubGlobal("chrome", {
       runtime,
       tabs: { query: async () => [] },

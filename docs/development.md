@@ -2,127 +2,73 @@
 
 [返回 README](../README.md)
 
-## 功能调研
+本文介绍 WuPage 的设计思路、代码组织，以及从本地构建到验证改动的开发流程。
 
-- [实时视频翻译可行性调研](research/realtime-video-translation.md)：字幕与音频路线、服务接入、资源预算、实现难点及分阶段验收计划。
+## 设计思路
 
-## 开发
+- **阅读场景与翻译能力分离。** 网页、PDF、图片和字幕各自负责内容提取与显示，文本翻译共用后台的服务适配、调度和缓存，避免为每个场景重复实现请求逻辑。
+- **保留原始内容，支持撤销。** 网页译文跟随原有文档结构，恢复原文时还原节点；显示模式切换优先复用译文。网站适配依据稳定的结构或协议，并验证原文恢复与动态更新。
+- **异步任务有明确归属。** 页面、嵌入文档和视频会话分别管理任务生命周期。停止、导航或配置变化后取消旧任务，结果返回时再次检查所属会话，避免过期译文覆盖当前内容。
+- **按需使用本地资源。** OCR 和本地翻译通过独立运行环境执行，计算与缓存有资源边界。执行代码随扩展打包，模型和可选 PDF 字体由用户安装并校验，普通构建无需下载这些数据。
+- **收敛浏览器差异。** Chrome、Edge 和 Firefox 共用业务源码，通过构建配置和运行环境适配处理 Manifest、后台及本地推理的差异。
 
-### 嵌入文档翻译
+## 项目架构
 
-`src/content/frame-bootstrap.ts` 在匹配的所有框架中登记文档，支持来源回退和特殊 URL，按需加载独立的 `frame-content.js`；顶层 `content.js` 保留唯一的悬浮界面。`src/background/frame-sessions.ts` 通过浏览器提供的标签页、框架和文档身份管理会话，保存会话意图到 session storage，并统一处理开关、语言、显示模式、增量接入、取消和标签页内公平调度。`src/shared/frame-session.ts` 保存协议、状态汇总与排除规则。原有服务商调度和缓存继续生效。
+扩展由网页内的内容脚本、独立扩展页面和后台协调层组成，通过浏览器消息通信。后台统一处理配置、翻译服务请求与本地运行环境的调用。
 
-嵌入帧中的视频由 `video-bootstrap.ts` 独立发现，出现视频后加载 `video-content.js`，不要求先开启整页或段落翻译。原有 `paragraph-frame.js` 已由这两条按需入口取代。字幕任务、手动翻译和网页预取共用服务商及全局并发限制，优先级依次降低，同级任务保持先进先出；字幕仍不写入持久缓存。
-
-`src/content/document-viewport.ts` 使用隐式根相交观察判断框架正文与顶层视口的关系，对实际可见段落的临近内容进行有限预取；不依赖跨域 rootMargin。正文采集和渲染由各文档内的现有引擎执行。迟到结果需要匹配会话和文档；框架导航或整页停止会取消对应请求。
-
-`src/content/frame-visibility.ts` 在相邻框架之间同步祖先隐藏状态，并监听普通 DOM 和可访问 Shadow Root 中的样式变化。页面消息仅携带位置相关提示，不传递翻译命令、正文或配置。服务商返回限流、登录或协议错误时，具有相同服务配置的活动会话统一暂停并取消排队请求；暂停状态随会话意图保存，明确重试或更换服务配置后解除。
-
-构建后运行 `npm run test:frames`（Chrome）、`npm run test:frames:firefox` 或 `npm run test:frames:edge`。测试使用独立资料目录、本地网页和模拟服务，覆盖同域、跨域、嵌套、srcdoc、空白文档、blob、data、sandbox、闭合 Shadow DOM 内的框架、显示模式、语言切换、隐藏后展开、延迟加载、排除规则、取消及超高框架的外层滚动。Chrome 支持 `CHROME_TEST_BROWSER`，Edge 支持 `EDGE_TEST_BROWSER`（省略时使用 Playwright 的 `msedge` 通道），两者支持 `PLAYWRIGHT_MODULE`；Firefox 支持 `FIREFOX_BINARY`。直接运行测试脚本并传入 `--live` 可检查模组详情站点实际渲染，使用 `--edge` 或 `--firefox` 选择浏览器。报告和截图按浏览器分别保存在 `.npm-cache/frame-translation/` 下，并记录实际浏览器标识。
-
-### 卡片与列表的排版边界
-
-`src/content/dom-roots.ts` 登记开放式 Shadow Root。正文扫描沿组件树增量发现内容，分组与插入仍保持在各自 DOM 树中；可见性、禁止翻译及编辑区边界沿宿主继承。文档会话同时观察已发现的组件，统一处理更新、显示模式与恢复原文；段落点击使用事件的原始组件目标。封闭组件和绘制到 Canvas 的文字不通过普通正文采集处理。
-
-扩展样式在文档与组件内部独立安装，遭删除或覆盖后延迟恢复，避免同步循环。网页样式令译文不可见时撤销该片段的替换，保留原文。图片控件与正文监听均能处理整个 Body 被替换的情况。`test:resilience` 的三浏览器矩阵包含嵌套组件、控件交互、样式恢复、编辑区过滤和逐字还原；对应单元测试见 `shadow-content.test.ts`、`content-styles.test.ts` 和 `image-ui.test.ts`。
-
-正文分组遵守嵌套段落、Flex / Grid 单元和行内块字段的边界。同一文本节点只属于一个分组；包含多个阅读区域的列表项不合并为整段译文。段落处于布局单元中时，译文与加载占位保留在该单元内，避免增加横向布局项。独立数字不单独翻译，句子中的数字随完整句子处理。
-
-构建后运行 `npm run test:profile-layout`、`npm run test:profile-layout:firefox` 和 `npm run test:profile-layout:edge`，使用独立 Chrome、Firefox、Edge 配置和本地模拟服务验证宽窄窗口、三种显示模式、卡片宽度、译文边界、描述去重、数字位置和原文节点恢复。环境变量与框架回归相同；直接运行 `node scripts/test-profile-layout.mjs --live`（可加 `--firefox` 或 `--edge`）还会验证 GitHub 个人页。报告与截图按浏览器分别保存在 `.npm-cache/profile-layout/` 下。原有紧凑控件、动态内容和富文本链接回归也可通过 `npm run test:cards:edge` 在 Edge 中执行，产物保存在 `.npm-cache/card-layout/edge/`。
-
-邮件列表等单行省略区域在 `src/content/dom.ts` 中按原有文字字段分组，主题和摘要保留在裁剪容器内；行内译文继承页面的换行规则。构建后运行 `npm run test:mail-layout`、`npm run test:mail-layout:edge` 和 `npm run test:mail-layout:firefox`，使用本地模拟邮件和独立浏览器配置检查表格与 ARIA Grid 的行高、列宽、主题和摘要分离、时间不折行、加载状态、动态新增行、复选框交互、正文换行及原文恢复。不会访问真实邮箱；截图和报告位于 `.npm-cache/mail-layout/<browser>/`。
-
-自定义任务菜单通过 `[task-menu]` 识别，各个 `[role="listitem"]` 独立采集；包含列表项的外层 div 不作为正文聚合。自定义菜单项在译文替换模式下复用原有 Text 节点，并记录实际替换值，保持 Shadow DOM 插槽、状态图标及宿主更新后的正确恢复。构建后运行 `npm run test:task-menu`、`npm run test:task-menu:edge` 和 `npm run test:task-menu:firefox`，使用脱敏后的 Partner Center 菜单结构和本地组件检查开放与封闭 Shadow DOM、两种窗口宽度、三种显示模式、逐项可见性、选中交互及节点还原。每个浏览器运行 16 组检查，产物保存在 `.npm-cache/task-menu/<browser>/`；不访问已登录的商店页面。
-
-### 旧式论文页面翻译
-
-`src/content/legacy-scientific.ts` 识别 LaTeX2HTML 生成标记，将页面根节点下连续的行内内容临时组织为段落，并在清理时还原原始节点。正文中的公式图片和数字引用使用已有的受保护标记协议，译文复用公式图片和引用链接；独立公式、编号和公式图片的替代文本不送去翻译。
-
-构建后运行 `npm run test:scientific`（Chrome）、`npm run test:scientific:firefox` 及 `npm run test:scientific:edge`，环境变量与框架回归相同。测试使用本地原创样例和模拟翻译，检查段落、公式、引用、可见范围调度、三种显示模式和恢复原文。直接运行 `node scripts/test-scientific-page.mjs --live`（可加 `--firefox` 或 `--edge`）还会验证 OpenMX 的实际论文页面。报告和截图按浏览器分别保存在 `.npm-cache/scientific-page/` 下；模拟结果只用于验证采集和排版，不衡量翻译质量。
-### 本地使用统计
-
-`src/shared/statistics.ts` 定义每日聚合、接口 Token 用量解析与 7 / 30 / 90 天汇总；`src/background/statistics.ts` 串行写入独立的本地存储键，页面去重摘要只进入会话存储。`statisticsEnabled` 默认关闭并严格按布尔值规范化。`translation.ts` 在实际调用服务的批次边界记录结果，LLM、TokenHub 和自定义 HTTP 适配器通过可选回调提供响应内的用量；接口内部 HTTP 重试不另外计数。缓存命中只增加缓存文本和页面计数。设置测试、词典查询不经过统计入口。
-
-关闭开关、清空数据会使旧记录器失效，避免在途任务回写；统计读写失败不影响翻译结果。查看或新增记录时清理 90 天以前的聚合。设置页 `src/options/statistics.ts` 提供范围切换、用量趋势、小时分布、模型排名与清空操作，样式复用扩展主题。相关单元与集成验证位于 `tests/statistics*.test.ts`。构建后运行 `npm run test:statistics`（Edge / Firefox 添加 `--edge` / `--firefox`，或直接运行对应脚本），使用独立浏览器资料目录、本地模拟服务验证默认关闭、实际响应用量、并发、页面去重、关闭后保留历史、清空与 1400 / 900 / 720 / 390px 布局。支持 `PLAYWRIGHT_MODULE`、`CHROME_TEST_BROWSER`、`EDGE_TEST_BROWSER`，报告与截图位于 `.npm-cache/statistics/<browser>/`。
-
-### 视频字幕实验
-
-`src/content/video-subtitles.ts` 在主页面与嵌入帧中发现视频，每个播放器由 `video-player.ts` 管理独立会话，`video-view.ts` 提供带键盘支持的 Shadow DOM 工具条、折叠设置与字幕覆盖层。仅用户手动开启或明确勾选网站自动开启后才发送字幕文本。播放器控制不操作时收起，设置关闭后继续翻译；字号、背景、原文显示不会重新调用翻译服务。
-
-字幕入口在未开启或重新加载时显示「译」，首次译文就绪后显示「双」（原文与译文）或「单」（仅译文），字幕间隙保持显示模式，通过高亮、悬停提示和可访问名称传达状态。`src/video/player-controls.ts` 单独管理操作栏接入：YouTube、哔哩哔哩新版与旧版、Vimeo、Udemy 使用站点规则；Video.js、Plyr、JW Player、DPlayer、Artplayer、西瓜播放器、Shaka、Media Chrome 使用通用控件规则。工具条以独立 Shadow Host 插入原生字幕或设置按钮旁，字幕覆盖层保持独立；不替换原有控件，也不改动网站布局样式。支持开放式组件、操作栏重建和全屏，缺失时退回视频右上角，恢复后重新接入。缓存识别结果，DOM 变化或尺寸变化时重新匹配；监听原生显隐属性和动画结束，只降低透明度的操作栏也会让入口停止接收点击与键盘焦点。设置面板优先显示在入口上方。`node scripts/test-video-toolbar.mjs`（Edge 添加 `--edge`）使用独立浏览器与十三种本地播放器样本，检查两种宽度、缩放、图标与原生按钮中心线误差不超过 1px、译/双/单状态、原生按钮点击、透明隐藏时的命中测试、字幕独立显示、操作栏替换、缺失回退和全屏；报告和截图位于 `.npm-cache/video-toolbar/<browser>/`。哔哩哔哩、Vimeo 和 Udemy 的接入结构已按实际公开页面核对；本地样本回归不代表所有账号、付费页面或网站版本的验收。其他站点未命中上述操作栏时继续使用浮动入口。
-
-工具条高度和垂直中心使用相邻原生按钮的实际尺寸；优先取字幕 / 设置按钮本身，避免将弹出菜单外层当作按钮。隐藏的字幕按钮使用可见的设置控件作为参照。每次位置更新按播放器缩放修正中心偏移，仅在值改变时写入扩展自己的样式，不修改原生控件或操作栏。Bilibili 35px 行高与 22px 按钮、带边距的控件和嵌套按钮均进入几何回归。
-
-`src/video/platforms.ts` 隔离网站域名、播放器与字幕选择器。`page-bridge.ts` 只在 YouTube/Bilibili 的页面主执行环境中运行，按当前视频读取字幕目录和字幕文件；通过 Resource Timing 观察播放器已有的字幕请求，不覆盖全局 fetch、XHR 或 JSON 方法。请求地址按协议、域名与路径限制，响应有大小上限。Bilibili 目录中的编码地址先由 `bilibili-url.ts` 转为播放器实际使用的 CDN 路径，保留授权查询参数，再执行地址白名单校验；回归同时覆盖当前目录样本与原始 CDN 地址。Bilibili 字幕 CDN 使用不带凭据的请求，兼容其通配跨域响应；目录接口与 YouTube 字幕仍保留原有登录上下文。手动指定的字幕读取失败时显示错误，不改为翻译其他语言的渲染字幕。页面桥接没有扩展 API 或翻译凭据；隔离环境通过 `bridge-client.ts` 读取经校验的字幕数据，JSON3、Bilibili JSON/字幕目录二进制解析与格式约束位于 `site-cues.ts`、`bilibili-proto.ts`。
-
-标准字幕轨、完整网站字幕和导入文件共用 `SubtitleTranslator` 的 15 秒预取窗口与 256 条缓存；无法取得完整时间轴时由 `LiveSubtitleTranslator` 对当前渲染字幕去抖、串行翻译并立即丢弃过期显示。后台 `video.ts` 按 tab/frame/session 隔离取消操作，限制请求大小、同帧并发和 15 秒任务期限，并复用文本翻译的服务商/全局限流；实时任务优先于已排队的普通页面任务。字幕不写入持久翻译缓存。暂停、seek、广告、SPA 换视频和设置更新由会话版本隔离；停止后恢复字幕模式及扩展修改的原生 CC 状态。
-
-`subtitle-sentences.ts` 在完整时间轴上合并连续残句，以句末标点、超过 750 ms 的停顿、说话人标记与重叠字幕分界；每组最多 12 秒、320 字符或 16 条原字幕，单条已有的长字幕保持原样。翻译和双语显示共用整组起止时间，不按字符比例拆分译文，避免语言词序变化造成错配。句组随字幕数组或条数变化重新生成。渲染字幕仅在前后窗口有可验证重叠时保留前文，累积文本最多 320 字符，继续沿用原有去抖和取消机制。
-
-Google 免费网页服务在有上下文时发送普通文本，使用响应中的原文片段按顺序精确对齐各段，丢弃参考上下文的译文。段落跨界、原文不匹配或覆盖不完整时，仅独立重译不能对齐的段落；不依赖 `WUPAGESEGMENT` 标记，也不猜测译文边界。HTTP 错误直接返回。其他服务沿用各自的上下文协议。`tests/google-context.test.ts`、`tests/subtitle-sentences.test.ts` 及字幕调度回归覆盖这些边界。
-
-渲染字幕先合并视觉换行与多余空白，采用 250 ms 稳定等待和 900 ms 滚动窗口上限。同一段连续语音使用相互匹配的原文/译文快照，等待下一次结果时按响应速度保留 1.5–2.5 秒；短于 180 ms 的字幕节点替换不清空结果。新句、真正的空白、seek、停止和换视频会清理旧快照，过期请求不能重新显示。回归覆盖 700 ms 和 2.2 s 响应下持续滚动的字幕，以及换行、空白、取消和缓存。
-
-全屏容器沿用覆盖层，视频元素原生全屏使用临时双语 TextTrack。嵌入帧向后台登记视频可用性，显式打开请求由后台定位对应帧，避免在没有视频的顶层页面打开空面板。弹窗的「视频字幕」是功能区全宽开关，保存 `videoTranslation.enabled`，旧配置默认开启；关闭后各文档释放播放器控制器并恢复原字幕，后台取消在途字幕请求并拒绝新请求。首次读取与历史缓存恢复均使用最新设置，重新开启时恢复发现，保留字幕外观与网站自动开启偏好。原生网页字幕和扩展 UI 均排除于全文翻译的扫描范围。原生字幕轨被网站关闭、替换或切到其他显示轨道时，自动模式会重新选择可用轨道并取消旧任务；Bilibili 的自动选择读取网站字幕语言控件。Vimeo 的字幕控件挂在完整播放器内，避免受到画面内层 aria-hidden 的影响。
-
-全文和段落翻译跳过 X 的 `videoPlayer` / `videoComponent`、媒体元素与常见播放器控制栏，避免将译文插入固定尺寸的播放按钮。页面翻译悬浮球和菜单在全屏期间隐藏，并取消待触发的悬停或长按；退出全屏后按原有开关恢复，不修改保存的设置。构建后运行 `npm run test:video:x-layout`（Edge 使用 `npm run test:video:x-layout:edge`），通过本地竖屏视频与模拟服务检查 240 / 320 / 390px 播放器、三种翻译模式、按钮间距与实际点击，以及播放器、HTML、Body 和原生视频全屏。支持 `PLAYWRIGHT_MODULE`、`CHROME_TEST_BROWSER` 和 `EDGE_TEST_BROWSER`，截图和报告位于 `.npm-cache/x-video-layout/<browser>/`；样本回归不替代真实 X 页面验收。
-
-本地与商店版同时安装时，可运行 `npm run build:video-preview`，再在 Chrome / Edge 的扩展管理页加载生成的 `dist-video-preview/`。这个构建显示为「WuPage 视频字幕预览版」，工具栏图标悬停也使用该名称；打开它的弹窗应能看到「视频字幕」按钮。更新后重新加载此扩展并刷新视频页。普通 `npm run build` 仍向 `dist/` 生成正式名称的构建；预览输出目录独立，名称与 `version_name` 仅用于本地识别，不改变版本号或发布配置。浏览器回归可用 `VIDEO_TEST_EXTENSION_DIR=dist-video-preview` 指定预览构建。
-
-验证命令：
-
-```bash
-npm run typecheck
-npm test
-npm run build
-npm run test:video
-npm run test:video:sites
-npm run build:firefox
-npm run test:video:firefox
+```mermaid
+flowchart LR
+    UI[弹窗与设置页] -->|配置与操作| BG[后台协调层]
+    PAGE[网页内容脚本] <-->|消息| BG
+    PDF[PDF 工作区] <-->|消息| BG
+    BG --> TRANSLATE[翻译调度与服务适配]
+    TRANSLATE --> ONLINE[在线服务]
+    TRANSLATE --> LOCAL[本地翻译运行时]
+    BG --> OCR[本地 OCR 运行时]
+    TRANSLATE <--> CACHE[翻译缓存]
 ```
 
-`test:video` 及 `test:video:edge` 使用本地生成的真实视频、WebVTT 与模拟服务，验证功能开关、三种弹窗宽度、播放器入口、预取、外观、seek、容器/原生全屏、文件导入、限额错误和跨域 iframe；另检查关闭后原字幕恢复、已有页面同步移除入口，以及重新开启。`test:video:sites` 将九类站点 URL 路由到本地播放器样本，验证选择器、网站桥接、协议、YouTube 广告/SPA 导航及停止恢复；它证明样本适配，不代表已登录真实网站的验收。两个脚本支持 `PLAYWRIGHT_MODULE`、`PDF_TEST_BROWSER`，视频回归另支持 `CHROME_TEST_BROWSER`、`EDGE_TEST_BROWSER`；报告分别写入 `.npm-cache/video-subtitles/<browser>/`、`.npm-cache/video-sites-regression/`。`test:video:firefox` 通过项目现有 Marionette 工具控制本机 Firefox，使用独立资料目录与本地模拟服务，覆盖跨域播放器关闭、恢复原字幕与重新开启，报告写入 `.npm-cache/video-firefox/`；支持 `FIREFOX_BINARY`。
+| 位置 | 职责 |
+| --- | --- |
+| `src/background/` | 消息处理、跨文档会话、翻译调度、服务商适配与缓存 |
+| `src/content/` | 网页内容采集、译文渲染、页面交互与文档生命周期 |
+| `src/popup/`、`src/options/` | 扩展弹窗、设置表单与配置草稿 |
+| `src/pdf/` | PDF 解析、布局、阅读、编辑与导出 |
+| `src/video/` | 字幕解析、播放器适配与页面桥接；网页内的播放器会话位于 `src/content/` |
+| `src/ocr/`、`src/local/`、`src/dictionary/` | OCR、本地翻译和词典的专用运行逻辑 |
+| `src/shared/` | 消息类型、默认配置、设置规范化及共享界面工具 |
+| `public/`、`vendor/` | 随包分发的静态资源、运行库和来源许可 |
+| `build/`、`vite.config.ts` | Manifest 转换、构建入口与运行库准备 |
+| `tests/`、`scripts/` | 单元与 DOM 测试、浏览器验证及开发工具 |
+| `docs/` | 开发指南、专题分析与示例资料 |
 
-`node scripts/test-video-mobile.mjs --edge` 在桌面 Edge 中模拟手机视口、粗指针和触摸输入，将 `m.youtube.com` 路由到本地视频样本，验证移动播放器 API、`ytInitialPlayerResponse`、播放器已请求的字幕地址及渲染字幕四条路径。覆盖相对字幕地址、保留 MWEB 授权参数、轻触后显示入口、44px 触摸目标、seek、原生视频全屏和切换视频后的旧数据隔离。去掉 `--edge` 使用 Chromium；支持 `PLAYWRIGHT_MODULE`、`CHROME_TEST_BROWSER`、`EDGE_TEST_BROWSER` 和 `VIDEO_TEST_EXTENSION_DIR`，报告与截图位于 `.npm-cache/video-mobile/<browser>/`。这属于桌面浏览器移动模拟，不替代 Android Edge 真机与真实 YouTube 验收。
+主要入口是 `src/background/index.ts`、`src/content/index.ts`，以及根目录的 `popup.html`、`options.html`、`pdf.html`。消息协议在 `src/shared/types.ts`，默认配置与旧设置兼容分别由 `defaults.ts`、`settings.ts` 管理。
 
-`npm run test:video:performance` 使用本地循环视频、持续变化的渲染字幕和模拟服务，记录开启前后的 renderer 任务时间、脚本时间、强制 GC 后的 JS heap、节点与监听器数量，并检查停止后不再请求、移除播放器后清理入口。默认观察 120 秒，可用 `VIDEO_SOAK_SECONDS` 延长至 3600 秒；报告位于 `.npm-cache/video-performance/`。这不是浏览器全部进程的 CPU、内存或真实网站长时间观看验收。
+文本翻译先经过后台的缓存与批次调度，再进入服务适配层；返回值通过格式与受保护内容校验后交还调用方。网页 DOM 操作留在内容脚本，服务协议处理留在后台，公共配置和类型放入共享层。
 
-2026-10-29 的 `1.4.1-video-preview.9` 预览包与相同依赖下的 `fa74781`（1.4.1）比较，Chromium 安装文件增加 116,901 B，本地 DEFLATE level 6 ZIP 估计增加 35,977 B（约 35.1 KiB），没有新增依赖或模型。Windows / Chromium 147 的较早渲染字幕构建中，600 秒资源样本完成 1,251 次本地模拟请求，超过会话缓存容量后，后五分钟页面 JS heap 约在 2.96–2.97 MB；全程 heap 净增 237,440 B。多数样本监听器为 137，停止后请求数不再增长，移除播放器后监听器降至 106；renderer 任务时间从关闭时约 0.0040 s/s 到开启时约 0.0087 s/s。上述数字是单一轻量测试页的观察值，不能推导整机占用、网站视频解码表现或总内存预算。
+`src/background/providers.ts` 是服务工厂；`providers/` 按在线翻译服务、LLM 和 HTTP 模板组织适配器，`provider-transport.ts` 统一管理超时、重试与响应读取。网页渐进扫描的分块、让出主线程及变更补扫位于 `src/content/progressive-scan.ts`，内容判断与渲染仍由 `dom.ts` 处理。正文采集测试使用与产品相同的渐进扫描入口。
 
-发布前还需在目标站点的正常账号/网络环境中检查真实字幕、换集、语言切换、全屏、停止及至少 30 分钟连续观看。只看到绿色样本回归或成功构建不足以宣称所有网站生产可用。
+网页翻译使用绑定到原节点的写入计划。`translation-boundaries.ts` 将自定义组件、插槽和交互元素作为独立范围；`dom-roots.ts` 通过扩展接口发现开放及封闭的 Shadow DOM，并记录实际插槽路径。`TextSegment.text` 保留可读原文，`requestText` 按需生成用于传输的格式标记。`inline-translation.ts` 只接纳已确认的句内格式，替换模式复用原文本和格式节点，双语模式生成展示副本。共享校验器检查标记数量、配对、嵌套和非空内容；失效结果不写入页面，后台对损坏标记执行有界重试和保留结构的分片回退。本地引擎将这些格式标记转换为受限 HTML，利用 Bergamot 对齐后再还原标记；其他服务继续使用受保护的文本协议。
 
-真实页面检查：YouTube 已在正常 Edge 环境读取完整字幕时间轴，Microsoft 翻译返回中文，37→42 秒跳转及后续播放点返回对应译文；TED 的 v7 已在独立 Chrome 中通过真实网站与 Microsoft 免费服务验证：英文完整字幕时间轴、英语切法语后继续翻译、切回无翻译署名的英文、26→121 秒跳转、真实容器全屏及退出，以及停止后恢复所有修改过的字幕轨与原生层。TED 的当前选择由字幕菜单与翻译署名识别；播放器在语言切换后延迟禁用字幕轨时，仅恢复当前选中轨道的读取，不清空已完成的译文缓存。TED 的 v7 另完成真实媒体原生字幕路径连续播放：观察 1,811.7 秒，媒体累计前进 1,811.6 秒，包含一次原视频循环；181 次约 10 秒间隔采样未见暂停或服务错误；循环起点有一次 readyState=1，下一次约 10 秒后的采样已恢复为 4 并继续显示译文。出现原文而没有译文的样本为 0 次，最长采样间隔 10.02 秒。这是分段采样，不能等同逐帧证明字幕始终无延迟。Bilibili 的 v4 在独立、未登录的 Chromium 中通过真实网站与 Microsoft 请求验证：解码目录地址、读取完整时间轴、20 秒出中文、跳至另一条实际字幕（31.3 秒）以及停止恢复原生层。正常 Edge 的 v4 也已读取完整时间轴、显示中文，停止后恢复原生层。v7 在独立、未登录 Chromium 中补充验证了真实 Bilibili 容器全屏、退出恢复和跳转；该环境的原生语言菜单要求登录，没有强行激活隐藏选项。正常 Edge 的已有登录状态已验证网站英语切到日语后，扩展跟随新字幕并返回 Microsoft 中文；原生菜单回选英语没有形成确定证据，不能计为已通过。当前地址转换参照[网站公开播放器](https://s1.hdslb.com/bfs/static/player/main/core.9c6ca999.js)，只转换字幕路径，之后仍执行原有地址白名单检查。
+输入框翻译的快捷键 `translate-input` 与其他页面快捷键共用录入、冲突检测和开关，设置由 `src/shared/input-translation.ts` 归一化。`src/content/input-translation.ts` 读取获得焦点的输入框或可编辑区域（有选区时只取选区），经 `TRANSLATE_INPUT` 交给 `src/background/input-translation.ts`，后者只选用大模型服务并跳过持久缓存。译文写回原位：输入框优先使用 `insertText` 保留撤销记录；富文本编辑器先等待选区同步，再派发携带 `text/plain` 的粘贴事件，让 Slate、Lexical、Discord 等编辑器更新自身文档模型。
 
-YouTube 的正常 Edge 长测使用 v3、Microsoft 免费翻译与渲染字幕路径：观察窗口 1,867.3 秒，视频实际前进 1,825.3 秒；179 次分段采样未观察到暂停、未就绪或服务错误，一次新句等待在下一次约 0.8 秒后的采样恢复。最长采样间隔 295.4 秒，这不是逐帧监测。v5 修复了真实 YouTube 整页全屏时 HTML 根盒高度为零导致入口隐藏的问题；正常 Edge 已验证全屏中的双语字幕、设置面板，以及退出后恢复到播放器内。对应的零高度整页全屏、容器全屏和原生视频全屏均纳入浏览器回归。v6 还在正常 Edge 中关闭网站自动开启，手动启用后点击站内推荐视频，从 n8n 切到 Godot；会话仍保持启用，新视频时长与字幕已更新并返回中文。
+`npm run test:structured:edge` 和 `npm run test:structured:firefox` 使用独立浏览器配置与本地翻译服务，检查开放/封闭组件、原节点身份、格式顺序、点击行为、动态更新及精确恢复。真实本地模型验证使用 `npm run test:structured:local`，需先构建 Firefox，并通过 `LOCAL_MODEL_FIXTURE_DIR` 指向已有的 `en-zh-Hans` 模型目录；测试校验模型文件哈希，不下载模型。模型 HTML 对齐结果不符合结构约束时，测试同时检查受保护文本回退。
 
-Udemy 的正常 Edge 公开试看在无课程账号的情况下提供英文 CC，当前播放器使用 `data-purpose="media-player-container"`、`_caption-container_` 与 `_cue-text_`。实机复现了旧选择器读取为空，v8 增加新容器支持并保留旧播放器适配；正常 Edge 已验证英文 CC 到 Microsoft 中文、网站切换日语后继续翻译以及切回英文。换到另一条公开讲座时，实机发现旧控制器的断连清理早于新播放器发现，导致手动开启状态丢失；v9 保留清理前的开启意图供发现器接续，并立即取消旧会话，主动停止仍清除意图。单元与真实 MV3 浏览器回归覆盖延迟换视频、重新挂载和停止后换视频；正常 Edge 的 v9 已验证从 Course Introduction（399.8 秒）切到 Python Numbers（251.4 秒）仍保持手动开启并显示新讲座对应中文；主动停止后切到 For Loops（1,097.6 秒）保持关闭。整页翻译现在按当前站点字幕选择器排除原生层，避免在字幕翻译尚未返回时改写原文，其他域名使用相同类名的普通文本仍可翻译。正常 Edge 已确认真实播放器全屏，字幕覆盖层和设置面板位于全屏容器内；全屏中停止后原生层 opacity 恢复为 1，退出全屏保持停止状态。独立 Chrome 访问相同公开课程页返回 HTTP 403，未将其记为播放通过。公开试看不能代替已购买课程或登录学习页验收。
+普通配置保存通过 `SAVE_SETTINGS` 同时提交编辑结果和读取时的 `previousSettings`。后台按顺序合并本次变更，保留其他页面修改的字段；服务配置按稳定 ID 合并，避免覆盖其他服务的凭据或重新创建已删除服务。显式恢复默认设置时省略 `previousSettings`，执行完整替换。新增保存入口应遵循同一约定，避免直接写入整个配置对象。
 
-独立测试环境中，部分 YouTube 原生 timedtext 请求仍返回空正文；Vimeo 已在正常 Edge 中读取完整英文字幕、播放并取得 Microsoft 中文译文；v6 修复入口位于 aria-hidden 画面内层、以及网站更换原字幕后仍停留旧轨道的问题。实机已验证英语切法语后继续出中文、文字稿侧栏打开时字幕对齐视频、真实播放器全屏、停止后保留网站新选语言及恢复原生字幕层。独立 Chrome 的同一演示媒体长时间缓冲，未安装扩展的基线也未起播，不能将该环境记为播放通过。Netflix、Disney+、Prime Video 和课程站的登录实机验收仍需补充。这些站点仍需分别完成真实播放验收，不能由本地样本或模拟服务测试替代。画中画、图片字幕、封闭 Shadow DOM 和没有网站字幕的内容不属于现有读取路径。
+设置备份格式与字段校验位于 `src/shared/settings-backup.ts`，界面位于 `src/options/settings-backup.ts`。配置仅使用 TOML，由固定版本的 `smol-toml` 解析与序列化，禁止不安全键并限制嵌套深度。TOML 格式 v1 带有固定类型标记、格式版本、扩展版本、导出时间和 `includesKeys` 标记，仅导出声明的配置字段。`pdfTranslationPageRadius` 在文件中用 `"all"` 表示内部的无限范围空值；多行提示词与模板复用库的转义规则输出为 TOML 多行字符串。解析错误仅提示行列，不显示可能含凭据的源码片段。
 
-2026-10-29 的 v9 在正常 Edge 中补充了 Bilibili 与 Vimeo 的真实媒体循环长测，均使用 Microsoft 免费翻译到中文。Bilibili 使用现有登录状态，扩展手动选择 English(US)；Vimeo 跟随播放器英文字幕。两站都读取完整时间轴，观察窗口为 2,014.3 秒：
+默认不含密钥；无密钥投影清空完整的自定义凭据载体（请求头、模板、非内置地址与提示词等），仅保留这些字段中与已知内置默认值完全一致的公开内容，不依赖字段名猜测、密钥形状或任意模板解析。确认窗口每次打开均重置为不包含密钥，只有用户主动勾选才生成完整备份。无密钥文件会验证实际内容符合投影，拒绝只修改标记却保留凭据的文件。
 
-| 站点 | 采样确认的累计播放 | 观察到的循环 | 采样数 | 暂停 / 未就绪样本 | 有原文无译文样本 | 服务错误样本 |
-| --- | --- | --- | --- | --- | --- | --- |
-| Bilibili | 2,004.8 秒 | 10 次 | 136 | 2 / 2 | 0 | 0 |
-| Vimeo | 1,825.1 秒 | 30 次 | 136 | 0 / 0 | 0 | 0 |
+导入通过 `IMPORT_SETTINGS` 在后台重复校验文件，再经共享写入队列完整替换设置；两种模式均不合并本机凭据，无密钥导入会清空旧凭据并明确提示重新配置。后台在写入前检查 OCR 模型，缺失时只关闭图片翻译。校验或写入失败不会更新表单基线，也不会清空其他存储。新增配置字段或服务类型时须同步更新备份字段声明与无密钥投影；不兼容的结构调整须升级格式版本并实现迁移。
 
-Bilibili 的两次暂停样本均位于循环起点（约 0.321 秒、readyState=1），下一次约 10 秒后的采样已恢复播放、readyState=4；翻译开启状态和英文轨道选择一直保留。两站分别有 93、100 个样本包含原文，均同时存在译文。停止后已检查原生字幕隐藏标记清除，并恢复临时循环和原翻译服务设置。报告位于 `.npm-cache/video-sites/public-sites-edge-v9-soak.json`，结束前截图为同目录的 `bilibili-edge-v9-soak-final.jpg` 和 `vimeo-edge-v9-soak-final.jpg`。
+使用 `npm run test:settings-backup`、`npm run test:settings-backup:edge` 或 `npm run test:settings-backup:firefox` 验证实际下载、导入确认、配置与表单同步、缺失模型、后续普通保存及窄屏布局。测试使用独立浏览器配置和模拟凭据，不调用翻译服务。
 
-采样通常间隔约 10 秒，最长间隔 166.52 秒。累计播放由相邻媒体时间与观察到的循环计算，长间隔内不可见的完整循环未补算。这是同一媒体循环的分段观察，不能等同逐帧字幕延迟监测或持续新字幕负载测试。此前独立、未登录的 Bilibili 长测在媒体约 61.6 秒处暂停，扩展仍开启且未显示服务错误；原因未确定，未将该次运行记为通过。上述正常 Edge 结果不替代 Netflix、Disney+、Prime Video、Coursera 和 Udemy 已购课程的登录播放验收。
+Chrome / Edge 使用后台 Service Worker，并通过 offscreen 文档承载需要 DOM 或 Worker 的本地能力；Firefox 使用后台事件页和隐藏 iframe。相关适配入口为 `build/manifest.ts` 与 `src/background/offscreen.ts`。
 
-### 暂停视频画面翻译
+## 环境搭建
 
-`src/content/video-frame.ts` 管理单次暂停画面的识别、译文覆盖及原文切换，复用 `TRANSLATE_IMAGE` 的本地 OCR、文字翻译和区域绘制。入口与字幕入口并列，受现有视频功能总开关控制，识别仍要求已安装 OCR 并开启图片翻译。不会因普通暂停事件自动提交请求。播放、seek、媒体更换、设置变更和控制器释放均使当前结果失效，迟到的识别或服务响应不能重新覆盖画面；已经发出的服务请求仍可能被处理。
-
-`video-frame-capture.ts` 优先读取解码视频像素，保留 object-fit / object-position；跨域画布受限时，`frame-visibility.ts` 逐层换算内嵌帧位置，只通过页面消息传递坐标。后台 `src/background/video-frame.ts` 校验浏览器提供的发送页身份、活动标签页与可见范围，再调用截图接口；整页截图只在后台内存中解码，裁剪后的视频像素返回当前内容脚本，只有 OCR 文字进入翻译服务。截图前临时隐藏扩展覆盖层，成功、失败和取消后都恢复。浏览器截图需要 [`<all_urls>` 或 activeTab](https://developer.chrome.com/docs/extensions/reference/api/tabs#method-captureVisibleTab)，共享 Manifest 使用 `<all_urls>`，内容脚本仍限于原有 HTTP / HTTPS 匹配范围。Firefox 数据声明沿用 `websiteContent` 与 `authenticationInfo`，没有新增第三方图像传输。
-
-单元回归：`npm test -- tests/video-frame.test.ts tests/video-frame-capture.test.ts tests/video-frame-background.test.ts`。覆盖无字幕视频的手动暂停翻译、原文切换、播放及跳转清理、取消与迟到响应、语言和服务变更、缺少模型、截图失败、跨域帧坐标和活动标签页隔离。截图路径要求画面完整可见，无法保证被网站弹层、原生控件或非轴对齐变换遮挡的文字可读；内容保护、画中画和视频元素原生全屏不提供画面覆盖。
-
-构建后运行 `npm run test:video:frame`（Edge 使用 `npm run test:video:frame:edge`），以真实本地视频、本地 OCR 和模拟文本翻译验证暂停、切换原画面、播放及 seek 清理、容器全屏、跨域媒体截图和跨域 iframe 截图；另确认画面之外的网页文字未进入翻译。使用独立浏览器资料目录，不读取个人账号。需预先通过 `test:ocr-runtime` 准备已校验的模型文件，默认读取 `.npm-cache/firefox/models/`，也可用 `OCR_MODEL_FIXTURE_DIR` 指定；脚本不会自行下载模型。支持 `PLAYWRIGHT_MODULE`、`CHROME_TEST_BROWSER`、`EDGE_TEST_BROWSER` 和 `VIDEO_TEST_EXTENSION_DIR`，报告与截图位于 `.npm-cache/video-frame/<browser>/`。本地样本不替代真实站点验收。
-
-### 从源码构建
-
-需要 Node.js 22 或更高版本，以及 npm。
+需要 Node.js 22 或更新版本及 npm。
 
 ```bash
 git clone https://github.com/mr-wuliu/wupage.git
@@ -131,86 +77,37 @@ npm ci
 npm run build
 ```
 
-构建完成后，按照 [README 中的手动安装说明](../README.md) 加载 `dist/` 目录。
+普通开发使用仓库内已有的 OCR 运行库，不需要本机安装 C++ 编译工具链。模型安装与翻译服务配置通过扩展界面完成。
 
-### 日常开发
+## 本地开发
 
-```bash
-npm run dev        # 监听源码并持续构建
-npm run typecheck  # TypeScript 类型检查
-npm test           # 运行 Vitest 测试
-npm run build      # 生成生产构建到 dist/
-```
+1. 根据改动所属的界面、阅读场景或后台能力定位模块；跨模块通信先查看共享消息类型。
+2. 启动对应浏览器的监听构建，修改源码后检查构建输出。
+3. 在扩展管理页重新加载扩展，并刷新用于验证的网页。
+4. 按需补充能复现问题的测试或本地样例，执行与改动范围相符的验证。
 
-### 快捷键实现与验证
+| 命令 | 用途 |
+| --- | --- |
+| `npm run dev` | 监听源码，持续生成 Chrome / Edge 构建到 `dist/` |
+| `npm run dev:firefox` | 监听源码，持续生成 Firefox 构建到 `dist-firefox/` |
+| `npm run build` | 生成 Chrome / Edge 生产构建 |
+| `npm run build:firefox` | 生成 Firefox 生产构建 |
 
-`shortcutWarning()` 对常用浏览器、编辑和 Ctrl＋Alt 组合给出非阻断警告。警告只显示在对应录入框下方，不设置 `aria-invalid`，不会阻止保存或在设置规范化时重置绑定；重开设置页仍会显示。格式错误和扩展内重复绑定保持原有校验。
+Chrome / Edge 在扩展管理页开启开发人员模式，加载 `dist/`；具体入口见 [README 安装说明](../README.md#安装)。Firefox 154 或更新版本可在 `about:debugging#/runtime/this-firefox` 临时加载 `dist-firefox/manifest.json`，源码更新后点击「重新载入」并刷新网页。
 
-`shortcutEnabled` 为五项翻译快捷键与四项局部操作分别保存布尔开关。缺失的旧设置默认启用，原先清空的翻译键迁移为关闭；关闭只改变开关，不清空 `shortcuts`。设置页将两者作为同一份草稿保存，恢复全部默认会重置按键及开关。内容脚本、悬浮球、段落点击和划词卡片通过同一个存储事件同步配置；局部键关闭后仍可使用鼠标按钮。
+监听构建只更新输出文件，浏览器中的扩展和已有网页仍需重新加载。排查问题时使用独立浏览器资料，避免与已安装的商店版同时作用于同一页面。
 
-快捷键保存在扩展设置的 `shortcuts` 中，在设置页直接录入、清空或恢复默认，与其他表单字段一起保存。`src/shared/shortcuts.ts` 统一定义默认值、组合键规范化、事件匹配和已知冲突校验。未配置的新字段补齐默认值，明确清空的值保留为空，非法或重复绑定在读取设置时修复。Chrome / Edge 不提供扩展内改写浏览器快捷键的接口，因此不再声明 Manifest `commands`，避免旧原生绑定与自定义按键同时触发。相关接口范围参见 [Chrome Commands API](https://developer.chrome.com/docs/extensions/reference/api/commands)。
+修改配置结构时，保留旧设置的默认值与迁移逻辑；新增服务时接入已有服务适配与错误处理；调整公共界面时复用配色变量和 `src/shared/ui-icons.ts`，保持各入口一致。
 
-`src/content/keyboard-shortcuts.ts` 在顶层网页捕获按键，根据已加载的配置触发 `src/content/shortcuts.ts` 中共用的翻译动作。使用 `KeyboardEvent.code` 匹配字母和数字物理键；忽略 IME、AltGr、已处理事件与重复执行，输入和编辑区域内只响应 `translate-input`，扩展自身的划词卡片与悬浮球内不响应任何快捷键；仅在匹配时阻止网页默认行为。配置变更通过存储事件同步，初始读取不会覆盖较新的存储变更。快捷键作用于普通网页及已接入的嵌入框架正文，不作用于地址栏或 PDF 查看器。全文开始前的异步读取可被再次按键取消，过期结果不覆盖恢复原文后的提示，连续切换显示模式按保存顺序处理。
+## 验证改动
 
-段落翻译快捷键复用 `src/content/paragraph-translation.ts` 的原位翻译与恢复逻辑。`src/content/paragraph-shortcut.ts` 将选区内的文字映射为完整段落并去重，无选区时使用鼠标所在或获得焦点的正文段落；不依赖段落模式、右键翻译或划词翻译开关。配置键沿用 `translate-selection`，保留已有自定义按键与开关。
-
-相关单元回归覆盖录入、取消、清空、默认值、重复及保留组合键校验、设置保存和分类草稿、即时改键与输入保护、快速启停、显示模式顺序和段落翻译。
-
-`npm run test:shortcuts` 在构建后加载真实扩展，使用独立浏览器资料和本地模拟服务验证设置页录入与保存、无需刷新网页的改键和停用、实际键盘事件触发全文与段落翻译、译文模式复用、段落模式、输入保护与窄屏布局。支持 `PLAYWRIGHT_MODULE`、`CHROME_TEST_BROWSER` 和 `PDF_TEST_BROWSER`，报告及截图写入 `.npm-cache/shortcuts/`。浏览器和系统保留快捷键不由网页拦截，跨系统组合仍需在目标环境确认。
-
-### 右键全文翻译
-
-右键全文翻译由 `src/background/page-context-menu.ts` 维护单一顶级菜单，并清理旧版两个段落菜单。正文菜单仅使用 `page` 上下文，与图片菜单分开，避免 Chromium 自动折叠为子菜单。页面翻译状态变化、切换标签页或窗口以及页面导航时重新读取顶层文档状态；异步读取通过序号丢弃过期结果。点击复用全文翻译快捷键的实时切换动作，翻译中也能取消并恢复原文。
-
-构建后运行 `npm run test:context-menu`，使用真实扩展与本地模拟服务验证菜单更新、全文启停、标签页切换、导航和延迟响应取消。支持与快捷键浏览器回归相同的环境变量，报告写入 `.npm-cache/context-menu/`。原生菜单注册与点击路由另由单元测试覆盖。
-
-### Firefox 构建与验证
-
-Firefox 需要 154 或更新版本。两种浏览器共用业务源码，分别生成安装目录：
+先运行受影响模块的测试，例如：
 
 ```bash
-npm run build          # Chrome / Edge：dist/
-npm run build:firefox  # Firefox：dist-firefox/
-npm run dev:firefox    # 监听修改并重新生成 Firefox 构建
+npm test -- tests/appearance.test.ts
 ```
 
-在 `about:debugging#/runtime/this-firefox` 中临时加载 `dist-firefox/manifest.json`。源码修改后先完成构建，再点击该页的「重新载入」，并刷新普通网页。临时扩展退出浏览器后失效；正式安装需要 Mozilla 签名。
-
-`public/manifest.json` 是共享配置；`build/manifest.ts` 生成 Firefox 的后台脚本、扩展 ID、最低版本和数据传输声明。版本号保持与共享 Manifest 一致。Firefox 154 提供 OCR 依赖的扩展沙箱。两种浏览器均使用专用 OCR 运行库，OpenCV WASM 独立保存，避免将二进制编码到 JavaScript 中。
-
-Firefox 的后台事件页通过隐藏 iframe 托管 OCR 和 Bergamot。仅在模型下载期间发送内部心跳，防止关闭界面后后台空闲卸载；任务结束立即停止。Firefox 的 Bergamot 适配从扩展页面读取随包附带的 WASM 并转交 Worker，支持首次断网启动。Chrome / Edge 继续使用 offscreen 文档与原始 Worker。
-
-```bash
-npm run test:firefox
-npx web-ext lint --source-dir dist-firefox
-```
-
-`test:firefox` 使用本机 Firefox 的 Marionette 测试接口和独立资料目录，不依赖浏览器驱动，不访问日常浏览数据。Windows 默认查找标准安装位置；其他位置或系统可通过 `FIREFOX_BINARY` 指定可执行文件。运行前先构建 Firefox 包。
-
-测试使用本地网页、PDF 与模拟翻译服务，验证设置持久化、三种译文模式、Ollama 请求头、本地和在线 PDF、真实 OCR 识别与缓存、模型删除，以及关闭所有扩展界面超过 30 秒后继续下载模型、首次断网英译中和自动检测。模型从官方地址下载并缓存；Bergamot 也可通过 `LOCAL_MODEL_FIXTURE_DIR` 使用已保存的模型文件。只有临时测试包中的模型下载地址会重定向到本地服务器，生产校验和推理实现保持不变。报告和截图保存在 `.npm-cache/firefox/`。
-
-项目主要目录：
-
-```text
-src/
-├── background/  # 服务商适配、任务调度、缓存与消息处理
-├── content/     # 网页文本识别、译文渲染、段落模式与悬浮球
-├── local/       # Bergamot 模型目录、续传缓存、离线导入、Worker 与管理界面
-├── options/     # 设置与服务商配置界面
-├── pdf/         # PDF 加载、布局、编辑、渲染与导出
-├── popup/       # 扩展弹窗交互
-└── shared/      # 类型、默认设置、语言与跨上下文工具
-tests/           # Vitest 测试
-public/          # Manifest 与扩展图标
-```
-
-LLM 高级请求模板由 `src/shared/request-template.ts` 统一解析、校验并应用于 OpenAI、Anthropic、DeepSeek、智谱及视觉请求。模板先解析 JSON，再在值中替换变量，防止原文中的引号或换行改变请求结构；请求体采用 JSON Merge Patch 语义，请求头按名称大小写无关地覆盖或删除。配置保存在各服务的 `requestTemplate` 中，未配置或禁用时沿用原请求。设置页的选项卡与模板编辑位于 `src/options/provider-advanced.ts`。相关回归覆盖模板合并、变量转义、保存与禁用、实际请求参数、校验失败和键盘切换。
-
-默认文本请求和设置页模板共用 `defaultLlmRequestTemplate`，运行时通过 `defaultLlmRequest` 替换变量，避免预览与实际请求的字段漂移。空配置在编辑框内展示默认模板，未编辑的展示内容不会持久化为覆盖参数；「载入默认模板」启用并复制模板，「恢复默认请求」清除覆盖并恢复默认展示。认证头按常规设置中的凭据是否存在生成，展示和载入时只使用密钥占位符。
-
-`npm run test:templates` 在构建后加载真实扩展，通过本地 HTTP 服务检查四类 LLM 的自定义请求头和请求体、设置重载、关闭与恢复、校验错误、HTTP 模板兼容及窄屏布局。支持 `PLAYWRIGHT_MODULE`、`PDF_TEST_BROWSER`，报告与截图保存在 `.npm-cache/request-templates/`，不访问真实付费接口。
-
-提交改动前建议依次运行：
+业务改动的基础检查为：
 
 ```bash
 npm run typecheck
@@ -218,153 +115,34 @@ npm test
 npm run build
 ```
 
-### 网页翻译回归验证
+涉及 DOM、布局、浏览器权限或消息生命周期时，再运行对应浏览器验证。`package.json` 中的 `test:*` 命令列出全部入口，例如 `test:page`、`test:appearance` 和 `test:firefox`；运行前先构建对应的 `dist/` 或 `dist-firefox/`。
 
-本机 Chrome 可通过 `CHROME_TEST_BROWSER` 指定路径运行同一套网页翻译回归。测试使用独立资料目录、本地网页与模拟服务，不读取日常浏览资料。先运行 `npm run build`，再在 PowerShell 中执行：
+Chromium 浏览器测试需要可导入的 Playwright 和可用浏览器，可单独准备：
 
-```powershell
-$env:CHROME_TEST_BROWSER = 'C:\Program Files\Google\Chrome\Application\chrome.exe'
+```bash
+npm install --no-save --package-lock=false playwright
+npx playwright install chromium
 npm run test:page
 ```
 
-需要可导入的 Playwright（也可用 `PLAYWRIGHT_MODULE` 指定模块路径）。Chrome 通过扩展调试接口加载 `dist/`，报告与截图写入 `.npm-cache/chrome-translation/`。
+也可通过 `PLAYWRIGHT_MODULE` 指定已有 Playwright 模块。浏览器路径由对应脚本的 `CHROME_TEST_BROWSER`、`EDGE_TEST_BROWSER`、`PDF_TEST_BROWSER` 或 `FIREFOX_BINARY` 指定；Firefox 测试使用本机浏览器及 Marionette。
 
-`npm run test:resilience`、`npm run test:resilience:edge`、`npm run test:resilience:firefox` 使用独立浏览器配置和本机模拟 LLM，检查 1200px / 390px 下三种显示模式、原文与控件恢复、编辑区和禁止翻译内容排除、MathML 保护、受保护代码更新、整体 Body 替换、严格 CSP / Trusted Types、限流暂停与明确重试，以及已收到响应头后取消卡住的正文并恢复队列。先构建对应的 `dist/` 或 `dist-firefox/`；环境变量与其他浏览器回归相同。报告和截图写入 `.npm-cache/resilience/<browser>/`，不调用真实翻译或付费接口。Firefox 测试工具只为独立测试进程启用自动化系统访问。
+浏览器验证通常使用独立资料目录、本地样例和模拟翻译服务，报告与截图保存在被 Git 忽略的 `.npm-cache/`。OCR、本地模型与部分 PDF 验证可能下载公开数据，运行前查看对应脚本。样例通过说明流程和排版符合预期，真实站点兼容性与译文质量仍需分别验证。
 
-- 自动翻译由 `src/shared/auto-translation.ts` 归一化并匹配站点规则，`src/content/auto-translation.ts` 在前台 HTML 页面触发现有渐进翻译。弹窗和悬浮菜单的「＋」复用站点添加逻辑，只从 HTTP/HTTPS 地址提取域名和非默认端口，不保留路径、查询参数或片段；已有整站规则会复用，同站点的已停用规则会启用。「✓」再次点击后将当前域名写入可选的 `excludedSites`，优先于站点及语言规则；保留正向规则以继续服务其他子域名，重新加入时清除该域名的排除。设置页草稿读写保留排除项，并可单独取消排除。语言检测仅使用本机浏览器接口；路由、配置与手动停止会使过期检测结果失效。回归覆盖域名边界、通配与路径、旧设置默认关闭、动态内容、手动停止和单页导航。
-- `npm run test:auto`：构建后加载实际扩展，使用本地网页和模拟翻译服务验证规则保存、窄屏、自动触发、手动恢复原文、单页导航、目标语言跳过和异步加载的正文；另检查弹窗和悬浮菜单加入、排除及重新加入当前网站、重复规则限制、设置页持久化与保存后保留排除项、排除优先于语言规则且刷新后有效，以及新增站点立即触发翻译。报告保存在 `.npm-cache/auto-translation/`。
-- `npm run test:spa`、`npm run test:spa:edge`、`npm run test:spa:firefox`：构建对应浏览器产物后，使用独立浏览器和本地帖子页面验证站点规则与语言规则下的连续切换、前进后退、仅改变地址时的路径边界、延迟响应、原文节点复用、动态回复、手动还原与重译，以及空白加载页的后续翻译。站点规则继续匹配时保留现有监听；需要重新判断语言时等待后台停止完成，内部暂停不视为用户手动还原。中断、仍在翻译与暂时没有正文分别显示对应状态。报告与截图保存在 `.npm-cache/spa-translation-<browser>/`，支持 `PLAYWRIGHT_MODULE`、`CHROME_TEST_BROWSER`、`EDGE_TEST_BROWSER` 和 `FIREFOX_BINARY`。
-- 六个预置在线翻译服务通过 `serviceMode` 区分 `free`（默认）和 `api`，凭据保存在对应配置的 `api` 中。免费分支不读取或发送这些凭据；切换方式会保留已有配置。旧版内置 Azure / Google Cloud 配置在规范化设置时迁移至对应服务商，存在不同凭据时保留独立配置。火山 API 在后台通过 Web Crypto 生成 V4 签名；腾讯 API 使用 TokenHub 的翻译模型。
-- `npm run test:services`：构建后加载实际扩展，以模拟网络响应验证六家服务的免费/API 切换、设置保存、凭据保留、实际请求分支和窄屏布局，不访问真实付费服务。支持 `PLAYWRIGHT_MODULE`、`PDF_TEST_BROWSER`，报告保存在 `.npm-cache/service-modes/`。
-- 服务额度资料保存在 `src/shared/provider-usage.ts`，设置页在切换服务、使用方式、模型或地址时更新。维护数值时须核对所链接的官方资料并更新核对日期；匿名接口与云 API 分开，官方未公开的数字不以经验值代替。`src/options/provider-usage.ts` 单独显示插件调度设置，不能将 RPM、QPS 和并发混用。说明仅使用随扩展打包的资料，不查询账号余额或额外请求第三方接口。
-- 另外预置 `tencent-transmart`、`yandex-web-translate`、`volcengine-web-translate` 与 `mymemory`。免费模式下，腾讯使用批量请求，Yandex 与火山逐项处理以保留段落对应关系；MyMemory 在本机检测源语言，并按 500 UTF-8 字节分段，保留空白、Unicode 字符、占位符及实体字面量。回归测试覆盖错误响应、额度限制、取消和旧配置兼容。
-- 服务图标随扩展内联打包，弹窗、悬浮菜单和 PDF 共用带图标的服务选择器；设置页复用同一图标映射。图标来源与 MIT 许可保存在 `public/licenses/lobe-icons.txt`，显示时无需访问外部图片服务器。
-- `npm run test:page`：先运行 `npm run build`，再使用可选的 Playwright 与 Chromium 加载真实 MV3 扩展。支持 `PLAYWRIGHT_MODULE` 与 `PDF_TEST_BROWSER` 环境变量。
-- 使用本地页面和本地模拟翻译服务，覆盖两种窗口宽度、三种显示模式、代码占位符损坏恢复、隐藏内容与草稿排除、Ctrl 点击段落翻译、清除还原，以及动态原文更新后的迟到响应。切换显示模式不得新增翻译请求。
-- YouTube 新旧评论结构按整条正文翻译，双语译文另起一行；同时检查短评论、带链接的富文本、长译文自动折行及网页 `white-space: nowrap` 的继承隔离。
-- 同时检查 `dist/content.js` 能作为普通脚本解析，防止公共工具被拆成模块导入而导致内容脚本无法加载。报告保存在 `.npm-cache/page-translation/report.json`。
-- `npm run test:cards`：使用实际扩展和本地模拟服务，检查中英文界面下的混合语言卡片。覆盖 Flex/Grid 字段分离、标题字号与字重、作者链接、两种窗口宽度、三种显示模式和清除还原；匿名服务将整批判为目标语言时，未翻译项应独立重试。报告保存在 `.npm-cache/card-layout/`。
-- `npm run test:floating`：加载实际扩展，覆盖真实指针的 500 毫秒悬停延迟、离开取消、拖动与位置保存、悬浮球和弹窗的翻译中停止、迟到响应、原译文切换与缓存复用、动态列表、状态同步、缓存清理、失败重试、Debug、设置入口、键盘操作和小窗口。另检查紧凑菜单布局、划词开关与弹窗的双向同步、缺少 OCR 模型时禁用图片翻译，以及说明弹层的边界。报告保存在 `.npm-cache/floating-interactions/`。
-- `npm run test:paragraph-mode`（Chrome）和 `npm run test:paragraph-mode:edge`：在加载扩展前先打开本地网页，验证暂时未连接不会禁用「段落翻译」按钮，提示刷新后可在同一弹窗重试，并检查顶层与嵌入文档的 Ctrl 点击翻译、恢复和退出同步。弹窗与悬浮菜单使用独立按钮启停段落模式，显示方式下拉框仅保留三种译文样式，切换样式保持段落模式；同时检查窄弹窗的按钮排版。使用独立配置和本地模拟服务，支持 `PLAYWRIGHT_MODULE`、`CHROME_TEST_BROWSER`、`EDGE_TEST_BROWSER`；报告和截图按浏览器保存到 `.npm-cache/paragraph-mode/`。
-- 段落模式通过 `src/shared/paragraph-mode.ts` 监听独立的本地共享开关，由后台串行保存。标签页会话只负责全文翻译，不持有段落模式；初次读取与页面从历史缓存恢复时均防止旧值覆盖新的开关事件。嵌入文档保留既有排除规则，并按需激活段落处理。`npm run test:paragraph-sync` 及其 `:edge`、`:firefox` 版本使用多标签页与本地模拟服务，检查双向同步、跨域帧与排除项、新页面、刷新、晚加载帧、已有段落/全文译文保留、快速切换及旧设置保存，报告在 `.npm-cache/paragraph-sync/`。
-- 正文和标题译文继承原文字体与行高。需要放在原文外侧以避开截断的结果，由 `src/content/translation-typography.ts` 同步字体；仅在存在此类结果时监听尺寸、祖先样式和字体加载变化，清除结果后释放监听。`npm run test:paragraph-typography` 及其 `:edge`、`:firefox` 版本使用真实键盘快捷键与本地模拟译文，检查多行标题、富文本、手动换行、两种窗口宽度、网页样式变化、三种显示模式及原文恢复；缩放不得重新请求翻译。加 `-- --live` 还会检查 Rust 官网，报告保存在 `.npm-cache/paragraph-typography/`。
-- `npm run test:floating-responsive`：使用实际扩展和触屏仿真，覆盖 iPad Pro 13 的 1032 × 1376 竖屏与横屏。检查长按打开菜单、松手保持、外部轻点关闭、拖动取消长按、轻点翻译，以及首次翻译失败自动打开菜单的服务、语言与显示模式、菜单边界和触屏选择操作；另验证纯触屏隐藏段落模式及说明、鼠标环境保留入口，以及弹窗隐藏后的紧凑布局。报告与截图保存在 `.npm-cache/floating-responsive/`，支持 `PLAYWRIGHT_MODULE` 与 `PDF_TEST_BROWSER`。
-- `npm run test:settings`：延迟返回设置，逐帧检查弹窗和设置页重开时的图片翻译开关；保存为开启或关闭的状态都不得闪现错误位置或启动动画。报告保存在 `.npm-cache/settings-initialization/`。
-- 网页回归还包含明暗背景、现代 CSS 颜色和网页强制文字颜色下的实际颜色检查，切换原色、双色和替换模式时不得新增翻译请求。
-- 翻译链路的审视结论与兼容处理边界见 [翻译系统审视](translation-review.md)。
+## 调试
 
-### 局部快捷键
+网页内容脚本在目标网页的开发者工具中调试；弹窗、设置页和 PDF 工作区使用各自的开发者工具。后台日志从扩展管理页的 Service Worker 检查入口查看，Firefox 使用 `about:debugging`。翻译链路的请求状态和错误可通过扩展的 Debug 面板查看。
 
-`localShortcuts` 保存段落点击修饰键、划词提交、浮层关闭、悬浮球翻译和菜单进入的独立绑定，原有 `shortcutEnabled` 四项局部开关保持兼容。`src/shared/local-shortcuts.ts` 负责规范化、物理按键匹配、平台默认 Ctrl/Command 提交和提示文字；单键限于 Enter、Space、Esc、方向与功能键，字母数字需要 Ctrl、Alt 或 Meta。清空绑定关闭对应开关；悬浮球两个绑定都清空才禁用共用开关。
+构建默认不生成 source map。本地排查需要时，可在 PowerShell 中开启后重新构建：
 
-`src/options/local-shortcuts.ts` 提供段落修饰键选择和局部按键录入，校验局部与页面动作重复，保留关闭状态的绑定，支持单项及全部重置。浮层关闭与提交仅在对应界面生效，悬浮球阻止旧 Enter/Space 默认按钮激活导致重复触发；输入法合成和 AltGr 不执行绑定。网页、嵌入框架、划词卡片及提示文字监听已保存配置；框架激活时直接使用会话配置，避免默认按键先于自定义配置启用。
-
-构建后运行 `npm run test:local-shortcuts`、`:edge`、`:firefox`，通过独立配置和本地服务验证录入、冲突、持久化、页面与框架点击、旧按键停用、卡片编辑与关闭、悬浮球操作、即时更新和窄窗口。报告与截图位于 `.npm-cache/local-shortcuts/<browser>/`。
-
-### 外观配置与验证
-
-设置页根元素预留对称滚动条占位，避免长短分类切换时居中布局改变位置。保存栏与设置卡片保持普通文档流和 16px 间距，统一用于所有分类；长页面滚动时不将保存栏吸附到视口底部，避免遮住表单与效果预览。
-
-构建后运行 `npm run test:settings-layout`、`npm run test:settings-layout:edge`、`npm run test:settings-layout:firefox`，检查宽窄窗口下全部分类的横向对齐、外观子页切换、展开色组后的不同滚动位置、卡片间距及保存按钮命中。截图与几何报告保存在 `.npm-cache/settings-layout/<browser>/`。
-
-「菜单功能」在 `appearance.popupMenu` 中保存入口顺序、隐藏项与显式 `rows` 行布局，目录和兼容性规范化位于 `src/shared/popup-menu.ts`。旧配置默认显示全部入口，未知 ID 和重复项会过滤，缺少的新入口追加到末尾。缺少 `rows` 的旧配置按原先 PDF、视频整行规则迁移，已设置的新行布局不受功能类别约束。弹窗与编辑预览共用两列网格与行布局，每行一个按钮铺满、两个按钮平分；移动现有节点以保留事件、功能状态与 OCR 控件。GitHub 和官网移入独立底部容器，顺序固定且保留隐藏偏好，鼠标和键盘排序均排除链接。段落模式的触屏限制独立生效，空网格收起。设置入口与语言、服务、显示模式固定保留。`src/options/popup-menu.ts` 提供左侧点击移除、右侧点击追加、Pointer Events 拖动排序、行中配对、行间独占、拉开恢复整行与让位动画；拖动占位和浮层随实际宽度变化，目标区域锁定避免合并后的排版反复跳动；拖动阈值防误触，松开后抑制点击删除，Esc、指针取消和预览外释放恢复原顺序，边缘滚动支持长菜单，减少动态效果偏好会禁用动画。键盘支持 Alt + 方向键/Home/End 排序和 Delete/Backspace 移除。所有操作修改独立草稿，保存复用现有外观设置流程。
-
-构建后运行 `npm run test:menu-layout`、`npm run test:menu-layout:edge`、`npm run test:menu-layout:firefox`，以独立浏览器配置验证 12 个入口的双向移动、底部链接固定、跨类别键盘与真实指针排序、长按钮配对与拉开、行布局保存及旧配置迁移、吸附提示、拖动取消与防误删、保存前预览、已打开弹窗同步、节点与按钮行为保留、旧弹窗保存兼容、空网格收起、恢复默认及宽窄窗口。报告与截图保存在 `.npm-cache/menu-layout/<browser>/`。单元测试另覆盖旧配置兼容、异常 ID、重复项、触屏能力限制和无关设置保存不产生布局变更。
-
-`src/shared/appearance.ts` 管理内置方案、自定义颜色校验和明暗方案选择；`appearance-runtime.ts` 监听系统明暗及本地设置变化，通过 `--wp-*` 变量应用到扩展界面。网页中只注入扩展专用变量，不修改宿主页面的 `color-scheme`；划词卡片在 Shadow DOM 中继承同一组变量。`src/options/appearance.ts` 保存独立表单草稿，与其他设置分类一起提交。
-
-配色按界面、悬浮球、译文与段落、划词翻译、图片入口分组。`src/shared/translation-colors.ts` 共用网页背景识别和对比度处理；内容脚本在方案或系统明暗变化时原地更新已渲染的双色译文，包括段落翻译和图片段落，不重新发送翻译请求。旧自定义方案缺少组件颜色时从原有界面色补齐。
-
-`appearance.floatingOpacity` 独立于配色方案，保存 0–100 的整数百分比，旧配置默认 100。滑块与数字输入共用草稿并即时更新预览，数值超出范围或为空时阻止保存；导入设置会将有限数值取整并限制范围。运行时映射为 `--wp-floating-opacity`，作用于球体和预览，拖动时以该值乘原有的 0.92 系数，展开菜单保持正常不透明度。
-
-`tests/appearance.test.ts`、`tests/options-appearance.test.ts` 和 `tests/translation-appearance.test.ts` 覆盖旧设置兼容、异常色值、系统切换、方案复制与删除、草稿保存、透明度联动、数值校验及双色译文更新。`npm run test:appearance` 构建后使用可选 Playwright 与 Chromium 检查实际组件配色、透明度键盘操作与拖动、数字输入与预览、保存后球体及拖动透明度、菜单可读性、保存重开、译文换色不增加请求以及窄屏布局，支持 `PLAYWRIGHT_MODULE`、`PDF_TEST_BROWSER`，报告保存在 `.npm-cache/appearance/`。
-
-### 输入框翻译
-
-快捷键 `translate-input`（默认 `Alt+Shift+K`）登记在 `TRANSLATION_SHORTCUTS` 中，与其他页面快捷键共用录入、冲突检测、开关和设置规范化；旧设置缺少该键时补齐默认值，默认组合已被用户占用时按既有重复规则置空并关闭。功能设置 `inputTranslation`（`enabled`、`providerId`、`prompt`）在 `src/shared/input-translation.ts` 归一化，空提示词恢复为 `DEFAULT_INPUT_PROMPT`；`enabled` 为假时内容脚本不拦截该键。设置页「输入框翻译」分类由 `src/options/input-translation.ts` 渲染，按键仍在「快捷键」分类中修改。
-
-`src/content/input-translation.ts` 读取获得焦点的 `text` / `search` 输入框、文本框或可编辑区域（穿透开放 Shadow DOM，取最外层可编辑根），有选区时只取选区。可编辑区域的文字由 `textWithLineBreaks()` 按块元素和 `<br>` 还原换行，忽略零宽占位符，图片取 `alt`。写回时：
-
-- 输入框和文本框先选中原范围再执行 `insertText`，保留浏览器撤销记录；不可用时通过原生 `value` setter 写入并派发 `input` 事件。
-- 可编辑区域先设置选区，等待 150 ms 让 Slate、Lexical 等编辑器同步选区，再派发携带 `text/plain` 译文的 `paste` 事件；事件被取消视为编辑器已接管，否则依次回退到 `insertText` 和直接修改 DOM。Discord 等自带文档模型的编辑器会忽略只修改 DOM 的写入，发送出去的仍是原文，因此粘贴事件必须优先。不等待选区同步时，译文会插在光标处而非替换原文。
-
-翻译进行中再次触发会被忽略；返回时输入框已从文档移除则不写入。嵌入框架中的按键由 `frame-bootstrap.ts` 在框架内直接处理，不转发到顶层页面。
-
-后台 `TRANSLATE_INPUT` 由 `src/background/input-translation.ts` 处理：依次选用 `providerId` 指定的服务、默认翻译服务、任一可用的大模型服务（`isLlmProvider` 且已填写地址和模型，并有 API Key 或使用本机 / 局域网地址）；没有可用服务时返回配置提示。超过 8,000 字符直接拒绝。目标语言由 `inputTargetLanguage()` 在本地判断：以汉字为主且不含明显假名或韩文时为 English，其余为 Simplified Chinese。请求经 `translateWithSettings()` 复用服务商、并发限制、格式错误重试和 Debug 记录，以 `persistentCache: false` 跳过缓存读写，并临时以输入框提示词替换该服务的系统提示词。
-
-模型回复整体不是合法 JSON 时，`parseTranslationArray()` 在不以未闭合代码块开头的前提下，从末尾向前检查有限数量的 `[...]` 候选，采用最后一个元素数量一致且均为非空字符串的数组；否则仍抛出格式错误，错误信息附带回复开头 200 个字符。截断输出仍按原规则重试。
-
-`tests/input-translation.test.ts` 在 jsdom 中为 `isContentEditable`、`execCommand`、`DataTransfer` 和 `ClipboardEvent` 打桩，覆盖选区替换、原生 setter 回退、换行保留、粘贴接管与等待、`insertText` 和 DOM 回退、输入框移除和重复触发；`tests/background-input.test.ts` 覆盖服务选择、语言方向、长度限制、单次请求和不写缓存；`tests/input-translation-options.test.ts`、`tests/keyboard-shortcuts.test.ts` 与 `tests/shortcuts-settings.test.ts` 覆盖设置页、编辑区域内的按键分流和旧设置迁移。真实网站编辑器的写入行为需要在目标网站手动确认。
-
-### 划词翻译回归验证
-
-划词设置在 `src/shared/dictionary.ts` 归一化，`src/content/selection-translation.ts` 负责选区入口与隔离样式的结果卡片。不超过 100 字符的单个字母词（允许词内连字符和撇号）使用所选词典；1–8 个纯汉字按 Unicode 码点计数，固定查询有道 `newhh` 汉语词典，优先显示中文释义和带声调拼音，多音字通过释义的 `pronunciation` 标注对应读音。没有汉语词条时兼容原有 `ce` / `simple` 结构，仅有拼音也保留卡片；字母词无释义或汉字既无拼音又无释义时回退翻译。多词、长句、含标点的文本、假名及韩文直接使用现有 `TRANSLATE_BATCH`，沿用当前服务、语言、缓存及本地翻译设置，选区上限为 5,000 字符。纯汉字无法仅凭选区区分中文和日语汉字，先查汉语词典，未收录时按上述规则回退。词典请求失败保留重试，不能作为未收录结果回退。后台固定访问有道和 Bing 的词典端点，词条适配在 `src/dictionary/parsers.ts`；Bing HTML 在共享扩展运行页的惰性模板中解析，不执行或挂载远程页面内容。发音下载有来源、类型、大小和超时限制，由扩展运行页播放；词典请求不携带网页上下文或 Cookie，查词结果不写入翻译缓存。
-
-- 原文使用卡片内的文本框编辑，按钮或 `Ctrl+Enter` 提交，普通回车保留换行。输入立即使旧请求结果失效并停止发音，但不发起新请求；重新提交沿用当前词典及翻译服务分流，不修改网页正文。文本框聚焦时展开，内部滚动不关闭卡片。
-- 单元测试覆盖旧配置兼容、两种词条结构、中文拼音及释义、生僻字和多音字、Unicode 码点边界、中文固定词典与默认词典保留、单词分流、未收录回退、直接翻译、当前语言与本地服务复用、长文本与换行、原文编辑与重新提交、输入校验、无效响应、音频来源限制、跨行入口、编辑区域排除和异步结果失效。
-- `npm run test:selection`：构建后加载实际 Chromium MV3 扩展，使用本地网页、模拟词典和有效音频验证两家服务、中文拼音及释义、多音字读音对应、仅有拼音保留、中文未收录回退、默认词典保留、设置保存、原生鼠标划词、跨行下划线、窄屏定位、失败状态，以及页面禁止音频时的扩展内播放。使用独立浏览器资料目录，支持 `PLAYWRIGHT_MODULE`、`PDF_TEST_BROWSER`，报告与截图保存在 `.npm-cache/selection-translation/`。
-
-### 图片翻译回归验证
-
-OCR 使用 `vendor/ocr/` 内的专用 OpenCV 4.10.0 和 ONNX Runtime 1.30.0。普通 `npm ci` 与扩展构建直接使用这些已编译文件，不要求本机安装 C++ 编译器。构建会校验每个文件的 SHA-256、裁剪配置、SDK 版本和模型固定值；模型或运行库版本更新后必须重新编译，不能直接替换通用 WASM。
-
-`src/shared/ocr-control-core.ts` 共用模型状态、安装、删除与帮助交互；弹窗和设置页通过 `ocr-control.ts` 加载样式，内容脚本通过 `src/content/styles.ts` 提供菜单内的限定样式。悬浮菜单显式传入控件和独立帮助 ID，避免匹配网页自身的元素；首次打开时查询模型状态，关闭或移出文档后停止轮询，再次打开时恢复。
-
-专用运行库的源码提交与工具链版本在 `build/ocr/runtime.json`，依赖在 `build/ocr/requirements.txt`。Linux 或 WSL 下重新构建：
-
-```bash
-python3 -m venv .npm-cache/ocr-venv
-. .npm-cache/ocr-venv/bin/activate
-pip install -r build/ocr/requirements.txt
-python3 build/ocr/build.py --work-dir .npm-cache/ocr-build-native --jobs 4
+```powershell
+$env:WUPAGE_SOURCEMAP = '1'
+npm run build
 ```
 
-首次构建需要联网获取固定提交的上游源码、Emscripten 4.0.23 及两个 OCR 模型。脚本校验模型大小与摘要，从 ONNX 图生成所需操作清单，保留 ONNX 格式支持。OpenCV 仅保留 `core`、`imgproc` 和 `build/ocr/opencv.config.py` 中的接口，关闭文件系统；ONNX Runtime 保留 SIMD、单线程推理，裁剪模型未用到的操作与扩展功能。浏览器加载器仍使用标准 `ort-wasm-simd-threaded.*` 文件名，但这对文件来自同一次单线程构建。
+定位问题时先区分内容采集、任务调度、服务响应和译文渲染，再用最小页面或模拟响应复现。提交日志与样例前移除密钥、登录信息和敏感正文。
 
-OpenCV 4.10 的构建文件还会移除旧 Emscripten 的 demangler 选项及文件系统预加载标志，并适配 C++17 和异步工厂包装器。ONNX Runtime 通过操作裁剪与 LTO 缩小体积，保留 `-O3` 优化以兼顾模型推理速度。完整变换由 `build/ocr/build.py` 记录；生成的许可、第三方声明、操作清单与文件摘要随 `vendor/ocr/` 提交。重新生成文件后运行下列真实 OCR 回归，比较识别文字、坐标与运行时间，再提交运行库更新。`npm test` 排除 `.npm-cache/`，避免将下载的上游源码或旧测试资料目录纳入项目单元测试。
+## 相关资料
 
-生产构建默认不生成源码映射。调试时可设置 `WUPAGE_SOURCEMAP=1` 后构建；PowerShell 使用 `$env:WUPAGE_SOURCEMAP = '1'`。源码映射仅用于本地排查，不属于浏览器执行所需资源。
-
-- 本地视觉回归页：运行开发预览服务后打开 `tests/fixtures/image-preview.html`，使用固定模型结果检查覆盖、切换、缩放与内部滚动，不调用外部 API。
-- `npm run test:ocr`：加载真实扩展，下载并校验公开 OCR 模型到独立测试资料目录，验证沙箱初始化、图片识别、覆盖显示、三次原译图切换、重新打开后的缓存、模型删除和设置持久化。翻译使用本地模拟服务，不使用真实 API 密钥。需要网络下载约 20.5 MB 模型及可选的 Playwright 与 Chromium；报告保存在 `.npm-cache/ocr-flow/`。
-- `npm run test:ocr-runtime`：使用实际沙箱、模型和运行库识别中、英、日文，以及透明底、白字和旋转文字。支持 `PLAYWRIGHT_MODULE`、`PDF_TEST_BROWSER` 和缓存模型目录 `OCR_MODEL_FIXTURE_DIR`。可用 `OCR_BASELINE_DIR` 指向保留的旧构建目录，对比文字及坐标（最多允许 2 像素差异），报告记录初始化与识别用时，保存到 `.npm-cache/ocr-runtime/report.json`。
-- OCR 实测页：先 `npm run build`，再 `node tests/fixtures/ocr-preview-server.mjs`，打开 `http://127.0.0.1:5175`，验证真实下载、安装、识别、状态持久化和删除。仅模拟扩展消息，OCR 模型、沙箱和校验使用生产实现。日文透明文字样例还支持真实翻译，以及使用固定译文的符号覆盖与断句回归。
-- `npm run test:image-resolution`：需要可选的 Playwright 与 Chromium，支持 `PLAYWRIGHT_MODULE` 和 `PDF_TEST_BROWSER` 环境变量。使用只有 viewBox 的 SVG 与固定译文，检查 1、1.25、2 倍屏幕像素密度下的清晰度、放大后重绘与译文复用；未翻译区域逐像素对照直接绘制的 SVG。脚本也接受本地 SVG 路径，报告保存在 `.npm-cache/image-resolution/`。
-
-### 本地翻译实验与验证
-
-- `firefox-local` 使用固定版本 `@browsermt/bergamot-translator@0.4.9` 的 Worker、JavaScript 和 WASM，构建时复制到对应产物的 `bergamot-runtime/`。Firefox 仅调整 Worker 的 WASM 输入方式，保留相同的引擎与模型字节。执行代码全部随扩展打包，不在运行时加载远程代码。Manifest 的 `wasm-unsafe-eval` 仅允许 WebAssembly 编译。
-- `src/local/catalog.json` 固定 Mozilla Remote Settings 模型目录中的语言方向、版本、官方附件 URL、大小与 SHA-256。运行时无需访问模型目录。更新记录时需同时核对模型、词表和 shortlist，并使用真实模型验证运行库兼容性。
-- OCR 与翻译复用同一个运行文档：Chrome / Edge 使用 offscreen，Firefox 使用后台事件页内的隐藏 iframe。翻译引擎仅在有请求且模型就绪时创建独立 Worker，串行处理任务，切换模型路线时释放旧 Worker，空闲 60 秒后释放运行内存。
-- Cache Storage 按文件摘要保存模型与 1 MB 续传片段。网络请求省略凭据；下载、离线导入和推理读入均校验 SHA-256。写操作使用 Web Locks 避免跨设置窗口冲突，清理翻译缓存不影响模型。
-- `npm test` 覆盖没有隐式下载、下载中断与续传、服务器忽略 Range、已完成文件复用、损坏文件拒绝、离线导入、共享文件保留、语言映射、英语中转、自动检测失败提示与单线程限制。
-- `npm run test:local` 使用可选的 Playwright 与 Chromium 加载真实 MV3 扩展，默认从官方 CDN 下载约 51.9 MB 的英译中模型，然后断网验证翻译、自动语言识别、模型持久化和删除。支持 `PLAYWRIGHT_MODULE`、`PDF_TEST_BROWSER`；`LOCAL_MODEL_FIXTURE_DIR` 可指向事先保存的模型文件目录，此时仅在临时测试构建中将该模型的下载地址改为本地 HTTP 服务器，实际制造断流并验证 Range 续传，随后验证断网翻译和离线导入。生产源码、模型字节、校验值与推理引擎均保持原样。报告与截图保存在 `.npm-cache/local-translation/`。
-- 单元测试不衡量模型质量。真实模型回归至少检查英译中；其他方向、英语中转及低内存设备仍需人工比较质量、速度和资源占用。
-
-### PDF 排版回归
-
-复杂 PDF 的浏览器回归样本、执行方式和覆盖边界见 [PDF 排版回归](pdf-regression.md)。
-
-`src/pdf/document.ts` 在全篇解析后识别参考文献区域、跨页续接和后续章节，按栏位置保留条目而不跳过同页正文；目录标题不启动文献区域。文内定义的缩写用于表格标识保护和翻译上下文，图编号、统计数值及网址通过已有占位符校验与恢复。正文分组按主要字体和实际字距处理两端对齐、行内引用及断词，图例标识单独成块。排版在独立测量节点中试排候选字号，避免 Firefox 复用旧编辑节点的字体度量；使用放大的内部坐标减少小字号度量误差，并设置自动缩字下限及溢出提示。
-
-`src/pdf/font-control.ts` 在首次导出时展示字体选择弹窗，通过下载按钮旁的扳手提供后续安装入口。拒绝安装后，本次工作区内使用图像导出，不重复提示；安装后使用可搜索导出。`src/pdf/font-store.ts` 仅在用户确认后下载固定版本的官方 Noto Sans CJK Regular OTF 数据，校验大小与 SHA-256，使用独立 Cache Storage 保存；Web Locks 串行化安装与删除，失败或取消不会提交缓存。读取时重新校验，损坏数据会被丢弃。字体不随扩展分发；来源、完整字符覆盖摘要和 SIL OFL 许可证位于 `public/pdf-fonts/`。
-
-`src/pdf/vector-export.ts` 使用 PDF 内容流词法分析移除被替换的原文，保留路径和图像，按预览位置嵌入可搜索文字，仅嵌入当前文档所需字形。未翻译的整页复制原页，保留片段与公式保留外观并附搜索文字；不适合安全重写的页面使用预览图像和文字层。未安装字体时，`buildRasterPdf` 使用图像导出，不加载字体处理模块，也不采集文字导出场景。
-
-正常构建与单元测试无须下载完整字体。`tests/fixtures/pdf-export-font.otf` 是小型测试字形子集，不随扩展分发；需要复现时，在独立 Python 环境安装 `build/pdf-fonts/requirements.txt`，运行 `python build/pdf-fonts/build.py`。`--source=<官方 OTF 路径>` 可复用已有下载。测试覆盖字体选择、跳过后安装、失败重试、取消、校验、缓存复用，以及多语言文字导出与提取。
-
-构建后运行 `npm run test:pdf:academic`、`npm run test:pdf:academic:edge` 或 `npm run test:pdf:academic:firefox`。测试使用独立浏览器和本地模拟服务，检查参考文献、缩写、公式、排版、真实下载和文字提取，同时验证跳过安装时无字体请求、扳手安装及缓存复用。字体默认使用测试子集；`PDF_FONT_FIXTURE=<完整官方 OTF 路径>` 可验证完整字体。仅隔离测试构建替换下载地址与校验值，生产文件保持官方 pin。`--file=<本地论文路径>` 可补充真实文档回归，不上传文件。报告和截图位于 `.npm-cache/pdf-academic/<浏览器>/`，支持 `PLAYWRIGHT_MODULE`、`CHROME_TEST_BROWSER`、`EDGE_TEST_BROWSER` 和 `FIREFOX_BINARY`。
-
-构建后运行 `npm run test:pdf-scope` 可验证阅读范围调度。需要可选的 Playwright 与 Chromium，支持以下 GitHub 排版测试相同的环境变量。测试加载真实扩展，使用本地 40 页 PDF 和模拟翻译服务，验证选择文件、拖放、输入地址及切换文档后的默认自动翻译、滚动自动补译、快速跳页、重叠范围与手动编辑保留、设置切换，以及下载前补全全文翻译、直接下载与重复导出复用。手动调度与直接下载场景显式使用 `translate=0` 隔离自动启动。`tests/pdf-download.test.ts` 另覆盖切换语言、空白页、翻译失败或响应不完整后的下载拦截与重试，以及切换文档时取消下载。报告保存在 `.npm-cache/pdf-scope/`。
-
-### GitHub 代码注释排版回归
-
-安装可选的 Playwright 与 Chromium 后运行 `npm run test:github-code`。测试使用本地代码视图样本，不访问 GitHub 或翻译服务，覆盖普通行、固定位置行和旧版表格，以及两种窗口宽度、三种显示模式、加载占位、长译文横向滚动和清除还原。所有阶段都要求代码行位置与行号保持对齐，译文字形不能跨入下一行。
-
-可通过 `PLAYWRIGHT_MODULE` 指定外部 Playwright 的 `index.mjs`，通过 `PDF_TEST_BROWSER` 指定现有 Chromium 或 Edge 的可执行文件；测试报告保存在被 Git 忽略的 `.npm-cache/github-code-comments/`。
-
-### 页面扫描与取消回归
-
-`tests/page-scan.test.ts` 覆盖扫描期间停止、连续启动、语言与显示模式切换、可见性变化、超过 200 个容器的 DOM 修改，以及保留已有译文的分片补扫。`tests/content-dom.test.ts` 另覆盖隐藏候选的数量边界和溢出轮转。
-
-构建后运行 `npm run test:page-scan`、`npm run test:page-scan:edge` 或 `npm run test:page-scan:firefox`。脚本使用独立浏览器配置和本地模拟服务，检查 400 / 800 节文档、滚动补译、4096 个隐藏容器加合并溢出根、隐藏内容不进入请求，以及扫描期间停止后不恢复译文。Chromium 浏览器先用 80 ms 人工任务验证观测器，再记录各场景中至少 50 ms 的主线程任务，并以 500 ms 检查同步扫描回退；Firefox 不支持该观测接口时只执行功能断言。报告保存在 `.npm-cache/page-scan-<浏览器>/report.json`。支持 `PLAYWRIGHT_MODULE`、`CHROME_TEST_BROWSER`、`EDGE_TEST_BROWSER` 和 `FIREFOX_BINARY`。
+- [PDF 排版验证](pdf-regression.md)：复杂文档样本与专项验证方法。
+- [版本记录](releases/)：已发布版本的功能变更与修复说明。

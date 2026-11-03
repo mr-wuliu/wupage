@@ -181,6 +181,7 @@ export type DualServiceProviderConfig = Extract<ProviderConfig, DualServiceConfi
 }>;
 
 export interface ExtensionSettings {
+  elementExclusions?: import("./element-exclusions").ElementExclusionRule[];
   frameTranslation?: import("./frame-session").FrameTranslationSettings;
   videoTranslation?: VideoTranslationSettings;
   shortcuts?: ShortcutSettings;
@@ -228,6 +229,8 @@ export interface TranslateBatchRequest {
   texts: string[];
   /** Verify protected PDF formula markers before caching a translation. */
   preservePlaceholders?: boolean;
+  /** Apply academic prose guidance without changing ordinary webpage translation. */
+  translationStyle?: "academic";
   context?: string;
   sourceLang?: string;
   targetLang: string;
@@ -346,9 +349,10 @@ export type RuntimeRequest =
   | ({ type: "TRANSLATE_BATCH" } & TranslateBatchRequest)
   | { type: "TRANSLATE_INPUT"; text: string }
   | { type: "GET_SETTINGS" }
+  | { type: "IMPORT_SETTINGS"; backup: string }
   | { type: "OPEN_OPTIONS_PAGE" }
   | { type: "OPEN_EMBEDDED_PDF"; url: string }
-  | { type: "SAVE_SETTINGS"; settings: ExtensionSettings }
+  | { type: "SAVE_SETTINGS"; settings: ExtensionSettings; previousSettings?: ExtensionSettings }
   | { type: "TEST_PROVIDER"; providerId?: string };
 
 export type RuntimeResponse =

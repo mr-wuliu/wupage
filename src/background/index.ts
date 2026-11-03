@@ -1,4 +1,6 @@
 import { getSettings, saveSettings } from "../shared/settings";
+import { mergeSettingsChanges } from "../shared/settings-changes";
+import { importSettingsBackup } from "./settings-backup";
 import { clearStatistics, getStatistics, initStatistics, statisticsPageKey } from "./statistics";
 import type { RuntimeRequest, RuntimeResponse } from "../shared/types";
 import { createProvider } from "./providers";
@@ -22,6 +24,10 @@ import { readParagraphMode } from "../shared/paragraph-mode";
 import { saveParagraphMode } from "./paragraph-mode";
 import { captureVideoFrame } from "./video-frame";
 import { translateInput } from "./input-translation";
+import { installPdfTranslation } from "./pdf-translation";
+
+installPdfTranslation(async (request, sender, signal) =>
+  translateWithSettings(await getSettings(), request, { signal, statisticsPageKey: statisticsPageKey(sender) }));
 
 chrome.runtime.onMessage.addListener((request: RuntimeRequest, sender, sendResponse) => {
   if ("target" in request) return;
@@ -122,18 +128,23 @@ async function handleMessage(request: RuntimeRequest, sender: chrome.runtime.Mes
         // Return that version and only change its image toggle when needed.
         settings = await getSettings();
         if (!installed && settings.imageTranslationEnabled) {
-          settings.imageTranslationEnabled = false;
-          await saveSettings(settings);
+          settings = await saveSettings(latest => ({ ...latest, imageTranslationEnabled: false }));
         }
       }
       return settings;
     }
+    case "IMPORT_SETTINGS":
+      return importSettingsBackup(request.backup);
     case "SAVE_SETTINGS":
       // Checking a new opt-in is required. An unavailable optional cache must
       // not prevent changing languages or services while OCR is already on.
-      if (request.settings.imageTranslationEnabled && !(await getSettings()).imageTranslationEnabled
-        && !await installedRevision()) throw new Error("请先点击图片翻译旁的扳手安装 OCR 模型。");
-      await saveSettings(request.settings);
+      await saveSettings(async latest => {
+        const next = request.previousSettings
+          ? mergeSettingsChanges(latest, request.settings, request.previousSettings) : request.settings;
+        if (next.imageTranslationEnabled && !latest.imageTranslationEnabled
+          && !await installedRevision()) throw new Error("请先点击图片翻译旁的扳手安装 OCR 模型。");
+        return next;
+      });
       return null;
     case "GET_OCR_STATUS":
       return requestOcr("status");
@@ -141,8 +152,7 @@ async function handleMessage(request: RuntimeRequest, sender: chrome.runtime.Mes
       return requestOcr("install");
     case "REMOVE_OCR": {
       const result = await requestOcr("remove");
-      const settings = await getSettings();
-      await saveSettings({ ...settings, imageTranslationEnabled: false });
+      await saveSettings(latest => ({ ...latest, imageTranslationEnabled: false }));
       return result;
     }
     case "TRANSLATE_BATCH": {

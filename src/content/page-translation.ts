@@ -7,6 +7,7 @@ import {
   takeHiddenScanRoots,
   hideTranslations,
   invalidateStaleSegments,
+  isTranslationMutation,
   renderTranslationPlaceholders,
   renderTranslations,
   restoreTranslations,
@@ -20,6 +21,8 @@ import { ProviderError } from "../shared/errors";
 import { DocumentViewport } from "./document-viewport";
 import { invalidatePendingDocumentTranslations } from "./translation-lifecycle";
 import { composedParent, mutationElement, onTranslationRoot, translationRoots } from "./dom-roots";
+import { configureElementExclusions, exclusionObservedAttributes } from "./element-exclusions";
+import { elementExclusionIdentity } from "../shared/element-exclusions";
 
 const VIEWPORT_MARGIN_RATIO = 0.75;
 const MIN_VIEWPORT_MARGIN = 240;
@@ -169,12 +172,20 @@ export async function loadPageTranslationSettings(): Promise<ExtensionSettings> 
   const settings = await sendRuntimeRequest<ExtensionSettings>({ type: "GET_SETTINGS" });
   // A language change can arrive while the initial settings read is pending,
   // before there is an active session for the storage listener to restart.
-  return revision !== settingsRevision && latestSettings ? latestSettings : settings;
+  const current = revision !== settingsRevision && latestSettings ? latestSettings : settings;
+  if (configureElementExclusions(current.elementExclusions)) clearPageTranslation();
+  return current;
 }
 
 export function updatePageTranslationSettings(settings: ExtensionSettings): void {
   settingsRevision += 1;
   latestSettings = settings;
+  if (configureElementExclusions(settings.elementExclusions)) {
+    const restart = !coordinator && Boolean(activeSession || pendingScan);
+    clearPageTranslation();
+    if (restart) void startPageTranslation(settings, false);
+    return;
+  }
   if (coordinator) return;
   if (pendingScan) {
     if (getTranslationIdentity(pendingScan.settings) !== getTranslationIdentity(settings)) {
@@ -200,6 +211,7 @@ export function startPageTranslation(settings: ExtensionSettings, reuseResults =
 }
 
 export async function startLocalPageTranslation(settings: ExtensionSettings, reuseResults = true): Promise<PageTranslationResult> {
+  configureElementExclusions(settings.elementExclusions);
   cancelPendingScan();
   const saved = suspendedSession;
   const canRestore = reuseResults && saved && saved.pageUrl === location.href
@@ -339,7 +351,8 @@ function getTranslationIdentity(settings: ExtensionSettings): string {
     targetLang: settings.targetLang,
     activeProviderId: settings.activeProviderId,
     provider: settings.providers.find((provider) => provider.id === settings.activeProviderId),
-    translateCodeComments: settings.translateCodeComments
+    translateCodeComments: settings.translateCodeComments,
+    elementExclusions: elementExclusionIdentity(settings.elementExclusions)
   });
 }
 
@@ -349,7 +362,8 @@ function observePage(session: TranslationSession): void {
     subtree: true,
     characterData: true,
     attributes: true,
-    attributeFilter: ["class", "style", "hidden", "aria-hidden", "placeholder", "alt", "open", "translate", "contenteditable", "role"]
+    attributeFilter: [...new Set(["class", "style", "hidden", "aria-hidden", "placeholder", "alt", "open", "translate", "contenteditable", "role",
+      ...exclusionObservedAttributes(document)])]
   };
   for (const root of translationRoots()) session.observer.observe(root, options);
   session.unobserveRoots?.();
@@ -450,7 +464,7 @@ async function runBatch(session: TranslationSession, segments: TextSegment[]): P
   try {
     const data = await sendRuntimeRequest<TranslateBatchResponse>({
       type: "TRANSLATE_BATCH",
-      texts: segments.map((segment) => segment.text),
+      texts: segments.map((segment) => segment.requestText ?? segment.text),
       preservePlaceholders: true,
       context: buildTranslationContext(segments.map((segment) => segment.element)),
       sourceLang: session.settings.sourceLang,
@@ -467,8 +481,9 @@ async function runBatch(session: TranslationSession, segments: TextSegment[]): P
       throw new Error("Translation response contains missing or empty items.");
     }
 
+    let accepted: string[] = [];
     preserveViewportPosition(() => {
-      renderTranslations(
+      accepted = renderTranslations(
         segments.map((segment, index) => ({
           id: segment.id,
           text: data.translations[index]
@@ -476,11 +491,17 @@ async function runBatch(session: TranslationSession, segments: TextSegment[]): P
         session.settings.translationDisplayMode
       );
     }, segments);
-    session.cached += data.cached;
-    session.translated += currentSegments.length;
+    const acceptedIds = new Set(accepted);
+    const acceptedCount = currentSegments.filter(segment => acceptedIds.has(segment.id)).length;
+    session.cached += Math.min(data.cached, acceptedCount);
+    session.translated += acceptedCount;
     currentSegments.forEach((segment) => {
       const entry = session.entries.get(segment.id);
-      if (entry) entry.status = "done";
+      if (entry) entry.status = acceptedIds.has(segment.id) ? "done" : "failed";
+      if (!acceptedIds.has(segment.id)) {
+        session.failed++;
+        session.firstError ??= "页面结构或译文标记已变化，已保留原文。";
+      }
     });
   } catch (error) {
     if (!isActive(session)) return;
@@ -552,6 +573,7 @@ function scheduleViewportRefresh(scope: ViewportRescanScope): void {
 function handleDynamicContent(session: TranslationSession, mutations: MutationRecord[]): void {
   if (!isActive(session) && suspendedSession !== session) return;
   for (const mutation of mutations) {
+    if (isTranslationMutation(mutation)) continue;
     const target = mutationElement(mutation.target);
     if (!target || isExtensionOwned(target)) continue;
     if (mutation.type === "characterData") {

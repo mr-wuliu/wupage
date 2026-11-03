@@ -71,7 +71,7 @@ async function cycleDisplayMode(): Promise<void> {
   const settings = await sendRuntimeRequest<ExtensionSettings>({ type: "GET_SETTINGS" });
   const index = TRANSLATION_DISPLAY_MODES.findIndex(mode => mode.value === settings.translationDisplayMode);
   const mode = TRANSLATION_DISPLAY_MODES[(index + 1) % TRANSLATION_DISPLAY_MODES.length];
-  await sendRuntimeRequest({ type: "SAVE_SETTINGS", settings: { ...settings, translationDisplayMode: mode.value } });
+  await sendRuntimeRequest({ type: "SAVE_SETTINGS", settings: { ...settings, translationDisplayMode: mode.value }, previousSettings: settings });
   await setParagraphMode(false);
   setPageTranslationDisplayMode(mode.value);
   refreshTranslationState();

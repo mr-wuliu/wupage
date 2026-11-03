@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { loadImageData } from "../src/background/image-translation";
-import { parseImageRegions } from "../src/background/providers";
+import { parseImageRegions } from "../src/background/image-regions";
 import { parseImageRegionResult } from "../src/background/image-regions";
 
 const region = { box: [100, 200, 600, 100], text: "Hello world", translation: "你好，世界", foreground: "#111111", background: "#ffffff", align: "center", bold: true };

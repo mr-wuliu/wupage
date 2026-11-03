@@ -21,9 +21,9 @@ export async function translateProtectedText(request: TranslateBatchRequest, tra
 }
 
 async function translateProseFragments(source: string, request: TranslateBatchRequest, translate: Translate): Promise<string> {
-  const parts = source.split(/(⟪WUPAGE\d+⟫)/gu);
-  const indexes = parts.flatMap((part, index) => /^⟪WUPAGE\d+⟫$/u.test(part) || !/\p{L}/u.test(part) ? [] : [index]);
-  const redact = (text: string) => text.replace(/⟪WUPAGE\d+⟫/gu, "[protected content]");
+  const parts = source.split(/(⟪WUPAGE(?:OPEN|CLOSE)?\d+⟫)/gu);
+  const indexes = parts.flatMap((part, index) => /^⟪WUPAGE(?:OPEN|CLOSE)?\d+⟫$/u.test(part) || !/\p{L}/u.test(part) ? [] : [index]);
+  const redact = (text: string) => text.replace(/⟪WUPAGE(?:OPEN|CLOSE)?\d+⟫/gu, "[protected content]");
   const context = [request.context && redact(request.context), `Source paragraph (protected content withheld): ${redact(source)}`]
     .filter(Boolean).join("\n");
   for (let start = 0; start < indexes.length; start += 16) {

@@ -17,12 +17,14 @@ let settings: ExtensionSettings;
 let changed: (changes: Record<string, chrome.storage.StorageChange>, area: string) => void;
 const root = () => player.view.root;
 const button = () => root().querySelector<HTMLButtonElement>(".frame")!;
+const status = () => root().querySelector<HTMLElement>(".frame-status")!;
 const flush = async () => { for (let i = 0; i < 30; i++) await Promise.resolve(); };
 const result: TranslateImageResponse = { cached: false, targetLang: "zh-CN", regions: [{
   box: [100, 100, 300, 100], text: "Settings", translation: "设置", foreground: "#fff", background: "#000", align: "left", bold: false
 }] };
 
 beforeEach(() => {
+  vi.useFakeTimers();
   settings = { ...structuredClone(DEFAULT_SETTINGS), imageTranslationEnabled: true };
   vi.stubGlobal("chrome", { storage: { onChanged: { addListener: (listener: typeof changed) => { changed = listener; }, removeListener: vi.fn() } } });
   document.body.innerHTML = '<div style="position:relative"><video></video></div>';
@@ -35,7 +37,7 @@ beforeEach(() => {
     width: 1280, height: 720, objectFit: "contain", objectPosition: "50% 50%" });
   player = new PlayerSubtitleController(video, video.parentElement!);
 });
-afterEach(() => { player.dispose(); vi.restoreAllMocks(); vi.resetAllMocks(); vi.unstubAllGlobals(); document.body.replaceChildren(); });
+afterEach(() => { player.dispose(); vi.useRealTimers(); vi.restoreAllMocks(); vi.resetAllMocks(); vi.unstubAllGlobals(); document.body.replaceChildren(); });
 
 describe("paused video frame translation", () => {
   it("pauses on demand, translates without a subtitle track, and toggles the cached frame", async () => {
@@ -97,6 +99,57 @@ describe("paused video frame translation", () => {
       : request.type === "TRANSLATE_IMAGE" ? { ...result, regions: [], warning: "未识别到文字" } : null);
     button().click(); await flush(); expect(root().querySelector(".frame-status")?.textContent).toBe("未识别到文字");
     expect(root().querySelector("canvas")).toBeNull();
+  });
+
+  it.each(["no-text", "capture-error", "missing-setup"])("dismisses the %s notice after five seconds while keeping retry available", async reason => {
+    const warning = "未能可靠识别图片文字，艺术字、竖排或低对比度图片可能漏识别。";
+    if (reason === "capture-error") vi.mocked(capturePausedVideo).mockRejectedValueOnce(new Error("此视频受内容保护"));
+    else if (reason === "missing-setup") settings.imageTranslationEnabled = false;
+    else vi.mocked(sendRuntimeRequest).mockImplementation(async request => request.type === "GET_SETTINGS" ? settings
+      : request.type === "TRANSLATE_IMAGE" ? { ...result, regions: [], warning } : null);
+    button().click(); await flush();
+    const message = reason === "capture-error" ? "此视频受内容保护" : reason === "missing-setup" ? "安装 OCR 模型" : warning;
+    expect(status().textContent).toContain(message); expect(status().hidden).toBe(false);
+    vi.advanceTimersByTime(4999);
+    expect(status().hidden).toBe(false);
+    vi.advanceTimersByTime(1);
+    expect(status().hidden).toBe(true); expect(status().textContent).toBe("");
+    expect(button().getAttribute("aria-busy")).toBe("false"); expect(button().disabled).toBe(false);
+  });
+
+  it("dismisses partial-result warnings without removing the translated frame", async () => {
+    vi.mocked(sendRuntimeRequest).mockImplementation(async request => request.type === "GET_SETTINGS" ? settings
+      : request.type === "TRANSLATE_IMAGE" ? { ...result, warning: "另有 1 处识别异常，未覆盖这些区域。" } : null);
+    button().click(); await flush();
+    const canvas = root().querySelector("canvas")!;
+    expect(status().hidden).toBe(false); expect(status().textContent).toContain("未覆盖这些区域");
+    vi.advanceTimersByTime(5000);
+    expect(status().hidden).toBe(true); expect(status().textContent).toBe("");
+    expect(root().querySelector("canvas")).toBe(canvas); expect(canvas.hidden).toBe(false);
+    expect(button().getAttribute("aria-pressed")).toBe("true");
+    button().click(); expect(canvas.hidden).toBe(true);
+  });
+
+  it("keeps a retry's loading notice visible past the previous warning's expiry", async () => {
+    vi.mocked(capturePausedVideo).mockRejectedValueOnce(new Error("暂时无法读取视频画面"));
+    button().click(); await flush();
+    vi.advanceTimersByTime(3000);
+    let finish!: (value: TranslateImageResponse) => void;
+    vi.mocked(sendRuntimeRequest).mockImplementation(async request => request.type === "GET_SETTINGS" ? settings
+      : request.type === "TRANSLATE_IMAGE" ? new Promise(resolve => { finish = resolve as typeof finish; }) : null);
+    button().click(); await flush();
+    vi.advanceTimersByTime(10_000);
+    expect(status().hidden).toBe(false); expect(status().textContent).toBe("正在识别并翻译视频画面…");
+    expect(button().getAttribute("aria-busy")).toBe("true");
+    finish(result); await flush();
+    expect(status().hidden).toBe(true); expect(button().getAttribute("aria-pressed")).toBe("true");
+  });
+
+  it("clears a pending notice expiry when the player is disposed", async () => {
+    vi.mocked(capturePausedVideo).mockRejectedValueOnce(new Error("暂时无法读取视频画面"));
+    button().click(); await flush();
+    player.dispose();
+    expect(vi.getTimerCount()).toBe(0);
   });
 
   it("discards pending results after the player is removed", async () => {

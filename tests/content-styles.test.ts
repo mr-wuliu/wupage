@@ -2,9 +2,13 @@
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { injectContentStyles } from "../src/content/styles";
+import { discoverShadowRoots } from "../src/content/dom-roots";
 
 describe("content translation styles", () => {
   afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+    document.body.replaceChildren();
     document.querySelector("#wupage-translation-style")?.remove();
   });
 
@@ -15,6 +19,26 @@ describe("content translation styles", () => {
     await vi.waitFor(() => expect(document.querySelector("#wupage-translation-style")?.textContent).toBe(original));
     document.querySelector("#wupage-translation-style")!.textContent = "";
     await vi.waitFor(() => expect(document.querySelector("#wupage-translation-style")?.textContent).toBe(original));
+  });
+
+  it("repairs pending styles after ambient DOM constructors disappear", async () => {
+    vi.useFakeTimers();
+    injectContentStyles();
+    const host = document.createElement("div");
+    document.body.append(host);
+    const root = host.attachShadow({ mode: "open" });
+    discoverShadowRoots(host);
+    const style = root.querySelector("#wupage-translation-style")!;
+    const original = style.textContent;
+    style.remove();
+    await Promise.resolve(); // Deliver the mutation and schedule its repair.
+    vi.stubGlobal("Document", undefined);
+    vi.stubGlobal("ShadowRoot", undefined);
+    vi.stubGlobal("MutationObserver", undefined);
+
+    expect(() => vi.advanceTimersByTime(100)).not.toThrow();
+    expect(root.querySelector("#wupage-translation-style")).toBe(style);
+    expect(style.textContent).toBe(original);
   });
 
   it("inherits source colors in every translation text mode", () => {

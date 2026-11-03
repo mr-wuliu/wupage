@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { clearTranslations, collectParagraphTextSegments, refreshTranslationColors, renderTargetTranslation, renderTranslations } from "../src/content/dom";
+import { clearTranslations, collectParagraphTextSegments, refreshTranslationColors, renderTranslations } from "../src/content/dom";
 import { mapTranslationTextColor } from "../src/shared/translation-colors";
 
 afterEach(() => {
@@ -82,11 +82,14 @@ describe("custom bilingual colors", () => {
   });
 
   it("recolors completed paragraph translations in place while preserving original-color mode", () => {
+    vi.spyOn(Element.prototype, "getBoundingClientRect").mockReturnValue(new DOMRect(0, 0, 600, 80));
     document.body.innerHTML = '<p id="light" style="color:rgb(30,30,30);background:rgb(255,255,255)">Original text.</p><p id="dark" style="color:rgb(240,240,240);background:rgb(23,32,38)">Other original.</p><p id="original" style="color:rgb(30,30,30);background:rgb(255,255,255)">Keep original color.</p>';
     const light = document.querySelector<HTMLElement>("#light")!, dark = document.querySelector<HTMLElement>("#dark")!;
-    renderTargetTranslation(light, "浅色译文", undefined, "bilingual-accent");
-    renderTargetTranslation(dark, "深色译文", undefined, "bilingual-accent");
-    renderTargetTranslation(document.querySelector("#original")!, "原色译文", undefined, "bilingual");
+    const translate = (element: Element, text: string, mode: "bilingual" | "bilingual-accent") =>
+      renderTranslations(collectParagraphTextSegments(element).map(segment => ({ id: segment.id, text })), mode);
+    translate(light, "浅色译文", "bilingual-accent");
+    translate(dark, "深色译文", "bilingual-accent");
+    translate(document.querySelector("#original")!, "原色译文", "bilingual");
     const rendered = light.querySelector<HTMLElement>(".wupage-translation")!;
     refreshTranslationColors(colors);
     expect(light.querySelector(".wupage-translation")).toBe(rendered);

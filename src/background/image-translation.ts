@@ -1,7 +1,7 @@
 import { CACHE_PREFIX } from "../shared/defaults";
 import { sha256 } from "../shared/hash";
 import type { ExtensionSettings, TranslateImageRequest, TranslateImageResponse } from "../shared/types";
-import { parseImageRegions } from "./providers";
+import { parseImageRegions } from "./image-regions";
 import { recognizeImage } from "./ocr";
 import { installedRevision } from "../ocr/model-store";
 import { positionedLines } from "../ocr/regions";

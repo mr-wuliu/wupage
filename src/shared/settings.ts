@@ -11,14 +11,26 @@ import { normalizeRequestTemplate, supportsRequestTemplate } from "./request-tem
 import type { ExtensionSettings, ProviderConfig } from "./types";
 import { normalizeFrameTranslation } from "./frame-session";
 import { normalizeInputTranslation } from "./input-translation";
+import { normalizeElementExclusions } from "./element-exclusions";
 
 export async function getSettings(): Promise<ExtensionSettings> {
   const result = await chrome.storage.local.get(SETTINGS_KEY);
   return normalizeSettings(result[SETTINGS_KEY]);
 }
 
-export async function saveSettings(settings: ExtensionSettings): Promise<void> {
-  await chrome.storage.local.set({ [SETTINGS_KEY]: normalizeSettings(settings) });
+let pendingWrite: Promise<unknown> = Promise.resolve();
+
+/** Resolve updates against the latest value inside one shared write queue. */
+export function saveSettings(
+  update: ExtensionSettings | ((latest: ExtensionSettings) => ExtensionSettings | Promise<ExtensionSettings>)
+): Promise<ExtensionSettings> {
+  const write = pendingWrite.catch(() => undefined).then(async () => {
+    const settings = normalizeSettings(typeof update === "function" ? await update(await getSettings()) : update);
+    await chrome.storage.local.set({ [SETTINGS_KEY]: settings });
+    return settings;
+  });
+  pendingWrite = write;
+  return write;
 }
 
 export function normalizeSettings(value: unknown): ExtensionSettings {
@@ -44,6 +56,7 @@ export function normalizeSettings(value: unknown): ExtensionSettings {
     ...input,
     ...(input.videoTranslation !== undefined ? { videoTranslation: normalizeVideoTranslation(input.videoTranslation) } : {}),
     providers,
+    elementExclusions: normalizeElementExclusions(input.elementExclusions),
     shortcuts: normalizeShortcuts(input.shortcuts),
     localShortcuts: normalizeLocalShortcuts(input.localShortcuts),
     shortcutEnabled: normalizeShortcutEnabled(input.shortcutEnabled, input.shortcuts, input.localShortcuts),

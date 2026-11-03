@@ -1,12 +1,40 @@
 import { describe, expect, it } from "vitest";
-import { filterVisiblePdfText } from "../src/pdf/visibility";
+import { filterVisiblePdfText, type PdfFontVisibility } from "../src/pdf/visibility";
 
 const ops = { save: 1, restore: 2, setTextRenderingMode: 3, setGState: 4, beginMarkedContent: 5,
   beginMarkedContentProps: 6, endMarkedContent: 7, showText: 8, showSpacedText: 9, nextLineShowText: 10, nextLineSetSpacingShowText: 11,
-  transform: 12, paintFormXObjectBegin: 13, paintFormXObjectEnd: 14 };
+  transform: 12, paintFormXObjectBegin: 13, paintFormXObjectEnd: 14, setCharWidth: 15, setCharWidthAndBounds: 16,
+  setFont: 17, fill: 18 };
 const glyphs = (text: string) => Array.from(text, (unicode) => ({ unicode }));
 
 describe("PDF text visibility", () => {
+  it("excludes non-painting Type 3 text without discarding visible or unknown Type 3 glyphs", () => {
+    const items = [
+      { str: "Ghost label", fontName: "empty" }, { str: "Visible label", fontName: "draws" },
+      { str: "Unknown program", fontName: "unknown" }, { str: "Missing program", fontName: "missing" },
+      { str: "Ordinary text", fontName: "ordinary" }
+    ];
+    const fonts = new Map<string, PdfFontVisibility>([
+      ["empty", { isType3Font: true, charProcOperatorList: { C0: { fnArray: [16, 12] }, C1: { fnArray: [15, 1, 2] } } }],
+      ["draws", { isType3Font: true, charProcOperatorList: { space: { fnArray: [16] }, C0: { fnArray: [16, 18] } } }],
+      ["unknown", { isType3Font: true, charProcOperatorList: { C0: { fnArray: [999] } } }],
+      ["missing", { isType3Font: true }], ["ordinary", { isType3Font: false }]
+    ]);
+    expect(filterVisiblePdfText(items, undefined, ops, undefined, fonts)).toEqual(items.slice(1));
+  });
+
+  it("does not match a visible duplicate against discarded Type 3 text inside a clipped form", () => {
+    const items = [
+      { str: "Same", fontName: "empty", transform: [10, 0, 0, 10, 0, 200], width: 30 },
+      { str: "Same", fontName: "regular", transform: [10, 0, 0, 10, 0, 100], width: 30 }
+    ];
+    const operators = { fnArray: [13, 17, 8, 14, 17, 8], argsArray: [
+      [[1, 0, 0, 1, 0, 0], [0, 0, 100, 50]], ["empty", 10], [glyphs("Same")], [], ["regular", 10], [glyphs("Same")]
+    ] };
+    const fonts = new Map([["empty", { isType3Font: true, charProcOperatorList: { C0: { fnArray: [16, 12] } } }]]);
+    expect(filterVisiblePdfText(items, operators, ops, undefined, fonts)).toEqual([items[1]]);
+  });
+
   it("excludes subplot titles outside a nested figure's crop box", () => {
     const items = [
       { str: "Title", transform: [10, 0, 0, 10, 100, 270], width: 40 },
