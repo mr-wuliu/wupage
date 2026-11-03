@@ -48,7 +48,8 @@ try {
   await browser.evaluate('document.getElementById("chunkSize").value="777";');
   await click('exportSettings'); await preview();
   assert.equal(await browser.evaluate('return document.activeElement.id;'), 'cancelSettingsBackup');
-  assert.match(await browser.evaluate('return document.getElementById("settingsBackupWarning").textContent;'), /未加密/);
+  assert.match(await browser.evaluate('return document.getElementById("settingsBackupWarning").textContent;'), /不包含密钥/);
+  assert.equal(await browser.evaluate('return document.getElementById("settingsBackupIncludeKeys").checked;'), false);
   await click('cancelSettingsBackup');
   assert.equal((await stored()).chunkSize, seed.chunkSize);
   checks.push('credential warning, safe initial focus and export cancellation');
@@ -57,14 +58,30 @@ try {
   await browser.api(`const result=await chrome.runtime.sendMessage({type:'GET_SETTINGS'});result.data.targetLang='fr';
     const saved=await chrome.runtime.sendMessage({type:'SAVE_SETTINGS',settings:result.data});if(!saved.ok)throw new Error(saved.error);`);
   await click('exportSettings'); await preview();
-  const destination = path.join(output, 'export.json');
+  const defaultDestination = path.join(output, 'without-keys.json');
+  await browser.download('document.getElementById("confirmSettingsBackup").click();', defaultDestination);
+  const defaultText = await fs.readFile(defaultDestination, 'utf8'), keyless = JSON.parse(defaultText);
+  assert.equal(keyless.version, 2); assert.equal(keyless.includesKeys, false);
+  assert.equal(keyless.settings.targetLang, 'fr'); assert.equal(keyless.settings.chunkSize, seed.chunkSize);
+  for (const secret of ['llm','header','body','service','url','opaque','template']) assert.ok(!defaultText.includes(`fixture-${secret}-secret`));
+  assert.ok(!defaultText.includes('fixture-password')); assert.ok(!defaultText.includes('keep-me'));
+  assert.equal(keyless.settings.providers.find(p=>p.id==='custom-backup-test').url, '');
+  assert.deepEqual(keyless.settings.providers.find(p=>p.id==='custom-backup-test').headers, {});
+  assert.ok(JSON.stringify(await stored()).includes('fixture-llm-secret'), 'export must not modify stored credentials');
+  checks.push('default download omits all dedicated and arbitrary credential carriers while preserving saved preferences');
+
+  await click('exportSettings'); await preview();
+  assert.equal(await browser.evaluate('return document.getElementById("settingsBackupIncludeKeys").checked;'), false);
+  await click('settingsBackupIncludeKeys');
+  assert.match(await browser.evaluate('return document.getElementById("settingsBackupWarning").textContent;'), /未加密/);
+  const destination = path.join(output, 'with-keys.json');
   await browser.download('document.getElementById("confirmSettingsBackup").click();', destination);
   const text = await fs.readFile(destination, 'utf8'), backup = JSON.parse(text);
-  assert.equal(backup.kind, 'wupage-settings-backup'); assert.equal(backup.version, 1);
+  assert.equal(backup.kind, 'wupage-settings-backup'); assert.equal(backup.version, 2); assert.equal(backup.includesKeys, true);
   assert.equal(backup.settings.targetLang, 'fr'); assert.equal(backup.settings.chunkSize, seed.chunkSize);
   for (const secret of ['llm','header','body','service','url','opaque','template']) assert.ok(text.includes(`fixture-${secret}-secret`));
   assert.ok(text.includes('fixture-password')); assert.ok(!text.includes('keep-me'));
-  checks.push('actual JSON download includes current saved configuration and every credential carrier, excludes drafts and unrelated storage');
+  checks.push('explicit opt-in download includes every credential carrier, excludes drafts and unrelated storage');
 
   backup.settings.targetLang = 'de'; backup.settings.activeProviderId = 'custom-backup-test';
   backup.settings.imageTranslationEnabled = true;
@@ -74,7 +91,7 @@ try {
   assert.equal(await browser.evaluate('return document.getElementById("chunkSize").value;'), '777');
   await choose(JSON.stringify(backup)); await preview();
   await click('confirmSettingsBackup');
-  await waitFor('return document.getElementById("status").textContent.includes("已导入");');
+  await waitFor('return !document.getElementById("settingsBackupDialog").open && document.getElementById("status").textContent.includes("已导入");');
   const restored = await stored();
   assert.equal(restored.targetLang, 'de'); assert.equal(restored.imageTranslationEnabled, false);
   assert.equal(restored.activeProviderId, 'custom-backup-test');
@@ -102,15 +119,35 @@ try {
   const incoming = changed.settings.providers.find(p=>p.type==='deepseek');
   incoming.baseURL='https://different.example/proxy@translation.example/v1'; incoming.apiKey=''; incoming.requestTemplate={enabled:false,headers:'{}',body:'{}'};
   await choose(JSON.stringify(changed)); await preview(); await click('confirmSettingsBackup');
-  await waitFor('return document.getElementById("status").textContent.includes("已导入");');
+  await waitFor('return !document.getElementById("settingsBackupDialog").open && document.getElementById("status").textContent.includes("已导入");');
   assert.equal((await stored()).providers.find(p=>p.type==='deepseek').apiKey, '');
   checks.push('full replacement does not merge old credentials into changed endpoints');
+
+  const legacy = structuredClone(backup); legacy.version = 1; delete legacy.includesKeys;
+  await choose(JSON.stringify(legacy)); await preview();
+  assert.match(await browser.evaluate('return document.getElementById("settingsBackupWarning").textContent;'), /包含密钥/);
+  await click('confirmSettingsBackup');
+  await waitFor('return !document.getElementById("settingsBackupDialog").open && document.getElementById("status").textContent.includes("已导入");');
+  assert.ok(JSON.stringify(await stored()).includes('fixture-llm-secret'));
+  checks.push('legacy full backup imports with an explicit credential warning');
+
+  await choose(defaultText); await preview();
+  assert.equal(await browser.evaluate('return document.getElementById("settingsBackupKeysField").hidden;'), true);
+  assert.match(await browser.evaluate('return document.getElementById("settingsBackupWarning").textContent;'), /不包含密钥.*清空本机旧凭据/);
+  await click('confirmSettingsBackup');
+  await waitFor('return !document.getElementById("settingsBackupDialog").open && document.getElementById("status").textContent.includes("无密钥备份");');
+  for (const secret of ['llm','header','body','service','url','opaque','template']) assert.ok(!JSON.stringify(await stored()).includes(`fixture-${secret}-secret`));
+  await click('save');
+  await waitFor('return document.getElementById("status").textContent==="已保存。";');
+  assert.ok(!JSON.stringify(await stored()).includes('fixture-'));
+  checks.push('keyless import clears local credentials and subsequent ordinary saves cannot restore them');
 
   for (const width of [1400, 390]) {
     await browser.resize(width, 900);
     assert.equal(await browser.evaluate('return document.documentElement.scrollWidth>innerWidth;'), false);
     await browser.capture(`backup-${width}.png`);
     await click('exportSettings'); await preview();
+    assert.equal(await browser.evaluate('return document.getElementById("settingsBackupIncludeKeys").checked;'), false);
     const geometry = await browser.evaluate(`const r=document.getElementById('settingsBackupDialog').getBoundingClientRect();
       const buttons=[...document.querySelectorAll('#settingsBackupDialog button')].map(b=>b.getBoundingClientRect());
       return {inside:r.left>=0&&r.right<=innerWidth,buttons:buttons.every(b=>b.left>=r.left&&b.right<=r.right)};`);

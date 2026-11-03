@@ -56,7 +56,8 @@ it("exports the latest saved settings only after a visible credential warning an
   query<HTMLInputElement>("chunkSize").value = "777";
   query<HTMLButtonElement>("exportSettings").click();
   await vi.waitFor(() => expect(query<HTMLDialogElement>("settingsBackupDialog").open).toBe(true));
-  expect(query("settingsBackupWarning").textContent).toMatch(/密钥.*未加密/);
+  expect(query<HTMLInputElement>("settingsBackupIncludeKeys").checked).toBe(false);
+  expect(query("settingsBackupWarning").textContent).toContain("不包含密钥");
   expect(query("settingsBackupWarning").textContent).toContain("未保存");
   expect(document.activeElement).toBe(query("cancelSettingsBackup"));
   expect(download).toBeUndefined();
@@ -91,7 +92,7 @@ it("previews an import without writing, permits cancellation, then accepts the s
   query<HTMLButtonElement>("confirmSettingsBackup").click();
   await vi.waitFor(() => expect(imported).toHaveBeenCalledOnce());
   expect(stored.targetLang).toBe("ja");
-  expect(status).toHaveBeenLastCalledWith("已导入并保存设置。");
+  expect(status).toHaveBeenLastCalledWith("已导入并保存设置。无密钥备份已清空本机旧凭据，相关服务需重新配置。");
 });
 it.each(["invalid", "oversized"])("rejects an %s file without modifying settings or opening a confirmation", async kind => {
   const before = structuredClone(stored);
@@ -128,4 +129,25 @@ it("does not show a late export preview after the options page has closed", asyn
   finish({ ok: true, data: stored });
   await vi.waitFor(() => expect(query<HTMLButtonElement>("exportSettings").disabled).toBe(false));
   expect(query<HTMLDialogElement>("settingsBackupDialog").open).toBe(false);
+});
+
+it("requires an explicit per-export choice for credentials and resets the choice on reopening", async () => {
+  Object.assign(stored.providers.find(p => p.type === "deepseek")!, { apiKey: "opt-in-secret" });
+  query<HTMLButtonElement>("exportSettings").click();
+  await vi.waitFor(() => expect(query<HTMLDialogElement>("settingsBackupDialog").open).toBe(true));
+  const choice = query<HTMLInputElement>("settingsBackupIncludeKeys");
+  expect(choice.checked).toBe(false);
+  choice.click();
+  expect(query("settingsBackupWarning").textContent).toContain("未加密");
+  query<HTMLButtonElement>("confirmSettingsBackup").click();
+  await vi.waitFor(() => expect(click).toHaveBeenCalledOnce());
+  expect(parseSettingsBackup(await download!.text()).includesKeys).toBe(true);
+  expect(await download!.text()).toContain("opt-in-secret");
+  query<HTMLButtonElement>("exportSettings").click();
+  await vi.waitFor(() => expect(query<HTMLDialogElement>("settingsBackupDialog").open).toBe(true));
+  expect(choice.checked).toBe(false);
+  query<HTMLButtonElement>("confirmSettingsBackup").click();
+  await vi.waitFor(() => expect(click).toHaveBeenCalledTimes(2));
+  expect(parseSettingsBackup(await download!.text()).includesKeys).toBe(false);
+  expect(await download!.text()).not.toContain("opt-in-secret");
 });
