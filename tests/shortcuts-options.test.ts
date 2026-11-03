@@ -26,7 +26,7 @@ const altShift = { altKey: true, shiftKey: true };
 
 describe("in-page shortcut editor", () => {
   it("switches every action independently, preserves bindings and restores defaults", () => {
-    mount(); expect(root.querySelectorAll("[role='switch']")).toHaveLength(8);
+    mount(); expect(root.querySelectorAll("[role='switch']")).toHaveLength(9);
     const toggle = root.querySelector<HTMLButtonElement>("[data-shortcut-toggle='toggle-page-translation']")!;
     toggle.click();
     expect(toggle.getAttribute("aria-checked")).toBe("false");
@@ -75,7 +75,7 @@ describe("in-page shortcut editor", () => {
     expect(binding().value).toBe("Alt＋Shift＋J");
     expect(binding("translate-selection").value).toBe("");
     expect(binding("translate-selection").placeholder).toBe("未设置");
-    expect(root.querySelectorAll("#shortcutBindings .shortcut-row")).toHaveLength(4);
+    expect(root.querySelectorAll("#shortcutBindings .shortcut-row")).toHaveLength(5);
     expect(root.querySelector("#manageShortcuts")).toBeNull();
   });
   it("records a physical key into a draft without calling browser APIs", () => {

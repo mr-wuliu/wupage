@@ -25,7 +25,7 @@ describe("shortcut configuration", () => {
     expect(normalizeShortcuts({ "toggle-page-translation": "Shift+Alt+J", "translate-selection": "",
       "toggle-paragraph-mode": "Alt+Shift+J", "cycle-display-mode": "Ctrl+C" })).toEqual({
       "toggle-page-translation": "Alt+Shift+J", "translate-selection": "", "toggle-paragraph-mode": "",
-      "cycle-display-mode": "Ctrl+C"
+      "cycle-display-mode": "Ctrl+C", "translate-input": "Alt+Shift+K"
     });
     for (const value of [null, [], 123, "invalid"]) expect(normalizeShortcuts(value)).toEqual(DEFAULT_SHORTCUTS);
   });
@@ -43,6 +43,16 @@ describe("shortcut configuration", () => {
     }
     for (const value of Object.values(DEFAULT_SHORTCUTS)) expect(shortcutWarning(value)).toBeUndefined();
     expect(shortcutWarning("Alt+Shift+J")).toBeUndefined();
+  });
+  it("adds the input translation key to older settings unless the user already bound it elsewhere", () => {
+    const old = { "toggle-page-translation": "Alt+Shift+Y", "translate-selection": "Alt+Shift+Q",
+      "toggle-paragraph-mode": "Alt+Shift+L", "cycle-display-mode": "Alt+Shift+M" };
+    expect(normalizeSettings({ shortcuts: old }).shortcuts?.["translate-input"]).toBe("Alt+Shift+K");
+    expect(normalizeSettings({ shortcuts: old }).shortcutEnabled?.["translate-input"]).toBe(true);
+    const taken = normalizeSettings({ shortcuts: { ...old, "cycle-display-mode": "Alt+Shift+K" } });
+    expect(taken.shortcuts).toMatchObject({ "cycle-display-mode": "Alt+Shift+K", "translate-input": "" });
+    expect(taken.shortcutEnabled?.["translate-input"]).toBe(false);
+    expect(normalizeSettings({}).inputTranslation).toMatchObject({ enabled: true, providerId: "" });
   });
   it("removes native commands so browser bindings cannot steal or duplicate custom page shortcuts", () => {
     expect(manifest).not.toHaveProperty("commands");

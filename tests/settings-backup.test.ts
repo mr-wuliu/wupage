@@ -4,6 +4,7 @@ import { BUILT_IN_SCHEMES } from "../src/shared/appearance";
 import { normalizeSettings } from "../src/shared/settings";
 import { createSettingsBackup, parseSettingsBackup, serializeSettingsBackup, SETTINGS_BACKUP_MAX_BYTES, settingsBackupFilename } from "../src/shared/settings-backup";
 import type { ExtensionSettings } from "../src/shared/types";
+import { DEFAULT_INPUT_PROMPT } from "../src/shared/input-translation";
 import { stringify as stringifyToml } from "smol-toml";
 
 const now = new Date("2026-11-03T01:02:03.456Z");
@@ -122,6 +123,17 @@ describe("settings backup format", () => {
     expect(backup.settings.providers.find(p => p.id === "custom-http"))
       .toMatchObject({ headers: {}, url: "", bodyTemplate: "" });
     expect(() => parseSettingsBackup(text)).not.toThrow();
+  });
+
+  it("keeps input translation preferences but drops a custom prompt from keyless backups", () => {
+    const settings = fixture();
+    settings.inputTranslation = { enabled: false, providerId: "deepseek", prompt: "Rewrite with custom-input-prompt-marker" };
+    const text = serializeSettingsBackup(createSettingsBackup(settings, "1.6.1", now));
+    expect(text).not.toContain("custom-input-prompt-marker");
+    expect(parseSettingsBackup(text).settings.inputTranslation)
+      .toEqual({ enabled: false, providerId: "deepseek", prompt: DEFAULT_INPUT_PROMPT });
+    const kept = serializeSettingsBackup(createSettingsBackup(settings, "1.6.1", now, { includeKeys: true }));
+    expect(parseSettingsBackup(kept).settings.inputTranslation?.prompt).toBe("Rewrite with custom-input-prompt-marker");
   });
 
   it("removes custom base URLs, service endpoints, prompts, and even disabled request templates", () => {

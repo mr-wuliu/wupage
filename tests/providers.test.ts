@@ -592,4 +592,34 @@ describe("AnthropicCompatibleProvider", () => {
     expect(body).toMatchObject({ model: "claude-test", max_tokens: 8192 });
     expect(body).not.toHaveProperty("temperature");
   });
+
+  it("uses the last matching array when the model adds commentary around the JSON", async () => {
+    const reply = (text: string) => vi.fn().mockResolvedValue(new Response(JSON.stringify({ content: [{ type: "text", text }] })));
+    const provider = createProvider({
+      type: "anthropic-compatible", id: "a", label: "A", baseURL: "https://api.anthropic.com/v1", apiKey: "secret",
+      model: "claude-test", systemPrompt: "Translate to {{targetLang}}"
+    });
+    const one = { texts: ["第一行：你好\n\n第三行"], sourceLang: "auto", targetLang: "English" };
+    vi.stubGlobal("fetch", reply('["第一行：你好\\n\\n第三行"] Wait, that is still Chinese: ["Line 1: Hello\\n\\nLine 3"]'));
+    await expect(provider.translateBatch(one)).resolves.toEqual(["Line 1: Hello\n\nLine 3"]);
+    // The count must match: a trailing one-item array cannot stand in for two items.
+    vi.stubGlobal("fetch", reply('Here you go: ["你好","世界"] Note: ["only one"]'));
+    await expect(provider.translateBatch({ texts: ["hello", "world"], sourceLang: "en", targetLang: "zh-CN" }))
+      .resolves.toEqual(["你好", "世界"]);
+    vi.stubGlobal("fetch", reply('Sorry: ["", ""] and [1, 2]'));
+    await expect(provider.translateBatch({ texts: ["hello", "world"], sourceLang: "en", targetLang: "zh-CN" }))
+      .rejects.toThrow("not valid JSON");
+  });
+
+  it("includes the start of an unparseable reply in the error", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({ content: [{ type: "text", text: `["unfinished ${"x".repeat(400)}` }] }))));
+    const provider = createProvider({
+      type: "anthropic-compatible", id: "a", label: "A", baseURL: "https://api.anthropic.com/v1", apiKey: "secret",
+      model: "claude-test", systemPrompt: "Translate to {{targetLang}}"
+    });
+    const error = await provider.translateBatch({ texts: ["hello"], sourceLang: "en", targetLang: "zh-CN" }).catch((value: unknown) => value);
+    expect(error).toBeInstanceOf(Error);
+    expect((error as Error).message).toContain('Received: ["unfinished xxx');
+    expect((error as Error).message.length).toBeLessThan(300);
+  });
 });

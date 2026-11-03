@@ -3,6 +3,7 @@ import { BUILT_IN_PROVIDER_IDS, DEFAULT_SETTINGS } from "./defaults";
 import { COLOR_FIELDS } from "./appearance";
 import { LOCAL_BINDINGS } from "./local-shortcuts";
 import { LOCAL_SHORTCUTS, TRANSLATION_SHORTCUTS } from "./shortcuts";
+import { DEFAULT_INPUT_PROMPT, normalizeInputTranslation } from "./input-translation";
 import type { ExtensionSettings, ProviderConfig } from "./types";
 import { parse as parseToml, stringify as stringifyToml, TomlError } from "smol-toml";
 
@@ -92,7 +93,9 @@ function formatMultilineStrings(text: string): string {
  * token patterns. Headers, URLs and template dialects can hold arbitrary keys.
  * Only exact public defaults are safe to retain in those fields. */
 function withoutSettingsKeys(settings: ExtensionSettings): ExtensionSettings {
-  return { ...settings, providers: settings.providers.map(provider => {
+  // The input prompt is free text chosen by the user, so keyless exports keep only the built-in prompt.
+  const inputTranslation = { ...normalizeInputTranslation(settings.inputTranslation), prompt: DEFAULT_INPUT_PROMPT };
+  const providers = settings.providers.map(provider => {
     const result = structuredClone(provider);
     const defaults = DEFAULT_SETTINGS.providers.find(entry => entry.type === provider.type);
     const publicValue = (field: string, value: string): string => defaults
@@ -110,7 +113,8 @@ function withoutSettingsKeys(settings: ExtensionSettings): ExtensionSettings {
       result.bodyTemplate = publicValue("bodyTemplate", result.bodyTemplate);
     }
     return result;
-  }) };
+  });
+  return { ...settings, inputTranslation, providers };
 }
 
 export function settingsBackupFilename(backup: SettingsBackup): string {
@@ -203,6 +207,7 @@ const settingsShape = {
     customSites: array(object({ id: string, pattern: string, enabled: boolean })),
     removedPresetSites: optional(strings), excludedSites: optional(strings) })),
   elementExclusions: optional(array(object({ id: string, name: string, pattern: string, enabled: boolean, selectors: strings }), 100)),
+  inputTranslation: optional(object({ enabled: boolean, providerId: string, prompt: string })),
   videoTranslation: optional(object({ enabled: boolean, showOriginal: boolean, fontSize: oneOf(18, 22, 26),
     background: oneOf("soft", "none"), preferredSource: string, enabledSites: strings })),
   appearance: optional(object({ mode: oneOf("system", "light", "dark"), floatingOpacity: number(0, 100),

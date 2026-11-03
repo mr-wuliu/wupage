@@ -311,6 +311,9 @@ label {
 
 .selection-translation-fields { min-width: 0; margin: 0; padding: 0; border: 0; }
 .selection-translation-fields:disabled { opacity: .55; }
+.input-translation-fields { display: grid; gap: 14px; }
+.input-translation-fields > label { max-width: 640px; }
+.input-translation-fields > button { justify-self: start; }
 
 .provider-usage { min-width: 0; padding: 12px 14px; border: 1px solid var(--wp-border, #dce5e1); border-radius: 7px; background: var(--wp-soft, #f7faf8); color: var(--wp-foreground, #26343a); font-size: 12px; line-height: 1.6; }
 .provider-usage-heading { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 4px 12px; }

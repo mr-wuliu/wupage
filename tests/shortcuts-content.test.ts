@@ -5,8 +5,9 @@ import type { ExtensionSettings, RuntimeRequest } from "../src/shared/types";
 
 const mocks = vi.hoisted(() => ({
   getState: vi.fn(), hasTranslations: vi.fn(), hide: vi.fn(), start: vi.fn(),
-  paragraph: vi.fn(), setParagraph: vi.fn(), refresh: vi.fn(), setMode: vi.fn(), send: vi.fn(), selection: vi.fn()
+  paragraph: vi.fn(), setParagraph: vi.fn(), refresh: vi.fn(), setMode: vi.fn(), send: vi.fn(), selection: vi.fn(), input: vi.fn()
 }));
+vi.mock("../src/content/input-translation", () => ({ translateFocusedInput: mocks.input }));
 vi.mock("../src/content/page-translation", () => ({ getPageTranslationState: mocks.getState,
   hidePageTranslation: mocks.hide, startPageTranslation: mocks.start, setPageTranslationDisplayMode: mocks.setMode }));
 vi.mock("../src/content/dom", () => ({ hasPageTranslations: mocks.hasTranslations }));
@@ -110,6 +111,11 @@ describe("translation shortcut actions", () => {
     await execute("translate-selection");
     expect(mocks.selection).toHaveBeenCalledOnce();
     expect(mocks.refresh).toHaveBeenCalledOnce();
+  });
+  it("runs input translation without starting page or paragraph translation", async () => {
+    await execute("translate-input");
+    expect(mocks.input).toHaveBeenCalledOnce();
+    expect(mocks.start).not.toHaveBeenCalled(); expect(mocks.selection).not.toHaveBeenCalled();
   });
   it("shows paragraph targeting errors in a status message without throwing to the background", async () => {
     mocks.selection.mockRejectedValueOnce(new Error("请先选中正文段落"));

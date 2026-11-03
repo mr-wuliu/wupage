@@ -50,6 +50,8 @@ flowchart LR
 
 网页翻译使用绑定到原节点的写入计划。`translation-boundaries.ts` 将自定义组件、插槽和交互元素作为独立范围；`dom-roots.ts` 通过扩展接口发现开放及封闭的 Shadow DOM，并记录实际插槽路径。`TextSegment.text` 保留可读原文，`requestText` 按需生成用于传输的格式标记。`inline-translation.ts` 只接纳已确认的句内格式，替换模式复用原文本和格式节点，双语模式生成展示副本。共享校验器检查标记数量、配对、嵌套和非空内容；失效结果不写入页面，后台对损坏标记执行有界重试和保留结构的分片回退。本地引擎将这些格式标记转换为受限 HTML，利用 Bergamot 对齐后再还原标记；其他服务继续使用受保护的文本协议。
 
+输入框翻译的快捷键 `translate-input` 与其他页面快捷键共用录入、冲突检测和开关，设置由 `src/shared/input-translation.ts` 归一化。`src/content/input-translation.ts` 读取获得焦点的输入框或可编辑区域（有选区时只取选区），经 `TRANSLATE_INPUT` 交给 `src/background/input-translation.ts`，后者按「所选、默认、其余已启用」的顺序选用第一个配置完整的服务（机器翻译或大模型），跳过持久缓存；只有大模型会套用输入提示词。译文写回原位：输入框优先使用 `insertText` 保留撤销记录；富文本编辑器先等待选区同步，再派发携带 `text/plain` 的粘贴事件，让 Slate、Lexical、Discord 等编辑器更新自身文档模型。
+
 `npm run test:structured:edge` 和 `npm run test:structured:firefox` 使用独立浏览器配置与本地翻译服务，检查开放/封闭组件、原节点身份、格式顺序、点击行为、动态更新及精确恢复。真实本地模型验证使用 `npm run test:structured:local`，需先构建 Firefox，并通过 `LOCAL_MODEL_FIXTURE_DIR` 指向已有的 `en-zh-Hans` 模型目录；测试校验模型文件哈希，不下载模型。模型 HTML 对齐结果不符合结构约束时，测试同时检查受保护文本回退。
 
 普通配置保存通过 `SAVE_SETTINGS` 同时提交编辑结果和读取时的 `previousSettings`。后台按顺序合并本次变更，保留其他页面修改的字段；服务配置按稳定 ID 合并，避免覆盖其他服务的凭据或重新创建已删除服务。完全重置由确认窗口触发 `RESET_SETTINGS`，在共享写入队列中完整替换为默认配置，并返回该次写入结果。界面等待已有保存完成，且只在重置成功后更新表单与保存基线；取消或写入失败保留原配置、密钥及草稿。新增保存入口应遵循同一约定，避免直接写入整个配置对象。

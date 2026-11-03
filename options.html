@@ -21,6 +21,10 @@
             <span data-wupage-icon="font" aria-hidden="true"></span>
             <span>划词翻译</span>
           </a>
+          <a href="#inputTranslationSettings" aria-controls="inputTranslationSettings">
+            <span data-wupage-icon="document" aria-hidden="true"></span>
+            <span>输入框翻译</span>
+          </a>
           <a href="#autoTranslationSettings" aria-controls="autoTranslationSettings">
             <span data-wupage-icon="lightning" aria-hidden="true"></span>
             <span>自动翻译</span>
@@ -163,6 +167,30 @@
                 </label>
               </div>
               <p class="hint">中文单字和不超过 8 个汉字的词语使用有道汉语词典，显示拼音和释义；字母单词使用上方选择的词典。</p>
+            </fieldset>
+          </section>
+
+          <section id="inputTranslationSettings" class="settings-panel" aria-labelledby="inputTranslationSettingsTitle" hidden>
+            <div class="settings-panel-heading">
+              <h2 id="inputTranslationSettingsTitle">输入框翻译</h2>
+              <p>在输入框中按快捷键，在中文与英文之间互译并替换原文。可使用大模型或机器翻译服务。</p>
+            </div>
+            <label class="setting-toggle">
+              <span>启用输入框翻译</span>
+              <input id="inputTranslationEnabled" type="checkbox" role="switch" aria-controls="inputTranslationFields" />
+              <span class="setting-toggle-control" aria-hidden="true"></span>
+            </label>
+            <fieldset id="inputTranslationFields" class="selection-translation-fields input-translation-fields">
+              <label>使用的翻译服务
+                <select id="inputTranslationProvider"></select>
+                <span id="inputTranslationProviderStatus" class="field-description" role="status"></span>
+              </label>
+              <label>提示词
+                <textarea id="inputTranslationPrompt" rows="8" spellcheck="false"></textarea>
+                <span class="field-description">中文为主的内容译为英文，其他语言译为简体中文。仅大模型服务使用此提示词，它会另外要求返回 JSON 字符串数组，无需说明输出格式。</span>
+              </label>
+              <button id="resetInputTranslationPrompt" type="button" class="secondary">恢复默认提示词</button>
+              <p class="hint">在「快捷键」中修改按键，默认 Alt+Shift+K（macOS：Option+Shift+K）。有选区时只翻译选中的文字，单次最多 8000 字符。</p>
             </fieldset>
           </section>
 

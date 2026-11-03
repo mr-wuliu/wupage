@@ -138,6 +138,16 @@ describe("settings category navigation", () => {
     expect(query("#status").textContent).toContain("安装 OCR 模型");
   });
 
+  it("saves the input translation panel with the other categories", async () => {
+    await mount();
+    navigate("inputTranslationSettings");
+    expect(query("#inputTranslationProviderStatus").textContent).toContain("将使用");
+    query<HTMLTextAreaElement>("#inputTranslationPrompt").value = "Keep it short.";
+    query<HTMLInputElement>("#inputTranslationEnabled").click();
+    query<HTMLButtonElement>("#save").click();
+    await vi.waitFor(() => expect(stored.inputTranslation).toEqual({ enabled: false, providerId: "", prompt: "Keep it short." }));
+  });
+
   it("falls back to general settings for an unknown category", async () => {
     history.replaceState(null, "", "/options.html#missing-category");
     await mount();

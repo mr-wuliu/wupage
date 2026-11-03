@@ -10,6 +10,7 @@ import { normalizeVideoTranslation } from "./video";
 import { normalizeRequestTemplate, supportsRequestTemplate } from "./request-template";
 import type { ExtensionSettings, ProviderConfig } from "./types";
 import { normalizeFrameTranslation } from "./frame-session";
+import { normalizeInputTranslation } from "./input-translation";
 import { normalizeElementExclusions } from "./element-exclusions";
 
 export async function getSettings(): Promise<ExtensionSettings> {
@@ -63,6 +64,7 @@ export function normalizeSettings(value: unknown): ExtensionSettings {
     autoTranslation: normalizeAutoTranslation(input.autoTranslation),
     frameTranslation: normalizeFrameTranslation(input.frameTranslation),
     selectionTranslation: normalizeSelectionTranslation(input.selectionTranslation),
+    inputTranslation: normalizeInputTranslation(input.inputTranslation),
     targetLang: readString(input.targetLang, DEFAULT_SETTINGS.targetLang),
     sourceLang: readString(input.sourceLang, DEFAULT_SETTINGS.sourceLang),
     activeProviderId,
