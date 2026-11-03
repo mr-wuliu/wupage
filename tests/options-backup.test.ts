@@ -4,7 +4,7 @@ import { Blob as NodeBlob } from "node:buffer";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { DEFAULT_SETTINGS } from "../src/shared/defaults";
 import { normalizeSettings } from "../src/shared/settings";
-import { createSettingsBackup, parseSettingsBackup, SETTINGS_BACKUP_MAX_BYTES } from "../src/shared/settings-backup";
+import { createSettingsBackup, parseSettingsBackup, serializeSettingsBackup, SETTINGS_BACKUP_MAX_BYTES } from "../src/shared/settings-backup";
 import { setupSettingsBackupControls } from "../src/options/settings-backup";
 import type { ExtensionSettings, RuntimeRequest } from "../src/shared/types";
 
@@ -46,7 +46,7 @@ function choose(text: string, size = new TextEncoder().encode(text).length): voi
   input.dispatchEvent(new Event("change"));
 }
 async function previewImport(): Promise<void> {
-  choose(JSON.stringify(createSettingsBackup({ ...structuredClone(DEFAULT_SETTINGS), targetLang: "ja" }, "1.6.1")));
+  choose(serializeSettingsBackup(createSettingsBackup({ ...structuredClone(DEFAULT_SETTINGS), targetLang: "ja" }, "1.6.1")));
   await vi.waitFor(() => expect(query<HTMLDialogElement>("settingsBackupDialog").open).toBe(true));
 }
 
@@ -64,6 +64,8 @@ it("exports the latest saved settings only after a visible credential warning an
   query<HTMLButtonElement>("confirmSettingsBackup").click();
   await vi.waitFor(() => expect(click).toHaveBeenCalledOnce());
   const result = parseSettingsBackup(await download!.text());
+  expect(download!.type).toBe("application/toml;charset=utf-8");
+  expect(query<HTMLInputElement>("settingsBackupFile").accept).toBe(".toml,application/toml");
   expect(result.settings).toMatchObject({ targetLang: "ja", chunkSize: DEFAULT_SETTINGS.chunkSize });
   expect(requests.mock.calls.map(([r]) => r.type)).toEqual(["GET_SETTINGS"]);
 });

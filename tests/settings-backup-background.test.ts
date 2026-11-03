@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { DEFAULT_SETTINGS, SETTINGS_KEY } from "../src/shared/defaults";
-import { createSettingsBackup } from "../src/shared/settings-backup";
+import { createSettingsBackup, serializeSettingsBackup } from "../src/shared/settings-backup";
 import { getSettings, saveSettings } from "../src/shared/settings";
 import { importSettingsBackup } from "../src/background/settings-backup";
 
@@ -19,7 +19,7 @@ function backup(imageTranslationEnabled = false, includeKeys = false): string {
   const settings = structuredClone(DEFAULT_SETTINGS);
   settings.targetLang = "ja";
   settings.imageTranslationEnabled = imageTranslationEnabled;
-  return JSON.stringify(createSettingsBackup(settings, "1.6.1", new Date(), { includeKeys }));
+  return serializeSettingsBackup(createSettingsBackup(settings, "1.6.1", new Date(), { includeKeys }));
 }
 
 it("fully replaces settings without reusing local credentials or deleting other stores", async () => {
@@ -73,16 +73,15 @@ it("clears local credentials when restoring a keyless backup instead of grafting
   Object.assign(local.providers[0], { api: { apiKey: "local-subscription", secretAccessKey: "local-signing" } });
   await saveSettings(local);
   const result = await importSettingsBackup(backup());
-  expect(JSON.stringify(result.settings)).not.toMatch(/local-private-key|local-subscription|local-signing/);
+  expect(serializeSettingsBackup(createSettingsBackup(result.settings, "1.6.1", new Date(), { includeKeys: true })))
+    .not.toMatch(/local-private-key|local-subscription|local-signing/);
   expect(await getSettings()).toEqual(result.settings);
 });
 
-it("restores explicitly included credentials and legacy full backups", async () => {
+it("restores explicitly included credentials from a TOML backup", async () => {
   const settings = structuredClone(DEFAULT_SETTINGS);
   Object.assign(settings.providers.find(p => p.type === "deepseek")!, { apiKey: "restore-this-key" });
   const full = createSettingsBackup(settings, "1.6.1", new Date(), { includeKeys: true });
-  for (const version of [1, 2]) {
-    const result = await importSettingsBackup(JSON.stringify({ ...full, version }));
-    expect(result.settings.providers.find(p => p.type === "deepseek")).toMatchObject({ apiKey: "restore-this-key" });
-  }
+  const result = await importSettingsBackup(serializeSettingsBackup(full));
+  expect(result.settings.providers.find(p => p.type === "deepseek")).toMatchObject({ apiKey: "restore-this-key" });
 });

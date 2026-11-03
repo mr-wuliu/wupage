@@ -1,5 +1,5 @@
 import { sendRuntimeMessage } from "../shared/messaging";
-import { createSettingsBackup, parseSettingsBackup, serializeSettingsBackup, settingsBackupFilename, SETTINGS_BACKUP_MAX_BYTES,
+import { createSettingsBackup, parseSettingsBackup, serializeSettingsBackup, settingsBackupFilename, SETTINGS_BACKUP_MAX_BYTES, SETTINGS_BACKUP_MIME,
   type SettingsBackup, type SettingsImportResult } from "../shared/settings-backup";
 import type { ExtensionSettings } from "../shared/types";
 
@@ -99,7 +99,7 @@ export function setupSettingsBackupControls(options: {
           const backup = createSettingsBackup(operation.source!, operation.backup.extensionVersion,
             new Date(operation.backup.createdAt), { includeKeys: includeKeys.checked });
           const text = serializeSettingsBackup(backup);
-          const url = URL.createObjectURL(new Blob([text], { type: "application/json;charset=utf-8" }));
+          const url = URL.createObjectURL(new Blob([text], { type: `${SETTINGS_BACKUP_MIME};charset=utf-8` }));
           // Keep the object URL alive long enough for Firefox to start the download.
           urls.set(url, setTimeout(() => { URL.revokeObjectURL(url); urls.delete(url); }, 30000));
           const link = document.createElement("a");
@@ -133,6 +133,6 @@ export function setupSettingsBackupControls(options: {
 function message(error: unknown): string { return error instanceof Error ? error.message : "设置备份操作失败，请重试。"; }
 function exportWarning(includeKeys: boolean): string {
   return includeKeys
-    ? "备份包含全部已保存设置，以及密钥、请求头和模板等敏感信息，以未加密 JSON 保存。请妥善保管，不要公开分享。当前未保存的编辑不会导出。"
+    ? "备份包含全部已保存设置，以及密钥、请求头和模板等敏感信息，以未加密 TOML 保存。请妥善保管，不要公开分享。当前未保存的编辑不会导出。"
     : "备份不包含密钥。自定义请求头、模板及非内置地址、提示词等请求内容会被移除，导入后需重新配置。站点规则和服务名称等个人信息仍会保留，分享前请检查。当前未保存的编辑不会导出。";
 }
