@@ -10,7 +10,7 @@ export async function openExtensionBrowser(root, output, firefox = false) {
   if (firefox) {
     const browser = await startFirefox(output, path.join(root, 'dist-firefox'), {
       'browser.download.folderList': 2, 'browser.download.dir': path.resolve(output),
-      'browser.download.useDownloadDir': true, 'browser.helperApps.neverAsk.saveToDisk': 'application/pdf,application/json',
+      'browser.download.useDownloadDir': true, 'browser.helperApps.neverAsk.saveToDisk': 'application/pdf,application/toml',
       'pdfjs.disabled': true
     });
     try {

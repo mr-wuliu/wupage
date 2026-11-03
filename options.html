@@ -421,7 +421,7 @@
             <div class="backup-actions">
               <button id="exportSettings" type="button">导出设置</button>
               <button id="importSettings" type="button" class="secondary">导入设置</button>
-              <input id="settingsBackupFile" type="file" accept=".json,application/json" aria-label="选择设置备份" hidden />
+              <input id="settingsBackupFile" type="file" accept=".toml,application/toml" aria-label="选择 TOML 设置备份" hidden />
             </div>
             <p class="field-description">导出仅包含已保存的设置，编辑后请先点击「保存」。导入经确认后立即覆盖设置，无需再次保存。</p>
             <p class="field-description">无密钥模式会清空凭据、自定义请求头与模板，以及非内置的服务地址、提示词等请求内容。导入后需重新配置这些内容，本机旧密钥也会被清空。分享前请检查站点规则、服务名称等个人信息。</p>

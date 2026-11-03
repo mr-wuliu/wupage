@@ -4,12 +4,14 @@ import { COLOR_FIELDS } from "./appearance";
 import { LOCAL_BINDINGS } from "./local-shortcuts";
 import { LOCAL_SHORTCUTS, TRANSLATION_SHORTCUTS } from "./shortcuts";
 import type { ExtensionSettings, ProviderConfig } from "./types";
+import { parse as parseToml, stringify as stringifyToml, TomlError } from "smol-toml";
 
 export const SETTINGS_BACKUP_MAX_BYTES = 5 * 1024 * 1024;
 export const SETTINGS_BACKUP_KIND = "wupage-settings-backup";
+export const SETTINGS_BACKUP_MIME = "application/toml";
 export interface SettingsBackup {
   kind: typeof SETTINGS_BACKUP_KIND;
-  version: 1 | 2;
+  version: 1;
   includesKeys: boolean;
   extensionVersion: string;
   createdAt: string;
@@ -25,7 +27,7 @@ export function createSettingsBackup(settings: ExtensionSettings, extensionVersi
   const includesKeys = options.includeKeys === true;
   const saved = readSettings(normalizeSettings(settings), false);
   const backup: SettingsBackup = {
-    kind: SETTINGS_BACKUP_KIND, version: 2, includesKeys, extensionVersion, createdAt: now.toISOString(),
+    kind: SETTINGS_BACKUP_KIND, version: 1, includesKeys, extensionVersion, createdAt: now.toISOString(),
     settings: includesKeys ? saved : withoutSettingsKeys(saved)
   };
   checkTree(backup);
@@ -34,7 +36,13 @@ export function createSettingsBackup(settings: ExtensionSettings, extensionVersi
 }
 
 export function serializeSettingsBackup(backup: SettingsBackup): string {
-  const text = JSON.stringify(backup, null, 2) + "\n";
+  // TOML has no null. Keep the internal null meaning explicit on disk.
+  const document = { ...backup, settings: { ...backup.settings,
+    pdfTranslationPageRadius: backup.settings.pdfTranslationPageRadius ?? "all" } };
+  const text = "# WuPage 设置备份\n"
+    + (backup.includesKeys ? "# 包含密钥，文件未加密，请妥善保管。\n" : "# 不含密钥，自定义请求内容已移除，导入后需重新配置。\n")
+    + '# settings.pdfTranslationPageRadius = "all" 表示整份 PDF。\n\n'
+    + formatMultilineStrings(stringifyToml(document));
   checkSize(text);
   return text;
 }
@@ -42,22 +50,42 @@ export function serializeSettingsBackup(backup: SettingsBackup): string {
 export function parseSettingsBackup(text: string): SettingsBackup {
   checkSize(text);
   let value: unknown;
-  try { value = JSON.parse(text.replace(/^\uFEFF/u, "")); }
-  catch { throw new Error("无法读取备份，请选择有效的 JSON 文件。"); }
+  try { value = parseToml(text.replace(/^\uFEFF/u, ""), { unsafeKeyBehaviour: "throw", maxDepth: 24 }); }
+  catch (error) {
+    const position = error instanceof TomlError ? `（第 ${error.line} 行，第 ${error.column} 列）` : "";
+    // Parser messages contain source excerpts, which may contain credentials.
+    throw new Error(`无法读取备份，请选择有效的 TOML 文件${position}。`);
+  }
   checkTree(value);
   if (!isRecord(value) || value.kind !== SETTINGS_BACKUP_KIND) throw new Error("这不是 WuPage 设置备份文件。");
-  if (value.version !== 1 && value.version !== 2) throw new Error("不支持此备份格式版本，请使用支持该格式的 WuPage。");
-  if (value.version === 2 && typeof value.includesKeys !== "boolean") invalid("includesKeys");
+  if (value.version !== 1) throw new Error("不支持此备份格式版本，请使用支持该格式的 WuPage。");
+  if (typeof value.includesKeys !== "boolean") invalid("includesKeys");
   if (typeof value.createdAt !== "string" || !/^\d{4}-\d{2}-\d{2}T/u.test(value.createdAt)
     || !Number.isFinite(Date.parse(value.createdAt)) || typeof value.extensionVersion !== "string"
     || !/^\d+\.\d+\.\d+(?:[.\-+][\w.\-]+)?$/u.test(value.extensionVersion)) invalid("备份信息");
-  const settings = readSettings(value.settings, true);
-  // Version 1 was always a full backup. New keyless files must actually follow
-  // the conservative projection; never trust a false includesKeys flag alone.
-  const includesKeys = value.version === 1 || value.includesKeys === true;
-  if (!includesKeys && stableJson(settings) !== stableJson(withoutSettingsKeys(settings))) invalid("settings.credentials");
+  if (!isRecord(value.settings)) invalid("settings");
+  const settings = readSettings({ ...value.settings,
+    pdfTranslationPageRadius: value.settings.pdfTranslationPageRadius === "all" ? null : value.settings.pdfTranslationPageRadius }, true);
+  const includesKeys = value.includesKeys;
+  if (!includesKeys && !sameValue(settings, withoutSettingsKeys(settings))) invalid("settings.credentials");
   return { kind: SETTINGS_BACKUP_KIND, version: value.version, includesKeys, extensionVersion: value.extensionVersion,
     createdAt: value.createdAt, settings };
+}
+
+/** Keep the library's escaping, expanding only escaped newlines into TOML
+ * multiline basic strings. Escaped backslashes and quote delimiters stay safe. */
+function formatMultilineStrings(text: string): string {
+  return text.split("\n").map(line => {
+    const match = /^(systemPrompt|bodyTemplate|headers|body) = (".*")$/u.exec(line);
+    if (!match || !(parseToml(line)[match[1]] as string).includes("\n")) return line;
+    const escaped = match[2].slice(1, -1);
+    let body = "";
+    for (let i = 0; i < escaped.length; i++) {
+      if (escaped[i] !== "\\") body += escaped[i];
+      else { const next = escaped[++i]; body += next === "n" ? "\n" : `\\${next}`; }
+    }
+    return `${match[1]} = """\n${body}"""`;
+  }).join("\n");
 }
 
 /** Remove entire user-controlled credential carriers, not guessed key names or
@@ -86,7 +114,7 @@ function withoutSettingsKeys(settings: ExtensionSettings): ExtensionSettings {
 }
 
 export function settingsBackupFilename(backup: SettingsBackup): string {
-  return `wupage-settings-${backup.createdAt.replace(/[:.]/gu, "-")}.json`;
+  return `wupage-settings-${backup.createdAt.replace(/[:.]/gu, "-")}.toml`;
 }
 
 function checkSize(text: string): void {
@@ -201,14 +229,19 @@ function readSettings(value: unknown, strict: boolean): ExtensionSettings {
   // Reject malformed rules and shortcuts rather than silently replacing them
   // with defaults. New built-in providers may still be added by normalization.
   for (const key of ["autoTranslation", "elementExclusions", "shortcuts", "localShortcuts", "appearance", "frameTranslation", "videoTranslation"] as const) {
-    if (parsed[key] !== undefined && stableJson(parsed[key]) !== stableJson(normalized[key])) invalid(`settings.${key}`);
+    if (parsed[key] !== undefined && !sameValue(parsed[key], normalized[key])) invalid(`settings.${key}`);
   }
   return normalized;
 }
 
-function stableJson(value: unknown): string {
-  return JSON.stringify(value, (_key, entry: unknown) => isRecord(entry)
-    ? Object.fromEntries(Object.entries(entry).sort(([a], [b]) => a.localeCompare(b))) : entry);
+function sameValue(a: unknown, b: unknown): boolean {
+  if (a === b) return true;
+  if (Array.isArray(a) || Array.isArray(b)) return Array.isArray(a) && Array.isArray(b)
+    && a.length === b.length && a.every((entry, i) => sameValue(entry, b[i]));
+  if (!isRecord(a) || !isRecord(b)) return false;
+  const keys = Object.keys(a).filter(key => a[key] !== undefined);
+  return keys.length === Object.keys(b).filter(key => b[key] !== undefined).length
+    && keys.every(key => Object.hasOwn(b, key) && sameValue(a[key], b[key]));
 }
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);

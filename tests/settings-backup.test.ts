@@ -2,8 +2,9 @@ import { describe, expect, it } from "vitest";
 import { DEFAULT_SETTINGS } from "../src/shared/defaults";
 import { BUILT_IN_SCHEMES } from "../src/shared/appearance";
 import { normalizeSettings } from "../src/shared/settings";
-import { createSettingsBackup, parseSettingsBackup, SETTINGS_BACKUP_MAX_BYTES, settingsBackupFilename } from "../src/shared/settings-backup";
+import { createSettingsBackup, parseSettingsBackup, serializeSettingsBackup, SETTINGS_BACKUP_MAX_BYTES, settingsBackupFilename } from "../src/shared/settings-backup";
 import type { ExtensionSettings } from "../src/shared/types";
+import { stringify as stringifyToml } from "smol-toml";
 
 const now = new Date("2026-11-03T01:02:03.456Z");
 function fixture(): ExtensionSettings {
@@ -26,51 +27,53 @@ describe("settings backup format", () => {
   it("round-trips every supported setting and arbitrary credential carrier without modifying its source", () => {
     const settings = fixture(), before = structuredClone(settings);
     const backup = createSettingsBackup(settings, "1.6.1", now, { includeKeys: true });
-    const restored = parseSettingsBackup(JSON.stringify(backup));
-    expect(restored).toMatchObject({ kind: "wupage-settings-backup", version: 2, includesKeys: true, extensionVersion: "1.6.1", createdAt: now.toISOString() });
+    const restored = parseSettingsBackup(serializeSettingsBackup(backup));
+    expect(restored).toMatchObject({ kind: "wupage-settings-backup", version: 1, includesKeys: true, extensionVersion: "1.6.1", createdAt: now.toISOString() });
     expect(restored.settings).toEqual(settings);
     expect(settings).toEqual(before);
-    expect(JSON.stringify(restored)).toContain("short-secret");
-    expect(JSON.stringify(restored)).toContain("opaque-value");
-    expect(JSON.stringify(restored)).toContain("plain-value");
-    expect(settingsBackupFilename(backup)).toBe("wupage-settings-2026-11-03T01-02-03-456Z.json");
+    expect(serializeSettingsBackup(restored)).toContain("short-secret");
+    expect(serializeSettingsBackup(restored)).toContain("opaque-value");
+    expect(serializeSettingsBackup(restored)).toContain("plain-value");
+    expect(settingsBackupFilename(backup)).toBe("wupage-settings-2026-11-03T01-02-03-456Z.toml");
   });
 
   it("exports only configuration even if storage contains unrelated or obsolete properties", () => {
     const stored = Object.assign(fixture(), { cachedTexts: ["private-page-text"], loginCookie: "cookie-value" });
     Object.assign(stored.providers[0], { sessionCookie: "runtime-cookie" });
-    const text = JSON.stringify(createSettingsBackup(stored, "1.6.1", now));
+    const text = serializeSettingsBackup(createSettingsBackup(stored, "1.6.1", now));
     expect(text).not.toMatch(/private-page-text|cookie-value|runtime-cookie/);
   });
 
   it("accepts a UTF-8 BOM and fills optional settings from defaults", () => {
     const backup = createSettingsBackup(fixture(), "1.6.1", now);
     delete backup.settings.appearance;
-    expect(parseSettingsBackup("\uFEFF" + JSON.stringify(backup)).settings.appearance).toEqual(normalizeSettings({}).appearance);
+    expect(parseSettingsBackup("\uFEFF" + serializeSettingsBackup(backup)).settings.appearance).toEqual(normalizeSettings({}).appearance);
   });
 
   it.each([
-    ["truncated JSON", (b: any) => JSON.stringify(b).slice(0, -10)],
-    ["raw settings", (b: any) => JSON.stringify(b.settings)],
-    ["wrong kind", (b: any) => JSON.stringify({ ...b, kind: "another-extension" })],
-    ["future version", (b: any) => JSON.stringify({ ...b, version: 3 })],
-    ["missing key policy", (b: any) => { delete b.includesKeys; return JSON.stringify(b); }],
-    ["invalid key policy", (b: any) => { b.includesKeys = "false"; return JSON.stringify(b); }],
-    ["invalid date", (b: any) => JSON.stringify({ ...b, createdAt: "unknown" })],
-    ["missing core setting", (b: any) => { delete b.settings.targetLang; return JSON.stringify(b); }],
-    ["wrong nested type", (b: any) => { b.settings.providers[0].api.apiKey = {}; return JSON.stringify(b); }],
-    ["unknown provider", (b: any) => { b.settings.providers[0].type = "unknown"; return JSON.stringify(b); }],
-    ["duplicate provider ID", (b: any) => { b.settings.providers.push(b.settings.providers[0]); return JSON.stringify(b); }],
-    ["retyped built-in", (b: any) => { b.settings.providers[0].type = "firefox-local"; return JSON.stringify(b); }],
-    ["missing active provider", (b: any) => { b.settings.activeProviderId = "missing"; return JSON.stringify(b); }],
-    ["disabled active provider", (b: any) => { b.settings.providers[0].enabled = false; return JSON.stringify(b); }],
-    ["unknown setting", (b: any) => { b.settings.futureFeature = true; return JSON.stringify(b); }],
-    ["invalid header", (b: any) => { b.settings.providers.at(-1).headers.Authorization = 42; return JSON.stringify(b); }],
-    ["invalid shortcut", (b: any) => { b.settings.shortcuts["toggle-page-translation"] = "invalid"; return JSON.stringify(b); }],
-    ["invalid site rule", (b: any) => { b.settings.autoTranslation.customSites[0].pattern = "https://"; return JSON.stringify(b); }],
-    ["invalid number", (b: any) => { b.settings.concurrency = 100; return JSON.stringify(b); }],
-    ["polluting key", (b: any) => JSON.stringify(b).replace('"settings":{', '"settings":{"__proto__":{"polluted":true},')],
-    ["deep tree", (b: any) => JSON.stringify({ ...b, nested: Array.from({ length: 30 }).reduce(value => ({ child: value }), {}) })]
+    ["unclosed TOML string", (b: any) => serializeSettingsBackup(b) + '\nbroken = "saved-key'],
+    ["raw settings", (b: any) => stringifyToml(b.settings)],
+    ["wrong kind", (b: any) => serializeSettingsBackup({ ...b, kind: "another-extension" })],
+    ["future version", (b: any) => serializeSettingsBackup({ ...b, version: 2 })],
+    ["missing key policy", (b: any) => { delete b.includesKeys; return serializeSettingsBackup(b); }],
+    ["invalid key policy", (b: any) => { b.includesKeys = "false"; return serializeSettingsBackup(b); }],
+    ["invalid date", (b: any) => serializeSettingsBackup({ ...b, createdAt: "unknown" })],
+    ["missing core setting", (b: any) => { delete b.settings.targetLang; return serializeSettingsBackup(b); }],
+    ["wrong nested type", (b: any) => { b.settings.providers[0].api.apiKey = {}; return serializeSettingsBackup(b); }],
+    ["unknown provider", (b: any) => { b.settings.providers[0].type = "unknown"; return serializeSettingsBackup(b); }],
+    ["duplicate provider ID", (b: any) => { b.settings.providers.push(b.settings.providers[0]); return serializeSettingsBackup(b); }],
+    ["retyped built-in", (b: any) => { b.settings.providers[0].type = "firefox-local"; return serializeSettingsBackup(b); }],
+    ["missing active provider", (b: any) => { b.settings.activeProviderId = "missing"; return serializeSettingsBackup(b); }],
+    ["disabled active provider", (b: any) => { b.settings.providers[0].enabled = false; return serializeSettingsBackup(b); }],
+    ["unknown setting", (b: any) => { b.settings.futureFeature = true; return serializeSettingsBackup(b); }],
+    ["invalid header", (b: any) => { b.settings.providers.at(-1).headers.Authorization = 42; return serializeSettingsBackup(b); }],
+    ["invalid shortcut", (b: any) => { b.settings.shortcuts["toggle-page-translation"] = "invalid"; return serializeSettingsBackup(b); }],
+    ["invalid site rule", (b: any) => { b.settings.autoTranslation.customSites[0].pattern = "https://"; return serializeSettingsBackup(b); }],
+    ["invalid number", (b: any) => { b.settings.concurrency = 100; return serializeSettingsBackup(b); }],
+    ["polluting key", (b: any) => '__proto__.polluted = true\n' + serializeSettingsBackup(b)],
+    ["duplicate TOML key", (b: any) => 'kind = "duplicate"\n' + serializeSettingsBackup(b)],
+    ["invalid numeric value", (b: any) => serializeSettingsBackup(b).replace('concurrency = 3', 'concurrency = nan')],
+    ["deep tree", (b: any) => serializeSettingsBackup({ ...b, nested: Array.from({ length: 30 }).reduce(value => ({ child: value }), {}) })]
   ])("rejects %s without echoing credential values", (_name, change) => {
     const text = change(createSettingsBackup(fixture(), "1.6.1", now));
     expect(() => parseSettingsBackup(text)).toThrow();
@@ -80,7 +83,7 @@ describe("settings backup format", () => {
 
   it("bounds UTF-8 bytes as well as character count", () => {
     expect(() => parseSettingsBackup(" ".repeat(SETTINGS_BACKUP_MAX_BYTES + 1))).toThrow("5 MiB");
-    const text = JSON.stringify({ note: "汉".repeat(SETTINGS_BACKUP_MAX_BYTES / 2) });
+    const text = stringifyToml({ note: "汉".repeat(SETTINGS_BACKUP_MAX_BYTES / 2) });
     expect(text.length).toBeLessThan(SETTINGS_BACKUP_MAX_BYTES);
     expect(() => parseSettingsBackup(text)).toThrow("5 MiB");
   });
@@ -89,7 +92,7 @@ describe("settings backup format", () => {
     const settings = fixture(), before = structuredClone(settings);
     const backup = createSettingsBackup(settings, "1.6.1", now);
     expect(backup.includesKeys).toBe(false);
-    const text = JSON.stringify(backup);
+    const text = serializeSettingsBackup(backup);
     for (const secret of ["saved-key", "azure-key", "signing-key", "password", "short-secret", "opaque-value", "plain-value", "another-secret", "eastasia"]) {
       expect(text).not.toContain(secret);
     }
@@ -114,7 +117,7 @@ describe("settings backup format", () => {
     Object.assign(http, { headers: { "X-Signature2": "short", "Completely-Unknown": "0123456789abcdef", "secret-name": "a" },
       url: "https://secret-host.example/path/secret-path?unknown=secret-query#secret-fragment", bodyTemplate: template.replace("<secret>", "template-credential") });
     const backup = createSettingsBackup(settings, "1.6.1", now);
-    const text = JSON.stringify(backup);
+    const text = serializeSettingsBackup(backup);
     expect(text).not.toMatch(/secret-name|0123456789abcdef|secret-host|secret-path|secret-query|secret-fragment|template-credential/);
     expect(backup.settings.providers.find(p => p.id === "custom-http"))
       .toMatchObject({ headers: {}, url: "", bodyTemplate: "" });
@@ -127,7 +130,7 @@ describe("settings backup format", () => {
     Object.assign(llm, { baseURL: "https://key-user:key-pass@example.com/api/key-in-path", systemPrompt: "custom-key-in-prompt",
       requestTemplate: { enabled: false, headers: '{"X": "short-key"}', body: '{"opaque":"body-key"}' } });
     const file = createSettingsBackup(settings, "1.6.1", now);
-    expect(JSON.stringify(file)).not.toMatch(/key-user|key-pass|key-in-path|key-in-prompt|short-key|body-key|api.example.com/);
+    expect(serializeSettingsBackup(file)).not.toMatch(/key-user|key-pass|key-in-path|key-in-prompt|short-key|body-key|api.example.com/);
     expect(file.settings.providers.find(p => p.type === "deepseek"))
       .toMatchObject({ baseURL: "", apiKey: "", systemPrompt: "", requestTemplate: { enabled: false, headers: "{}", body: "{}" } });
   });
@@ -135,14 +138,34 @@ describe("settings backup format", () => {
   it("rejects keyless metadata that conceals credentials instead of trusting the flag", () => {
     const file = createSettingsBackup(fixture(), "1.6.1", now, { includeKeys: true });
     file.includesKeys = false;
-    expect(() => parseSettingsBackup(JSON.stringify(file))).toThrow("settings.credentials");
+    expect(() => parseSettingsBackup(serializeSettingsBackup(file))).toThrow("settings.credentials");
   });
 
-  it("accepts legacy full backups as containing credentials regardless of extra metadata", () => {
-    const full = createSettingsBackup(fixture(), "1.6.1", now, { includeKeys: true });
-    const { includesKeys: _ignored, ...legacy } = full;
-    const parsed = parseSettingsBackup(JSON.stringify({ ...legacy, version: 1, includesKeys: false }));
-    expect(parsed.includesKeys).toBe(true);
-    expect(parsed.settings).toEqual(full.settings);
+  it.each([null, 0, 5, 1000])("round-trips the PDF page radius %s without losing the unlimited value", radius => {
+    const settings = fixture(); settings.pdfTranslationPageRadius = radius;
+    const text = serializeSettingsBackup(createSettingsBackup(settings, "1.6.1", now));
+    expect(text).toContain(`pdfTranslationPageRadius = ${radius === null ? '"all"' : radius}`);
+    expect(parseSettingsBackup(text).settings.pdfTranslationPageRadius).toBe(radius);
+  });
+
+  it("exports tables and multiline strings that remain editable with comments", () => {
+    const settings = fixture();
+    const prompt = '\n中文、引号 """、单引号 \'\'\' 和路径 C:\\Users\\test\r\n{{targetLang}}\n字面量 \\n 和末尾反斜杠\\\n';
+    const llm = settings.providers.find(p => p.type === "deepseek")!;
+    Object.assign(llm, { systemPrompt: prompt, requestTemplate: { enabled: true,
+      headers: '{\n  "X-Private": "\\\"quoted\\\""\n}', body: '{\n  "context": "{{context}}"\n}' } });
+    const backup = createSettingsBackup(settings, "1.6.1", now, { includeKeys: true });
+    const text = serializeSettingsBackup(backup);
+    expect(text).toContain("[[settings.providers]]");
+    expect(text).toContain('systemPrompt = """\n');
+    expect(text).toContain('[settings.shortcuts]');
+    const restored = parseSettingsBackup('# 手工添加的注释\n' + text.replace('targetLang = "zh-CN"', 'targetLang = "ja" # 目标语言'));
+    expect(restored.settings.targetLang).toBe("ja");
+    expect(restored.settings.providers.find(p => p.type === "deepseek")).toMatchObject({ systemPrompt: prompt });
+    expect(restored.settings.providers).toEqual(backup.settings.providers);
+  });
+
+  it("accepts only TOML, without autodetecting a different backup format", () => {
+    expect(() => parseSettingsBackup('{"kind":"wupage-settings-backup","version":1}')).toThrow("TOML");
   });
 });
