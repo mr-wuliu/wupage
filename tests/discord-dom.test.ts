@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { collectTextSegments } from "../src/content/dom";
+import { clearTranslations, collectAdditionalTextSegmentsProgressive, collectTextSegmentsProgressive, renderTranslations } from "../src/content/dom";
 
-afterEach(() => { vi.restoreAllMocks(); document.body.replaceChildren(); });
+afterEach(() => { clearTranslations(); vi.restoreAllMocks(); document.body.replaceChildren(); });
 
 function stubLayout(): void {
   vi.spyOn(window, "getComputedStyle").mockImplementation(() => ({ display: "block", visibility: "visible", opacity: "1", color: "" }) as CSSStyleDeclaration);
@@ -18,21 +18,41 @@ const message = (id: number, user: string, text: string, header = true) => `<li 
 }<div class="markup messageContent" id="message-content-${id}"><span>${text}</span></div></div><div class="container" id="message-accessories-${id}"></div></div></li>`;
 
 describe("Discord chat", () => {
-  it("collects message bodies", () => {
+  it("collects message bodies", async () => {
     document.documentElement.lang = "en-US";
     document.body.innerHTML = `<main aria-label="Game Design Final Project (channel)"><div role="group"><ol role="list" aria-label="Messages in Game Design Final Project" data-list-id="chat-messages">${
       message(1, "Pear", "Cool, I will take a look at the new build tonight.")}${message(2, "Steven", "I reworked the version so it now prioritizes the 3D scene.")}${message(3, "Steven", "Compact follow-up message without a header.", false)}</ol></div></main>`;
     stubLayout();
-    const texts = collectTextSegments().map(s => s.text);
+    const texts = (await collectTextSegmentsProgressive()).map(s => s.text);
     expect(texts).toEqual(expect.arrayContaining(["Cool, I will take a look at the new build tonight.", "I reworked the version so it now prioritizes the 3D scene.", "Compact follow-up message without a header."]));
   });
 
-  it("translates a multi-line message paragraph by paragraph, keeping each paragraph's own lines", () => {
+  it.each(["sr-only", "hiddenVisually_a1b2c3"])("excludes %s timestamps from all collected segments", async hiddenClass => {
+    document.body.innerHTML = `<main><ol>${message(1, "Pear", `Visible message body.<span class="${hiddenClass}">Tuesday, August 31, 2021 at 8:43 AM</span>`, false)}</ol></main>`;
+    stubLayout();
+    expect((await collectTextSegmentsProgressive()).map(segment => segment.text)).toEqual(["Visible message body."]);
+  });
+
+  it.each(["bilingual", "bilingual-accent", "replace"] as const)("renders and restores separate message paragraphs in %s mode", async mode => {
+    document.body.innerHTML = `<main><ol>${message(1, "Pear", "First paragraph.\n\nSecond paragraph.", false)}</ol></main>`;
+    stubLayout();
+    const original = document.body.innerHTML;
+    const segments = await collectTextSegmentsProgressive();
+    expect(segments.map(segment => segment.requestText)).toEqual(["First paragraph.", "Second paragraph."]);
+    expect(renderTranslations(segments.map(({ id }, index) => ({ id, text: ["第一段。", "第二段。"][index] })), mode)).toEqual(segments.map(segment => segment.id));
+    const body = document.querySelector("#message-content-1")!;
+    expect([...body.querySelectorAll(".wupage-translation")].map(element => element.textContent)).toEqual(["第一段。", "第二段。"]);
+    expect(await collectAdditionalTextSegmentsProgressive([body])).toEqual([]);
+    clearTranslations();
+    expect(document.body.innerHTML).toBe(original);
+  });
+
+  it("translates a multi-line message paragraph by paragraph, keeping each paragraph's own lines", async () => {
     document.documentElement.lang = "en-US";
     document.body.innerHTML = `<main><ol role="list"><li><div class="message" role="article"><div class="contents"><h3 class="header"><span class="username" role="button">Cobai</span></h3>
       <div class="markup messageContent" id="message-content-9"><strong><span>1. Be Civil People</span></strong><span>\nWe allow cursing, as long as it is not meant to insult someone.\n\n</span><strong><span>2. No NSFW</span></strong><span>\nWe do not allow any nsfw content of any kind in this server.\n\n</span><strong><span>3. Use Channels</span></strong><span>\nUse </span><span class="channelMention"><span class="name"><span>#self-promotion</span></span></span><span> to post your stream.</span><span class="timestamp"><time><span class="edited">(edited)</span></time><span class="hiddenVisually">Tuesday, August 31, 2021 at 8:43 AM</span></span></div></div></div></li></ol></main>`;
     stubLayout();
-    const texts = collectTextSegments().map(s => s.text).filter(text => text !== "Cobai");
+    const texts = (await collectTextSegmentsProgressive()).map(s => s.text).filter(text => text !== "Cobai");
     expect(texts).toEqual([
       "1. Be Civil People\nWe allow cursing, as long as it is not meant to insult someone.",
       "2. No NSFW\nWe do not allow any nsfw content of any kind in this server.",

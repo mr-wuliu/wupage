@@ -146,6 +146,7 @@ const SKIP_SELECTORS = [
   "details-dialog",
   "modal-dialog",
   ".sr-only",
+  "[class*='hiddenVisually']",
   ".rustdoc-breadcrumbs",
   ".breadcrumbs",
   ".breadcrumb",
@@ -225,8 +226,9 @@ const SEMANTIC_TEXT_BLOCK_SELECTOR = [
   "th",
   "td"
 ].join(",");
-// Posts whose text is inline spans with literal newlines: X posts and Discord message bodies.
-const X_POST_TEXT_SELECTOR = "[data-testid='tweetText'], [id^='message-content-']";
+const DISCORD_MESSAGE_SELECTOR = "[id^='message-content-']";
+// Posts whose inline spans contain authored paragraph and line breaks.
+const POST_TEXT_SELECTOR = `[data-testid='tweetText'], ${DISCORD_MESSAGE_SELECTOR}`;
 const YOUTUBE_DESCRIPTION_SELECTOR = [
   "#description-inline-expander .ytAttributedStringHost",
   "ytd-expandable-video-description-body-renderer .ytAttributedStringHost",
@@ -393,7 +395,7 @@ const PARAGRAPH_SELECTOR = [
   ".markdown-body > div",
   ".markdown-body > p",
   ".comment-body p",
-  X_POST_TEXT_SELECTOR,
+  POST_TEXT_SELECTOR,
   YOUTUBE_DESCRIPTION_SELECTOR,
   YOUTUBE_COMMENT_SELECTOR
 ].join(",");
@@ -819,7 +821,7 @@ function collectTextSegmentsFromRoot(
   groupingBlockCache = new WeakMap();
   if (!directTextOnly) {
     prepareLegacyScientificParagraphs(root);
-    splitAuthoredLineBreakTextNodes(root, X_POST_TEXT_SELECTOR);
+    splitAuthoredLineBreakTextNodes(root, POST_TEXT_SELECTOR);
     splitAuthoredLineBreakTextNodes(root, YOUTUBE_DESCRIPTION_SELECTOR, true);
   }
   const alreadyTracked = new Set(trackedNodes.map((tracked) => tracked.node));
@@ -1633,8 +1635,8 @@ function groupTextSegments(
       }
       continue;
     }
-    if (block.matches(X_POST_TEXT_SELECTOR)) {
-      for (const paragraph of getXPostParagraphGroups(block, groupNodes)) {
+    if (block.matches(POST_TEXT_SELECTOR)) {
+      for (const paragraph of getPostParagraphGroups(block, groupNodes)) {
         const id = paragraph.nodes[0].id;
         trackedGroups.push({
           id,
@@ -1663,7 +1665,7 @@ function groupTextSegments(
       singleNodeBlock &&
       readable!.text === nodeText &&
       !isLegacyScientificProseBlock(block) &&
-      !block.matches(`summary, label, li, ${X_POST_TEXT_SELECTOR}, ${YOUTUBE_COMMENT_SELECTOR}`)
+      !block.matches(`summary, label, li, ${POST_TEXT_SELECTOR}, ${YOUTUBE_COMMENT_SELECTOR}`)
     ) continue;
     if (singleNodeBlock && !readable!.text) continue;
     const authoredLines = isAuthoredLineTextBlock(block);
@@ -1727,7 +1729,7 @@ function completeGroupedSourceNodes(
   return complete;
 }
 
-interface XPostParagraphGroup {
+interface PostParagraphGroup {
   nodes: TrackedNode[];
   text: string;
   insertionBefore?: ChildNode;
@@ -1817,10 +1819,10 @@ function getYouTubeDescriptionLines(
   return lines;
 }
 
-function getXPostParagraphGroups(
+function getPostParagraphGroups(
   block: Element,
   groupNodes: TrackedNode[]
-): XPostParagraphGroup[] {
+): PostParagraphGroup[] {
   const trackedByNode = new Map(groupNodes.map((tracked) => [tracked.node, tracked]));
   const walker = document.createTreeWalker(block, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT, {
     acceptNode(node) {
@@ -1833,7 +1835,7 @@ function getXPostParagraphGroups(
       return (node as Element).matches("br") ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_SKIP;
     }
   });
-  const paragraphs: XPostParagraphGroup[] = [];
+  const paragraphs: PostParagraphGroup[] = [];
   let nodes: TrackedNode[] = [];
   let parts: string[] = [];
   let pendingBreaks = 0;
@@ -1908,7 +1910,7 @@ function computeGroupingBlock(element: Element): Element | null {
 
   const listItem = element.closest("li");
   const readableBlock = element.closest(
-    `${SEMANTIC_TEXT_BLOCK_SELECTOR}, label, summary, ${X_POST_TEXT_SELECTOR}`
+    `${SEMANTIC_TEXT_BLOCK_SELECTOR}, label, summary, ${POST_TEXT_SELECTOR}`
   );
   // Layout tables and blockquotes can wrap entire documents. Their semantic
   // boundary must not absorb nearer list items; replacement would empty those
@@ -2226,6 +2228,7 @@ function getReadableBlockText(
         "rustdoc-toolbar",
         ".anchor",
         ".sr-only",
+        "[class*='hiddenVisually']",
         "[role='button']",
         "[aria-hidden='true']",
         "[hidden]",
@@ -2362,7 +2365,7 @@ function insertBlockTranslation(block: Element, translation: Element): void {
     block.append(translation);
     return;
   }
-  if (block.matches(`li, ${YOUTUBE_COMMENT_SELECTOR}`)) {
+  if (block.matches(`li, ${YOUTUBE_COMMENT_SELECTOR}, ${DISCORD_MESSAGE_SELECTOR}`)) {
     block.append(translation);
     return;
   }
@@ -2414,7 +2417,7 @@ function insertGroupedTranslation(
 function getRenderMode(element: Element | null): RenderMode {
   if (!element) return "inline";
   if (isLegacyScientificProseBlock(element)) return "block";
-  if (element.matches(X_POST_TEXT_SELECTOR)) return "block";
+  if (element.matches(POST_TEXT_SELECTOR)) return "block";
   if (element.matches(YOUTUBE_COMMENT_SELECTOR)) return "block";
   if (element.matches("label")) return isChoiceLabel(element) ? "inline" : "block";
   if (element.matches("summary")) return "inline";
