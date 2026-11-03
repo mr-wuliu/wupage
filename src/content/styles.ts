@@ -11,30 +11,36 @@ export function injectContentStyles(): void {
 }
 
 function ensureRootStyles(root: Document | ShadowRoot): void {
-  const owner = root instanceof Document ? root : root.ownerDocument;
-  if (!owner.documentElement || !owner.defaultView) return;
+  const isDocument = root.nodeType === 9;
+  const owner = (isDocument ? root : root.ownerDocument) as Document;
+  const view = owner.defaultView;
+  if (!owner.documentElement || !view || view.document !== owner) return;
   let style = styles.get(root);
   if (!style) {
     style = owner.createElement("style"); style.id = STYLE_ID;
     styles.set(root, style);
   }
-  const css = root instanceof Document ? CONTENT_CSS : CONTENT_CSS.split("#wupage-floating-hitbox")[0];
+  const css = isDocument ? CONTENT_CSS : CONTENT_CSS.split("#wupage-floating-hitbox")[0];
   if (style.textContent !== css) style.textContent = css;
   style.disabled = false;
   style.removeAttribute("media");
-  const parent = root instanceof Document ? root.documentElement : root;
+  const parent = isDocument ? owner.documentElement : root;
   if (style.parentNode !== parent) parent.append(style);
   if (!observers.has(root)) {
     // Defer repairs to one task. Host code repeatedly deleting styles cannot
     // create an unbounded synchronous MutationObserver feedback loop.
     let repair: number | undefined;
-    const observer = new MutationObserver(records => {
+    const observer = new view.MutationObserver(records => {
       if (repair !== undefined) return;
       if (style!.isConnected && !records.some(record => record.target === style || style!.contains(record.target))) return;
       if (style!.isConnected && style!.textContent === css && !style!.disabled && !style!.hasAttribute("media")) return;
-      repair = owner.defaultView!.setTimeout(() => {
+      repair = view.setTimeout(() => {
         repair = undefined;
-        if (root instanceof ShadowRoot && !root.host.isConnected) { observer.disconnect(); observers.delete(root); return; }
+        // The task can outlive a removed frame, shadow host or test realm.
+        // Use the owning document rather than ambient DOM constructors.
+        if (view.document !== owner || (!isDocument && !(root as ShadowRoot).host.isConnected)) {
+          observer.disconnect(); observers.delete(root); return;
+        }
         ensureRootStyles(root);
       }, 100);
     });
