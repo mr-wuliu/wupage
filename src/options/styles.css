@@ -127,7 +127,8 @@ body {
   display: none;
 }
 
-.settings:has(#backupSettings:not([hidden])) #save {
+.settings:has(#backupSettings:not([hidden])) :is(#save, #restorePageDefaults),
+.settings:has(#backupSettings[hidden]) #restore {
   display: none;
 }
 
@@ -1088,9 +1089,6 @@ button[data-settings-feedback]:active {
 }
 
 #shortcutSettings { padding: 20px; gap: 10px; }
-.shortcut-panel-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin: 0; }
-.shortcut-panel-heading > div { display: grid; gap: 4px; }
-.shortcut-panel-heading button { flex: 0 0 auto; min-height: 32px; padding: 0 10px; font-size: 12px; }
 .shortcut-toolbar { min-width: 0; }
 .shortcut-toolbar .hint { font-size: 12px; }
 #shortcutStatus:empty, .shortcut-toolbar:has(#shortcutStatus:not(:empty)) #shortcutRecorderHelp { display: none; }

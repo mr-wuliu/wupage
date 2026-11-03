@@ -125,7 +125,7 @@ try {
   assert.equal(await pageSwitch.isDisabled(), true);
   assert.equal(await field.inputValue(), '');
   await press('Alt+Shift+K'); await page.waitForTimeout(150); assert.equal(await translationCount(), 0);
-  await options.bringToFront(); await options.locator('#resetShortcuts').click(); await save('Alt+Shift+Y');
+  await options.bringToFront(); await options.locator('#restorePageDefaults').click(); await save('Alt+Shift+Y');
   await press('Alt+Shift+Y'); await page.locator('.wupage-translation').first().waitFor();
   await press('Alt+Shift+Y'); await page.waitForFunction(() => document.querySelectorAll('.wupage-translation').length === 0);
   checks.push('live rebinding, empty bindings stay disabled across reloads, explicit default restoration without reloading the reading page');

@@ -96,6 +96,10 @@ export function setupStatisticsControls(root: HTMLElement) {
   window.addEventListener("pagehide", event => { if (!event.persisted) { revision++; controller.abort(); } }, { signal: controller.signal });
   renderData();
   return {
+    reset(): void {
+      enabled.checked = false; range.value = "30"; metric.value = "totalTokens";
+      renderCollectionStatus(); renderData();
+    },
     render(value: boolean): void { savedEnabled = value; enabled.checked = value; renderCollectionStatus(); maybeLoad(); },
     read(): boolean { return enabled.checked; }
   };

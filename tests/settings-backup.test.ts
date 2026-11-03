@@ -88,12 +88,12 @@ describe("settings backup format", () => {
     expect(() => parseSettingsBackup(text)).toThrow("5 MiB");
   });
 
-  it("omits all credentials by default while keeping preferences and service identities", () => {
+  it("omits credentials by default while retaining all other configuration", () => {
     const settings = fixture(), before = structuredClone(settings);
     const backup = createSettingsBackup(settings, "1.6.1", now);
     expect(backup.includesKeys).toBe(false);
     const text = serializeSettingsBackup(backup);
-    for (const secret of ["saved-key", "azure-key", "signing-key", "password", "short-secret", "opaque-value", "plain-value", "another-secret", "eastasia"]) {
+    for (const secret of ["saved-key", "azure-key", "signing-key", "password", "short-secret", "opaque-value", "plain-value"]) {
       expect(text).not.toContain(secret);
     }
     expect(settings).toEqual(before);
@@ -104,41 +104,114 @@ describe("settings backup format", () => {
       expect(restored[key]).toEqual(settings[key]);
     }
     expect(restored.providers.find(p => p.type === "deepseek")).toMatchObject({ apiKey: "", baseURL: "https://api.deepseek.com" });
+    expect(restored.providers[0]).toMatchObject({ serviceMode: "api", api: { endpoint: "https://api.example.com", region: "eastasia", apiKey: "", secretAccessKey: "" } });
+    expect(restored.providers.find(p => p.id === "custom-http")).toMatchObject({
+      url: "https://user:@example.com/Api@proxy?signature=", headers: { "X-Signature2": "", "Content-Type": "application/json" },
+      bodyTemplate: '{"api_key":"","q":{{json texts}}}', responsePath: "translations" });
+    expect(restored.providers.find(p => p.type === "deepseek")).toMatchObject({ requestTemplate: {
+      enabled: true, headers: '{"X-Private":"another-secret"}', body: '{"token":""}' } });
   });
 
   it.each([
-    ['{"api_key":"<secret>","q":{{json texts}}}'],
-    ['q={{texts}}&unusual-credential=<secret>'],
-    ['<request><custom><secret></custom>{{texts}}</request>'],
-    ['not even valid JSON <secret> {{json texts}}']
-  ])("removes an entire custom HTTP template regardless of its dialect: %s", template => {
+    ['{"api_key":"<secret>","q":{{json texts}}}', '{"api_key":"","q":{{json texts}}}'],
+    ['q={{texts}}&api_key=<secret>', 'q={{texts}}&api_key='],
+    ['<request><api_key><secret></api_key>{{texts}}</request>', '<request><api_key></api_key>{{texts}}</request>'],
+    ['opaque text saved-key {{json texts}}', 'opaque text  {{json texts}}']
+  ])("removes credential values while preserving the HTTP template dialect: %s", (template, expected) => {
     const settings = fixture();
     const http = settings.providers.find(p => p.id === "custom-http")!;
-    Object.assign(http, { headers: { "X-Signature2": "short", "Completely-Unknown": "0123456789abcdef", "secret-name": "a" },
-      url: "https://secret-host.example/path/secret-path?unknown=secret-query#secret-fragment", bodyTemplate: template.replace("<secret>", "template-credential") });
+    Object.assign(http, { headers: { "X-Signature2": "short", "X-Client": "public-client", "Content-Type": "text/plain" },
+      url: "https://service.example/path/v2?mode=translate#endpoint", bodyTemplate: template.replace("<secret>", "template-credential") });
     const backup = createSettingsBackup(settings, "1.6.1", now);
     const text = serializeSettingsBackup(backup);
-    expect(text).not.toMatch(/secret-name|0123456789abcdef|secret-host|secret-path|secret-query|secret-fragment|template-credential/);
+    expect(text).not.toMatch(/template-credential|saved-key/);
     expect(backup.settings.providers.find(p => p.id === "custom-http"))
-      .toMatchObject({ headers: {}, url: "", bodyTemplate: "" });
+      .toMatchObject({ headers: { "X-Signature2": "", "X-Client": "public-client", "Content-Type": "text/plain" },
+        url: "https://service.example/path/v2?mode=translate#endpoint", bodyTemplate: expected });
     expect(() => parseSettingsBackup(text)).not.toThrow();
   });
 
-  it("removes custom base URLs, service endpoints, prompts, and even disabled request templates", () => {
+  it("retains custom addresses, prompts, disabled templates and key references", () => {
     const settings = fixture();
     const llm = settings.providers.find(p => p.type === "deepseek")!;
-    Object.assign(llm, { baseURL: "https://key-user:key-pass@example.com/api/key-in-path", systemPrompt: "custom-key-in-prompt",
-      requestTemplate: { enabled: false, headers: '{"X": "short-key"}', body: '{"opaque":"body-key"}' } });
+    Object.assign(llm, { baseURL: "https://key-user:key-pass:more@example.com/api/private-path", systemPrompt: "Translate carefully with context. saved-key",
+      requestTemplate: { enabled: false, headers: '{"Authorization":"Bearer {{apiKey}}", "X-Client":"custom"}', body: '{"context":"{{context}}"}' } });
     const file = createSettingsBackup(settings, "1.6.1", now);
-    expect(serializeSettingsBackup(file)).not.toMatch(/key-user|key-pass|key-in-path|key-in-prompt|short-key|body-key|api.example.com/);
+    expect(serializeSettingsBackup(file)).not.toMatch(/key-pass|saved-key/);
     expect(file.settings.providers.find(p => p.type === "deepseek"))
-      .toMatchObject({ baseURL: "", apiKey: "", systemPrompt: "", requestTemplate: { enabled: false, headers: "{}", body: "{}" } });
+      .toMatchObject({ baseURL: "https://key-user:@example.com/api/private-path", apiKey: "", systemPrompt: "Translate carefully with context. ",
+        requestTemplate: { enabled: false, headers: '{"Authorization":"Bearer {{apiKey}}", "X-Client":"custom"}', body: '{"context":"{{context}}"}' } });
+    expect(parseSettingsBackup(serializeSettingsBackup(file)).settings).toEqual(file.settings);
   });
 
   it("rejects keyless metadata that conceals credentials instead of trusting the flag", () => {
     const file = createSettingsBackup(fixture(), "1.6.1", now, { includeKeys: true });
     file.includesKeys = false;
     expect(() => parseSettingsBackup(serializeSettingsBackup(file))).toThrow("settings.credentials");
+  });
+
+  it("round-trips all configuration unchanged when no credentials are configured", () => {
+    const settings = structuredClone(DEFAULT_SETTINGS);
+    Object.assign(settings.providers.find(p => p.type === "deepseek")!, {
+      baseURL: "https://proxy.example/CaseSensitive/v1?mode=batch", systemPrompt: "自定义提示词\n{{targetLang}}",
+      requestTemplate: { enabled: true, headers: '{"Authorization":"Bearer {{apiKey}}","X-Client":"custom-client"}',
+        body: '{"model":"{{model}}","q":{{json texts}},"context":"{{context}}"}' } });
+    Object.assign(settings.providers[0], { serviceMode: "api", api: { endpoint: "https://api.example/Translate", region: "eastasia", folderId: "public-folder", model: "custom-model" } });
+    settings.providers.push({ type: "http-template", id: "public-template", label: "配置", method: "POST", url: "https://api.example/Translate?mode=batch#config",
+      headers: { "Content-Type": "application/json", "X-Client": "custom-client" }, bodyTemplate: '{"text":{{json texts}},"option":true}', responsePath: "data.translations" });
+    const normalized = normalizeSettings(settings);
+    const backup = createSettingsBackup(normalized, "1.6.1", now);
+    expect(backup.settings).toEqual(normalized);
+    expect(parseSettingsBackup(serializeSettingsBackup(backup)).settings).toEqual(normalized);
+  });
+
+  it.each(["Authorization", "Proxy-Authorization", "X-Api-Key", "Ocp-Apim-Subscription-Key", "X-Goog-Api-Key", "X-Signature2"])("keeps the %s header name and non-authentication headers while clearing its secret value", name => {
+    const settings = fixture();
+    Object.assign(settings.providers.find(p => p.id === "custom-http")!, { headers: { [name]: "private-header", "X-Client": "client", "Content-Type": "application/json" } });
+    const file = createSettingsBackup(settings, "1.6.1", now);
+    expect(file.settings.providers.find(p => p.id === "custom-http")).toMatchObject({ headers: { [name]: "", "X-Client": "client", "Content-Type": "application/json" } });
+    expect(parseSettingsBackup(serializeSettingsBackup(file)).settings).toEqual(file.settings);
+  });
+
+  it("preserves URL spelling and encoded key references while clearing encoded credential values", () => {
+    const settings = fixture();
+    Object.assign(settings.providers.find(p => p.id === "custom-http")!, {
+      url: "https://API.example/Keep%2fCase?%61pi_key=encoded%2Bsecret&token=%7B%7BapiKey%7D%7D&mode=fast#config" });
+    const backup = createSettingsBackup(settings, "1.6.1", now);
+    expect(backup.settings.providers.find(p => p.id === "custom-http")).toMatchObject({
+      url: "https://API.example/Keep%2fCase?%61pi_key=&token=%7B%7BapiKey%7D%7D&mode=fast#config" });
+    expect(parseSettingsBackup(serializeSettingsBackup(backup)).settings).toEqual(backup.settings);
+  });
+
+  it("does not corrupt ordinary text when a configured key is only one character", () => {
+    const settings = structuredClone(DEFAULT_SETTINGS);
+    Object.assign(settings.providers.find(p => p.type === "deepseek")!, { apiKey: "a", systemPrompt: "Translate a paragraph with a model.",
+      requestTemplate: { enabled: true, headers: '{"X-Client":"a-client"}', body: '{"api_key":"a","q":{{json texts}}}' } });
+    expect(createSettingsBackup(settings, "1.6.1", now).settings.providers.find(p => p.type === "deepseek"))
+      .toMatchObject({ apiKey: "", systemPrompt: "Translate a paragraph with a model.",
+        requestTemplate: { enabled: true, headers: '{"X-Client":"a-client"}', body: '{"api_key":"","q":{{json texts}}}' } });
+  });
+
+  it("removes escaped copies of configured credentials without corrupting JSON template syntax", () => {
+    const settings = structuredClone(DEFAULT_SETTINGS), secret = 'private"key\\secret';
+    Object.assign(settings.providers.find(p => p.type === "deepseek")!, { apiKey: secret,
+      requestTemplate: { enabled: true, headers: JSON.stringify({ "X-Custom": secret, "X-Client": "custom" }),
+        body: '{"opaque":' + JSON.stringify(secret) + ',"q":{{json texts}}}' } });
+    const file = createSettingsBackup(settings, "1.6.1", now);
+    expect(file.settings.providers.find(p => p.type === "deepseek"))
+      .toMatchObject({ requestTemplate: { enabled: true, headers: '{"X-Custom":"","X-Client":"custom"}', body: '{"opaque":"","q":{{json texts}}}' } });
+    expect(parseSettingsBackup(serializeSettingsBackup(file)).settings).toEqual(file.settings);
+  });
+
+  it("clears credentials inside nested URL strings without consuming JSON structure or template references", () => {
+    const settings = structuredClone(DEFAULT_SETTINGS);
+    Object.assign(settings.providers.find(p => p.type === "deepseek")!, {
+      requestTemplate: { enabled: true, headers: '{}',
+        body: '{"url":"https://user:private-password@example.com?api_key=private-key&mode=batch","token":"{{ apiKey }}","q":{{json texts}}}' } });
+    const file = createSettingsBackup(settings, "1.6.1", now);
+    expect(file.settings.providers.find(p => p.type === "deepseek")).toMatchObject({ requestTemplate: {
+      enabled: true, headers: '{}', body: '{"url":"https://user:@example.com?api_key=&mode=batch","token":"{{ apiKey }}","q":{{json texts}}}' } });
+    expect(parseSettingsBackup(serializeSettingsBackup(file)).settings).toEqual(file.settings);
   });
 
   it.each([null, 0, 5, 1000])("round-trips the PDF page radius %s without losing the unlimited value", radius => {

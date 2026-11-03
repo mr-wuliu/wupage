@@ -128,11 +128,8 @@
           </section>
 
           <section id="shortcutSettings" class="settings-panel" aria-labelledby="shortcutSettingsTitle" hidden>
-            <div class="settings-panel-heading shortcut-panel-heading">
-              <div>
+            <div class="settings-panel-heading">
               <h2 id="shortcutSettingsTitle">快捷键</h2>
-              </div>
-              <button id="resetShortcuts" type="button" class="secondary" data-settings-feedback>恢复默认</button>
             </div>
             <div class="shortcut-toolbar">
               <p id="shortcutRecorderHelp" class="hint">点击按键框录入；Esc 取消，Delete 清空。修改后点击「保存」。</p>
@@ -428,6 +425,7 @@
 
         <footer class="settings-actions">
           <button id="save" type="button" data-settings-feedback>保存</button>
+          <button id="restorePageDefaults" type="button" class="secondary" title="恢复当前页面的默认设置，保存后生效" data-settings-feedback>恢复默认</button>
           <button id="restore" type="button" class="danger" data-settings-feedback>完全重置设置</button>
           <p id="status" role="status"></p>
         </footer>

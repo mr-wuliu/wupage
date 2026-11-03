@@ -5,6 +5,7 @@ import { LOCAL_BINDINGS } from "./local-shortcuts";
 import { LOCAL_SHORTCUTS, TRANSLATION_SHORTCUTS } from "./shortcuts";
 import type { ExtensionSettings, ProviderConfig } from "./types";
 import { parse as parseToml, stringify as stringifyToml, TomlError } from "smol-toml";
+import { withoutSettingsKeys } from "./settings-backup-credentials";
 
 export const SETTINGS_BACKUP_MAX_BYTES = 5 * 1024 * 1024;
 export const SETTINGS_BACKUP_KIND = "wupage-settings-backup";
@@ -40,7 +41,7 @@ export function serializeSettingsBackup(backup: SettingsBackup): string {
   const document = { ...backup, settings: { ...backup.settings,
     pdfTranslationPageRadius: backup.settings.pdfTranslationPageRadius ?? "all" } };
   const text = "# WuPage 设置备份\n"
-    + (backup.includesKeys ? "# 包含密钥，文件未加密，请妥善保管。\n" : "# 不含密钥，自定义请求内容已移除，导入后需重新配置。\n")
+    + (backup.includesKeys ? "# 包含密钥，文件未加密，请妥善保管。\n" : "# 已清空密钥及可识别的认证值，其余配置保留。分享前请检查自定义内容。\n")
     + '# settings.pdfTranslationPageRadius = "all" 表示整份 PDF。\n\n'
     + formatMultilineStrings(stringifyToml(document));
   checkSize(text);
@@ -86,31 +87,6 @@ function formatMultilineStrings(text: string): string {
     }
     return `${match[1]} = """\n${body}"""`;
   }).join("\n");
-}
-
-/** Remove entire user-controlled credential carriers, not guessed key names or
- * token patterns. Headers, URLs and template dialects can hold arbitrary keys.
- * Only exact public defaults are safe to retain in those fields. */
-function withoutSettingsKeys(settings: ExtensionSettings): ExtensionSettings {
-  return { ...settings, providers: settings.providers.map(provider => {
-    const result = structuredClone(provider);
-    const defaults = DEFAULT_SETTINGS.providers.find(entry => entry.type === provider.type);
-    const publicValue = (field: string, value: string): string => defaults
-      && field in defaults && (defaults as unknown as Record<string, unknown>)[field] === value ? value : "";
-    if ("apiKey" in result) result.apiKey = "";
-    if ("baseURL" in result) result.baseURL = publicValue("baseURL", result.baseURL);
-    if ("endpoint" in result) result.endpoint = publicValue("endpoint", result.endpoint);
-    if ("region" in result) result.region = "";
-    if ("api" in result && result.api) result.api = {};
-    if ("systemPrompt" in result) result.systemPrompt = publicValue("systemPrompt", result.systemPrompt);
-    if ("requestTemplate" in result) result.requestTemplate = { enabled: false, headers: "{}", body: "{}" };
-    if (result.type === "http-template") {
-      result.url = publicValue("url", result.url);
-      result.headers = {};
-      result.bodyTemplate = publicValue("bodyTemplate", result.bodyTemplate);
-    }
-    return result;
-  }) };
 }
 
 export function settingsBackupFilename(backup: SettingsBackup): string {

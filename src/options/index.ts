@@ -26,6 +26,7 @@ import { renderUiIcons, uiIconMarkup } from "../shared/ui-icons";
 import { setupSettingsBackupControls } from "./settings-backup";
 import { setupSettingsResetControls } from "./reset-settings";
 import { ACTION_STATUS_DURATION, setupSettingsActionFeedback } from "./action-feedback";
+import { defaultProviderPerformance, restoreProviderParameters } from "./provider-defaults";
 
 renderUiIcons();
 
@@ -188,6 +189,10 @@ async function init(): Promise<void> {
     void save().catch(() => {});
   });
   setupSettingsResetControls(resetSettings);
+  query<HTMLButtonElement>("#restorePageDefaults").addEventListener("click", () => {
+    try { restorePageDefaults(); }
+    catch (error) { setStatus(error instanceof Error ? error.message : String(error)); }
+  });
   providerForm.addEventListener("input", invalidateProviderTest);
   providerForm.addEventListener("change", invalidateProviderTest);
   const updateUsageOnEdit = (event: Event): void => {
@@ -219,30 +224,42 @@ function renderGeneralSettings(): void {
   appearanceControls.render(settings.appearance);
   autoTranslationControls.render(settings.autoTranslation);
   elementExclusionControls.render(settings.elementExclusions);
-  const frameTranslation = normalizeFrameTranslation(settings.frameTranslation);
+  renderGeneralPageSettings(settings);
+  renderSelectionSettings(settings);
+  renderPerformanceSettings(settings);
+}
+
+function renderGeneralPageSettings(value: ExtensionSettings): void {
+  const frameTranslation = normalizeFrameTranslation(value.frameTranslation);
   frameTranslationEnabled.checked = frameTranslation.enabled;
   frameTranslationExcluded.value = frameTranslation.excludeMatches.join("\n");
-  renderLanguageOptions(targetLang, settings.targetLang, TARGET_LANGUAGES);
-  renderLanguageOptions(sourceLang, settings.sourceLang, SOURCE_LANGUAGES);
-  chunkSize.value = String(settings.chunkSize);
-  concurrency.value = String(settings.concurrency);
-  pdfTranslationScope.value = settings.pdfTranslationPageRadius === null ? "unlimited" : "nearby";
-  pdfTranslationPageRadius.value = String(settings.pdfTranslationPageRadius ?? DEFAULT_SETTINGS.pdfTranslationPageRadius);
-  updatePdfTranslationScope();
-  cacheEnabled.checked = settings.cacheEnabled;
-  floatingBallEnabled.checked = settings.floatingBallEnabled;
-  const selection = normalizeSelectionTranslation(settings.selectionTranslation);
+  renderLanguageOptions(targetLang, value.targetLang, TARGET_LANGUAGES);
+  renderLanguageOptions(sourceLang, value.sourceLang, SOURCE_LANGUAGES);
+  cacheEnabled.checked = value.cacheEnabled;
+  floatingBallEnabled.checked = value.floatingBallEnabled;
+  setImageTranslationToggle(imageTranslationEnabled, value.imageTranslationEnabled === true);
+  translateCodeComments.checked = value.translateCodeComments;
+  translationDisplayMode.innerHTML = TRANSLATION_DISPLAY_MODES
+    .map((mode) => `<option value="${mode.value}">${mode.label}</option>`)
+    .join("");
+  translationDisplayMode.value = value.translationDisplayMode;
+  updateTranslationDisplayModeDescription();
+}
+
+function renderSelectionSettings(value: ExtensionSettings): void {
+  const selection = normalizeSelectionTranslation(value.selectionTranslation);
   selectionTranslationEnabled.checked = selection.enabled;
   selectionTranslationFields.disabled = !selection.enabled;
   selectionDictionary.value = selection.provider;
   selectionTriggerStyle.value = selection.style;
-  setImageTranslationToggle(imageTranslationEnabled, settings.imageTranslationEnabled === true);
-  translateCodeComments.checked = settings.translateCodeComments;
-  translationDisplayMode.innerHTML = TRANSLATION_DISPLAY_MODES
-    .map((mode) => `<option value="${mode.value}">${mode.label}</option>`)
-    .join("");
-  translationDisplayMode.value = settings.translationDisplayMode;
-  updateTranslationDisplayModeDescription();
+}
+
+function renderPerformanceSettings(value: ExtensionSettings): void {
+  chunkSize.value = String(value.chunkSize);
+  concurrency.value = String(value.concurrency);
+  pdfTranslationScope.value = value.pdfTranslationPageRadius === null ? "unlimited" : "nearby";
+  pdfTranslationPageRadius.value = String(value.pdfTranslationPageRadius ?? DEFAULT_SETTINGS.pdfTranslationPageRadius);
+  updatePdfTranslationScope();
 }
 
 translationDisplayMode.addEventListener("change", updateTranslationDisplayModeDescription);
@@ -326,21 +343,14 @@ function renderProviderMenuRow(provider: ProviderConfig): string {
   `;
 }
 
-function renderProviderForm(): void {
+function renderProviderForm(rebuildPerformance = true): void {
   invalidateProviderTest();
   const version = ++providerFormVersion;
   clearTimeout(doubaoRetryTimer);
   disposeLocalControl?.(); disposeLocalControl = undefined;
   const provider = getEditingProvider();
   providerFormSettings = structuredClone(provider);
-  providerPerformance.innerHTML = provider.type === "firefox-local"
-    ? '<p class="hint">本地翻译使用固定分块大小 800、并发数 1。</p>'
-    : provider.type === "doubao-web"
-      ? '<p class="hint">豆包翻译使用固定分块大小 1200、并发数 1。</p>'
-      : renderProviderPerformance(provider);
-  providerPerformance.querySelector("[data-field='inheritPerformance']")
-    ?.addEventListener("change", updateProviderPerformanceFields);
-  updateProviderPerformanceFields();
+  if (rebuildPerformance) renderProviderPerformanceControls(provider);
   syncDoubaoTargetControls(settings, targetLang);
   if (provider.type === "doubao-web") {
     setProviderFormMarkup(provider, `
@@ -591,9 +601,13 @@ function updateProviderUsage(): void {
 }
 
 function updateUsageScheduling(): void {
+  refreshUsageScheduling(readProviderFromForm(getEditingProvider()));
+}
+
+function refreshUsageScheduling(base: ProviderConfig): void {
   const container = providerForm.querySelector<HTMLElement>("#providerUsage");
   if (!container) return;
-  const provider = { ...readProviderFromForm(getEditingProvider()), ...readProviderPerformance() } as ProviderConfig;
+  const provider = { ...base, ...readProviderPerformance() } as ProviderConfig;
   const value = (input: HTMLInputElement, fallback: number, min: number, max: number): number => {
     const number = Number(input.value);
     return input.value && Number.isFinite(number) ? Math.min(max, Math.max(min, Math.round(number))) : fallback;
@@ -652,6 +666,17 @@ async function saveModel(): Promise<void> {
   } catch (error) {
     query<HTMLElement>("#modelStatus").textContent = error instanceof Error ? error.message : String(error);
   }
+}
+
+function renderProviderPerformanceControls(provider: ProviderConfig): void {
+  providerPerformance.innerHTML = provider.type === "firefox-local"
+    ? '<p class="hint">本地翻译使用固定分块大小 800、并发数 1。</p>'
+    : provider.type === "doubao-web"
+      ? '<p class="hint">豆包翻译使用固定分块大小 1200、并发数 1。</p>'
+      : renderProviderPerformance(provider);
+  providerPerformance.querySelector("[data-field='inheritPerformance']")
+    ?.addEventListener("change", updateProviderPerformanceFields);
+  updateProviderPerformanceFields();
 }
 
 function renderProviderPerformance(provider: ProviderConfig): string {
@@ -916,6 +941,46 @@ async function testProvider(): Promise<void> {
   } catch (error) {
     report(error instanceof Error ? error.message : String(error));
   }
+}
+
+function restorePageDefaults(): void {
+  const panel = document.querySelector<HTMLElement>(".settings-panel:not([hidden])");
+  switch (panel?.id) {
+    case "generalSettings":
+      renderGeneralPageSettings(DEFAULT_SETTINGS);
+      syncDoubaoTargetControls(settings, targetLang); updateLocalControl();
+      break;
+    case "selectionTranslationSettings": renderSelectionSettings(DEFAULT_SETTINGS); break;
+    case "autoTranslationSettings": autoTranslationControls.render(DEFAULT_SETTINGS.autoTranslation); break;
+    case "elementExclusionSettings": elementExclusionControls.render(DEFAULT_SETTINGS.elementExclusions); break;
+    case "shortcutSettings": shortcutControls.reset(); break;
+    case "appearanceSettings": appearanceControls.render(DEFAULT_SETTINGS.appearance); break;
+    case "statisticsSettings": statisticsControls.reset(); break;
+    case "providerSettings": {
+      const provider = getEditingProvider();
+      const resetCurrent = BUILT_IN_PROVIDER_IDS.has(provider.id) && provider.type !== "http-template";
+      // Preserve even unsaved credentials without reading or validating other pages.
+      const draft = resetCurrent ? readProviderFromForm(provider) : provider;
+      settings.providers = settings.providers.map(entry => restoreProviderParameters(entry.id === provider.id ? draft : entry));
+      renderProviderPicker(false);
+      if (resetCurrent) {
+        // Save must compare restored fields with the original form, not the defaults just rendered.
+        const baseline = providerFormSettings;
+        renderProviderForm(false);
+        providerFormSettings = baseline;
+      }
+      setStatus("已恢复内置服务默认参数，密钥和自定义服务已保留，保存后生效。", ACTION_STATUS_DURATION);
+      return;
+    }
+    case "performanceSettings":
+      settings.providers = settings.providers.map(provider => ({ ...provider, ...defaultProviderPerformance(provider) }));
+      renderPerformanceSettings(DEFAULT_SETTINGS);
+      renderProviderPerformanceControls(getEditingProvider());
+      refreshUsageScheduling(getEditingProvider());
+      break;
+    default: return;
+  }
+  setStatus("已恢复当前页默认设置，保存后生效。", ACTION_STATUS_DURATION);
 }
 
 async function resetSettings(): Promise<void> {

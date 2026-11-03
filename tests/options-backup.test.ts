@@ -94,7 +94,7 @@ it("previews an import without writing, permits cancellation, then accepts the s
   query<HTMLButtonElement>("confirmSettingsBackup").click();
   await vi.waitFor(() => expect(imported).toHaveBeenCalledOnce());
   expect(stored.targetLang).toBe("ja");
-  expect(status).toHaveBeenLastCalledWith("已导入并保存设置。无密钥备份已清空本机旧凭据，相关服务需重新配置。");
+  expect(status).toHaveBeenLastCalledWith("已导入并保存设置。无密钥备份已清空本机旧凭据，其他配置已恢复，密钥需重新填写。");
 });
 it.each(["invalid", "oversized"])("rejects an %s file without modifying settings or opening a confirmation", async kind => {
   const before = structuredClone(stored);

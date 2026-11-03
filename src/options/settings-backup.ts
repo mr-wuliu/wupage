@@ -36,7 +36,7 @@ export function setupSettingsBackupControls(options: {
     query("settingsBackupDialogTitle").textContent = mode === "export" ? "导出设置备份" : "导入并覆盖设置";
     query("settingsBackupSummary").textContent = `${backup.settings.providers.length} 个翻译服务 · WuPage ${backup.extensionVersion} · ${new Date(backup.createdAt).toLocaleString()}`;
     query("settingsBackupWarning").textContent = mode === "export" ? exportWarning(false)
-      : `${backup.includesKeys ? "此备份包含密钥，将覆盖本机凭据。" : "此备份不包含密钥，将清空本机旧凭据与文件中已移除的请求配置，导入后需重新填写。"}导入会立即覆盖全部设置，并丢弃当前未保存的编辑。仅导入可信来源的备份；文件中的服务地址决定后续翻译请求和密钥的接收方。建议先导出当前设置。`;
+      : `${backup.includesKeys ? "此备份包含密钥，将覆盖本机凭据。" : "此备份不包含密钥，将清空本机旧凭据；其他配置按备份恢复，密钥需重新填写。"}导入会立即覆盖全部设置，并丢弃当前未保存的编辑。仅导入可信来源的备份；文件中的服务地址决定后续翻译请求和密钥的接收方。建议先导出当前设置。`;
     confirm.textContent = mode === "export" ? "确认导出" : "确认覆盖";
     dialogStatus.textContent = "";
     setBusy(false);
@@ -107,13 +107,13 @@ export function setupSettingsBackupControls(options: {
           document.body.append(link);
           try { link.click(); } finally { link.remove(); }
           options.status(backup.includesKeys ? "已生成包含密钥的完整备份，请查看浏览器下载记录。文件未加密，请妥善保管。"
-            : "已生成不含密钥的设置备份，请查看浏览器下载记录。自定义请求内容已移除，导入后需重新配置。");
+            : "已生成不含密钥的设置备份，其余配置已保留，请查看浏览器下载记录。");
         } else {
           const result = await sendRuntimeMessage<SettingsImportResult>({ type: "IMPORT_SETTINGS", backup: operation.text });
           if (closed) return;
           options.imported(result.settings);
           options.status("已导入并保存设置。"
-            + (operation.backup.includesKeys ? "" : "无密钥备份已清空本机旧凭据，相关服务需重新配置。")
+            + (operation.backup.includesKeys ? "" : "无密钥备份已清空本机旧凭据，其他配置已恢复，密钥需重新填写。")
             + (result.imageTranslationDisabled ? "本机未安装 OCR 模型，图片翻译保持关闭；安装模型后可重新开启。" : ""));
         }
         close();
@@ -134,5 +134,5 @@ function message(error: unknown): string { return error instanceof Error ? error
 function exportWarning(includeKeys: boolean): string {
   return includeKeys
     ? "备份包含全部已保存设置，以及密钥、请求头和模板等敏感信息，以未加密 TOML 保存。请妥善保管，不要公开分享。当前未保存的编辑不会导出。"
-    : "备份不包含密钥。自定义请求头、模板及非内置地址、提示词等请求内容会被移除，导入后需重新配置。站点规则和服务名称等个人信息仍会保留，分享前请检查。当前未保存的编辑不会导出。";
+    : "备份不包含密钥，保留服务地址、请求头、模板、提示词及其他已保存设置，仅清空密钥字段和可识别的认证值。分享前请检查自定义内容中手动嵌入的敏感信息。当前未保存的编辑不会导出。";
 }
