@@ -86,6 +86,8 @@
     "test:pdf:academic:edge": "node scripts/test-pdf-academic.mjs --edge",
     "test:pdf:academic:firefox": "node scripts/test-pdf-academic.mjs --firefox",
     "test:pdf-scope": "node scripts/test-pdf-scope.mjs",
+    "test:pdf-lifetime:edge": "node scripts/test-pdf-lifetime.mjs --edge",
+    "test:pdf-lifetime:firefox": "node scripts/test-pdf-lifetime.mjs --firefox",
     "test:github-code": "node scripts/test-github-code-comments.mjs",
     "test:image-resolution": "node scripts/test-image-resolution.mjs",
     "typecheck": "tsc --noEmit",

@@ -13,13 +13,10 @@ import { DEFAULT_SETTINGS } from "../shared/defaults";
 import { SOURCE_LANGUAGES, TARGET_LANGUAGES } from "../shared/languages";
 import { enhanceProviderSelect } from "../shared/provider-picker";
 import { sendRuntimeMessage } from "../shared/messaging";
+import { requestPdfTranslation } from "../shared/pdf-translation";
 import { ProviderError } from "../shared/errors";
 import { doubaoProviderNotice, isDoubaoProviderUnavailable, syncDoubaoTargetControls } from "../shared/doubao-ui";
-import type {
-  ExtensionSettings,
-  RuntimeRequest,
-  TranslateBatchResponse
-} from "../shared/types";
+import type { ExtensionSettings } from "../shared/types";
 import {
   estimateForegroundColor,
   toCssRgb,
@@ -55,7 +52,6 @@ GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
 const PDF_DOWNLOAD_TIMEOUT_MS = 30_000;
 const PDF_OPEN_TIMEOUT_MS = 45_000;
-const TRANSLATION_PAGE_TIMEOUT_MS = 120_000;
 const TRANSLATION_SCROLL_DELAY_MS = 200;
 let documentContext: PdfDocumentContext = { context: "", abbreviations: new Map() };
 
@@ -82,6 +78,7 @@ interface PdfPageState {
 }
 
 interface PdfTranslationSession {
+  controller: AbortController;
   runId: number;
   forDownload: boolean;
   finished: Promise<void>;
@@ -245,11 +242,14 @@ function onReaderSettingsChange(): void {
   // A different language or service requires an explicit start with that config.
   const session = translationSession;
   if (session) {
+    cancelTranslationSession();
+    translateButton.classList.remove("is-loading");
+    translateButton.disabled = false;
+    updateDownloadButtonState();
     session.followReading = false;
-    session.pending.clear();
-    session.scrolling = false;
-    window.clearTimeout(translationScrollTimer);
-    pumpTranslationQueue(session);
+    for (const page of session.active) renderPageError(page, new Error("翻译设置已更改，请点击翻译按钮重新开始。"));
+    progressBar.style.width = "0%";
+    showStatus("翻译设置已更改，请点击翻译按钮重新开始。", "info");
   }
   void saveReaderSettings();
 }
@@ -861,6 +861,7 @@ function updateTranslationScopeControl(): void {
 }
 
 function cancelTranslationSession(): void {
+  translationSession?.controller.abort();
   translationSession?.resolveFinished();
   translationSession = undefined;
   window.clearTimeout(translationScrollTimer);
@@ -893,6 +894,7 @@ async function translateDocument(forDownload = false): Promise<PdfTranslationSes
   let resolveFinished!: () => void;
   const finished = new Promise<void>((resolve) => { resolveFinished = resolve; });
   const session: PdfTranslationSession = {
+    controller: new AbortController(),
     runId, forDownload, finished, resolveFinished,
     radius: forDownload ? null : settings.pdfTranslationPageRadius, requestOptions, context,
     readingPage: startingPage, scopePages: [], pending: new Set(), active: new Set(), failed: new Set(),
@@ -974,13 +976,10 @@ async function translatePage(session: PdfTranslationSession, page: PdfPageState)
   try {
     const translatableBlocks = page.blocks.filter((block) => block.translatable);
     const inputs = translatableBlocks.map((block) => preparePdfTranslation(block, documentContext.abbreviations));
-    const result = await withTimeout(
-      sendRuntimeMessage<TranslateBatchResponse>({
-        type: "TRANSLATE_BATCH", texts: inputs.map((input) => input.text),
-        context: pdfPageTranslationContext(documentContext, page.blocks), preservePlaceholders: true, ...session.requestOptions
-      } satisfies RuntimeRequest),
-      TRANSLATION_PAGE_TIMEOUT_MS, `第 ${page.pageNumber} 页翻译`
-    );
+    const result = await requestPdfTranslation({
+      texts: inputs.map((input) => input.text),
+      context: pdfPageTranslationContext(documentContext, page.blocks), preservePlaceholders: true, ...session.requestOptions
+    }, page.pageNumber, session.controller.signal);
     if (translationSession !== session) return;
     let translationIndex = 0;
     const translations = page.blocks.map((block) => {
@@ -1042,7 +1041,7 @@ function renderTranslationSkeleton(page: PdfPageState): void {
   page.translatedCanvasShell.className = "canvas-shell translation-canvas-shell is-loading";
   page.translationLayer.replaceChildren();
   page.translationPrompt.hidden = false;
-  page.translationPrompt.textContent = "正在生成版式译文…";
+  page.translationPrompt.textContent = "正在翻译本页，请稍候…";
 }
 
 function renderPageTranslations(page: PdfPageState, translations: string[], context: string): void {
@@ -1050,6 +1049,13 @@ function renderPageTranslations(page: PdfPageState, translations: string[], cont
   page.translationContext = context;
   page.translationPending = false;
   if (renderedPages.has(page.pageNumber)) renderTranslatedPdfPage(page);
+  else {
+    // Translation can finish before lazy canvas rendering. Do not leave a
+    // completed offscreen page displaying the old spinner or failure state.
+    page.translatedCanvasShell.className = "canvas-shell translation-canvas-shell is-pending";
+    page.translationPrompt.hidden = false;
+    page.translationPrompt.textContent = "译文已就绪，滚动到本页后显示。";
+  }
 }
 
 async function downloadTranslatedDocument(): Promise<void> {

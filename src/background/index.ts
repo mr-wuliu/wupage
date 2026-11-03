@@ -22,6 +22,10 @@ import type { FrameSessionRequest } from "../shared/frame-session";
 import { readParagraphMode } from "../shared/paragraph-mode";
 import { saveParagraphMode } from "./paragraph-mode";
 import { captureVideoFrame } from "./video-frame";
+import { installPdfTranslation } from "./pdf-translation";
+
+installPdfTranslation(async (request, sender, signal) =>
+  translateWithSettings(await getSettings(), request, { signal, statisticsPageKey: statisticsPageKey(sender) }));
 
 chrome.runtime.onMessage.addListener((request: RuntimeRequest, sender, sendResponse) => {
   if ("target" in request) return;

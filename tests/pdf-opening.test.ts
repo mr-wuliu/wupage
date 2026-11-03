@@ -8,6 +8,7 @@ vi.mock("../src/pdf/font-control", () => ({ setupPdfFontControl: () => ({
 }) }));
 import { DEFAULT_SETTINGS } from "../src/shared/defaults";
 import type { RuntimeRequest, RuntimeResponse } from "../src/shared/types";
+import { pdfPortFixture } from "./helpers/pdf-port";
 
 const { getDocument } = vi.hoisted(() => ({ getDocument: vi.fn() }));
 vi.mock("pdfjs-dist", () => ({ GlobalWorkerOptions: {}, OPS: {}, TextLayer: vi.fn(), getDocument }));
@@ -47,7 +48,7 @@ describe("PDF source opening", () => {
       return { ok: true };
     });
     vi.stubGlobal("chrome", {
-      runtime: { id: "test-extension", sendMessage },
+      runtime: { id: "test-extension", sendMessage, connect: pdfPortFixture(sendMessage) },
       extension: { isAllowedFileSchemeAccess: fileAccess },
       tabs: { create: vi.fn(async () => undefined) }
     });
@@ -160,6 +161,28 @@ describe("PDF source opening", () => {
     finishSave({ ok: true });
     await vi.waitFor(() => expect(translated()).toBe(true));
     expect(sendMessage.mock.calls.filter(([request]) => request.type === "TRANSLATE_BATCH")).toHaveLength(1);
+  });
+
+  it("stops loading immediately when the language changes and ignores the old page result", async () => {
+    let finish!: (response: RuntimeResponse) => void;
+    const original = sendMessage.getMockImplementation()!;
+    sendMessage.mockImplementation(request => request.type === "TRANSLATE_BATCH"
+      ? new Promise(resolve => { finish = resolve; }) : original(request));
+    await launch(fileUrl);
+    await vi.waitFor(() => expect(finish).toBeTypeOf("function"));
+    const language = document.querySelector<HTMLSelectElement>("#targetLang")!;
+    language.value = "ja"; language.dispatchEvent(new Event("change"));
+    expect(document.querySelector<HTMLButtonElement>("#translateDocument")!.disabled).toBe(false);
+    expect(document.querySelector(".translation-canvas-shell.is-loading")).toBeNull();
+    expect(document.querySelector(".translation-prompt")!.textContent).toContain("翻译设置已更改");
+    finish({ ok: true, data: { translations: ["旧译文"], cached: 0 } });
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(document.querySelector(".translation-prompt")!.textContent).toContain("翻译设置已更改");
+    sendMessage.mockImplementation(original);
+    document.querySelector<HTMLButtonElement>("#translateDocument")!.click();
+    await vi.waitFor(() => expect(document.querySelector("#statusToast")?.textContent).toContain("翻译完成"));
+    expect(document.querySelector(".translation-canvas-shell.is-loading")).toBeNull();
+    expect(document.querySelector(".translation-prompt")!.textContent).toContain("译文已就绪");
   });
 
   it("starts at the reading position, debounces scrolling, and replaces waiting pages while requests are in flight", async () => {
