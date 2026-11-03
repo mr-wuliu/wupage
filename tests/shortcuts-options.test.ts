@@ -37,7 +37,7 @@ describe("in-page shortcut editor", () => {
     toggle.click(); expect(toggle.getAttribute("aria-checked")).toBe("true");
     root.querySelector<HTMLButtonElement>("[data-shortcut-toggle='selection-submit']")!.click();
     expect(controls.readEnabled()["selection-submit"]).toBe(false);
-    root.querySelector<HTMLButtonElement>("#resetShortcuts")!.click();
+    controls.reset();
     expect(controls.readEnabled()).toEqual(DEFAULT_SHORTCUT_ENABLED);
   });
   it.each(TRANSLATION_SHORTCUTS)("keeps an empty $name disabled until a binding is explicitly assigned", ({ name }) => {
@@ -142,7 +142,7 @@ describe("in-page shortcut editor", () => {
     mount({ ...DEFAULT_SHORTCUTS, "translate-selection": "" });
     const snapshot = controls.read(); snapshot["toggle-page-translation"] = "";
     expect(controls.read()["toggle-page-translation"]).not.toBe("");
-    root.querySelector<HTMLButtonElement>("#resetShortcuts")!.click();
+    controls.reset();
     expect(controls.read()).toEqual(DEFAULT_SHORTCUTS);
   });
   it("checks conflicts even when restoring one default", () => {
@@ -177,7 +177,7 @@ describe("in-page shortcut editor", () => {
     dismiss.focus(); press("Enter", "Enter", { altKey: true });
     dismiss.focus(); root.querySelector<HTMLButtonElement>('[data-local-escape="dismiss-overlays"]')!.click();
     expect(controls.readLocal()["dismiss-overlays"]).toBe("Escape");
-    root.querySelector<HTMLButtonElement>("#resetShortcuts")!.click();
+    controls.reset();
     expect(controls.readLocal()["paragraph-click"]).toBe("Ctrl");
   });
 });

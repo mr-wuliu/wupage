@@ -50,6 +50,18 @@ try {
   const url = await browser.api('return chrome.runtime.getURL("options.html#backupSettings");');
   await browser.navigate(url);
   await waitFor('return document.getElementById("providerTriggerLabel").textContent==="DeepSeek";');
+  assert.equal(await browser.evaluate('return document.getElementById("resetShortcuts");'), null);
+  const panels = await browser.evaluate('return Array.from(document.querySelectorAll(".settings-nav a"),link=>link.getAttribute("aria-controls"));');
+  for (const width of [1400, 390]) {
+    await browser.resize(width, 900);
+    for (const panel of [...panels, 'backupSettings']) {
+      const visible = await browser.evaluate(`document.querySelector('.settings-nav a[aria-controls="${panel}"]').click();
+        return Object.fromEntries(['save','restorePageDefaults','restore'].map(id=>[id,document.getElementById(id).getClientRects().length>0]));`);
+      assert.deepEqual(visible, { save: panel !== 'backupSettings', restorePageDefaults: panel !== 'backupSettings', restore: panel === 'backupSettings' }, `${width}: ${panel} action scope`);
+    }
+  }
+  await browser.resize(1400, 900);
+  checks.push('each editable category has save and scoped defaults; only backup has full reset; desktop and narrow layouts have no shortcut-header reset');
   assert.equal(await browser.evaluate('return document.getElementById("restore").textContent;'), '完全重置设置');
   await browser.evaluate('document.getElementById("chunkSize").value="777";');
   for (const mode of ['button', 'Escape', 'Enter']) {
@@ -109,9 +121,9 @@ try {
   assert.equal((await settings()).providers.some(p=>p.id==='custom-reset-fixture'), false);
   await waitFor('return document.getElementById("status").textContent==="";');
   await browser.evaluate(`document.querySelector('.settings-nav a[aria-controls="shortcutSettings"]').click();`);
-  await clickWithFeedback('resetShortcuts');
-  await waitFor('return document.getElementById("shortcutStatus").textContent.includes("已恢复默认");');
-  await waitFor('return document.getElementById("shortcutStatus").textContent==="";');
+  await clickWithFeedback('restorePageDefaults');
+  await waitFor('return document.getElementById("status").textContent.includes("已恢复当前页");');
+  await waitFor('return document.getElementById("status").textContent==="";');
   await browser.evaluate(`document.querySelector('.settings-nav a[aria-controls="appearanceSettings"]').click();document.getElementById('appearanceMenuTab').click();`);
   await clickWithFeedback('resetPopupMenu');
   await waitFor('return document.getElementById("popupMenuStatus").textContent.includes("已恢复默认");');

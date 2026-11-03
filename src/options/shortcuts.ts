@@ -9,6 +9,7 @@ export function setupShortcutSettings(root: HTMLElement): {
   read: () => ShortcutSettings;
   readEnabled: () => ShortcutEnabledSettings;
   readLocal: () => LocalShortcutSettings;
+  reset: () => void;
 } {
   const bindings = root.querySelector<HTMLElement>("#shortcutBindings")!;
   const status = root.querySelector<HTMLElement>("#shortcutStatus")!;
@@ -135,16 +136,16 @@ export function setupShortcutSettings(root: HTMLElement): {
     setEnabled: (name, value) => { enabled[name] = value; },
     changed: () => { recording = undefined; refresh(); }
   });
-  root.querySelector<HTMLButtonElement>("#resetShortcuts")!.addEventListener("click", () => {
-    values = { ...DEFAULT_SHORTCUTS }; recording = undefined;
-    enabled = { ...DEFAULT_SHORTCUT_ENABLED };
-    localControls.reset();
-    for (const row of rows.values()) { row.error.textContent = ""; row.input.removeAttribute("aria-invalid"); }
-    refresh(); showActionStatus(status, "已恢复默认快捷键，点击底部「保存」后生效。");
-  }, { signal: events.signal });
   window.addEventListener("pagehide", event => { if (!event.persisted) events.abort(); }, { signal: events.signal });
   refresh();
   return {
+    reset() {
+      values = { ...DEFAULT_SHORTCUTS }; recording = undefined;
+      enabled = { ...DEFAULT_SHORTCUT_ENABLED };
+      localControls!.reset();
+      for (const row of rows.values()) { row.error.textContent = ""; row.input.removeAttribute("aria-invalid"); }
+      refresh(); status.textContent = "";
+    },
     render(value, activation, local) {
       values = normalizeShortcuts(value); ready = true; recording = undefined;
       localControls!.render(local);

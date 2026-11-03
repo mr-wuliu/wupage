@@ -39,11 +39,11 @@ try {
     const settings = response.data; settings.targetLang = 'ja'; settings.pdfTranslationPageRadius=null;
     const llm = settings.providers.find(p=>p.type==='deepseek'); llm.apiKey='fixture-llm-secret';
     llm.systemPrompt=input[0];
-    llm.requestTemplate={enabled:true,headers:'{"X-Signature2":"fixture-header-secret"}',body:'{"token":"fixture-body-secret"}'};
+    llm.requestTemplate={enabled:true,headers:'{"X-Signature2":"fixture-header-secret","X-Client":"backup-client"}',body:'{"token":"fixture-body-secret","context":"{{context}}"}'};
     settings.providers[0].serviceMode='api'; settings.providers[0].api={apiKey:'fixture-service-secret',endpoint:'https://translation.example/CaseSensitive'};
     settings.providers.push({type:'http-template',id:'custom-backup-test',label:'<b>Example</b>',method:'POST',
       url:'https://user:fixture-password@translation.example/Path@proxy?signature=fixture-url-secret',
-      headers:{'X-Opaque':'fixture-opaque-secret'},bodyTemplate:'{"api_key":"fixture-template-secret","q":{{json texts}}}',responsePath:'translations'});
+      headers:{Authorization:'fixture-opaque-secret','X-Client':'backup-client'},bodyTemplate:'{"api_key":"fixture-template-secret","q":{{json texts}}}',responsePath:'translations'});
     const result=await chrome.runtime.sendMessage({type:'SAVE_SETTINGS',settings}); if(!result.ok)throw new Error(result.error);
     await chrome.storage.local.set({'backup-test-unrelated':'keep-me'}); return settings;`, ['多行提示词 """\n保留中文、引号与 C:\\Users\\test\n{{targetLang}}']);
   await browser.navigate(url);
@@ -75,10 +75,14 @@ try {
   assert.equal(keyless.settings.targetLang, 'fr'); assert.equal(keyless.settings.chunkSize, seed.chunkSize);
   for (const secret of ['llm','header','body','service','url','opaque','template']) assert.ok(!defaultText.includes(`fixture-${secret}-secret`));
   assert.ok(!defaultText.includes('fixture-password')); assert.ok(!defaultText.includes('keep-me'));
-  assert.equal(keyless.settings.providers.find(p=>p.id==='custom-backup-test').url, '');
-  assert.deepEqual(Object.entries(keyless.settings.providers.find(p=>p.id==='custom-backup-test').headers), []);
+  assert.equal(keyless.settings.providers.find(p=>p.id==='custom-backup-test').url, 'https://user:@translation.example/Path@proxy?signature=');
+  assert.deepEqual({...keyless.settings.providers.find(p=>p.id==='custom-backup-test').headers}, {Authorization:'','X-Client':'backup-client'});
+  assert.equal(keyless.settings.providers.find(p=>p.id==='custom-backup-test').bodyTemplate, '{"api_key":"","q":{{json texts}}}');
+  assert.equal(keyless.settings.providers.find(p=>p.id==='deepseek').systemPrompt, seed.providers.find(p=>p.id==='deepseek').systemPrompt);
+  assert.deepEqual({...keyless.settings.providers.find(p=>p.id==='deepseek').requestTemplate}, {enabled:true,headers:'{"X-Signature2":"","X-Client":"backup-client"}',body:'{"token":"","context":"{{context}}"}'});
+  assert.equal(keyless.settings.providers[0].api.endpoint, 'https://translation.example/CaseSensitive');
   assert.ok(stringifyToml(await stored()).includes('fixture-llm-secret'), 'export must not modify stored credentials');
-  checks.push('default download omits all dedicated and arbitrary credential carriers while preserving saved preferences');
+  checks.push('default download clears credentials while retaining endpoints, custom headers, templates, prompts and every other saved option');
 
   await click('exportSettings'); await preview();
   assert.equal(await browser.evaluate('return document.getElementById("settingsBackupIncludeKeys").checked;'), false);
