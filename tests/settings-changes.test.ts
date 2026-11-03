@@ -50,6 +50,19 @@ describe("settings changes from different pages", () => {
     expect(mergeSettingsChanges(draft, latest, previous).providers.map(entry => entry.id))
       .not.toContain("custom-old");
   });
+  it.each([false, true])("keeps layouts added by different players even before layouts exist (video settings present: %s)", initialized => {
+    const previous = structuredClone(DEFAULT_SETTINGS);
+    if (initialized) previous.videoTranslation = normalizeVideoTranslation(undefined);
+    const draft = structuredClone(previous), latest = structuredClone(previous);
+    draft.videoTranslation = normalizeVideoTranslation({ siteLayouts: [{ id: "a.example", x: 50, bottom: 20, width: 60, fontSize: 24 }] });
+    latest.videoTranslation = normalizeVideoTranslation({ enabled: false, siteLayouts: [{ id: "b.example", x: 45, bottom: 10, width: 70, fontSize: 28 }] });
+    const merged = mergeSettingsChanges(latest, draft, previous);
+    expect(merged.videoTranslation?.enabled).toBe(false);
+    expect(merged.videoTranslation?.siteLayouts).toEqual([
+      latest.videoTranslation.siteLayouts![0], draft.videoTranslation.siteLayouts![0]
+    ]);
+    expect(previous.videoTranslation?.siteLayouts).toBeUndefined();
+  });
 
   it("honors explicit field removal and uses the submitted value for conflicting edits", () => {
     const previous = structuredClone(DEFAULT_SETTINGS);

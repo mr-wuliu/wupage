@@ -9,7 +9,8 @@ import { stringify as stringifyToml } from "smol-toml";
 const now = new Date("2026-11-03T01:02:03.456Z");
 function fixture(): ExtensionSettings {
   const settings = structuredClone(DEFAULT_SETTINGS);
-  settings.videoTranslation = { enabled: false, showOriginal: false, fontSize: 26, background: "none", preferredSource: "en", enabledSites: ["youtube.com"] };
+  settings.videoTranslation = { enabled: false, showOriginal: false, fontSize: 26, background: "none", preferredSource: "en", enabledSites: ["youtube.com"],
+    siteLayouts: [{ id: "www.youtube.com", x: 45, bottom: 20, width: 65, fontSize: 28 }] };
   settings.providers.push({ type: "http-template", id: "custom-http", label: "<b>自定义</b>", method: "POST",
     url: "https://user:password@example.com/Api@proxy?signature=short-secret", headers: { "X-Signature2": "opaque-value", "Content-Type": "application/json" },
     bodyTemplate: '{"api_key":"plain-value","q":{{json texts}}}', responsePath: "translations" });
@@ -70,6 +71,7 @@ describe("settings backup format", () => {
     ["invalid shortcut", (b: any) => { b.settings.shortcuts["toggle-page-translation"] = "invalid"; return serializeSettingsBackup(b); }],
     ["invalid site rule", (b: any) => { b.settings.autoTranslation.customSites[0].pattern = "https://"; return serializeSettingsBackup(b); }],
     ["invalid number", (b: any) => { b.settings.concurrency = 100; return serializeSettingsBackup(b); }],
+    ["invalid subtitle layout", (b: any) => { b.settings.videoTranslation.siteLayouts[0].width = 200; return serializeSettingsBackup(b); }],
     ["polluting key", (b: any) => '__proto__.polluted = true\n' + serializeSettingsBackup(b)],
     ["duplicate TOML key", (b: any) => 'kind = "duplicate"\n' + serializeSettingsBackup(b)],
     ["invalid numeric value", (b: any) => serializeSettingsBackup(b).replace('concurrency = 3', 'concurrency = nan')],

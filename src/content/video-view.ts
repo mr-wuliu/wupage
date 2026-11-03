@@ -1,6 +1,7 @@
 import { TARGET_LANGUAGES } from "../shared/languages";
 import type { ExtensionSettings } from "../shared/types";
-import { normalizeVideoTranslation, type VideoTranslationSettings } from "../shared/video";
+import { normalizeVideoTranslation, type VideoSubtitleLayout, type VideoTranslationSettings } from "../shared/video";
+import { VideoLayoutEditor, VIDEO_LAYOUT_STYLES } from "./video-layout";
 import { uiIconMarkup } from "../shared/ui-icons";
 import { setHtmlContent } from "../shared/html";
 
@@ -13,6 +14,7 @@ export interface VideoViewActions {
   source: (id: string) => void;
   settings: (patch: Partial<ExtensionSettings>) => void;
   preferences: (patch: Partial<VideoTranslationSettings>) => void;
+  layout: (layout: VideoSubtitleLayout) => Promise<void>;
   import: (file: File) => void;
   offset: (seconds: number) => void;
 }
@@ -29,7 +31,7 @@ const styles = `
   :host([data-enabled]) .mark { color: #172024; background: #a9ead3; border-color: #a9ead3; }
   .settings { display: grid; place-items: center; border-left: 1px solid #ffffff1c !important; border-radius: 0 8px 8px 0; } .settings svg { width: 15px; height: 15px; }
   button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid #a9ead3; outline-offset: 2px; }
-  .captions { position: absolute; left: 50%; bottom: max(10%, 46px); transform: translateX(-50%); width: 90%; text-align: center; color: #fff; font: 600 clamp(14px,3cqw,var(--wp-video-font,22px))/1.4 system-ui,sans-serif; text-shadow: 0 1px 3px #000,0 0 2px #000; }
+  .captions,.layout-preview { position: absolute; left: 50%; bottom: max(10%, 46px); transform: translateX(-50%); width: 90%; text-align: center; color: #fff; font: 600 clamp(14px,3cqw,var(--wp-video-font,22px))/1.4 system-ui,sans-serif; text-shadow: 0 1px 3px #000,0 0 2px #000; }
   .source,.translation { white-space: pre-line; overflow-wrap: anywhere; } .source { font-size: .78em; font-weight: 500; margin-bottom: 5px; color: #f1f4f3; }
   .source span,.translation span { background: var(--wp-video-bg,#101718bf); box-decoration-break: clone; -webkit-box-decoration-break: clone; padding: 3px 8px; border-radius: 4px; }
   .source:has(span:empty),.translation:has(span:empty) { display: none; }
@@ -44,7 +46,7 @@ const styles = `
   .help { margin: 5px 0 0; color: #93a6a0; font-size: 11px; }
   .retry { margin-top: 10px; padding: 6px 12px; color: #15342b; border: 0; border-radius: 6px; background: #a9ead3; }
   details { margin-top: 12px; border-top: 1px solid #ffffff1f; padding-top: 10px; } summary { color: #c4d2cd; cursor: pointer; font-size: 12px; }
-  .import { margin-top: 10px; color: #e8f1ee; background: #233135; border: 1px solid #50615e; border-radius: 6px; padding: 6px 10px; }
+  .panel-action { margin-top: 10px; color: #e8f1ee; background: #233135; border: 1px solid #50615e; border-radius: 6px; padding: 6px 10px; }
   .offset { width: 100%; height: 32px; border: 1px solid #50615e; border-radius: 6px; background: #233135; color: #fff; padding: 5px 8px; }
   .notice { position: absolute; top: 58px; right: 14px; max-width: min(300px,calc(100% - 28px)); padding: 9px 12px; background: #172024ed; border: 1px solid #ffffff29; border-radius: 8px; color: #e4eeea; font: 12px/1.5 system-ui,sans-serif; pointer-events: auto; }
   :host([data-docked]) { position: relative !important; inset: auto !important; display: inline-flex !important; vertical-align: top !important; flex: 0 0 auto !important; width: auto !important; height: var(--wp-native-control-height,100%) !important; transform: translateY(var(--wp-native-control-offset,0px)) !important; pointer-events: inherit !important; container-type: normal !important; z-index: auto !important; }
@@ -61,6 +63,7 @@ const styles = `
   :host([data-native-hidden]) { pointer-events: none !important; }
   @media (prefers-reduced-motion: reduce) { .toolbar { transition: none; } .frame { animation: none !important; } }
   @media (pointer: coarse) { .toolbar button, :host([data-docked]) .toolbar button { min-width: 44px; min-height: 44px; } }
+  ${VIDEO_LAYOUT_STYLES}
 `;
 
 export class VideoView {
@@ -83,6 +86,7 @@ export class VideoView {
   private readonly status: HTMLElement;
   private readonly notice: HTMLElement;
   private readonly retry: HTMLButtonElement;
+  private readonly layoutEditor: VideoLayoutEditor;
   private noticeTimer?: ReturnType<typeof setTimeout>;
   private frameStatusTimer?: ReturnType<typeof setTimeout>;
   private hasTranslation = false;
@@ -101,17 +105,18 @@ export class VideoView {
       </div>
       <div class="captions" role="region" aria-label="双语字幕" hidden><div class="source" dir="auto"><span></span></div><div class="translation" dir="auto"><span></span></div></div>
       <section class="panel" popover="manual" aria-label="字幕设置" hidden>
-        <header><h2>视频字幕</h2><button class="close" type="button" aria-label="关闭字幕设置">×</button></header>
+        <header><h2>视频字幕</h2><button class="close" type="button" aria-label="关闭字幕设置">${uiIconMarkup("cross")}</button></header>
         <div class="row"><label class="field">译为<select class="target" aria-label="字幕目标语言"></select></label><label class="field">字号<select class="font" aria-label="字幕字号"><option value="18">小</option><option value="22">中</option><option value="26">大</option></select></label></div>
         <label class="field">翻译服务<select class="provider" aria-label="字幕翻译服务"></select></label>
         <label class="field">原字幕<select class="track" aria-label="原字幕语言"><option value="auto">跟随播放器</option></select></label>
         <label class="check"><input class="original" type="checkbox" checked>显示原文</label>
         <label class="check"><input class="automatic" type="checkbox">在此网站自动开启</label>
+        <button class="layout-open panel-action" type="button">${uiIconMarkup("cursor-move")} 调整字幕布局</button>
         <p class="status" role="status"></p><button class="retry" type="button" hidden>重试读取</button>
         <details><summary>更多选项</summary>
           <label class="field">字幕背景<select class="background" aria-label="字幕背景"><option value="soft">半透明</option><option value="none">透明</option></select></label>
           <label class="field">时间偏移（秒）<input class="offset" type="number" min="-30" max="30" step="0.5" value="0" aria-label="字幕时间偏移"></label>
-          <button class="import" type="button">导入 SRT / VTT</button><input class="file" type="file" accept=".srt,.vtt" hidden>
+          <button class="import panel-action" type="button">导入 SRT / VTT</button><input class="file" type="file" accept=".srt,.vtt" hidden>
           <p class="help">仅翻译字幕文本，不采集音频。在线翻译使用所选服务的额度。</p>
         </details>
       </section><div class="notice" role="status" hidden></div><div class="notice frame-status" role="status" hidden></div>`);
@@ -123,10 +128,14 @@ export class VideoView {
     this.controlsHost.setAttribute("data-docked", ""); this.controlsHost.setAttribute("translate", "no");
     setHtmlContent(this.controlsRoot, `<style>${styles}</style>`);
     this.source = query(".source span"); this.translation = query(".translation span"); this.status = query(".status"); this.notice = query(".notice"); this.retry = query(".retry");
+    this.layoutEditor = new VideoLayoutEditor(this.host, this.caption, actions.layout, () => {
+      this.setControls(true); this.settingsButton.focus();
+    });
+    this.on(query(".layout-open"), "click", () => { this.setPanel(false); this.layoutEditor.begin(); });
     const target = query<HTMLSelectElement>(".target");
     target.replaceChildren(...TARGET_LANGUAGES.map(language => new Option(language.label, language.code)));
     this.on(this.toggle, "click", () => actions.toggle());
-    this.on(this.frameButton, "click", () => actions.frame());
+    this.on(this.frameButton, "click", () => { this.layoutEditor.cancel(); actions.frame(); });
     this.on(this.settingsButton, "click", () => this.setPanel(this.panel.hidden));
     this.on(query(".close"), "click", () => this.setPanel(false));
     this.on(this.retry, "click", () => actions.retry());
@@ -134,7 +143,11 @@ export class VideoView {
     const provider = query<HTMLSelectElement>(".provider");
     this.on(provider, "change", () => actions.settings({ activeProviderId: provider.value }));
     const track = query<HTMLSelectElement>(".track"); this.on(track, "change", () => actions.source(track.value));
-    const font = query<HTMLSelectElement>(".font"); this.on(font, "change", () => actions.preferences({ fontSize: Number(font.value) as 18 | 22 | 26 }));
+    const font = query<HTMLSelectElement>(".font"); this.on(font, "change", () => {
+      const layout = this.layoutEditor.siteLayout;
+      if (layout) void actions.layout({ ...layout, fontSize: Number(font.value) }).catch(() => {});
+      else actions.preferences({ fontSize: Number(font.value) as 18 | 22 | 26 });
+    });
     const original = query<HTMLInputElement>(".original"); this.on(original, "change", () => actions.preferences({ showOriginal: original.checked }));
     const background = query<HTMLSelectElement>(".background"); this.on(background, "change", () => actions.preferences({ background: background.value as "soft" | "none" }));
     const automatic = query<HTMLInputElement>(".automatic"); this.on(automatic, "change", () => actions.preferences({ enabledSites: automatic.checked ? [label] : [] }));
@@ -146,7 +159,7 @@ export class VideoView {
       else offset.value = "0";
     });
     for (const root of [this.root, this.controlsRoot]) {
-      this.on(root, "keydown", (event: Event) => { event.stopPropagation(); if ((event as KeyboardEvent).key === "Escape") { this.setPanel(false); this.toggle.focus(); } });
+      this.on(root, "keydown", (event: Event) => { event.stopPropagation(); if ((event as KeyboardEvent).key === "Escape") { this.layoutEditor.cancel(); this.setPanel(false); this.toggle.focus(); } });
       this.on(root, "click", event => event.stopPropagation());
     }
     this.on(document, "pointerdown", event => { if (!this.panel.hidden && !event.composedPath().some(node => node === this.host || node === this.controlsHost)) this.setPanel(false); }, true);
@@ -158,7 +171,8 @@ export class VideoView {
 
   setControls(show: boolean): void { this.host.toggleAttribute("data-controls", show); }
   focus(): void { this.setControls(true); this.toggle.focus(); }
-  get panelOpen(): boolean { return !this.panel.hidden; }
+  get panelOpen(): boolean { return !this.panel.hidden || this.layoutEditor.editing; }
+  resizeLayout(): void { this.layoutEditor.resize(); }
 
   setFrameCapturing(hidden: boolean): void {
     this.host.toggleAttribute("data-capturing", hidden); this.controlsHost.toggleAttribute("data-capturing", hidden);
@@ -225,6 +239,7 @@ export class VideoView {
   setPanel(open: boolean): void {
     if (open === !this.panel.hidden) return;
     if (open) {
+      this.layoutEditor.cancel();
       this.panel.hidden = false;
       this.positionPanel();
       try { this.panel.showPopover?.(); } catch { /* Fallback works in older embedded viewers. */ }
@@ -270,7 +285,11 @@ export class VideoView {
       provider.dataset.options = signature;
     }
     provider.value = settings.activeProviderId;
-    this.root.querySelector<HTMLSelectElement>(".font")!.value = String(preferences.fontSize);
+    const fontSize = this.layoutEditor.settings(preferences);
+    const font = this.root.querySelector<HTMLSelectElement>(".font")!;
+    for (const option of [...font.options]) if (!["18", "22", "26"].includes(option.value)) option.remove();
+    if (![...font.options].some(option => option.value === String(fontSize))) font.add(new Option(`${fontSize} px`, String(fontSize)));
+    font.value = String(fontSize);
     this.root.querySelector<HTMLSelectElement>(".background")!.value = preferences.background;
     this.root.querySelector<HTMLInputElement>(".original")!.checked = preferences.showOriginal;
     this.root.querySelector<HTMLInputElement>(".automatic")!.checked = preferences.enabledSites.includes(site);
@@ -288,9 +307,12 @@ export class VideoView {
     this.showOriginal = preferences.showOriginal;
     if (translation) this.hasTranslation = true;
     this.updateMark();
-    this.setText(this.source, preferences.showOriginal && source !== translation ? source : "");
+    const shownSource = preferences.showOriginal && source !== translation ? source : "";
+    const changed = this.source.textContent !== shownSource || this.translation.textContent !== translation;
+    this.setText(this.source, shownSource);
     this.setText(this.translation, translation);
     this.caption.hidden = !translation;
+    if (changed) this.layoutEditor.refresh();
   }
 
   private updateMark(): void {
@@ -306,6 +328,7 @@ export class VideoView {
   private setText(element: Element, value: string): void { if (element.textContent !== value) element.textContent = value; }
   dispose(): void {
     this.setPanel(false); clearTimeout(this.noticeTimer); clearTimeout(this.frameStatusTimer);
+    this.layoutEditor.dispose();
     for (const cleanup of this.cleanups) cleanup(); this.cleanups = []; this.controlsHost.remove(); this.host.remove();
   }
 }

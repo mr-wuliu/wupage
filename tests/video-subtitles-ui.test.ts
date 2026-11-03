@@ -273,6 +273,30 @@ describe("player subtitle controls", () => {
     await vi.advanceTimersByTimeAsync(120); await flush();
     expect(root().querySelector(".translation span")?.textContent).toBe("你好");
   });
+  it("saves layout for the current hostname while preserving other sites and cached translations", async () => {
+    await flush();
+    const preferences = { enabled: true, showOriginal: true, fontSize: 22 as const, background: "soft" as const,
+      preferredSource: "auto", enabledSites: [], siteLayouts: [{ id: "other.example", x: 50, bottom: 20, width: 80, fontSize: 24 }] };
+    vi.mocked(sendRuntimeRequest).mockImplementation(async request => {
+      if (request.type === "GET_SETTINGS") return { ...DEFAULT_SETTINGS, videoTranslation: preferences };
+      if (request.type === "TRANSLATE_VIDEO_SUBTITLES") return { translations: request.texts.map(text => text === "Hello" ? "你好" : "稍后"), cached: 0 };
+      return null;
+    });
+    settingsListener({ [SETTINGS_KEY]: { newValue: { ...DEFAULT_SETTINGS, videoTranslation: preferences } } }, "local");
+    toggle().click(); await flush();
+    const translations = vi.mocked(sendRuntimeRequest).mock.calls.filter(([request]) => request.type === "TRANSLATE_VIDEO_SUBTITLES").length;
+    root().querySelector<HTMLButtonElement>(".layout-open")!.click();
+    const width = root().querySelector<HTMLInputElement>(".layout-width")!;
+    width.value = "65"; width.dispatchEvent(new Event("input"));
+    expect(vi.mocked(sendRuntimeRequest).mock.calls.some(([request]) => request.type === "SAVE_SETTINGS")).toBe(false);
+    root().querySelector<HTMLButtonElement>(".layout-done")!.click(); await flush();
+    const save = vi.mocked(sendRuntimeRequest).mock.calls.map(([request]) => request).find(request => request.type === "SAVE_SETTINGS");
+    expect(save?.type === "SAVE_SETTINGS" && save.settings.videoTranslation?.siteLayouts).toEqual([
+      preferences.siteLayouts[0], { id: location.hostname, x: 50, bottom: 10, width: 65, fontSize: 22 }
+    ]);
+    expect(vi.mocked(sendRuntimeRequest).mock.calls.filter(([request]) => request.type === "TRANSLATE_VIDEO_SUBTITLES")).toHaveLength(translations);
+    expect(root().querySelector(".translation span")?.textContent).toBe("你好");
+  });
   it("does not apply an old save acknowledgement over newer storage settings", async () => {
     await flush();
     let finish!: () => void;

@@ -58,6 +58,25 @@ try{
  assert.equal(await firefox.execute('return document.querySelector("[data-wupage-video]").shadowRoot.querySelector(".panel").hidden;'),false);
  const shot=await firefox.command('WebDriver:TakeScreenshot',{id:null,highlights:[],full:true});
  await fs.writeFile(path.join(output,'settings.png'),Buffer.from(shot.value,'base64'));
+  await firefox.execute(`const root=document.querySelector('[data-wupage-video]').shadowRoot;
+    root.querySelector('.layout-open').click();
+    const width=root.querySelector('.layout-width');width.value='55';width.dispatchEvent(new Event('input'));
+    root.querySelector('.layout-cancel').click();`);
+  assert.equal(await firefox.execute(`return document.querySelector('[data-wupage-video]').shadowRoot.querySelector('.captions').style.width;`),'90%');
+  await firefox.execute(`const root=document.querySelector('[data-wupage-video]').shadowRoot;
+    root.querySelector('.settings').click();root.querySelector('.layout-open').click();
+    for(const [selector,value] of [['.layout-width','55'],['.layout-font','28']]){
+      const input=root.querySelector(selector);input.value=value;input.dispatchEvent(new Event('input'));
+    }
+    root.querySelector('.layout-preview').dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowUp',shiftKey:true,bubbles:true}));
+    root.querySelector('.layout-done').click();`);
+  await wait(()=>firefox.execute(`return !document.querySelector('[data-wupage-video]').hasAttribute('data-layout-editing');`),Boolean,'save subtitle layout');
+  const savedLayout=await api(`return (await chrome.runtime.sendMessage({type:'GET_SETTINGS'})).data.videoTranslation.siteLayouts.find(entry=>entry.id==='127.0.0.1');`);
+  assert.deepEqual(savedLayout,{id:'127.0.0.1',x:50,bottom:15,width:55,fontSize:28});
+  await select(reading);
+  assert.equal(await firefox.execute(`return getComputedStyle(document.querySelector('[data-wupage-video]').shadowRoot.querySelector('.captions')).fontSize;`),'28px');
+  await firefox.execute(`document.querySelector('[data-wupage-video]').shadowRoot.querySelector('.settings').click();`);
+  checks.push('Firefox layout preview, cancel, range controls, keyboard movement and website layout persistence');
  await firefox.execute('const root=document.querySelector("[data-wupage-video]").shadowRoot;root.querySelector(".close").click();root.querySelector(".toggle").click();');
  assert.equal(await firefox.execute('return document.querySelector("video").textTracks[0].mode;'),'showing');checks.push('popover and native subtitle restoration');
  await firefox.command('WebDriver:Navigate',{url:origin+'/embedded'});

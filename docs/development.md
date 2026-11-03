@@ -44,6 +44,8 @@ flowchart LR
 
 主要入口是 `src/background/index.ts`、`src/content/index.ts`，以及根目录的 `popup.html`、`options.html`、`pdf.html`。消息协议在 `src/shared/types.ts`，默认配置与旧设置兼容分别由 `defaults.ts`、`settings.ts` 管理。
 
+视频字幕布局编辑位于 `src/content/video-layout.ts`，由 `VideoView` 挂载；`src/shared/video.ts` 定义按主机名保存的 `siteLayouts`。水平中心、底边和宽度使用视频区域百分比，字号使用像素；窗口缩放只约束当前显示位置，不改写已保存布局。编辑使用独立的稳定预览，只有点击完成才经原有设置队列写入，不重启翻译。设置备份支持可选布局字段并兼容旧备份。使用 `tests/video-layout.test.ts`、`tests/video-subtitles-ui.test.ts`、`tests/settings-backup.test.ts` 和 `npm run test:video` 验证交互、保存和真实播放器布局。
+
 文本翻译先经过后台的缓存与批次调度，再进入服务适配层；返回值通过格式与受保护内容校验后交还调用方。网页 DOM 操作留在内容脚本，服务协议处理留在后台，公共配置和类型放入共享层。
 
 `src/background/providers.ts` 是服务工厂；`providers/` 按在线翻译服务、LLM 和 HTTP 模板组织适配器，`provider-transport.ts` 统一管理超时、重试与响应读取。网页渐进扫描的分块、让出主线程及变更补扫位于 `src/content/progressive-scan.ts`，内容判断与渲染仍由 `dom.ts` 处理。正文采集测试使用与产品相同的渐进扫描入口。

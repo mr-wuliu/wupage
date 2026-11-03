@@ -1,4 +1,5 @@
 import type { ExtensionSettings } from "./types";
+import { normalizeVideoTranslation } from "./video";
 
 const equal = (left: unknown, right: unknown): boolean => JSON.stringify(left) === JSON.stringify(right);
 const record = (value: unknown): value is Record<string, unknown> =>
@@ -8,7 +9,15 @@ const record = (value: unknown): value is Record<string, unknown> =>
 export function mergeSettingsChanges(
   latest: ExtensionSettings, draft: ExtensionSettings, previous: ExtensionSettings
 ): ExtensionSettings {
-  return mergeValue(latest, draft, previous) as ExtensionSettings;
+  // The first player save materializes optional video defaults. Compare those
+  // defaults rather than treating the entire new object as an intentional edit.
+  let baseline = previous;
+  if (latest.videoTranslation && draft.videoTranslation) {
+    const video = { ...(previous.videoTranslation ?? normalizeVideoTranslation(undefined)) };
+    if (latest.videoTranslation.siteLayouts && draft.videoTranslation.siteLayouts && !video.siteLayouts) video.siteLayouts = [];
+    baseline = { ...previous, videoTranslation: video };
+  }
+  return mergeValue(latest, draft, baseline) as ExtensionSettings;
 }
 
 function mergeValue(latest: unknown, draft: unknown, previous: unknown): unknown {

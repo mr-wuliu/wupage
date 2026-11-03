@@ -6,7 +6,7 @@ import { SETTINGS_KEY } from "../shared/defaults";
 import { TARGET_LANGUAGES } from "../shared/languages";
 import { createSettingsSnapshot } from "../shared/settings-snapshot";
 import type { ExtensionSettings } from "../shared/types";
-import { normalizeVideoTranslation, sameVideoLanguage, type VideoTranslationSettings } from "../shared/video";
+import { normalizeVideoTranslation, sameVideoLanguage, type VideoSubtitleLayout, type VideoTranslationSettings } from "../shared/video";
 import { loadPageSubtitles, pageSubtitleCatalogue } from "../video/bridge-client";
 import { captionElements, mediaKey, renderedCaption, selectedNativeTrack, type VideoPlatform } from "../video/platforms";
 import type { PageSubtitleCatalogue } from "../video/site-cues";
@@ -72,6 +72,7 @@ export class PlayerSubtitleController {
       preferences: patch => {
         this.save({}, patch);
       },
+      layout: layout => this.save({}, undefined, layout),
       import: file => { void this.importFile(file); },
       offset: value => { this.offset = value; this.live?.reset(); this.tick(); }
     }, this.site);
@@ -411,20 +412,24 @@ export class PlayerSubtitleController {
     this.settings = settings; this.preferences = normalizeVideoTranslation(settings.videoTranslation); this.view.settings(settings, this.site);
   }
 
-  private save(patch: Partial<ExtensionSettings>, preferences?: Partial<VideoTranslationSettings>): void {
-    this.saveQueue = this.saveQueue.catch(() => undefined).then(async () => {
+  private save(patch: Partial<ExtensionSettings>, preferences?: Partial<VideoTranslationSettings>, layout?: VideoSubtitleLayout): Promise<void> {
+    const pending = this.saveQueue.then(async () => {
       const latest = await this.settingsSnapshot.read();
-      if (this.disposed) return;
+      if (this.disposed) throw new Error("播放器已关闭。");
       const videoSettings = normalizeVideoTranslation(latest.videoTranslation);
       const settings = { ...latest, ...patch,
-        ...(preferences ? { videoTranslation: { ...videoSettings, ...preferences, ...(preferences.enabledSites ? {
+        ...(preferences || layout ? { videoTranslation: { ...videoSettings, ...preferences, ...(layout ? {
+          siteLayouts: [...(videoSettings.siteLayouts ?? []).filter(entry => entry.id !== location.hostname), { id: location.hostname, ...layout }].slice(-100)
+        } : {}), ...(preferences?.enabledSites ? {
           enabledSites: preferences.enabledSites.includes(this.site) ? [...videoSettings.enabledSites.filter(site => site !== this.site), this.site]
             : videoSettings.enabledSites.filter(site => site !== this.site)
         } : {}) } } : {}) };
       const revision = this.settingsRevision;
       await sendRuntimeRequest({ type: "SAVE_SETTINGS", settings, previousSettings: latest });
       if (!this.disposed && revision === this.settingsRevision) { this.settingsSnapshot.receive(settings); this.receiveSettings(settings); }
-    }).catch(error => { this.view.tell(`设置未保存：${error instanceof Error ? error.message : String(error)}`); });
+    });
+    this.saveQueue = pending.catch(error => { if (!this.disposed) this.view.tell(`设置未保存：${error instanceof Error ? error.message : String(error)}`); });
+    return pending;
   }
 
   private async importFile(file: File): Promise<void> {
@@ -455,6 +460,7 @@ export class PlayerSubtitleController {
     this.view.host.style.setProperty("--wp-layer-width", `${rect.width / (scaleX || 1)}px`);
     this.view.host.style.setProperty("--wp-layer-height", `${rect.height / (scaleY || 1)}px`);
     this.view.host.hidden = fullscreen === this.video || rect.width < 160 || rect.height < 90;
+    this.view.resizeLayout();
     this.mountControls();
     if (this.view.panelOpen) this.view.positionPanel();
   }

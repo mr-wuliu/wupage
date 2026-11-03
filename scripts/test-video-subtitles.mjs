@@ -58,6 +58,18 @@ try {
     });
     await chrome.runtime.sendMessage({ type: 'SAVE_SETTINGS', settings });
   }, origin);
+  await options.evaluate(async () => {
+    const { data: previousSettings } = await chrome.runtime.sendMessage({ type: 'GET_SETTINGS' });
+    const results = await Promise.all(['a.example', 'b.example'].map(id => chrome.runtime.sendMessage({ type: 'SAVE_SETTINGS', previousSettings,
+      settings: { ...previousSettings, videoTranslation: { enabled: true, showOriginal: true, fontSize: 22,
+        background: 'soft', preferredSource: 'auto', enabledSites: [], ...previousSettings.videoTranslation,
+        siteLayouts: [{ id, x: 50, bottom: 20, width: 60, fontSize: 24 }] } }
+    })));
+    if (results.some(result => !result.ok)) throw new Error('Concurrent layout save failed');
+    const { data: saved } = await chrome.runtime.sendMessage({ type: 'GET_SETTINGS' });
+    if (!['a.example', 'b.example'].every(id => saved.videoTranslation.siteLayouts.some(entry => entry.id === id))) throw new Error('Concurrent site layouts were overwritten');
+  });
+  checks.push('concurrent first layout saves preserve both website records');
   const page = await context.newPage(); page.on('pageerror', error => errors.push(error.message)); page.setDefaultTimeout(10000);
   const identity = verifyBrowserIdentity(target, await page.evaluate(() => navigator.userAgent));
   await page.goto(origin); await page.waitForFunction(() => window.fixtureReady);
@@ -107,6 +119,51 @@ try {
   await view.locator('.original').uncheck();
   await page.waitForFunction(() => document.querySelector('[data-wupage-video]').shadowRoot.querySelector('.source span').textContent === '');
   assert.equal(requests.length, 1, 'changing appearance must reuse text'); await view.locator('.original').check();
+  await view.locator('details').evaluate(details => { details.open = true; });
+  const [cancelledImport] = await Promise.all([page.waitForEvent('filechooser'), view.locator('.import').click()]);
+  await cancelledImport.setFiles([]);
+  await view.locator('details').evaluate(details => { details.open = false; });
+  checks.push('subtitle import button opens its file picker');
+  const beforeLayout = await view.locator('.captions').boundingBox();
+  const unexpectedPicker = page.waitForEvent('filechooser', { timeout: 500 }).then(async chooser => {
+    await chooser.setFiles([]); return true;
+  }, error => { if (error.name !== 'TimeoutError') throw error; return false; });
+  await view.locator('.layout-open').click();
+  assert.equal(await unexpectedPicker, false, 'layout editing must not open a file picker');
+  const setLayoutRange = async (selector, value) => view.locator(selector).evaluate((input, value) => {
+    input.value = String(value); input.dispatchEvent(new Event('input', { bubbles: true }));
+  }, value);
+  await setLayoutRange('.layout-width', 60); await setLayoutRange('.layout-font', 28);
+  assert.equal(await view.locator('.layout-preview').evaluate(element => getComputedStyle(element).fontSize), '28px');
+  await view.locator('.layout-cancel').click();
+  assert.deepEqual(await view.locator('.captions').boundingBox(), beforeLayout, 'cancel restores the original caption layout');
+  await view.locator('.settings').evaluate(button => button.click()); await view.locator('.layout-open').click();
+  await setLayoutRange('.layout-width', 60); await setLayoutRange('.layout-font', 24);
+  const preview = view.locator('.layout-preview');
+  const start = await preview.boundingBox();
+  await page.mouse.move(start.x + start.width / 2, start.y + start.height / 2); await page.mouse.down();
+  await page.mouse.move(start.x + start.width / 2 + 50, start.y + start.height / 2 - 45, { steps: 8 }); await page.mouse.up();
+  const moved = await preview.boundingBox();
+  assert.ok(moved.x > start.x + 40 && moved.y < start.y - 35, 'pointer drag moves the subtitle');
+  const handle = await view.locator('.layout-right').boundingBox();
+  await page.mouse.move(handle.x + handle.width / 2, handle.y + handle.height / 2); await page.mouse.down();
+  await page.mouse.move(handle.x + handle.width / 2 - 40, handle.y + handle.height / 2, { steps: 8 }); await page.mouse.up();
+  assert.ok((await preview.boundingBox()).width < moved.width - 30, 'right handle changes wrapping width');
+  await page.screenshot({ path: path.join(output, 'layout-editing.png') });
+  await view.locator('.layout-done').click();
+  await page.waitForFunction(() => !document.querySelector('[data-wupage-video]').hasAttribute('data-layout-editing'));
+  const savedLayout = await options.evaluate(async () => (await chrome.runtime.sendMessage({ type: 'GET_SETTINGS' })).data.videoTranslation.siteLayouts.find(entry => entry.id === '127.0.0.1'));
+  assert.equal(savedLayout.fontSize, 24); assert.ok(savedLayout.width < 60); assert.ok(savedLayout.bottom > 10);
+  assert.equal(requests.length, 1, 'layout changes reuse translations');
+  assert.equal(await view.locator('.captions').evaluate(element => getComputedStyle(element).pointerEvents), 'none');
+  const sourceAfterLayout = await view.locator('.captions').boundingBox();
+  await view.locator('.settings').evaluate(button => button.click()); await view.locator('.layout-open').click();
+  await view.locator('.layout-reset').click();
+  assert.equal(await view.locator('.layout-width').inputValue(), '90');
+  await view.locator('.layout-font').press('Escape');
+  assert.deepEqual(await view.locator('.captions').boundingBox(), sourceAfterLayout, 'reset remains a draft until Done');
+  checks.push('layout preview, cancel, real pointer movement and width handles, site persistence, reset draft, Escape, click-through and no retransmission');
+  await view.locator('.settings').evaluate(button => button.click());
   await view.locator('.close').click();
   await page.evaluate(() => { document.querySelector('video').currentTime = 2.3; });
   await translated.filter({ hasText: '跳转到另一个时间。' }).waitFor(); assert.equal(requests.length, 1);
@@ -124,6 +181,11 @@ try {
   checks.push('website native subtitle language changes; return to the original selection');
   await page.locator('#fullscreen').click();
   await page.waitForFunction(() => document.fullscreenElement?.contains(document.querySelector('[data-wupage-video]')));
+  await page.waitForFunction(bottom => {
+    const video = document.querySelector('video').getBoundingClientRect();
+    const captions = document.querySelector('[data-wupage-video]').shadowRoot.querySelector('.captions').getBoundingClientRect();
+    return Math.abs((video.bottom - captions.bottom) / video.height - bottom / 100) < .02;
+  }, savedLayout.bottom);
   await translated.filter({ hasText: '跳转到另一个时间。' }).waitFor(); await page.evaluate(() => document.exitFullscreen());
   await page.locator('#nativeFullscreen').click();
   await page.waitForFunction(() => [...document.querySelector('video').textTracks].some(track => track.label === 'WuPage 双语' && track.mode === 'showing' && track.cues?.length));
@@ -155,6 +217,13 @@ try {
   await page.setViewportSize({ width: 390, height: 760 }); await view.locator('.settings').evaluate(button => button.click());
   const bounds = await view.locator('.panel').boundingBox(); assert.ok(bounds.x >= 0 && bounds.x + bounds.width <= 390);
   await page.screenshot({ path: path.join(output, 'mobile.png') }); checks.push('responsive settings');
+  await view.locator('.layout-open').click();
+  const layoutPanel = await view.locator('.layout-panel').boundingBox();
+  assert.ok(layoutPanel.x >= 0 && layoutPanel.x + layoutPanel.width <= 390);
+  await view.locator('.layout-done').waitFor({ state: 'visible' });
+  await page.screenshot({ path: path.join(output, 'layout-mobile.png') });
+  await view.locator('.layout-cancel').click();
+  await view.locator('.settings').evaluate(button => button.click());
   await view.locator('.close').click();
   await options.evaluate(async () => {
     const { data: settings } = await chrome.runtime.sendMessage({ type: 'GET_SETTINGS' }); settings.targetLang = 'ja';
@@ -176,6 +245,7 @@ try {
     const host=document.querySelector('[data-wupage-video]');
     return host?.id!==previous&&host?.hasAttribute('data-enabled')&&host?.shadowRoot.querySelector('.translation span').textContent==='你好，世界。';
   }, previousPlayer);
+  assert.equal(await view.locator('.captions').evaluate(element => getComputedStyle(element).fontSize), '24px', 'replacement player restores the website layout');
   await view.locator('.toggle').evaluate(button => button.click());
   const stoppedPlayer = await view.getAttribute('id');
   await page.evaluate(() => { const old=document.querySelector('video');old.replaceWith(old.cloneNode(true)); });
