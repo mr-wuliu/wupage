@@ -25,6 +25,7 @@ import { formatDoubaoStatus, isDoubaoProviderUnavailable, syncDoubaoTargetContro
 import { renderUiIcons, uiIconMarkup } from "../shared/ui-icons";
 import { setupSettingsBackupControls } from "./settings-backup";
 import { setupSettingsResetControls } from "./reset-settings";
+import { ACTION_STATUS_DURATION, setupSettingsActionFeedback } from "./action-feedback";
 
 renderUiIcons();
 
@@ -112,7 +113,6 @@ let doubaoCheck: Promise<void> | undefined;
 let doubaoStatusRevision = 0;
 let doubaoRetryTimer: ReturnType<typeof setTimeout> | undefined;
 let statusTimer: ReturnType<typeof setTimeout> | undefined;
-let saveButtonAnimation: Animation | undefined;
 const pendingSettingsWrites = new Set<Promise<void>>();
 let optionsClosed = false;
 
@@ -120,7 +120,6 @@ window.addEventListener("pagehide", () => {
   optionsClosed = true;
   clearTimeout(doubaoRetryTimer);
   clearTimeout(statusTimer);
-  saveButtonAnimation?.cancel();
 }, { once: true });
 
 void init().catch((error: unknown) => {
@@ -131,6 +130,7 @@ async function init(): Promise<void> {
   settings = await sendRuntimeMessage<ExtensionSettings>({ type: "GET_SETTINGS" });
   savedSettings = cloneSettings(settings);
   render();
+  setupSettingsActionFeedback(document);
   setupSettingsBackupControls({ status: setStatus, imported: imported => {
     invalidateProviderTest();
     settings = imported;
@@ -185,13 +185,6 @@ async function init(): Promise<void> {
     if (event.key === "Escape") setProviderMenuOpen(false);
   });
   saveButton.addEventListener("click", () => {
-    saveButtonAnimation?.cancel();
-    if (!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) {
-      saveButtonAnimation = saveButton.animate?.([
-        { transform: "translateY(2px) scale(.96)", filter: "brightness(.9)" },
-        { transform: "none", filter: "none" }
-      ], { duration: 180, easing: "ease-out" });
-    }
     void save().catch(() => {});
   });
   setupSettingsResetControls(resetSettings);
@@ -851,7 +844,7 @@ async function save(showSavedStatus = true): Promise<void> {
     settings = readSettingsFromForm();
     await persistSettings(false);
     render();
-    if (showSavedStatus) setStatus("已保存。", 1200);
+    if (showSavedStatus) setStatus("已保存。", ACTION_STATUS_DURATION);
   } catch (error) {
     setStatus(error instanceof Error ? error.message : String(error));
     throw error;
@@ -879,7 +872,7 @@ async function persistSettingsNow(showSavedStatus: boolean): Promise<void> {
   // example while a service test owns its status node). Keep every other
   // control aligned with the merged settings used as the next edit baseline.
   renderGeneralSettings();
-  if (showSavedStatus) setStatus("已保存。", 1200);
+  if (showSavedStatus) setStatus("已保存。", ACTION_STATUS_DURATION);
 }
 
 function invalidateProviderTest(): void {
@@ -938,7 +931,7 @@ async function resetSettings(): Promise<void> {
   editingProviderId = undefined;
   setProviderMenuOpen(false);
   render();
-  setStatus("已完全重置设置。");
+  setStatus("已完全重置设置。", ACTION_STATUS_DURATION);
 }
 
 function readSettingsFromForm(): ExtensionSettings {

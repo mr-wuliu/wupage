@@ -1,6 +1,7 @@
 import { DEFAULT_LOCAL_SHORTCUTS, LOCAL_BINDINGS, canonicalLocalShortcut, formatLocalShortcut, localShortcutFromEvent,
   localShortcutVariants, normalizeLocalShortcuts, type LocalBinding, type LocalShortcutSettings } from "../shared/local-shortcuts";
 import { LOCAL_SHORTCUTS, TRANSLATION_SHORTCUTS, shortcutWarning, type LocalShortcut, type ShortcutSettings } from "../shared/shortcuts";
+import { showActionStatus } from "./action-feedback";
 
 interface Callbacks {
   status: HTMLElement;
@@ -99,6 +100,7 @@ export function setupLocalShortcutSettings(root: HTMLElement, callbacks: Callbac
       const fieldError = document.createElement("span"); fieldError.id = `shortcut-error-${binding.name}`; fieldError.className = "shortcut-error"; fieldError.setAttribute("role", "status");
       field.append(input, fieldError); group.append(field);
       const reset = document.createElement("button"); reset.type = "button"; reset.className = "shortcut-small-button"; reset.textContent = "默认";
+      reset.dataset.settingsFeedback = "";
       reset.setAttribute("aria-label", `恢复${binding.label}默认快捷键`); group.append(reset); actions.append(group);
       const entry: { input: typeof input; error: HTMLElement; reset: HTMLButtonElement; escape?: HTMLButtonElement } = { input, error: fieldError, reset };
       if (input instanceof HTMLInputElement) {
@@ -109,7 +111,9 @@ export function setupLocalShortcutSettings(root: HTMLElement, callbacks: Callbac
         escape.addEventListener("click", () => apply(binding.name, "Escape"), { signal: callbacks.signal });
         field.append(escape); entry.escape = escape;
       }
-      reset.addEventListener("click", () => apply(binding.name, DEFAULT_LOCAL_SHORTCUTS[binding.name]), { signal: callbacks.signal });
+      reset.addEventListener("click", () => {
+        if (apply(binding.name, DEFAULT_LOCAL_SHORTCUTS[binding.name])) showActionStatus(callbacks.status, callbacks.status.textContent ?? "");
+      }, { signal: callbacks.signal });
       fields.set(binding.name, entry);
     }
     actions.append(callbacks.createSwitch(item.name, item.label, row)); row.append(title, actions); container.append(row);

@@ -132,7 +132,7 @@
               <div>
               <h2 id="shortcutSettingsTitle">快捷键</h2>
               </div>
-              <button id="resetShortcuts" type="button" class="secondary">恢复默认</button>
+              <button id="resetShortcuts" type="button" class="secondary" data-settings-feedback>恢复默认</button>
             </div>
             <div class="shortcut-toolbar">
               <p id="shortcutRecorderHelp" class="hint">点击按键框录入；Esc 取消，Delete 清空。修改后点击「保存」。</p>
@@ -253,7 +253,7 @@
                   <label for="appearanceSchemeName">方案名称</label>
                   <input id="appearanceSchemeName" type="text" maxlength="60" />
                   <div class="appearance-scheme-actions">
-                    <button id="resetSchemeColors" type="button" class="secondary">重置颜色</button>
+                    <button id="resetSchemeColors" type="button" class="secondary" data-settings-feedback>重置颜色</button>
                     <button id="deleteScheme" type="button" class="appearance-delete secondary">删除方案</button>
                   </div>
                 </div>
@@ -288,7 +288,7 @@
               <div id="popupMenuEditor">
                 <div class="appearance-section-heading">
                   <h3>弹窗菜单</h3>
-                  <button id="resetPopupMenu" type="button" class="secondary">恢复默认布局</button>
+                  <button id="resetPopupMenu" type="button" class="secondary" data-settings-feedback>恢复默认布局</button>
                 </div>
                 <p class="field-description menu-layout-description">把常用功能放进菜单，排成顺手的样子。</p>
                 <div class="menu-layout-columns">
@@ -427,8 +427,8 @@
         </div>
 
         <footer class="settings-actions">
-          <button id="save" type="button">保存</button>
-          <button id="restore" type="button" class="danger">完全重置设置</button>
+          <button id="save" type="button" data-settings-feedback>保存</button>
+          <button id="restore" type="button" class="danger" data-settings-feedback>完全重置设置</button>
           <p id="status" role="status"></p>
         </footer>
       </div>
@@ -441,7 +441,7 @@
       <p id="settingsResetStatus" class="hint" role="status" aria-live="polite"></p>
       <div class="dialog-actions">
         <button id="cancelSettingsReset" class="secondary" type="button" autofocus>取消</button>
-        <button id="confirmSettingsReset" class="danger" type="button">确认完全重置</button>
+        <button id="confirmSettingsReset" class="danger" type="button" data-settings-feedback>确认完全重置</button>
       </div>
     </dialog>
     <dialog id="settingsBackupDialog" class="provider-dialog backup-dialog" aria-labelledby="settingsBackupDialogTitle" aria-describedby="settingsBackupWarning">

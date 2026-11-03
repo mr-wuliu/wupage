@@ -58,7 +58,7 @@ export function setupProviderTabs(container: HTMLElement, provider: ProviderConf
       </details>
       <div class="request-template-actions">
         <button type="button" class="secondary" data-action="test-provider">测试服务</button>
-        <button type="button" class="secondary" data-action="reset-request-template">恢复默认请求</button>
+        <button type="button" class="secondary" data-action="reset-request-template" data-settings-feedback>恢复默认请求</button>
       </div>`;
     const enabled = advanced.querySelector<HTMLInputElement>("[data-field='requestTemplateEnabled']")!;
     const fields = advanced.querySelector<HTMLFieldSetElement>("fieldset")!;

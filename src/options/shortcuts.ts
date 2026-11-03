@@ -2,6 +2,7 @@ import { DEFAULT_SHORTCUTS, DEFAULT_SHORTCUT_ENABLED, formatShortcut, normalizeS
   TRANSLATION_SHORTCUTS, type ShortcutEnabledSettings, type ShortcutSettings, type TranslationShortcut } from "../shared/shortcuts";
 import { setupLocalShortcutSettings } from "./local-shortcuts";
 import type { LocalShortcutSettings } from "../shared/local-shortcuts";
+import { showActionStatus } from "./action-feedback";
 
 export function setupShortcutSettings(root: HTMLElement): {
   render: (value: unknown, enabled?: unknown, local?: unknown) => void;
@@ -92,6 +93,7 @@ export function setupShortcutSettings(root: HTMLElement): {
     error.className = "shortcut-error"; error.setAttribute("role", "status");
     field.append(input, error);
     const reset = document.createElement("button"); reset.type = "button"; reset.textContent = "默认"; reset.className = "shortcut-small-button";
+    reset.dataset.settingsFeedback = "";
     reset.setAttribute("aria-label", `恢复${shortcut.label}默认快捷键`);
     actions.append(field, reset, createSwitch(shortcut.name, shortcut.label, row)); row.append(title, actions); bindings.append(row);
     rows.set(shortcut.name, { input, error, reset });
@@ -124,7 +126,9 @@ export function setupShortcutSettings(root: HTMLElement): {
       }
       if (apply(shortcut.name, value)) input.blur();
     }, { signal: events.signal });
-    reset.addEventListener("click", () => apply(shortcut.name, DEFAULT_SHORTCUTS[shortcut.name]), { signal: events.signal });
+    reset.addEventListener("click", () => {
+      if (apply(shortcut.name, DEFAULT_SHORTCUTS[shortcut.name])) showActionStatus(status, status.textContent ?? "");
+    }, { signal: events.signal });
   }
   localControls = setupLocalShortcutSettings(root, {
     status, createSwitch, getGlobal: () => values, signal: events.signal,
@@ -136,7 +140,7 @@ export function setupShortcutSettings(root: HTMLElement): {
     enabled = { ...DEFAULT_SHORTCUT_ENABLED };
     localControls.reset();
     for (const row of rows.values()) { row.error.textContent = ""; row.input.removeAttribute("aria-invalid"); }
-    refresh(); status.textContent = "已恢复默认快捷键，点击底部「保存」后生效。";
+    refresh(); showActionStatus(status, "已恢复默认快捷键，点击底部「保存」后生效。");
   }, { signal: events.signal });
   window.addEventListener("pagehide", event => { if (!event.persisted) events.abort(); }, { signal: events.signal });
   refresh();
