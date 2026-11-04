@@ -1,5 +1,5 @@
 import type { RuntimeRequest, RuntimeResponse } from "../shared/types";
-import type { FrameSessionSnapshot } from "../shared/frame-session";
+import type { FrameDocumentIdentity, FrameSessionSnapshot } from "../shared/frame-session";
 import { createDocumentKey, frameExclusion } from "../shared/frame-session";
 import { sampleDocumentText } from "./frame-sample";
 import { initKeyboardShortcuts } from "./keyboard-shortcuts";
@@ -18,6 +18,7 @@ if (window !== window.top && supportsHtmlContent() && !scope.__wupageFrameBootst
   scope.__wupageFrameBootstrap = true;
   initEmbeddedVideoSubtitles();
   const documentKey = createDocumentKey();
+  let identify: () => FrameDocumentIdentity = () => ({ documentKey });
   let current: FrameSessionSnapshot | undefined;
   let frameId: number | undefined;
   let worker: Promise<ReturnType<typeof import("./frame-content").activateFrameContent>> | undefined;
@@ -30,6 +31,7 @@ if (window !== window.top && supportsHtmlContent() && !scope.__wupageFrameBootst
   const activate = () => worker ??= ready.then(async () => {
     const module = await import(/* @vite-ignore */ chrome.runtime.getURL("frame-content.js"));
     const runtime = module.activateFrameContent(documentKey, current?.settings);
+    identify = runtime.identify;
     runtime.paragraph(paragraphMode && !!current && allowed(current));
     return runtime;
   }).catch(error => { worker = undefined; throw error; });
@@ -81,6 +83,9 @@ if (window !== window.top && supportsHtmlContent() && !scope.__wupageFrameBootst
     configureCandidates();
   });
   chrome.runtime.onMessage.addListener((request: RuntimeRequest, _sender, respond) => {
+    // Identify even a dormant frame without loading its translation runtime or
+    // waiting for its initial registration with the recovering background.
+    if (request.type === "FRAME_IDENTIFY") { respond({ ok: true, data: identify() }); return; }
     if (request.type === "FRAME_SAMPLE") {
       void visibility.ready.then(() => respond({ ok: true, data: supported() ? sampleDocumentText() : "" })); return true;
     }

@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { DEFAULT_SETTINGS } from "../src/shared/defaults";
 import { aggregateDocumentStates, emptyDocumentState, frameExclusion, normalizeFrameTranslation,
-  type FrameSessionSnapshot } from "../src/shared/frame-session";
+  type FrameDocumentIdentity, type FrameSessionSnapshot } from "../src/shared/frame-session";
 import type { ExtensionSettings, RuntimeRequest } from "../src/shared/types";
 import { ProviderError } from "../src/shared/errors";
 
@@ -13,10 +13,17 @@ async function fixture() {
   let settings = structuredClone(DEFAULT_SETTINGS);
   const stored: Record<string, unknown> = {};
   const deliveries: Array<{ frameId?: number; documentId?: string; request: RuntimeRequest }> = [];
+  const live = new Map<number, FrameDocumentIdentity>();
   const sendMessage = vi.fn(async (_tab: number, request: RuntimeRequest, target: { frameId?: number; documentId?: string }) => {
     deliveries.push({ ...target, request });
-    if (request.type === "FRAME_APPLY") return { ok: true, data: { ...emptyDocumentState(),
-      active: request.allowed && request.snapshot.active, translated: request.allowed && request.snapshot.active ? 1 : 0 } };
+    const frameId = target.frameId ?? Number(target.documentId?.replace("document-", ""));
+    if (request.type === "FRAME_IDENTIFY") return { ok: true, data: live.get(frameId) };
+    if (request.type === "FRAME_APPLY") {
+      const state = { ...emptyDocumentState(), active: request.allowed && request.snapshot.active,
+        translated: request.allowed && request.snapshot.active ? 1 : 0 };
+      live.set(frameId, { documentKey: request.documentKey, sessionId: request.snapshot.id, state });
+      return { ok: true, data: state };
+    }
     return { ok: true };
   });
   const api = {
@@ -29,12 +36,21 @@ async function fixture() {
   const manager = new FrameSessionManager(api, readSettings);
   const sender = (frameId: number, tabId = 1): chrome.runtime.MessageSender => ({ tab: { id: tabId } as chrome.tabs.Tab,
     frameId, documentId: `document-${frameId}`, url: frameId ? `https://embed.example/${frameId}` : "https://site.example/article" });
-  const register = (frameId: number, tabId = 1, documentKey = `key-${frameId}`) => manager.handle({ type: "FRAME_REGISTER", documentKey,
-    url: sender(frameId, tabId).url! }, sender(frameId, tabId));
+  const register = (frameId: number, tabId = 1, documentKey = `key-${frameId}`) => {
+    live.set(frameId, { documentKey });
+    return manager.handle({ type: "FRAME_REGISTER", documentKey, url: sender(frameId, tabId).url! }, sender(frameId, tabId));
+  };
+  const discovery = () => {
+    const frames = [...live.keys()].map(frameId => ({ frameId, parentFrameId: frameId ? 0 : -1,
+      documentId: `document-${frameId}`, url: sender(frameId).url! }));
+    Object.assign(api, { webNavigation: { getAllFrames: vi.fn(async () => frames),
+      getFrame: vi.fn(async ({ frameId }: { frameId: number }) => frames.find(frame => frame.frameId === frameId)) } });
+    return frames;
+  };
   const action = async (action: "start" | "stop", tabId = 1) =>
     (await manager.handle({ type: "FRAME_SESSION_ACTION", action }, sender(0, tabId)) as FrameSessionSnapshot).state;
   const snapshot = () => manager.handle({ type: "FRAME_SESSION_GET" }, sender(0)) as Promise<FrameSessionSnapshot>;
-  return { manager, api, sendMessage, readSettings, stored, sender, register, action, snapshot, deliveries,
+  return { manager, api, sendMessage, readSettings, stored, sender, register, action, snapshot, deliveries, live, discovery,
     settings: () => settings, update: (value: ExtensionSettings) => { settings = value; } };
 }
 
@@ -65,6 +81,101 @@ describe("iframe translation policy", () => {
 });
 
 describe("tab-wide document sessions", () => {
+  it("starts static top and embedded documents after the background loses its in-memory registry", async () => {
+    const f = await fixture(); await f.register(0); await f.register(1); f.discovery();
+    const { FrameSessionManager } = await import("../src/background/frame-sessions");
+    const restarted = new FrameSessionManager(f.api, f.readSettings);
+    const result = await restarted.handle({ type: "FRAME_SESSION_ACTION", action: "start" }, f.sender(0)) as FrameSessionSnapshot;
+    expect(result.state).toMatchObject({ active: true, translated: 2 });
+    expect(result.frames.map(frame => frame.frameId)).toEqual([0, 1]);
+    expect(f.deliveries.filter(item => item.request.type === "FRAME_APPLY").map(item => item.documentId)).toEqual(["document-0", "document-1"]);
+  });
+
+  it("recovers current counts without translating again and stops every document after restart", async () => {
+    const f = await fixture(); await f.register(0); await f.register(1); await f.action("start"); f.discovery();
+    f.deliveries.length = 0;
+    const { FrameSessionManager } = await import("../src/background/frame-sessions");
+    const restarted = new FrameSessionManager(f.api, f.readSettings);
+    const current = await restarted.handle({ type: "FRAME_SESSION_GET" }, f.sender(0)) as FrameSessionSnapshot;
+    expect(current.state).toMatchObject({ active: true, translated: 2 });
+    expect(f.deliveries.every(item => item.request.type === "FRAME_IDENTIFY")).toBe(true);
+    const result = await restarted.handle({ type: "FRAME_SESSION_ACTION", action: "stop" }, f.sender(0)) as FrameSessionSnapshot;
+    expect(result.state).toMatchObject({ active: false, translated: 0 });
+    expect(f.deliveries.filter(item => item.request.type === "FRAME_APPLY").map(item => item.documentId)).toEqual(["document-0", "document-1"]);
+  });
+
+  it("rediscovers live documents even when optional persistence was lost", async () => {
+    const f = await fixture(); await f.register(0); await f.register(1); f.discovery();
+    vi.spyOn(f.api.storage.session, "get").mockRejectedValue(new Error("Session storage unavailable"));
+    const { FrameSessionManager } = await import("../src/background/frame-sessions");
+    const restarted = new FrameSessionManager(f.api, f.readSettings);
+    const result = await restarted.handle({ type: "FRAME_SESSION_ACTION", action: "start" }, f.sender(0)) as FrameSessionSnapshot;
+    expect(result.state.translated).toBe(2);
+    expect(result.topDocument).toBe("key-0");
+  });
+
+  it("does not restore a saved active generation into a replacement top document", async () => {
+    const f = await fixture(); await f.register(0); await f.register(1); await f.action("start"); f.discovery();
+    f.live.set(0, { documentKey: "replacement-top" });
+    const { FrameSessionManager } = await import("../src/background/frame-sessions");
+    const restarted = new FrameSessionManager(f.api, f.readSettings);
+    const current = await restarted.handle({ type: "FRAME_SESSION_GET" }, f.sender(0)) as FrameSessionSnapshot;
+    expect(current).toMatchObject({ active: false, topDocument: "replacement-top", state: { translated: 0 } });
+  });
+
+  it("preserves ancestor exclusions while rebuilding the document registry", async () => {
+    const f = await fixture(); await f.register(0); await f.register(1); await f.register(2);
+    const frames = f.discovery(); frames[2].parentFrameId = 1;
+    f.update({ ...f.settings(), frameTranslation: { enabled: true, excludeMatches: ["https://embed.example/1"] } });
+    const { FrameSessionManager } = await import("../src/background/frame-sessions");
+    const restarted = new FrameSessionManager(f.api, f.readSettings);
+    const result = await restarted.handle({ type: "FRAME_SESSION_ACTION", action: "start" }, f.sender(0)) as FrameSessionSnapshot;
+    expect(result.state.translated).toBe(1);
+    expect(result.frames.find(frame => frame.frameId === 2)?.status).toBe("excluded");
+  });
+
+  it("reports a missing top document connection instead of successful empty translation", async () => {
+    const f = await fixture(); await f.register(0); f.discovery(); f.live.delete(0);
+    const { FrameSessionManager } = await import("../src/background/frame-sessions");
+    const restarted = new FrameSessionManager(f.api, f.readSettings);
+    await expect(restarted.handle({ type: "FRAME_SESSION_ACTION", action: "start" }, f.sender(0))).rejects.toThrow(/网页.*连接|连接.*网页/u);
+  });
+
+  it("ignores a probe response from a document replaced during discovery", async () => {
+    const f = await fixture(); await f.register(0); await f.register(1);
+    const frames = f.discovery();
+    vi.mocked(f.api.webNavigation.getFrame).mockImplementation(async ({ frameId }) => ({ ...frames[frameId ?? 0],
+      documentId: frameId ? "replacement-document" : "document-0", documentLifecycle: "active", errorOccurred: false,
+      frameType: frameId ? "sub_frame" : "outermost_frame" } as chrome.webNavigation.GetFrameResultDetails));
+    const { FrameSessionManager } = await import("../src/background/frame-sessions");
+    const restarted = new FrameSessionManager(f.api, f.readSettings);
+    const result = await restarted.handle({ type: "FRAME_SESSION_ACTION", action: "start" }, f.sender(0)) as FrameSessionSnapshot;
+    expect(result.state.translated).toBe(1);
+    expect(result.frames.find(frame => frame.frameId === 1)?.status).toBe("unavailable");
+    expect(f.deliveries.filter(item => item.request.type === "FRAME_APPLY").map(item => item.documentId)).toEqual(["document-0"]);
+  });
+
+  it("shares cold discovery across concurrent controls and lets a later stop win", async () => {
+    const f = await fixture(); await f.register(0); f.discovery();
+    let release!: () => void;
+    const probing = new Promise<void>(resolve => { release = resolve; });
+    const original = f.sendMessage.getMockImplementation()!;
+    f.sendMessage.mockImplementation(async (...args) => {
+      if (args[1].type === "FRAME_IDENTIFY") await probing;
+      return original(...args);
+    });
+    const { FrameSessionManager } = await import("../src/background/frame-sessions");
+    const restarted = new FrameSessionManager(f.api, f.readSettings);
+    const starting = restarted.handle({ type: "FRAME_SESSION_ACTION", action: "start" }, f.sender(0));
+    const stopping = restarted.handle({ type: "FRAME_SESSION_ACTION", action: "stop" }, f.sender(0));
+    release();
+    const [start, stop] = await Promise.all([starting, stopping]) as FrameSessionSnapshot[];
+    expect(start.active).toBe(false); expect(stop.active).toBe(false);
+    expect(f.api.webNavigation.getAllFrames).toHaveBeenCalledTimes(1);
+    expect(f.deliveries.filter(item => item.request.type === "FRAME_APPLY")
+      .every(item => item.request.type === "FRAME_APPLY" && !item.request.snapshot.active)).toBe(true);
+  });
+
   it("cancels pending work only in documents whose exclusion rules change", async () => {
     const f = await fixture();
     let changed!: (changes: Record<string, chrome.storage.StorageChange>, area: string) => void;

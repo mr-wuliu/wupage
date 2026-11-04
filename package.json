@@ -1,6 +1,6 @@
 {
   "name": "wupage",
-  "version": "1.7.0",
+  "version": "1.7.1",
   "private": true,
   "type": "module",
   "scripts": {
@@ -64,6 +64,8 @@
     "test:frames": "node scripts/test-frame-translation.mjs",
     "test:frames:firefox": "node scripts/test-frame-translation.mjs --firefox",
     "test:frames:edge": "node scripts/test-frame-translation.mjs --edge",
+    "test:background-resume": "node scripts/test-background-resume.mjs",
+    "test:background-resume:edge": "node scripts/test-background-resume.mjs --edge",
     "test:scientific": "node scripts/test-scientific-page.mjs",
     "test:scientific:firefox": "node scripts/test-scientific-page.mjs --firefox",
     "test:scientific:edge": "node scripts/test-scientific-page.mjs --edge",

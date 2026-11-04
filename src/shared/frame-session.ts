@@ -40,7 +40,14 @@ export interface FrameSessionSnapshot {
   state: DocumentTranslationState;
 }
 
+export interface FrameDocumentIdentity {
+  documentKey: string;
+  sessionId?: string;
+  state?: DocumentTranslationState;
+}
+
 export type FrameSessionRequest =
+  | { type: "FRAME_IDENTIFY" }
   | { type: "FRAME_REGISTER"; documentKey: string; url: string }
   | { type: "FRAME_REPORT"; documentKey: string; sessionId: string; state: DocumentTranslationState }
   | { type: "FRAME_LEAVE"; documentKey: string }
