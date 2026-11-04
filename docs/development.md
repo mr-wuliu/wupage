@@ -68,6 +68,8 @@ flowchart LR
 
 Chrome / Edge 使用后台 Service Worker，并通过 offscreen 文档承载需要 DOM 或 Worker 的本地能力；Firefox 使用后台事件页和隐藏 iframe。相关适配入口为 `build/manifest.ts` 与 `src/background/offscreen.ts`。
 
+后台重启后，`src/background/frame-sessions.ts` 从浏览器的当前文档树恢复页面登记。主页面和嵌入页面通过同步的 `FRAME_IDENTIFY` 返回文档标识，已启用的翻译运行时同时返回本地状态；该应答不等待后台请求、不启动翻译。只有文档身份仍有效且会话编号一致时才恢复统计，避免把导航前的状态用于新页面。`npm run test:background-resume` 和 `npm run test:background-resume:edge` 在静态页面保持打开时终止真实后台，检查首次翻译、跨域嵌入页面、停止及已有译文恢复；全部请求使用本地模拟服务。
+
 ## 环境搭建
 
 需要 Node.js 22 或更新版本及 npm。

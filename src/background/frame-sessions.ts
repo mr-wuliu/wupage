@@ -2,7 +2,7 @@ import { anySignal } from "../shared/abort";
 import type { ExtensionSettings, RuntimeRequest, RuntimeResponse, TranslateBatchRequest } from "../shared/types";
 import {
   aggregateDocumentStates, emptyDocumentState, frameExclusion, frameTranslationIdentity,
-  type DocumentTranslationState, type FrameDiagnostic, type FrameSessionRequest, type FrameSessionSnapshot
+  type DocumentTranslationState, type FrameDiagnostic, type FrameDocumentIdentity, type FrameSessionRequest, type FrameSessionSnapshot
 } from "../shared/frame-session";
 import { getSettings } from "../shared/settings";
 import { SETTINGS_KEY } from "../shared/defaults";
@@ -74,6 +74,7 @@ export class FrameSessionManager {
     const tabId = sender.tab?.id;
     if (tabId === undefined || sender.frameId === undefined) throw new Error("需要有效的网页文档。");
     const tab = await this.get(tabId);
+    if (tab.retired) throw new Error("网页文档已经更新。");
     const frameId = sender.frameId;
     if (request.type === "FRAME_REGISTER") {
       const metadata = await this.api.webNavigation?.getFrame({ tabId, frameId }).catch(() => undefined);
@@ -112,10 +113,7 @@ export class FrameSessionManager {
         await this.loadAncestors(tabId, tab, frame);
       }
       if (frame.documentKey !== request.documentKey || this.exclusion(tab, frame)) return null;
-      frame.state = request.state;
-      frame.reason = request.state.documentHidden ? "等待嵌入页面显示" : undefined;
-      frame.status = request.state.failed || request.state.error ? "failed" : request.state.documentHidden ? "waiting-viewport" : request.state.pending ? "translating"
-        : request.state.remaining ? "waiting-viewport" : request.state.translated ? "ready" : "empty";
+      this.updateFrameState(frame, request.state);
       this.publish(tabId, tab); return null;
     }
     if (request.type === "FRAME_SESSION_GET") return this.snapshot(tab);
@@ -131,6 +129,7 @@ export class FrameSessionManager {
     if (request.type === "FRAME_SESSION_ACTION") {
       const version = ++tab.controlVersion;
       if (request.action === "start") {
+        if (!tab.frames.get(0)?.documentKey) throw new Error("无法连接当前网页，请刷新页面后重试。");
         const settingsRevision = tab.settingsRevision;
         const settings = await this.readSettings();
         if (version !== tab.controlVersion) return this.snapshot(tab);
@@ -158,6 +157,7 @@ export class FrameSessionManager {
     const tabId = sender.tab?.id;
     if (tabId === undefined || sender.frameId === undefined) throw new Error("翻译文档已经失效。");
     const tab = await this.get(tabId);
+    if (tab.retired) throw new Error("网页文档已经更新。");
     if (tab.paused) throw new ProviderError(tab.paused.message, tab.paused.errorCode,
       tab.paused.retryAt === undefined ? undefined : Math.max(0, tab.paused.retryAt - Date.now()));
     let frame = tab.frames.get(sender.frameId);
@@ -223,12 +223,15 @@ export class FrameSessionManager {
         const [settings, saved] = await Promise.all([this.readSettings(),
           this.api.storage?.session?.get(`${PREFIX}${tabId}`).catch(() => undefined)]);
         const stored = saved?.[`${PREFIX}${tabId}`] as Partial<Pick<TabSession, "id" | "revision" | "topDocument" | "topUrl" | "active" | "paused">> | undefined;
-        return { id: stored?.id ?? crypto.randomUUID(), revision: Math.max(Date.now() * 1000, stored?.revision ?? 0),
+        const tab: TabSession = { id: stored?.id ?? crypto.randomUUID(), revision: Math.max(Date.now() * 1000, stored?.revision ?? 0),
           topDocument: stored?.topDocument ?? "", topUrl: stored?.topUrl ?? "",
           active: stored?.active === true,
           paused: stored?.paused?.identity === this.providerIdentity(settings) ? stored.paused : undefined,
           settings, frames: new Map<number, Frame>(), documents: new Map<number, AbortController>(),
           controller: new AbortController(), queue: [], running: 0, lastFrame: -1, controlVersion: 0, settingsRevision: 0, retired: false };
+        await this.restoreFrames(tabId, tab);
+        if (this.tabs.get(tabId) !== value) { tab.retired = true; tab.controller.abort(); }
+        return tab;
       })();
       this.tabs.set(tabId, value);
       // Do not retain a rejected settings read forever. The next user action
@@ -237,10 +240,55 @@ export class FrameSessionManager {
     }
     return value;
   }
+  private async restoreFrames(tabId: number, tab: TabSession): Promise<void> {
+    // Content scripts outlive an idle MV3 worker and do not register again just
+    // because it restarted. Recover identities from the browser's live frame
+    // tree before serving any control/state request; an empty registry is not
+    // evidence that the page has no translatable content.
+    const current = await this.api.webNavigation?.getAllFrames?.({ tabId }).catch(() => undefined);
+    if (!current) return;
+    const documents = await Promise.all(current.map(async metadata => {
+      const frame: Frame = { frameId: metadata.frameId, parentFrameId: metadata.parentFrameId,
+        documentId: metadata.documentId, documentKey: "", url: this.documentUrl(metadata.url),
+        status: "unavailable", reason: "文档尚未接入，或浏览器不允许访问" };
+      try {
+        const identity = await this.send(tabId, frame, { type: "FRAME_IDENTIFY" }, 1500) as FrameDocumentIdentity | undefined;
+        if (identity?.documentKey && typeof identity.documentKey === "string") {
+          // Navigation can overtake the probe. Never bind an old document's key
+          // or state to a new document that happens to have the same frame ID.
+          if (metadata.documentId && this.api.webNavigation?.getFrame) {
+            const latest = await this.api.webNavigation.getFrame({ tabId, frameId: frame.frameId }).catch(() => null);
+            if (!latest || latest.documentId !== metadata.documentId) return { frame };
+          }
+          frame.documentKey = identity.documentKey; frame.status = "ready"; frame.reason = undefined;
+          return { frame, identity };
+        }
+      } catch { /* Restricted or not-yet-injected documents can register later. */ }
+      return { frame };
+    }));
+    for (const { frame } of documents) tab.frames.set(frame.frameId, frame);
+    const top = tab.frames.get(0);
+    if (top?.documentKey) {
+      if (tab.topDocument && tab.topDocument !== top.documentKey) this.reset(tab);
+      tab.topDocument = top.documentKey; tab.topUrl = top.url;
+    }
+    for (const { frame, identity } of documents) {
+      if (identity?.sessionId === tab.id && identity.state) this.updateFrameState(frame, identity.state);
+    }
+  }
+  private updateFrameState(frame: Frame, state: DocumentTranslationState): void {
+    frame.state = state;
+    frame.reason = state.documentHidden ? "等待嵌入页面显示" : undefined;
+    frame.status = state.failed || state.error ? "failed" : state.documentHidden ? "waiting-viewport" : state.pending ? "translating"
+      : state.remaining ? "waiting-viewport" : state.translated ? "ready" : "empty";
+  }
   private resetGeneration(tab: TabSession): void {
     tab.controller.abort(); tab.controller = new AbortController(); tab.id = crypto.randomUUID();
     tab.paused = undefined;
-    for (const frame of tab.frames.values()) { frame.state = undefined; frame.status = "ready"; }
+    for (const frame of tab.frames.values()) {
+      frame.state = undefined;
+      if (frame.documentKey) frame.status = "ready";
+    }
   }
   private providerIdentity(settings: ExtensionSettings): string {
     return JSON.stringify(settings.providers.find(provider => provider.id === settings.activeProviderId));
@@ -334,9 +382,7 @@ export class FrameSessionManager {
         const value = await this.send(tabId, frame, { type: "FRAME_APPLY", documentKey: frame.documentKey,
           snapshot, allowed, reuseResults }) as DocumentTranslationState;
         if (tab.id === snapshot.id && tab.frames.get(frame.frameId) === frame && value) {
-          frame.state = value; frame.reason = value.documentHidden ? "等待嵌入页面显示" : undefined;
-          frame.status = value.failed || value.error ? "failed" : value.documentHidden ? "waiting-viewport" : value.pending ? "translating"
-            : value.remaining ? "waiting-viewport" : value.translated ? "ready" : "empty";
+          this.updateFrameState(frame, value);
         }
       } catch (error) {
         if (tab.id === snapshot.id && tab.frames.get(frame.frameId) === frame) {

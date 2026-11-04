@@ -1,5 +1,5 @@
 import type { ExtensionSettings, RuntimeRequest } from "../shared/types";
-import type { FrameSessionSnapshot } from "../shared/frame-session";
+import type { FrameDocumentIdentity, FrameSessionSnapshot } from "../shared/frame-session";
 import { emptyDocumentState } from "../shared/frame-session";
 import {
   clearPageTranslation, configurePageTranslationCoordinator, getLocalPageTranslationState, hideLocalPageTranslation,
@@ -27,6 +27,9 @@ export function installFrameRuntime(documentKey: string, options: { top: boolean
   let applyError: string | undefined;
   let applyVersion = 0;
   const documentState = () => ({ ...getLocalPageTranslationState(), ...(applyError ? { error: applyError } : {}), documentHidden: !frameIsRendered() });
+  // This must stay synchronous: the background may be rebuilding its registry
+  // while a document is itself waiting for a runtime request to finish.
+  const identify = (): FrameDocumentIdentity => ({ documentKey, sessionId: appliedId, state: documentState() });
   const updateSnapshot = (value: FrameSessionSnapshot) => {
     if (options.top && value.topDocument && value.topDocument !== documentKey) return;
     if (!snapshot || value.revision >= snapshot.revision) { snapshot = value; if (options.top) notifyCoordinatedPageState(); }
@@ -135,6 +138,7 @@ export function installFrameRuntime(documentKey: string, options: { top: boolean
     };
     configurePageTranslationCoordinator(controls);
     chrome.runtime.onMessage.addListener((request: RuntimeRequest, _sender, respond) => {
+      if (request.type === "FRAME_IDENTIFY") { respond({ ok: true, data: identify() }); return; }
       if (request.type === "FRAME_SNAPSHOT") { updateSnapshot(request.snapshot); respond({ ok: true }); return; }
       if (request.type === "FRAME_SAMPLE") { respond({ ok: true, data: sampleDocumentText() }); return; }
       if (request.type !== "FRAME_APPLY" || request.documentKey !== documentKey) return;
@@ -160,5 +164,5 @@ export function installFrameRuntime(documentKey: string, options: { top: boolean
     hideLocalPageTranslation(false);
     void sendRuntimeRequest({ type: "FRAME_LEAVE", documentKey }).catch(() => {});
   });
-  return { apply, updateSnapshot };
+  return { apply, updateSnapshot, identify };
 }

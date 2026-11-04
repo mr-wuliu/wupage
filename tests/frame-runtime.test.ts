@@ -43,6 +43,26 @@ describe("document session control ordering", () => {
   afterEach(() => { vi.clearAllTimers(); vi.useRealTimers(); vi.restoreAllMocks(); vi.resetAllMocks(); vi.unstubAllGlobals(); });
   const controls = () => f.configure.mock.calls.at(-1)![0] as PageTranslationCoordinator;
 
+  it("identifies the live document without waiting for its pending background registration", () => {
+    f.send.mockReturnValueOnce(new Promise(() => {}));
+    installFrameRuntime("document", { top: true });
+    const receive = vi.mocked(chrome.runtime.onMessage.addListener).mock.calls[0][0];
+    const respond = vi.fn();
+    receive({ type: "FRAME_IDENTIFY" }, {}, respond);
+    expect(respond).toHaveBeenCalledWith({ ok: true, data: { documentKey: "document", sessionId: undefined,
+      state: { active: false, documentHidden: false } } });
+    expect(f.send).toHaveBeenCalledTimes(1);
+    expect(f.start).not.toHaveBeenCalled();
+  });
+
+  it("identifies an activated embedded document with its current generation and failure", async () => {
+    const runtime = installFrameRuntime("embedded", { top: false });
+    f.start.mockRejectedValueOnce(new Error("Document initialization failed"));
+    await expect(runtime.apply(snapshot(2, true))).rejects.toThrow("Document initialization failed");
+    expect(runtime.identify()).toMatchObject({ documentKey: "embedded", sessionId: "session-2",
+      state: { error: "Document initialization failed" } });
+  });
+
   it("clears pending activity after registration fails and permits a later retry", async () => {
     f.send.mockRejectedValueOnce(new Error("Background unavailable"));
     installFrameRuntime("document", { top: true });
