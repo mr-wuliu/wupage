@@ -101,6 +101,8 @@ class PublishEdgeTests(unittest.TestCase):
             ('v1.1.3', '1.1.2', 'manifest.json', {}),
             ('v1.1.3', '1.1.3', 'dist/manifest.json', {}),
             ('v1.1.3', '1.1.3', 'manifest.json', {'version_name': '1.1.3-beta.1'}),
+            ('v1.1.3', '1.1.3', 'manifest.json', {'key': 'fixed-public-key'}),
+            ('v1.1.3', '1.1.3', 'manifest.json', {'update_url': 'https://example.com/updates.xml'}),
         ]
         for tag, version, manifest_path, extra in cases:
             with self.subTest(tag=tag, version=version, path=manifest_path, extra=extra):

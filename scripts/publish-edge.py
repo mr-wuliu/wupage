@@ -33,6 +33,9 @@ def validate_package(package, tag):
     version = tag[1:]
     if manifest.get('version') != version or manifest.get('version_name', version) != version:
         raise ValueError(f'The ZIP manifest version must match release {tag}.')
+    if 'key' in manifest or 'update_url' in manifest:
+        raise ValueError('The Edge store manifest must not contain key or update_url; '
+                         'prepare the release ZIP with scripts/package-edge.py.')
 
 
 class EdgeClient:

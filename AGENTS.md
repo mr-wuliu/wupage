@@ -28,7 +28,7 @@
 
 商店自动提交策略由 `scripts/publish-policy.py` 决定：仅稳定的 `v<major>.<minor>.0`（例如 `v1.4.0`、`v2.0.0`）自动调用已配置的 Edge、Firefox 商店工作流。补丁版本（例如 `v1.3.1`）仍构建全部安装包、创建 GitHub Release 并同步网站，但跳过自动商店提交；预发布版本也不自动提交。需要提交补丁版本时，在对应商店工作流的 **Run workflow** 中手动指定已发布标签；Firefox 需取消 `dry_run` 才实际提交。手动入口不受自动策略限制。
 
-Chrome 与 Edge 共用 `npm run build` 生成的 Chromium MV3 构建（`dist/`），分别发布 `wupage-<version>-chrome.zip`、`wupage-<version>-edge.zip`。两者 ZIP 根目录均为 Manifest 所在目录，不含 source map；Edge 商店提交流程仍读取 `edge.zip`。
+Chrome 与 Edge 共用 `npm run build` 生成的 Chromium MV3 构建（`dist/`），分别发布 `wupage-<version>-chrome.zip`、`wupage-<version>-edge.zip`。Chrome ZIP 保留固定公钥；`scripts/package-edge.py` 从 Chrome ZIP 生成 Edge ZIP，仅移除 Manifest 的 `key` 和 `update_url`，其余资源保持一致。Edge 商店拒绝 `key` 字段，其商店 ID 及更新由商店管理。两者 ZIP 根目录均为 Manifest 所在目录，不含 source map；Edge 商店提交流程仍读取原始 `edge.zip`，上传前拒绝上述字段。
 
 三个浏览器安装 ZIP 均须小于 10,000,000 字节，发布流水线在上传前检查。PDF 完整导出字体是可选数据，仅在用户确认后从固定版本的 Noto 官方地址下载并校验；不得重新将完整字体加入 `public/`。未安装字体时仍可导出图像版 PDF。
 

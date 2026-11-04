@@ -97,17 +97,16 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p release
-          # Chrome and Edge use the same Chromium MV3 build.
-          for browser in chrome edge; do
-            archive_name="wupage-${RELEASE_VERSION}-${browser}.zip"
-            archive="release/$archive_name"
-            (cd dist && zip -r "../$archive" . -x '*.map')
+          archive="release/wupage-${RELEASE_VERSION}-chrome.zip"
+          (cd dist && zip -r "../$archive" . -x '*.map')
 
-            if ! unzip -Z1 "$archive" | grep -qx 'manifest.json'; then
-              echo "The $browser ZIP package must contain manifest.json at its root."
-              exit 1
-            fi
-          done
+          if ! unzip -Z1 "$archive" | grep -qx 'manifest.json'; then
+            echo "The Chrome ZIP package must contain manifest.json at its root."
+            exit 1
+          fi
+          # Edge uses the same runtime but its store rejects the fixed key.
+          python3 -B scripts/package-edge.py --source "$archive" \
+            --output "release/wupage-${RELEASE_VERSION}-edge.zip"
 
       - name: Sign independent Chromium package and prepare stable update feed
         env:
