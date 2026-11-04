@@ -76,6 +76,8 @@
 
 Releases 中的 `wupage-<版本>-chromium.crx` 使用固定密钥签名，适用于允许安装外部 CRX 的 Chromium 浏览器。成功安装该 CRX 后，浏览器会通过项目网站检查正式版更新，下载对应的签名包；预发布版不推送到此更新渠道。解压后加载的 ZIP 仍需手动更新。
 
+独立签名包的扩展 ID 固定为 `fgeedjpifhmkdehbgdmngbehdfcflblc`，可在扩展管理页核对。更新入口为[正式版更新清单](https://wupage.mrwuliu.top/updates/chromium.xml)，浏览器仅安装版本号更高且签名一致的更新。首个签名正式版发布前，清单返回 `noupdate`，表示当前没有可用更新。
+
 Windows、macOS 上的普通 Chrome 限制安装商店外的 CRX，请使用上面的解压加载方式。其他 Chromium 浏览器是否支持 CRX 安装与自动更新，以浏览器及设备策略为准。Edge 和 Firefox 商店版通过各自商店更新。
 
 首次从旧版解压安装切换时，扩展 ID 可能变化。请先导出设置，再安装新版并导入；需要恢复 API 凭据时，导出时勾选「包含密钥」。新旧扩展同时存在时，只启用其中一个。设置备份不包含翻译缓存及模型，详见下方「设置备份与恢复」。
