@@ -10,9 +10,14 @@ import {
 
 describe("translation layout boundaries", () => {
   beforeEach(() => {
+    const inheritedWhiteSpace = (element: Element): string => {
+      const value = (element as HTMLElement).style.whiteSpace;
+      if (value && value !== "inherit") return value;
+      return element.parentElement ? inheritedWhiteSpace(element.parentElement) : "normal";
+    };
     vi.spyOn(window, "getComputedStyle").mockImplementation(element => ({
       display: (element as HTMLElement).style.display || "block", visibility: "visible", opacity: "1", color: "rgb(0, 0, 0)",
-      whiteSpace: (element as HTMLElement).style.whiteSpace,
+      whiteSpace: inheritedWhiteSpace(element),
       overflow: (element as HTMLElement).style.overflow,
       overflowX: (element as HTMLElement).style.overflowX,
       textOverflow: (element as HTMLElement).style.textOverflow
@@ -34,12 +39,18 @@ describe("translation layout boundaries", () => {
     expect(segments.map(s => s.text)).toEqual(["Release workflow failed", "- Review the publishing status."]);
     renderTranslationPlaceholders(segments);
     expect(document.querySelector('.slot > .wupage-translation,td > .wupage-translation')).toBeNull();
+    for (const pending of document.querySelectorAll('.wupage-translation-pending')) {
+      expect(getComputedStyle(pending).whiteSpace).toBe("nowrap");
+    }
     renderTranslations(segments.map(({id,text}) => ({id,text:`译文：${text}`})), "replace");
     for (const mode of ["replace", "bilingual", "bilingual-accent"] as const) {
       setTranslationDisplayMode(mode);
       expect(document.querySelector('#subject .wupage-translation')?.textContent).toBe("译文：Release workflow failed");
       expect(document.querySelector('#preview .wupage-translation')?.textContent).toBe("译文：- Review the publishing status.");
       expect(document.querySelector('.slot > .wupage-translation,td > .wupage-translation,tr > .wupage-translation')).toBeNull();
+      for (const result of document.querySelectorAll('.wupage-translation')) {
+        expect(getComputedStyle(result).whiteSpace).toBe("nowrap");
+      }
     }
     clearTranslations();
     expect(document.querySelector("main")!.innerHTML).toBe(original);
@@ -48,6 +59,71 @@ describe("translation layout boundaries", () => {
   it("keeps a clipped rich sentence together when it has authored text around emphasis", async () => {
     document.body.innerHTML = `<main><div style="overflow:hidden;white-space:nowrap">A complete <em>rich sentence</em> in one line.</div></main>`;
     expect((await collectTextSegmentsProgressive()).map(s => s.text)).toEqual(["A complete rich sentence in one line."]);
+  });
+
+  it("keeps unclipped compact timestamps on one line across pending and display modes", async () => {
+    document.body.innerHTML = `<main><table><tbody><tr><td style="white-space:nowrap"><span>3:08 AM</span></td></tr></tbody></table></main>`;
+    const original = document.querySelector("main")!.innerHTML;
+    const segments = await collectTextSegmentsProgressive();
+    expect(segments.map(segment => segment.text)).toEqual(["3:08 AM"]);
+    renderTranslationPlaceholders(segments);
+    expect(getComputedStyle(document.querySelector('.wupage-translation-pending')!).whiteSpace).toBe("nowrap");
+    renderTranslations(segments.map(({ id }) => ({ id, text: "凌晨 3:08" })), "bilingual");
+    for (const mode of ["bilingual", "bilingual-accent", "replace", "bilingual"] as const) {
+      setTranslationDisplayMode(mode);
+      const result = document.querySelector('.wupage-translation')!;
+      expect(result.textContent).toBe("凌晨 3:08");
+      expect(getComputedStyle(result).whiteSpace).toBe("nowrap");
+    }
+    clearTranslations();
+    expect(document.querySelector("main")!.innerHTML).toBe(original);
+  });
+
+  it("allows full paragraph translations to wrap even when their source inherits nowrap", async () => {
+    document.body.innerHTML = `<article style="white-space:nowrap"><p>A complete email body paragraph that must remain fully readable.</p></article>`;
+    const original = document.querySelector("article")!.innerHTML;
+    const segments = await collectTextSegmentsProgressive();
+    renderTranslationPlaceholders(segments);
+    expect(getComputedStyle(document.querySelector('.wupage-translation-pending')!).whiteSpace).toBe("normal");
+    renderTranslations(segments.map(({ id }) => ({ id, text: "邮件正文的长段落应该完整显示并正常换行。" })), "bilingual");
+    for (const mode of ["bilingual", "bilingual-accent", "replace"] as const) {
+      setTranslationDisplayMode(mode);
+      expect(getComputedStyle(document.querySelector('.wupage-translation')!).whiteSpace).toBe("normal");
+    }
+    clearTranslations();
+    expect(document.querySelector("article")!.innerHTML).toBe(original);
+  });
+
+  it("lets short flowing prose use a longer wrapping translation despite inline placement", async () => {
+    document.body.innerHTML = `<main><div style="width:180px;white-space:nowrap"><span>Short source.</span></div></main>`;
+    const original = document.querySelector("main")!.innerHTML;
+    const segments = await collectTextSegmentsProgressive();
+    expect(segments.map(segment => segment.text)).toEqual(["Short source."]);
+    renderTranslationPlaceholders(segments);
+    const pending = document.querySelector('.wupage-translation-pending')!;
+    expect(pending.getAttribute("data-wupage-mode")).toBe("inline");
+    expect(getComputedStyle(pending).whiteSpace).toBe("normal");
+    renderTranslations(segments.map(({ id }) => ({ id, text: "A longer translation that needs to wrap inside its narrow prose container." })), "bilingual");
+    for (const mode of ["bilingual", "bilingual-accent", "replace"] as const) {
+      setTranslationDisplayMode(mode);
+      const result = document.querySelector('.wupage-translation')!;
+      expect(result.getAttribute("data-wupage-mode")).toBe("inline");
+      expect(getComputedStyle(result).whiteSpace).toBe("normal");
+    }
+    clearTranslations();
+    expect(document.querySelector("main")!.innerHTML).toBe(original);
+  });
+
+  it("does not mistake an unclipped grid timestamp's leaf div for flowing prose", async () => {
+    document.body.innerHTML = `<main><div role="gridcell" style="white-space:nowrap"><div><span>3:08 AM</span></div></div></main>`;
+    const segments = await collectTextSegmentsProgressive();
+    renderTranslationPlaceholders(segments);
+    expect(getComputedStyle(document.querySelector('.wupage-translation-pending')!).whiteSpace).toBe("nowrap");
+    renderTranslations(segments.map(({ id }) => ({ id, text: "凌晨 3:08" })), "bilingual");
+    for (const mode of ["bilingual", "bilingual-accent", "replace"] as const) {
+      setTranslationDisplayMode(mode);
+      expect(getComputedStyle(document.querySelector('.wupage-translation')!).whiteSpace).toBe("nowrap");
+    }
   });
 
   it.each(["flex", "grid"])("keeps sidebar labels in their text cell beside font icons in %s links", async display => {

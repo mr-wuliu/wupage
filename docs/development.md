@@ -139,6 +139,10 @@ npm run test:page
 
 浏览器验证通常使用独立资料目录、本地样例和模拟翻译服务，报告与截图保存在被 Git 忽略的 `.npm-cache/`。OCR、本地模型与部分 PDF 验证可能下载公开数据，运行前查看对应脚本。样例通过说明流程和排版符合预期，真实站点兼容性与译文质量仍需分别验证。
 
+邮件列表排版使用 `npm run test:mail-layout` 检查表格、网格和 Gmail 式弹性布局；Edge、Firefox 分别使用 `test:mail-layout:edge`、`test:mail-layout:firefox`。覆盖宽窄窗口、等待占位、三种显示模式、动态新增行及恢复原文，同场验证标题、预览和时间保持单行，以及短正文译成长句后正常换行且不横向溢出。行内插入位置不代表单行界面语义，调整换行规则时两类场景必须同时通过。涉及分段、渲染或公共译文样式时应运行此项检查。
+
+嵌入文档连接使用 `npm run test:frame-connection` 验证；Edge、Firefox 分别使用 `test:frame-connection:edge`、`test:frame-connection:firefox`。脚本仅修改临时复制的构建，通过移除测试文档的消息接收器触发浏览器原始连接错误，覆盖隐藏辅助文档失联、无离开通知的文档删除、可见正文失联及新文档重新接入。隐藏辅助文档的不可访问状态保留在 Debug 中，可见正文和主页面的真实错误仍须上报。
+
 ## 调试
 
 网页内容脚本在目标网页的开发者工具中调试；弹窗、设置页和 PDF 工作区使用各自的开发者工具。后台日志从扩展管理页的 Service Worker 检查入口查看，Firefox 使用 `about:debugging`。翻译链路的请求状态和错误可通过扩展的 Debug 面板查看。

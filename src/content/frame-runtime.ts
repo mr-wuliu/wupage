@@ -83,7 +83,8 @@ export function installFrameRuntime(documentKey: string, options: { top: boolean
   }
 
   async function register() {
-    const value = await sendRuntimeRequest<FrameSessionSnapshot>({ type: "FRAME_REGISTER", documentKey, url: location.href });
+    const value = await sendRuntimeRequest<FrameSessionSnapshot>({ type: "FRAME_REGISTER", documentKey,
+      url: location.href, documentHidden: !frameIsRendered() });
     if (!value || typeof value.id !== "string") return;
     registered = true;
     updateSnapshot(value);

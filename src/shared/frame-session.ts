@@ -48,7 +48,7 @@ export interface FrameDocumentIdentity {
 
 export type FrameSessionRequest =
   | { type: "FRAME_IDENTIFY" }
-  | { type: "FRAME_REGISTER"; documentKey: string; url: string }
+  | { type: "FRAME_REGISTER"; documentKey: string; url: string; documentHidden?: boolean }
   | { type: "FRAME_REPORT"; documentKey: string; sessionId: string; state: DocumentTranslationState }
   | { type: "FRAME_LEAVE"; documentKey: string }
   | { type: "FRAME_SESSION_GET" }

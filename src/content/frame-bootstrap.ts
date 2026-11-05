@@ -4,7 +4,7 @@ import { createDocumentKey, frameExclusion } from "../shared/frame-session";
 import { sampleDocumentText } from "./frame-sample";
 import { initKeyboardShortcuts } from "./keyboard-shortcuts";
 import { sendRuntimeRequest } from "./runtime";
-import { installFrameVisibilityBridge } from "./frame-visibility";
+import { frameIsRendered, installFrameVisibilityBridge } from "./frame-visibility";
 import { SETTINGS_KEY } from "../shared/defaults";
 import type { ExtensionSettings } from "../shared/types";
 import { initEmbeddedVideoSubtitles } from "./video-bootstrap";
@@ -49,7 +49,8 @@ if (window !== window.top && supportsHtmlContent() && !scope.__wupageFrameBootst
     void syncParagraphMode().catch(() => {});
   });
   const register = async () => {
-    const value = await sendRuntimeRequest<FrameSessionSnapshot>({ type: "FRAME_REGISTER", documentKey, url: location.href });
+    const value = await sendRuntimeRequest<FrameSessionSnapshot>({ type: "FRAME_REGISTER", documentKey,
+      url: location.href, documentHidden: !frameIsRendered() });
     current = value;
     if (!worker) configureElementExclusions(value.settings.elementExclusions);
     frameId = value.selfFrameId;

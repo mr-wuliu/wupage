@@ -230,6 +230,85 @@ describe("tab-wide document sessions", () => {
     await f.action("stop");
     expect((await f.snapshot()).state).toMatchObject({ active: false, failed: 0 });
   });
+  it("does not turn a disconnected hidden helper into a whole-page translation failure", async () => {
+    const f = await fixture(); await f.register(0); await f.register(1); f.discovery();
+    const snapshot = await f.snapshot();
+    await f.manager.handle({ type: "FRAME_REPORT", sessionId: snapshot.id, documentKey: "key-1",
+      state: { ...emptyDocumentState(), documentHidden: true } }, f.sender(1));
+    const original = f.sendMessage.getMockImplementation()!;
+    f.sendMessage.mockImplementation(async (tabId, request, target) => {
+      if (target.documentId === "document-1") throw new Error("Could not establish connection. Receiving end does not exist.");
+      return original(tabId, request, target);
+    });
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const state = await f.action("start");
+      expect(state.translated).toBe(1);
+      expect(state.error).toBeUndefined();
+      expect((await f.snapshot()).frames.find(frame => frame.frameId === 1)).toMatchObject({
+        status: "unavailable", reason: expect.stringContaining("Receiving end does not exist")
+      });
+    }
+  });
+  it("drops a removed document after a failed delivery instead of retaining its error", async () => {
+    const f = await fixture(); await f.register(0); await f.register(1);
+    const frames = f.discovery(); frames.splice(1, 1);
+    const original = f.sendMessage.getMockImplementation()!;
+    f.sendMessage.mockImplementation(async (tabId, request, target) => {
+      if (target.documentId === "document-1") throw new Error("Could not establish connection. Receiving end does not exist.");
+      return original(tabId, request, target);
+    });
+    const state = await f.action("start");
+    expect(state.translated).toBe(1);
+    expect(state.error).toBeUndefined();
+    expect((await f.snapshot()).frames.some(frame => frame.frameId === 1)).toBe(false);
+  });
+  it("keeps a disconnected visible document as an actionable connection failure", async () => {
+    const f = await fixture(); await f.register(0); await f.register(1); f.discovery();
+    const original = f.sendMessage.getMockImplementation()!;
+    f.sendMessage.mockImplementation(async (tabId, request, target) => {
+      if (target.documentId === "document-1") throw new Error("Could not establish connection. Receiving end does not exist.");
+      return original(tabId, request, target);
+    });
+    const state = await f.action("start");
+    expect(state.translated).toBe(1);
+    expect(state.error).toMatch(/嵌入页面.*连接/u);
+    expect(state.errorCode).toBe("frame-connection-lost");
+  });
+  it("recovers one transient delivery failure after verifying the same document identity", async () => {
+    const f = await fixture(); await f.register(0); await f.register(1); f.discovery();
+    const original = f.sendMessage.getMockImplementation()!;
+    let dropped = false;
+    f.sendMessage.mockImplementation(async (tabId, request, target) => {
+      if (!dropped && request.type === "FRAME_APPLY" && target.documentId === "document-1") {
+        dropped = true; throw new Error("Could not establish connection. Receiving end does not exist.");
+      }
+      return original(tabId, request, target);
+    });
+    expect(await f.action("start")).toMatchObject({ translated: 2 });
+    expect((await f.snapshot()).state.error).toBeUndefined();
+    expect(f.deliveries.some(item => item.request.type === "FRAME_IDENTIFY" && item.documentId === "document-1")).toBe(true);
+  });
+  it("does not suppress or retry a connected hidden document's acknowledged runtime error", async () => {
+    const f = await fixture(); await f.register(0);
+    await f.manager.handle({ type: "FRAME_REGISTER", documentKey: "key-1", url: f.sender(1).url!, documentHidden: true }, f.sender(1));
+    const original = f.sendMessage.getMockImplementation()!;
+    f.sendMessage.mockImplementation(async (tabId, request, target) => {
+      if (request.type === "FRAME_APPLY" && target.documentId === "document-1") {
+        return { ok: false, error: "Could not establish connection. Receiving end does not exist." };
+      }
+      return original(tabId, request, target);
+    });
+    const state = await f.action("start");
+    expect(state.error).toContain("Receiving end does not exist");
+    expect((await f.snapshot()).frames.find(frame => frame.frameId === 1)?.status).toBe("failed");
+    expect(f.deliveries.some(item => item.request.type === "FRAME_IDENTIFY")).toBe(false);
+  });
+  it("never suppresses a missing main-page receiver, even when its visibility was hidden", async () => {
+    const f = await fixture();
+    await f.manager.handle({ type: "FRAME_REGISTER", documentKey: "key-0", url: f.sender(0).url!, documentHidden: true }, f.sender(0));
+    f.sendMessage.mockRejectedValue(new Error("Could not establish connection. Receiving end does not exist."));
+    expect(await f.action("start")).toMatchObject({ errorCode: "page-connection-lost", error: expect.stringMatching(/当前网页.*连接/u) });
+  });
   it("addresses browser document identities, aggregates results, isolates tabs, and restores all documents", async () => {
     const f = await fixture();
     await f.register(0); await f.register(1); await f.register(0, 2);
