@@ -41,7 +41,8 @@ import { extractTextBlocks, normalizePdfTextItems, type PdfTextBlock } from "./m
 import { renderPageWithoutText } from "./rendering";
 import { filterVisiblePdfText } from "./visibility";
 import { validatePdfMathTranslation } from "./math";
-import { preparePdfDocument, preparePdfTranslation, pdfPageTranslationContext, type PdfDocumentContext } from "./document";
+import { preparePdfDocument, pdfPageTranslationContext, type PdfDocumentContext } from "./document";
+import { preparePdfDocumentTranslations, type PdfDocumentParagraphInput, type PdfPageParagraphPlan } from "./paragraph-flow";
 import { createFormulaImages, getFormulaViewportRect } from "./math-rendering";
 import { findReadingPage, selectPdfTranslationPages } from "./scheduling";
 import { PdfTranslationQueue, type PdfQueuePage, type PdfQueuePageStatus } from "./translation-queue";
@@ -56,6 +57,7 @@ const PDF_DOWNLOAD_TIMEOUT_MS = 30_000;
 const PDF_OPEN_TIMEOUT_MS = 45_000;
 const TRANSLATION_SCROLL_DELAY_MS = 200;
 let documentContext: PdfDocumentContext = { context: "", abbreviations: new Map() };
+let documentParagraphs: PdfPageParagraphPlan[] = [];
 
 interface PdfPageState {
   pageNumber: number;
@@ -79,7 +81,7 @@ interface PdfPageState {
   renderedTranslationContext?: string;
   translationPending?: boolean;
   translationProgress?: PdfQueuePageStatus;
-  translationDraft?: { context: string; page: PdfQueuePage; inputs: Map<number, ReturnType<typeof preparePdfTranslation>> };
+  translationDraft?: { context: string; page: PdfQueuePage; inputs: Map<number, PdfDocumentParagraphInput> };
   renderViewport?: ReturnType<PDFPageProxy["getViewport"]>;
 }
 
@@ -355,6 +357,7 @@ async function loadPdf(data: ArrayBuffer, name: string, autoTranslate: boolean, 
   assertCurrentOpen(operation);
   pageStates = [];
   documentContext = { context: "", abbreviations: new Map() };
+  documentParagraphs = [];
   renderedPages = new Set();
   pageRenderTasks = new Map();
   renderObserver?.disconnect();
@@ -442,11 +445,13 @@ async function loadPdf(data: ArrayBuffer, name: string, autoTranslate: boolean, 
     if (pdfLoadingTask === task) { pdfDocument = undefined; pdfLoadingTask = undefined; }
     throw error;
   }
-  documentContext = preparePdfDocument(parsedPages.map(({ page, blocks, textContent }) => {
+  const documentPages = parsedPages.map(({ page, blocks, textContent }) => {
     const viewport = page.getViewport({ scale: 1 });
     return { blocks, width: viewport.width, height: viewport.height,
       sourceText: textContent.items.flatMap((item) => "str" in item ? [item.str] : []).join(" ") };
-  }), currentDocumentName);
+  });
+  documentContext = preparePdfDocument(documentPages, currentDocumentName);
+  documentParagraphs = preparePdfDocumentTranslations(documentPages, documentContext.abbreviations);
   parsedPages.forEach(({ page, blocks, textContent }, index) => {
     const pageState = createPageState(page, index + 1, blocks, textContent);
     pageStates.push(pageState);
@@ -937,16 +942,20 @@ async function translateDocument(forDownload = false): Promise<PdfTranslationSes
       const page = pageStates[entry.pageNumber - 1], draft = page.translationDraft!;
       return requestPdfTranslation({
         texts: indexes.map(index => draft.inputs.get(index)!.text),
-        context: pdfPageTranslationContext(documentContext, page.blocks), preservePlaceholders: true,
+        context: pdfPageTranslationContext(documentContext, page.blocks, [
+          ...(pageStates[entry.pageNumber - 2]?.blocks.filter(block => block.translatable).slice(-2) ?? []),
+          ...(pageStates[entry.pageNumber]?.blocks.filter(block => block.translatable).slice(0, 2) ?? [])
+        ]), preservePlaceholders: true,
         translationStyle: "academic", ...session.requestOptions
       }, page.pageNumber, anySignal([signal, session.controller.signal]));
     },
     restore: (entry, index, raw) => {
       const page = pageStates[entry.pageNumber - 1];
-      const value = page.translationDraft!.inputs.get(index)!.restore(raw);
-      validatePdfMathTranslation(value, page.blocks[index].formulas);
-      session.translated += 1;
-      return value;
+      const values = page.translationDraft!.inputs.get(index)!.restore(raw);
+      for (const [region, value] of values) validatePdfMathTranslation(value, pageStates[region.pageNumber - 1].blocks[region.index].formulas);
+      for (const [region, value] of values) pageStates[region.pageNumber - 1].translationDraft!.page.values[region.index] = value;
+      session.translated += values.size;
+      return entry.values[index]!;
     },
     onChange: (entry, status) => {
       if (translationSession !== session) return;
@@ -1021,20 +1030,34 @@ function refreshTranslationRange(session: PdfTranslationSession): void {
       renderPageTranslations(page, page.blocks.map(block => block.text), session.context);
     }
   }
-  const pages = session.scopePages.filter(page => page.blocks.some(block => block.translatable)).map(page => {
+  const ensureDraft = (page: PdfPageState): PdfQueuePage => {
     if (page.translationDraft?.context !== session.context) {
-      const inputs = new Map(page.blocks.flatMap((block, index) => block.translatable
-        ? [[index, preparePdfTranslation(block, documentContext.abbreviations)] as const] : []));
+      const { inputs, incoming } = documentParagraphs[page.pageNumber - 1];
       page.translationDraft = { context: session.context, inputs, page: {
-        pageNumber: page.pageNumber, items: [...inputs].map(([index, input]) => ({ index, text: input.text })),
+        pageNumber: page.pageNumber, items: [...inputs].map(([index, input]) => ({
+          index, text: input.text, targetPages: [...new Set(input.regions.map(region => region.pageNumber))]
+        })), incoming,
         values: page.translationContext === session.context && page.translations ? page.translations
           : page.blocks.map(block => block.translatable ? undefined : block.text)
       } };
       if (page.translationContext !== session.context) page.translations = undefined;
     }
     return page.translationDraft.page;
-  });
-  session.queue.setScope(pages, session.readingPage);
+  };
+  const selected = session.scopePages.filter(page => page.blocks.some(block => block.translatable));
+  const scope = new Set(selected.map(page => page.pageNumber));
+  const owners = new Set(selected.map(page => page.pageNumber));
+  for (const page of selected) for (const incoming of documentParagraphs[page.pageNumber - 1].incoming) owners.add(incoming.pageNumber);
+  const dependencies = new Set(owners);
+  for (const owner of owners) for (const input of documentParagraphs[owner - 1].inputs.values()) {
+    if (input.regions.some(region => scope.has(region.pageNumber))) {
+      for (const region of input.regions) dependencies.add(region.pageNumber);
+    }
+  }
+  // Register related pages without expanding the requested translation range:
+  // only shared paragraphs touching that range are eligible to run.
+  const registered = [...dependencies].map(number => ensureDraft(pageStates[number - 1]));
+  session.queue.setScope(selected.map(ensureDraft), session.readingPage, registered);
 }
 
 function pumpTranslationQueue(session: PdfTranslationSession): void {

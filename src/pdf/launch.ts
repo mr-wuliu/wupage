@@ -7,10 +7,15 @@ export function isLikelyPdfUrl(value: string | undefined): boolean {
   if (!value) return false;
   try {
     const url = new URL(value);
-    const pdfPath = decodeURIComponent(url.pathname).toLowerCase().endsWith(".pdf");
+    const pathname = decodeURIComponent(url.pathname);
+    const pdfPath = pathname.toLowerCase().endsWith(".pdf");
     if (url.protocol === "file:") return pdfPath;
+    // arXiv serves PDFs from /pdf/<id> without a file extension, including
+    // older identifiers with an archive prefix such as hep-th/9901001.
+    const arxivPdf = ["arxiv.org", "www.arxiv.org", "export.arxiv.org"].includes(url.hostname)
+      && /^\/pdf\/[^/]+(?:\/[^/]+)?\/?$/u.test(pathname);
     return (url.protocol === "http:" || url.protocol === "https:")
-      && (pdfPath || url.search.toLowerCase().includes(".pdf"));
+      && (pdfPath || arxivPdf || url.search.toLowerCase().includes(".pdf"));
   } catch {
     return false;
   }

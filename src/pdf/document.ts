@@ -75,9 +75,11 @@ function sourceBlockText(block: PdfTextBlock): string {
   return block.text.replace(/⟪WUPAGE\d+⟫/gu, (marker) => block.formulas?.find((formula) => formula.placeholder === marker)?.text ?? "");
 }
 
-export function pdfPageTranslationContext(document: PdfDocumentContext, blocks: PdfTextBlock[]): string {
+export function pdfPageTranslationContext(document: PdfDocumentContext, blocks: PdfTextBlock[], adjacent: PdfTextBlock[] = []): string {
   const passage = blocks.filter((block) => block.translatable && block.text.length >= 60).map(sourceBlockText).join("\n").slice(0, 6000);
-  return [document.context, passage && `Source passages on this page (reference only, including neighbouring sentence fragments):\n${passage}`].filter(Boolean).join("\n");
+  const neighbours = adjacent.filter(block => block.translatable && block.text.length >= 20).map(sourceBlockText).join("\n").slice(0, 2400);
+  return [document.context, passage && `Source passages on this page (reference only, including neighbouring sentence fragments):\n${passage}`,
+    neighbours && `Adjacent page passages (context only; translate only the requested texts):\n${neighbours}`].filter(Boolean).join("\n");
 }
 
 function isMarginBlock(block: PdfTextBlock, height: number): boolean {
@@ -93,16 +95,14 @@ function preserveReferences(pages: PdfDocumentPage[]): void {
     const referenceCount = [...page.blocks, ...(pages[pageIndex + 1]?.blocks ?? [])]
       .filter((block) => NUMBERED_REFERENCE.test(block.text.trim()) || AUTHOR_REFERENCE.test(block.text.trim())).length;
     if (!active && (!heading || referenceCount < 1)) continue;
-    const headingX = heading?.lines[0].x ?? 0;
-    const headingY = heading?.lines[0].baselineY ?? Number.POSITIVE_INFINITY;
     const nextSections = page.blocks.filter((block) => NEXT_SECTION.test(block.text.trim())
-      && (!heading || afterHeading(block, headingX, headingY)));
+      && (!heading || afterHeading(block, heading, page)));
     for (const block of page.blocks) {
       if (block === heading || block.tocPart || nextSections.includes(block)) continue;
       const line = block.lines[0];
       if (!line || line.baselineY < page.height * 0.045 || line.baselineY > page.height * 0.94) continue;
-      if (!active && !afterHeading(block, headingX, headingY)) continue;
-      if (nextSections.some((section) => afterHeading(block, section.lines[0].x, section.lines[0].baselineY))) continue;
+      if (!active && heading && !afterHeading(block, heading, page)) continue;
+      if (nextSections.some((section) => afterHeading(block, section, page))) continue;
       block.translatable = false;
       block.preserveOriginal = true;
       block.role = "reference";
@@ -111,11 +111,26 @@ function preserveReferences(pages: PdfDocumentPage[]): void {
   }
 }
 
-function afterHeading(block: PdfTextBlock, x: number, y: number): boolean {
+function afterHeading(block: PdfTextBlock, heading: PdfTextBlock, page: PdfDocumentPage): boolean {
   const line = block.lines[0];
-  if (!line) return false;
+  if (!line || !heading.lines.length) return false;
   const tolerance = Math.max(18, block.fontSize * 2);
-  return line.x > x + tolerance || (line.x >= x - tolerance && line.baselineY < y - block.fontSize * 0.3);
+  const left = Math.min(...block.lines.map((entry) => entry.x));
+  const right = Math.max(...block.lines.map((entry) => entry.x + entry.width));
+  const headingLeft = Math.min(...heading.lines.map((entry) => entry.x));
+  const headingRight = Math.max(...heading.lines.map((entry) => entry.x + entry.width));
+  const center = (headingLeft + headingRight) / 2;
+  const columns = page.blocks.filter((entry) => entry.lines.length >= 2 && entry.text.length >= 60
+    && entry.fontSize <= heading.fontSize * 1.35).map((entry) => ({
+    left: Math.min(...entry.lines.map(line => line.x)),
+    right: Math.max(...entry.lines.map(line => line.x + line.width))
+  })).filter((entry) => entry.left <= center && entry.right >= center && entry.right - entry.left < page.width * 0.7)
+    .sort((a, b) => (b.right - b.left) - (a.right - a.left));
+  const column = columns[0] ?? { left: headingLeft, right: headingRight };
+  // A centered heading is still in the same column as the wider paragraphs
+  // below it. Comparing only their left edges mislabels those as references.
+  return left > column.right + block.fontSize * 0.4 || (right >= column.left - tolerance && left <= column.right
+    && line.baselineY < heading.lines[0].baselineY - block.fontSize * 0.3);
 }
 
 export function preparePdfTranslation(block: PdfTextBlock, abbreviations: ReadonlyMap<string, string>): {

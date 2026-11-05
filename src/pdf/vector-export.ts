@@ -1,9 +1,9 @@
-import fontkit from "@pdf-lib/fontkit";
 import { PDFDocument, PDFName, PDFRawStream, PDFContentStream, PDFDict, PDFArray, PDFRef,
   decodePDFRawStream, beginText, endText, setFontAndSize, setTextMatrix, showText,
   setTextRenderingMode, TextRenderingMode, setFillingRgbColor, setStrokingRgbColor,
   setLineWidth, pushGraphicsState, popGraphicsState, type PDFPage } from "pdf-lib";
 import { removePdfText } from "./content-stream";
+import { pdfExportFontkit } from "./export-font";
 import type { RasterPdfPage } from "./export";
 
 export interface PdfExportText {
@@ -38,29 +38,7 @@ export async function buildSearchablePdf(pages: RasterPdfPage[], title: string, 
   output.setTitle(title);
   output.setCreator("WuPage");
   output.setProducer("WuPage PDF Translator");
-  output.registerFontkit({ create: (data) => {
-    const font = fontkit.create(data);
-    const createSubset = font.createSubset.bind(font);
-    font.createSubset = () => {
-      const subset = createSubset();
-      if (!("cff" in subset) || !subset.cff) return subset;
-      const encodeStream = subset.encodeStream.bind(subset);
-      subset.encodeStream = () => {
-        const stream = encodeStream();
-        let offset = 0;
-        stream.on("data", (chunk: Uint8Array) => {
-          // fontkit 1.1.1 writes this.cff.length as the CFF header offSize.
-          // The header allows only 1..4; 4 matches the upstream font and
-          // keeps stricter PDF readers from rejecting otherwise valid data.
-          if (offset <= 3 && offset + chunk.length > 3 && chunk[3 - offset] > 4) chunk[3 - offset] = 4;
-          offset += chunk.length;
-        });
-        return stream;
-      };
-      return subset;
-    };
-    return font;
-  } });
+  output.registerFontkit(pdfExportFontkit);
   const hasText = pages.some((page) => !page.scene?.unchanged && page.scene?.text.length);
   const font = hasText ? await output.embedFont(fontBytes, { subset: true }) : undefined;
   const original = sourceBytes ? await PDFDocument.load(sourceBytes) : undefined;
