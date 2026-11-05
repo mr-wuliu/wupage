@@ -10,6 +10,7 @@ import { ProviderError } from "../shared/errors";
 import { elementExclusionIdentity } from "../shared/element-exclusions";
 
 const PREFIX = "wupage.frame-session.";
+class FrameConnectionError extends Error {}
 interface Frame extends FrameDiagnostic { documentKey: string; documentId?: string }
 interface TabSession {
   id: string; revision: number; topDocument: string; topUrl: string;
@@ -90,6 +91,10 @@ export class FrameSessionManager {
           parentFrameId: metadata?.parentFrameId,
           url: this.documentUrl(sender.url ?? request.url), status: "ready" });
         await this.loadAncestors(tabId, tab, tab.frames.get(frameId)!);
+      }
+      if (typeof request.documentHidden === "boolean") {
+        const frame = tab.frames.get(frameId)!;
+        this.updateFrameState(frame, { ...(frame.state ?? emptyDocumentState()), documentHidden: request.documentHidden });
       }
       await this.persist(tabId, tab); this.publish(tabId, tab);
       return { ...this.snapshot(tab), selfFrameId: frameId };
@@ -286,7 +291,10 @@ export class FrameSessionManager {
     tab.controller.abort(); tab.controller = new AbortController(); tab.id = crypto.randomUUID();
     tab.paused = undefined;
     for (const frame of tab.frames.values()) {
-      frame.state = undefined;
+      // Visibility belongs to the document, not to a translation generation.
+      // Losing it turns dormant helper frames into apparently visible failures.
+      frame.state = frame.state?.documentHidden === undefined ? undefined
+        : { ...emptyDocumentState(), documentHidden: frame.state.documentHidden };
       if (frame.documentKey) frame.status = "ready";
     }
   }
@@ -366,11 +374,49 @@ export class FrameSessionManager {
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => reject(new Error("框架响应超时")), timeout);
       this.api.tabs.sendMessage(tabId, request, frame.documentId ? { documentId: frame.documentId } : { frameId: frame.frameId })
+        .catch(error => {
+          const message = error instanceof Error ? error.message : String(error);
+          // Only a rejected browser delivery is a connection failure. An error
+          // envelope from a connected document is a real runtime/provider error.
+          if (/receiving end does not exist|could not establish connection|message (?:port|channel) closed/iu.test(message)) {
+            throw new FrameConnectionError(message);
+          }
+          throw error;
+        })
         .then((response: RuntimeResponse) => {
           if (!response?.ok) throw new Error(response?.ok === false ? response.error : "框架没有响应");
           resolve(response.data);
         }).catch(reject).finally(() => clearTimeout(timer));
     });
+  }
+  private async applyFrame(tabId: number, tab: TabSession, frame: Frame,
+    snapshot: FrameSessionSnapshot, allowed: boolean, reuseResults: boolean): Promise<DocumentTranslationState | undefined> {
+    const request = { type: "FRAME_APPLY", documentKey: frame.documentKey, snapshot, allowed, reuseResults } as const;
+    try { return await this.send(tabId, frame, request) as DocumentTranslationState; }
+    catch (error) {
+      if (!(error instanceof FrameConnectionError)) throw error;
+      const current = () => !tab.retired && tab.id === snapshot.id && tab.frames.get(frame.frameId) === frame;
+      if (!current()) return;
+      const documents = await this.api.webNavigation?.getAllFrames?.({ tabId }).catch(() => undefined);
+      if (!current()) return;
+      if (documents) {
+        const document = documents.find(document => document.frameId === frame.frameId);
+        if (!document || frame.documentId && document.documentId && frame.documentId !== document.documentId) {
+          if (frame.frameId === 0) throw error;
+          // A removed/replaced document is no longer a translation target.
+          this.removeBranch(tab, frame.frameId); return;
+        }
+      }
+      const identity = await this.send(tabId, frame, { type: "FRAME_IDENTIFY" }, 1500)
+        .catch(() => undefined) as FrameDocumentIdentity | undefined;
+      if (!current()) return;
+      if (identity?.documentKey === frame.documentKey) {
+        // Recover a transient missing receiver once, after proving that this is
+        // still the same document. Never retry an acknowledged translation error.
+        return await this.send(tabId, frame, request) as DocumentTranslationState;
+      }
+      throw error;
+    }
   }
   private async applyAll(tabId: number, tab: TabSession, reuseResults: boolean): Promise<void> {
     const snapshot = this.snapshot(tab);
@@ -379,16 +425,25 @@ export class FrameSessionManager {
       frame.status = allowed ? "loading" : "excluded";
       frame.reason = undefined;
       try {
-        const value = await this.send(tabId, frame, { type: "FRAME_APPLY", documentKey: frame.documentKey,
-          snapshot, allowed, reuseResults }) as DocumentTranslationState;
+        const value = await this.applyFrame(tabId, tab, frame, snapshot, allowed, reuseResults);
         if (tab.id === snapshot.id && tab.frames.get(frame.frameId) === frame && value) {
           this.updateFrameState(frame, value);
         }
       } catch (error) {
         if (tab.id === snapshot.id && tab.frames.get(frame.frameId) === frame) {
-          frame.status = "unavailable"; frame.reason = error instanceof Error ? error.message : String(error);
-          // A document that could not start must not aggregate as a successful empty page.
-          frame.state = { ...emptyDocumentState(), ...(tab.active && allowed ? { error: frame.reason } : {}) };
+          const connectionLost = error instanceof FrameConnectionError;
+          const documentHidden = frame.state?.documentHidden;
+          frame.status = connectionLost ? "unavailable" : "failed";
+          frame.reason = error instanceof Error ? error.message : String(error);
+          // Keep inaccessible hidden helpers in diagnostics. Actual visible
+          // document and provider failures must still be reported to the user.
+          const reportError = tab.active && allowed && !(connectionLost && frame.frameId !== 0 && documentHidden);
+          const failure = connectionLost ? {
+            error: frame.frameId === 0 ? "当前网页的翻译连接已中断。" : "嵌入页面的翻译连接已中断，可在 Debug 查看具体文档。",
+            errorCode: frame.frameId === 0 ? "page-connection-lost" : "frame-connection-lost"
+          } : { error: frame.reason };
+          frame.state = { ...emptyDocumentState(), documentHidden,
+            ...(reportError ? failure : {}) };
         }
       }
     }));

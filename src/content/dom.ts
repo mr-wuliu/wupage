@@ -974,7 +974,7 @@ export function renderTranslations(
     element.dataset.wupageMode = group.mode;
     element.dataset.wupageDisplayMode = displayMode;
     if (group.preserveWhitespace) element.dataset.wupagePreserveWhitespace = "true";
-    applyTranslationTextColor(element, block, displayMode);
+    applyTranslationTextAppearance(element, block, displayMode);
     if (plan) plan.appendCopy(element, translation);
     else renderProtectedText(element, group.id, translation);
     element.setAttribute("lang", "translated");
@@ -1016,7 +1016,7 @@ export function renderTranslations(
     element.className = TRANSLATION_CLASS;
     element.dataset.wupageMode = tracked.mode;
     element.dataset.wupageDisplayMode = displayMode;
-    applyTranslationTextColor(element, parent, displayMode);
+    applyTranslationTextAppearance(element, parent, displayMode);
     element.textContent = tracked.mode === "code-comment" ? `${tracked.commentPrefix ?? "//"} ${translation}` : translation;
     element.setAttribute("lang", "translated");
     if (displayMode !== "replace") element.setAttribute("aria-hidden", "true");
@@ -1058,7 +1058,7 @@ export function renderTranslations(
     element.dataset.wupageDisplayMode = displayMode;
     element.setAttribute("lang", "translated");
     if (displayMode !== "replace") element.setAttribute("aria-hidden", "true");
-    applyTranslationTextColor(element, tracked.image.parentElement ?? tracked.image, displayMode);
+    applyTranslationTextAppearance(element, tracked.image.parentElement ?? tracked.image, displayMode);
     if (!renderInterleavedImageText(tracked, element, translation, displayMode)) {
       element.textContent = translation;
     }
@@ -1113,7 +1113,7 @@ export function renderTranslationPlaceholders(segments: TextSegment[]): void {
     const targetId = ensureTranslationTarget(block);
     const pending = createPendingElement(group.id, group.mode);
     if (group.preserveWhitespace) pending.dataset.wupagePreserveWhitespace = "true";
-    applyTranslationTextColor(pending, block, "bilingual");
+    applyTranslationTextAppearance(pending, block, "bilingual");
     pending.setAttribute(TRANSLATION_TARGET_ATTR, targetId);
     removePendingForId(group.id);
     insertGroupedTranslation(group, pending);
@@ -1512,7 +1512,7 @@ function findTargetTranslations(targetId: string): Element[] {
 function insertPending(anchor: Text, id: string, mode: RenderMode): void {
   removePendingForId(id);
   const pending = createPendingElement(id, mode);
-  if (anchor.parentElement) applyTranslationTextColor(pending, anchor.parentElement, "bilingual");
+  if (anchor.parentElement) applyTranslationTextAppearance(pending, anchor.parentElement, "bilingual");
   if (mode === "block" && anchor.parentElement?.matches(HEADING_SELECTOR)) insertBlockTranslation(anchor.parentElement, pending);
   else anchor.after(pending);
 }
@@ -1538,6 +1538,43 @@ export function refreshTranslationColors(colors?: TranslationColors): void {
   }
 }
 
+function applyTranslationTextAppearance(
+  translation: HTMLElement,
+  source: Element,
+  displayMode: TranslationDisplayMode
+): void {
+  applyTranslationWrapping(translation, source);
+  applyTranslationTextColor(translation, source, displayMode);
+}
+
+function applyTranslationWrapping(translation: HTMLElement, source: Element): void {
+  if (translation.dataset.wupageMode === "code-comment"
+    || translation.dataset.wupagePreserveWhitespace === "true"
+    || window.getComputedStyle(source).whiteSpace !== "nowrap") return;
+
+  // Render mode describes placement, not meaning: a short prose span and an
+  // inbox timestamp can both be inline. Respect explicit UI constraints first.
+  const cell = source.closest("td,th,[role='cell'],[role='gridcell'],[role='columnheader'],[role='rowheader']");
+  const paragraph = source.closest("p,blockquote,figcaption");
+  const compact = isCompactNavigationText(source) || isCompactControlText(source)
+    || getSingleLineTextTarget(source)
+    || (cell && (!paragraph || !cell.contains(paragraph)));
+  if (compact) {
+    translation.style.setProperty("white-space", "inherit");
+    return;
+  }
+
+  // Only positively identified flowing prose may override inherited nowrap.
+  // Leaf div prose can still use inline placement when its original is short.
+  const div = source.closest("div");
+  const flowingDiv = div && isDivProseBlock(div)
+    && (!div.parentElement || !isLayoutContainer(div.parentElement));
+  const prose = paragraph || flowingDiv || source.closest(HEADING_SELECTOR)
+    || source.matches(`li,dt,dd,article,[role='article'],${LINE_BREAK_SOURCE_SELECTOR},${POST_TEXT_SELECTOR},${YOUTUBE_COMMENT_SELECTOR}`)
+    || isLegacyScientificProseBlock(source);
+  translation.style.setProperty("white-space", prose ? "normal" : "inherit");
+}
+
 function applyTranslationTextColor(
   translation: HTMLElement,
   source: Element,
@@ -1554,11 +1591,6 @@ function applyTranslationTextColor(
     ]) translation.style.setProperty(name, value, "important");
   }
   const sourceStyle = window.getComputedStyle(source);
-  if (sourceStyle.whiteSpace === "nowrap" && translation.dataset.wupageMode !== "code-comment"
-    && translation.dataset.wupagePreserveWhitespace !== "true"
-    && !isCompactNavigationText(source) && !isCompactControlText(source)) {
-    translation.style.setProperty("white-space", "normal");
-  }
   const color = sourceStyle.color;
   if (!color || color === "transparent" || color === "rgba(0, 0, 0, 0)") return;
   if (displayMode !== "bilingual-accent") {
