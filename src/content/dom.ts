@@ -13,6 +13,9 @@ import { readImageTextLayout } from "./image-text-layout";
 import { normalizeProtectedText } from "../shared/protected-text";
 import { isDivProseBlock, READABLE_ROOT_SELECTOR } from "./readable-content";
 import {
+  clearLineBreakParagraphs, isLineBreakParagraphMutation, LINE_BREAK_SOURCE_SELECTOR, prepareLineBreakParagraphs
+} from "./line-break-paragraphs";
+import {
   clearLegacyScientificParagraphs, isLegacyScientificEquation, isLegacyScientificProseBlock,
   isScientificCitation, isScientificMathImage, legacyScientificProseBlock, prepareLegacyScientificParagraphs
 } from "./legacy-scientific";
@@ -375,6 +378,7 @@ function readSourceText(id: string): string {
 }
 
 const PARAGRAPH_SELECTOR = [
+  LINE_BREAK_SOURCE_SELECTOR,
   "p",
   "li",
   "blockquote",
@@ -819,6 +823,9 @@ function collectTextSegmentsFromRoot(
   // page), and the same ancestor answers for every inline child, so one lookup
   // per element removes the repeated closest()/getComputedStyle chains.
   groupingBlockCache = new WeakMap();
+  // Also prepare a large container's direct text before the progressive walker
+  // descends into its children, so rich paragraphs cannot straddle scan chunks.
+  prepareLineBreakParagraphs(root, directTextOnly);
   if (!directTextOnly) {
     prepareLegacyScientificParagraphs(root);
     splitAuthoredLineBreakTextNodes(root, POST_TEXT_SELECTOR);
@@ -1185,6 +1192,7 @@ function clearNodeTracking(): void {
   nodeTrackingEpoch += 1;
   for (const id of stableReplacementsById.keys()) restoreStableReplacement(id);
   clearLegacyScientificParagraphs();
+  clearLineBreakParagraphs();
   trackedNodes = [];
   trackedByText = new WeakMap();
   trackedGroups = [];
@@ -1422,6 +1430,7 @@ function isTranslationBindingCurrent(id: string, groups: Map<string, TrackedGrou
 
 /** Recognize our completed writes by their current bindings, not by a timer. */
 export function isTranslationMutation(record: MutationRecord): boolean {
+  if (isLineBreakParagraphMutation(record)) return true;
   const tracked = record.target instanceof Text ? trackedByText.get(record.target) : undefined;
   if (tracked?.replaced && tracked.node.data === (tracked.replacementValue ?? "")) return true;
   let element = record.target instanceof Element ? record.target : record.target.parentElement;
@@ -1664,6 +1673,7 @@ function groupTextSegments(
     if (
       singleNodeBlock &&
       readable!.text === nodeText &&
+      !block.matches(LINE_BREAK_SOURCE_SELECTOR) &&
       !isLegacyScientificProseBlock(block) &&
       !block.matches(`summary, label, li, ${POST_TEXT_SELECTOR}, ${YOUTUBE_COMMENT_SELECTOR}`)
     ) continue;
@@ -1895,6 +1905,8 @@ function findGroupingBlock(element: Element | null): Element | null {
 }
 
 function computeGroupingBlock(element: Element): Element | null {
+  const lineBreakParagraph = element.closest(LINE_BREAK_SOURCE_SELECTOR);
+  if (lineBreakParagraph) return lineBreakParagraph;
   const description = element.closest(YOUTUBE_DESCRIPTION_SELECTOR);
   if (description) return element.closest("a") ? null : description;
   const comment = element.closest(YOUTUBE_COMMENT_SELECTOR);
@@ -2416,6 +2428,7 @@ function insertGroupedTranslation(
 
 function getRenderMode(element: Element | null): RenderMode {
   if (!element) return "inline";
+  if (element.matches(LINE_BREAK_SOURCE_SELECTOR)) return "block";
   if (isLegacyScientificProseBlock(element)) return "block";
   if (element.matches(POST_TEXT_SELECTOR)) return "block";
   if (element.matches(YOUTUBE_COMMENT_SELECTOR)) return "block";
@@ -2457,6 +2470,7 @@ function isCompactUiElement(element: Element): boolean {
 
 function isLikelyUiToken(text: string, element: Element | null): boolean {
   if (!element) return false;
+  if (element.closest(LINE_BREAK_SOURCE_SELECTOR)) return false;
   if (translationOwner(element)) return false;
   // Steam's generated div/link UI also carries short headings, filters and
   // mod names. Keep these readable labels; normal content exclusions still apply.

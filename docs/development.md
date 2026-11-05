@@ -50,6 +50,8 @@ flowchart LR
 
 `src/background/providers.ts` 是服务工厂；`providers/` 按在线翻译服务、LLM 和 HTTP 模板组织适配器，`provider-transport.ts` 统一管理超时、重试与响应读取。网页渐进扫描的分块、让出主线程及变更补扫位于 `src/content/progressive-scan.ts`，内容判断与渲染仍由 `dom.ts` 处理。正文采集测试使用与产品相同的渐进扫描入口。
 
+`src/content/line-break-paragraphs.ts` 将连续 `<br>` 分隔的旧式正文识别为独立段落，供采集、视口调度和译文定位共用。临时行内容器保留原节点与段间换行，清除翻译时移除；代码、编辑区及独立控件不参与该归一化。`tests/line-break-paragraphs.test.ts` 和 `tests/page-translation.test.ts` 覆盖长篇正文、内联格式、滚动加载、动态更新与精确恢复。
+
 网页翻译使用绑定到原节点的写入计划。`translation-boundaries.ts` 将自定义组件、插槽和交互元素作为独立范围；`dom-roots.ts` 通过扩展接口发现开放及封闭的 Shadow DOM，并记录实际插槽路径。`TextSegment.text` 保留可读原文，`requestText` 按需生成用于传输的格式标记。`inline-translation.ts` 只接纳已确认的句内格式，替换模式复用原文本和格式节点，双语模式生成展示副本。共享校验器检查标记数量、配对、嵌套和非空内容；失效结果不写入页面，后台对损坏标记执行有界重试和保留结构的分片回退。本地引擎将这些格式标记转换为受限 HTML，利用 Bergamot 对齐后再还原标记；其他服务继续使用受保护的文本协议。
 
 `npm run test:structured:edge` 和 `npm run test:structured:firefox` 使用独立浏览器配置与本地翻译服务，检查开放/封闭组件、原节点身份、格式顺序、点击行为、动态更新及精确恢复。真实本地模型验证使用 `npm run test:structured:local`，需先构建 Firefox，并通过 `LOCAL_MODEL_FIXTURE_DIR` 指向已有的 `en-zh-Hans` 模型目录；测试校验模型文件哈希，不下载模型。模型 HTML 对齐结果不符合结构约束时，测试同时检查受保护文本回退。
