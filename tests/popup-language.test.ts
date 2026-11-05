@@ -260,8 +260,10 @@ describe("popup language controls", () => {
     expect(sendTabMessage).not.toHaveBeenCalled();
   });
 
-  it("uses the same button to automatically translate a local PDF", async () => {
-    const url = "file:///C:/Documents/Annual%20report.PDF#page=2";
+  it.each([
+    "file:///C:/Documents/Annual%20report.PDF#page=2",
+    "https://arxiv.org/pdf/2410.24164v4",
+  ])("opens a PDF workspace without messaging the browser viewer: %s", async (url) => {
     document.open();
     document.write(readFileSync(resolve(process.cwd(), "popup.html"), "utf8"));
     document.close();

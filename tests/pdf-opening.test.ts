@@ -134,6 +134,45 @@ describe("PDF source opening", () => {
     }), destroy: vi.fn() });
   }
 
+  it("translates a shared page-break paragraph from either reading page without translating the rest of its dependency page", async () => {
+    let readingPage = 2;
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+      const number = Number(this.closest<HTMLElement>("article[data-page]")?.dataset.page);
+      const top = number ? (number - readingPage) * 1000 : 0;
+      return { top, bottom: top + 980, left: 0, right: 600, width: 600, height: 980, x: 0, y: top, toJSON() {} };
+    });
+    const item = (str: string, y: number) => ({ str, transform: [12, 0, 0, 12, 40, y], width: 240, height: 12, hasEOL: true, fontName: "font" });
+    const contents = [
+      [item("A separate earlier paragraph on the previous page.", 600),
+        item("We introduce an encoder that maps", 100), item("the incoming observations to the hidden", 86), item("representation of the robot", 72)],
+      [item("state and predicts the next action from these", 730), item("measurements.", 716),
+        item("An independent paragraph on the current page.", 500)]
+    ];
+    getDocument.mockReturnValue({ promise: Promise.resolve({ numPages: 2, getPage: async (number: number) => ({
+      getViewport: () => ({ width: 612, height: 792 }),
+      getTextContent: async () => ({ items: contents[number - 1], styles: { font: { fontFamily: "Arial" } } })
+    }) }), destroy: vi.fn(async () => undefined) });
+    const stored = { ...structuredClone(DEFAULT_SETTINGS), pdfTranslationPageRadius: 0, cacheEnabled: false };
+    const original = sendMessage.getMockImplementation()!;
+    sendMessage.mockImplementation(async request => {
+      if (request.type === "GET_SETTINGS") return { ok: true, data: structuredClone(stored) };
+      if (request.type === "TRANSLATE_BATCH") return { ok: true, data: { translations: request.texts, cached: 0 } };
+      return original(request);
+    });
+    await launch(fileUrl);
+    const requests = () => sendMessage.mock.calls.flatMap(([request]) => request.type === "TRANSLATE_BATCH" ? request.texts : []);
+    const shared = () => requests().filter(text => text.includes("representation of the robot") && text.includes("state and predicts"));
+    await vi.waitFor(() => expect(document.querySelector('article[data-page="2"] .translation-prompt')?.textContent).toContain("译文已就绪"));
+    expect(shared()).toHaveLength(1);
+    expect(requests().some(text => text.includes("separate earlier"))).toBe(false);
+    expect(document.querySelector('article[data-page="1"] .translation-prompt')?.textContent).toContain("1 / 2");
+    readingPage = 1;
+    window.dispatchEvent(new Event("scroll"));
+    await vi.waitFor(() => expect(requests().some(text => text.includes("separate earlier"))).toBe(true));
+    await vi.waitFor(() => expect(document.querySelector('article[data-page="1"] .translation-prompt')?.textContent).toContain("译文已就绪"));
+    expect(shared()).toHaveLength(1);
+  });
+
   it("reads and automatically translates a permitted local PDF", async () => {
     await launch(fileUrl);
     await vi.waitFor(() => expect(translated()).toBe(true));

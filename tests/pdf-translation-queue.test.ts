@@ -26,6 +26,69 @@ function harness(concurrency = 2, maxChars = 200) {
 }
 
 describe("resumable PDF paragraph queue", () => {
+  function spread() {
+    const first = page(1, 2), second = page(2, 2);
+    first.items[1].targetPages = [1, 2];
+    second.items = second.items.slice(1);
+    second.incoming = [{ pageNumber: 1, index: 1 }];
+    return { first, second };
+  }
+
+  it("loads only the shared paragraph from a dependency page and reuses it after scrolling", async () => {
+    vi.useFakeTimers(); const h = harness(1), { first, second } = spread();
+    h.queue.setScope([second], 2, [first]);
+    await h.finish(0); await h.finish(1);
+    expect(h.calls.some(call => call.page === 1 && call.indexes.includes(0))).toBe(false);
+    expect(h.calls.filter(call => call.page === 1).map(call => call.indexes)).toEqual([[1]]);
+    expect(h.queue.status(second)).toMatchObject({ total: 2, completed: 2 });
+    expect(h.queue.status(first)).toMatchObject({ total: 2, completed: 1 });
+    first.values[1] = "手动校对的跨页译文";
+    h.queue.setScope([first], 1, [second]);
+    await h.finish(2);
+    expect(first.values[1]).toBe("手动校对的跨页译文");
+    expect(h.calls.filter(call => call.page === 1 && call.indexes.includes(1))).toHaveLength(1);
+  });
+
+  it("keeps the same in-flight paragraph when moving between its pages", async () => {
+    vi.useFakeTimers(); const h = harness(1), first = page(1, 1), second = page(2, 0);
+    first.items[0].targetPages = [1, 2];
+    second.incoming = [{ pageNumber: 1, index: 0 }];
+    h.queue.setScope([first], 1, [second]);
+    h.queue.setScope([second], 2, [first]);
+    expect(h.calls).toHaveLength(1);
+    expect(h.calls[0].signal.aborted).toBe(false);
+    await h.finish(0);
+    expect(h.queue.status(second)).toMatchObject({ total: 1, completed: 1, running: false });
+    expect(h.updates.some(update => update.page === 2 && update.status.completed === 1)).toBe(true);
+  });
+
+  it("cancels a shared paragraph after a distant jump and resumes it from its continuation page", async () => {
+    vi.useFakeTimers(); const h = harness(1), first = page(1, 1), second = page(2, 0), distant = page(20, 1);
+    first.items[0].targetPages = [1, 2]; second.incoming = [{ pageNumber: 1, index: 0 }];
+    h.queue.setScope([first], 1, [second]);
+    h.queue.setScope([distant], 20);
+    expect(h.calls[0].signal.aborted).toBe(true);
+    await vi.advanceTimersByTimeAsync(0); await h.finish(1);
+    h.queue.setScope([second], 2, [first]);
+    expect(h.calls[2].page).toBe(1);
+    await h.finish(2);
+    expect(h.queue.status(second).completed).toBe(1);
+  });
+
+  it("reports shared failures on both pages and retries from the continuation page", async () => {
+    vi.useFakeTimers(); const h = harness(1), first = page(1, 1), second = page(2, 0);
+    first.items[0].targetPages = [1, 2]; second.incoming = [{ pageNumber: 1, index: 0 }];
+    h.queue.setScope([second], 2, [first]);
+    h.calls[0].reject(new Error("Missing paragraph boundary"));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(h.queue.status(first).error).toBeInstanceOf(Error);
+    expect(h.queue.status(second).error).toBeInstanceOf(Error);
+    h.queue.retryPage(2);
+    expect(h.calls[1].page).toBe(1);
+    await h.finish(1);
+    expect(h.queue.status(second)).toMatchObject({ completed: 1, error: undefined });
+  });
+
   it("publishes small batches immediately and retains their results when another request fails", async () => {
     vi.useFakeTimers(); const h = harness(2, 25), first = page(1);
     h.queue.setScope([first], 1);

@@ -46,6 +46,10 @@ flowchart LR
 
 视频字幕布局编辑位于 `src/content/video-layout.ts`，由 `VideoView` 挂载；`src/shared/video.ts` 定义按主机名保存的 `siteLayouts`。水平中心、底边和宽度使用视频区域百分比，字号使用像素；窗口缩放只约束当前显示位置，不改写已保存布局。编辑使用独立的稳定预览，只有点击完成才经原有设置队列写入，不重启翻译。设置备份支持可选布局字段并兼容旧备份。使用 `tests/video-layout.test.ts`、`tests/video-subtitles-ui.test.ts`、`tests/settings-backup.test.ts` 和 `npm run test:video` 验证交互、保存和真实播放器布局。
 
+PDF 的参考文献边界由 `src/pdf/document.ts` 按标题所属栏及上下位置识别，居中的附录标题也会结束该栏的文献保护。`src/pdf/paragraph-flow.ts` 在请求层连接相邻栏及相邻页之间的连续段落，原有物理区域仍用于排版、编辑和导出。跨页连接从前页最后一栏的正文末尾到后页第一栏的正文开头，排除页眉、页脚、图注和新章节边界，并修复断词连字符；模糊边界保留独立请求，另提供有界的相邻页原文上下文。合并时为各区域的公式、引用及格式标记重新分配独立编号；返回后先校验完整结构，再一次性恢复到各区域，避免残缺结果覆盖页面。
+
+跨页段落由起始页拥有一个共享请求，后续页登记依赖。`src/pdf/translation-queue.ts` 根据请求涉及的任一页判断阅读优先级、取消和重试；注册依赖页不扩大普通段落的翻译范围，翻页及导出复用已完成结果。独立标题、表格、参考文献及归属不明的区域不参与合并。修改此逻辑时运行 `tests/pdf-document.test.ts`、`tests/pdf-paragraph-flow.test.ts`、`tests/pdf-translation-queue.test.ts`、`tests/pdf-opening.test.ts` 和 `tests/pdf-download.test.ts`，再用真实多栏文档检查预览与导出。
+
 文本翻译先经过后台的缓存与批次调度，再进入服务适配层；返回值通过格式与受保护内容校验后交还调用方。网页 DOM 操作留在内容脚本，服务协议处理留在后台，公共配置和类型放入共享层。
 
 `src/background/providers.ts` 是服务工厂；`providers/` 按在线翻译服务、LLM 和 HTTP 模板组织适配器，`provider-transport.ts` 统一管理超时、重试与响应读取。网页渐进扫描的分块、让出主线程及变更补扫位于 `src/content/progressive-scan.ts`，内容判断与渲染仍由 `dom.ts` 处理。正文采集测试使用与产品相同的渐进扫描入口。

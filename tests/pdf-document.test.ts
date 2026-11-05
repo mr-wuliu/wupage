@@ -65,6 +65,26 @@ describe("academic PDF document boundaries", () => {
     expect(pages[0].blocks.map((block) => block.translatable)).toEqual([true, true, false, false]);
   });
 
+  it("ends reference preservation at a heading centered within the left column", () => {
+    const appendix = block("APPENDIX", 150, 440);
+    appendix.lines[0].width = 45;
+    const bibliography = page([block("References", 330, 700), block("[1] Smith J. First paper. 2020.", 330, 670)]);
+    const continuation = page([
+      block("[2] Brown K. Second paper. 2021.", 50, 700), appendix,
+      block("A. Contributions The authors contributed to the following areas.", 50, 420),
+      block("B. Model Architecture Details We add an input for the state", 50, 120),
+      block("vector and action vectors, followed by a smaller action expert.", 330, 730),
+    ]);
+    continuation.blocks[2].lines.push({ ...continuation.blocks[2].lines[0], baselineY: 408 });
+    const referenceFragment = block("A justified reference fragment", 235, 680);
+    referenceFragment.lines[0].width = 65;
+    continuation.blocks.splice(1, 0, referenceFragment);
+    preparePdfDocument([bibliography, continuation], "paper.pdf");
+    expect(continuation.blocks[0].role).toBe("reference");
+    expect(referenceFragment.role).toBe("reference");
+    expect(continuation.blocks.slice(2).every((entry) => entry.translatable && !entry.preserveOriginal)).toBe(true);
+  });
+
   it("recognizes author-year entries while leaving a normal use of the word references alone", () => {
     const pages = [page([block("The references in this argument need careful interpretation.", 40, 700),
       block("References", 40, 500, true), block("Smith, J. (2020). First study.", 40, 470), block("Brown, A. (2021). Second study.", 40, 440)])];
@@ -101,6 +121,17 @@ describe("academic PDF document boundaries", () => {
     expect(input.text).not.toContain("0·90");
     expect(input.restore(input.text)).toBe(source.text);
     expect(() => input.restore(input.text.replace(/⟪WUPAGE\d+⟫/u, ""))).toThrow();
+  });
+
+  it("supplies adjacent prose as bounded context while excluding preserved references", () => {
+    const current = block("The model follows the procedure introduced earlier in the document.", 40, 500);
+    const previous = block("The previous page defines the procedure and its interpretation.", 40, 100);
+    const reference = { ...block("[1] A bibliography entry that must not become prose context.", 40, 100), translatable: false };
+    const document = preparePdfDocument([page([current])], "paper.pdf");
+    const context = pdfPageTranslationContext(document, [current], [previous, reference]);
+    expect(context).toContain("Adjacent page passages (context only; translate only the requested texts)");
+    expect(context).toContain(previous.text);
+    expect(context).not.toContain(reference.text);
   });
 
   it("protects panel letters without treating an ordinary sentence beginning with A as a panel", () => {

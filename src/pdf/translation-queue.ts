@@ -3,7 +3,8 @@ import type { TranslateBatchResponse } from "../shared/types";
 
 export interface PdfQueuePage {
   pageNumber: number;
-  items: Array<{ index: number; text: string }>;
+  items: Array<{ index: number; text: string; targetPages?: number[] }>;
+  incoming?: Array<{ pageNumber: number; index: number }>;
   values: Array<string | undefined>;
 }
 export interface PdfQueuePageStatus {
@@ -21,6 +22,7 @@ interface Job {
   readyAt: number;
   state: "pending" | "running" | "done" | "failed";
   error?: unknown;
+  targetPages?: number[];
 }
 interface Options {
   concurrency: number;
@@ -51,16 +53,16 @@ export class PdfTranslationQueue {
 
   constructor(private options: Options) { this.limit = Math.max(1, options.concurrency); }
 
-  get activePages(): number[] { return [...new Set([...this.running.keys()].map(job => job.page.pageNumber))]; }
+  get activePages(): number[] { return [...new Set([...this.running.keys()].flatMap(job => job.targetPages ?? [job.page.pageNumber]))]; }
   get activeCount(): number { return this.running.size; }
   get busy(): boolean { return !this.stopped && (this.running.size > 0 || (!this.pauseError && this.jobs.some(job => this.eligible(job)))); }
 
-  setScope(pages: PdfQueuePage[], readingPage: number): void {
+  setScope(pages: PdfQueuePage[], readingPage: number, dependencies: PdfQueuePage[] = []): void {
     this.scrolling = false;
     this.direction = Math.sign(readingPage - this.readingPage) || this.direction;
     this.readingPage = readingPage;
     this.scope = new Set(pages.map(page => page.pageNumber));
-    for (const page of pages) {
+    for (const page of [...pages, ...dependencies]) {
       if (this.pages.has(page.pageNumber)) continue;
       this.pages.set(page.pageNumber, page);
       let indexes: number[] = [], length = 0;
@@ -70,6 +72,11 @@ export class PdfTranslationQueue {
       };
       for (const item of page.items) {
         if (page.values[item.index] !== undefined) continue;
+        if (item.targetPages && item.targetPages.length > 1) {
+          flush();
+          this.jobs.push({ page, indexes: [item.index], targetPages: item.targetPages, attempt: 0, readyAt: 0, state: "pending" });
+          continue;
+        }
         if (indexes.length && (indexes.length >= 4 || length + item.text.length > this.options.maxChars)) flush();
         indexes.push(item.index); length += item.text.length;
       }
@@ -77,9 +84,9 @@ export class PdfTranslationQueue {
     }
     // Cancel obsolete in-flight prefetch after a settled jump. Completed
     // paragraphs are already retained; only unfinished work returns to pending.
-    for (const [job, controller] of this.running) if (!this.scope.has(job.page.pageNumber)) controller.abort();
-    if (this.jobs.some(job => this.eligible(job) && job.page.pageNumber === readingPage)
-      && ![...this.running.keys()].some(job => job.page.pageNumber === readingPage)
+    for (const [job, controller] of this.running) if (!this.inScope(job)) controller.abort();
+    if (this.jobs.some(job => this.eligible(job) && this.touchesPage(job, readingPage))
+      && ![...this.running.keys()].some(job => this.touchesPage(job, readingPage))
       && this.running.size >= this.limit) {
       const farthest = [...this.running.keys()].sort((a, b) => this.priority(b) - this.priority(a))[0];
       if (farthest) this.running.get(farthest)!.abort();
@@ -99,17 +106,19 @@ export class PdfTranslationQueue {
     if (this.stopped || this.pauseError) return;
     const page = this.pages.get(pageNumber);
     if (!page) return;
-    for (const job of this.jobs) if (job.page === page && job.state === "failed") {
+    for (const job of this.jobs) if (this.touchesPage(job, pageNumber) && job.state === "failed") {
       job.state = "pending"; job.attempt = 0; job.readyAt = 0; job.error = undefined;
     }
     this.changed(page); this.pump();
   }
 
   status(page: PdfQueuePage): PdfQueuePageStatus {
-    const jobs = this.jobs.filter(job => job.page === page);
+    const jobs = this.jobs.filter(job => this.touchesPage(job, page.pageNumber));
+    const incoming = page.incoming ?? [];
     return {
-      completed: page.items.filter(item => page.values[item.index] !== undefined).length,
-      total: page.items.length,
+      completed: page.items.filter(item => page.values[item.index] !== undefined).length
+        + incoming.filter(item => this.pages.get(item.pageNumber)?.values[item.index] !== undefined).length,
+      total: page.items.length + incoming.length,
       running: jobs.some(job => job.state === "running"),
       pending: !this.pauseError && jobs.some(job => this.eligible(job)),
       retrying: jobs.some(job => job.state === "pending" && job.attempt > 0),
@@ -117,12 +126,20 @@ export class PdfTranslationQueue {
     };
   }
 
-  private eligible(job: Job): boolean { return job.state === "pending" && this.scope.has(job.page.pageNumber); }
+  private touchesPage(job: Job, pageNumber: number): boolean { return (job.targetPages ?? [job.page.pageNumber]).includes(pageNumber); }
+  private inScope(job: Job): boolean { return (job.targetPages ?? [job.page.pageNumber]).some(page => this.scope.has(page)); }
+  private eligible(job: Job): boolean { return job.state === "pending" && this.inScope(job); }
   private priority(job: Job): number {
-    const distance = Math.abs(job.page.pageNumber - this.readingPage);
-    return distance + (this.direction && Math.sign(job.page.pageNumber - this.readingPage) !== this.direction ? 0.25 : 0);
+    return Math.min(...(job.targetPages ?? [job.page.pageNumber]).map(page => Math.abs(page - this.readingPage)
+      + (this.direction && Math.sign(page - this.readingPage) !== this.direction ? 0.25 : 0)));
   }
   private changed(page: PdfQueuePage): void { if (!this.stopped) this.options.onChange(page, this.status(page)); }
+  private changedJob(job: Job): void {
+    for (const number of job.targetPages ?? [job.page.pageNumber]) {
+      const page = this.pages.get(number);
+      if (page) this.changed(page);
+    }
+  }
 
   private pump(): void {
     if (this.stopped || (this.scrolling && !this.pauseError)) return;
@@ -134,7 +151,7 @@ export class PdfTranslationQueue {
         if (!next) break;
         const controller = new AbortController();
         next.state = "running"; this.running.set(next, controller);
-        this.changed(next.page);
+        this.changedJob(next);
         void this.run(next, controller);
       }
       const waiting = this.jobs.filter(job => this.eligible(job) && job.readyAt > Date.now());
@@ -187,7 +204,7 @@ export class PdfTranslationQueue {
       }
     } finally {
       this.running.delete(job);
-      this.changed(job.page);
+      this.changedJob(job);
       this.pump();
     }
   }

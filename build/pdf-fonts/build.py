@@ -33,9 +33,9 @@ def build(source: Path, output: Path) -> None:
     with TTFont(BytesIO(data), recalcTimestamp=False) as font:
         options = subset.Options()
         options.layout_features = ["*"]
-        # Keep the small CFF fixture self-contained. Rewritten subroutine
-        # indices from a first subset otherwise stress fontkit's second subset.
-        options.desubroutinize = True
+        # Retain local/global subroutine calls, like the installed full font.
+        # Flattening them hides export bugs in CFF font-dictionary selection.
+        options.desubroutinize = False
         options.notdef_outline = True
         options.recalc_timestamp = False
         subsetter = subset.Subsetter(options=options)
