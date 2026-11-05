@@ -832,6 +832,56 @@ describe("viewport page translation", () => {
     expect(translations[2].previousElementSibling).toBe(post);
   });
 
+  it("translates legacy BR-separated fiction near the viewport and discovers distant paragraphs on scroll", async () => {
+    const passages = Array.from({ length: 70 }, (_, index) => `Passage ${index}: The traveler reached a village before sunset.`);
+    document.body.innerHTML = `<main><div class="legacy-journal">${passages.join("<br><br>")}</div></main>`;
+    const original = document.body.innerHTML;
+    vi.mocked(Element.prototype.getBoundingClientRect).mockImplementation(function (this: Element) {
+      const source = this.closest("[data-wupage-prose-source]");
+      const index = Number(source?.textContent?.match(/Passage (\d+):/)?.[1] ?? 0);
+      const top = index * 300 - scrollOffset;
+      return { width: 600, height: source ? 240 : 21000, top, bottom: top + (source ? 240 : 21000),
+        left: 0, right: 600, x: 0, y: top, toJSON: () => ({}) } as DOMRect;
+    });
+    translateNormally();
+    const requested = () => vi.mocked(sendRuntimeRequest).mock.calls.flatMap(([request]) =>
+      request.type === "TRANSLATE_BATCH" ? request.texts : []);
+
+    const result = await startPageTranslation(settings);
+    expect(requested()).toEqual(passages.slice(0, 5));
+    expect(result).toMatchObject({ translated: 5, remaining: 65, failed: 0 });
+    const sources = [...document.querySelectorAll("[data-wupage-prose-source]")];
+    expect(sources[0].nextElementSibling?.textContent).toBe(`译文：${passages[0]}`);
+    expect(sources[69].nextElementSibling).toBeNull();
+    await vi.waitFor(() => expect(getPageTranslationState().pending).toBe(0));
+
+    scrollOffset = 69 * 300;
+    window.dispatchEvent(new Event("scroll"));
+    await vi.waitFor(() => expect(requested()).toContain(passages[69]));
+    expect(requested().every(text => passages.includes(text))).toBe(true);
+    expect(requested().filter(text => text === passages[0])).toHaveLength(1);
+    clearPageTranslation();
+    expect(document.body.innerHTML).toBe(original);
+  });
+
+  it("settles normalization of dynamically loaded legacy fiction without duplicate requests", async () => {
+    vi.useFakeTimers();
+    try {
+      document.body.innerHTML = "<main><p>Initial paragraph.</p></main>";
+      translateNormally();
+      await startPageTranslation(settings);
+      document.querySelector("main")!.insertAdjacentHTML("beforeend", "<div>First loaded passage.<br><br>Second loaded passage.</div>");
+      await vi.advanceTimersByTimeAsync(2000);
+      const requested = () => vi.mocked(sendRuntimeRequest).mock.calls.flatMap(([request]) =>
+        request.type === "TRANSLATE_BATCH" ? request.texts : []);
+      expect(requested()).toEqual(["Initial paragraph.", "First loaded passage.", "Second loaded passage."]);
+      const source = document.querySelector("[data-wupage-prose-source]")!;
+      source.append(" New ending.");
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(requested().slice(3)).toEqual(["First loaded passage. New ending."]);
+    } finally { vi.useRealTimers(); }
+  });
+
   it("only requests text in and near the viewport", async () => {
     document.body.innerHTML = `
       <main>
