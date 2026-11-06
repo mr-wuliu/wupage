@@ -452,8 +452,8 @@ async function article(
   probe: boolean
 ): Promise<Array<string | undefined>> {
   return physicalRequest(DOUBAO_TRANSLATE_ENDPOINT, {
-    // The observed article protocol has no source-language parameter. Source
-    // selection/detection stays in the shared translation path, not this API.
+    // The article protocol detects the source language itself and accepts only
+    // the target. Do not require a separate local detection before this call.
     raw_text: sources, target_lang: target, translate_service: "1"
   }, probe, signal, async (response, controller) => {
     if (!/^text\/event-stream\b/i.test(response.headers.get("Content-Type") ?? "")) {

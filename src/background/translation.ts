@@ -17,7 +17,6 @@ import { assertTranslationResponse, TranslationResponseError } from "./translati
 import { LOCAL_MODELS } from "../local/models";
 import { DOUBAO_PROTOCOL_VERSION } from "../shared/doubao";
 import { withDoubaoDeadline } from "./doubao";
-import { detectSourceLanguage } from "./source-language";
 import { createStatisticsRecorder, type StatisticsRecorder } from "./statistics";
 
 const GLOBAL_LIMITER = Symbol("global-translation-limiter");
@@ -53,12 +52,9 @@ export async function translateWithSettings(
   if (providerConfig.type === "doubao-web") {
     return withDoubaoDeadline(async (deadlineSignal) => {
       const requestSignal = signal ? anySignal([signal, deadlineSignal]) : deadlineSignal;
-      let sourceLang = request.sourceLang ?? "auto";
-      if (sourceLang === "auto" && request.texts.length) {
-        const detected = await detectSourceLanguage(request.texts, requestSignal);
-        if (!detected) throw new Error("无法可靠识别源语言，请在翻译设置中手动选择源语言。");
-        sourceLang = detected;
-      }
+      // The article endpoint detects its own source language. Browser detection
+      // must not gate short paragraphs, titles, or mixed-language batches.
+      const sourceLang = request.sourceLang ?? "auto";
       return translateConfigured(settings, { ...request, sourceLang, context: undefined }, providerConfig, { ...options, signal: requestSignal });
     }, signal);
   }

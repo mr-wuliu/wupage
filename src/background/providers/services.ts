@@ -6,6 +6,7 @@ import { signVolcengineTranslation } from "../volcengine-signing";
 import { alignGoogleContext, googleContextSource } from "../google-context";
 import { ProviderError } from "../../shared/errors";
 import { fetchWithTimeout, httpResponseError, readJsonResponse, API_TRANSLATION_TIMEOUT_MS } from "../provider-transport";
+import { fetchGoogleWebTranslation } from "../google-web-transport";
 
 const GOOGLE_WEB_REQUEST_CONCURRENCY = 4;
 
@@ -28,17 +29,7 @@ export class GoogleWebTranslateProvider implements TranslatorProvider {
 
   async translateBatch(request: TranslateBatchRequest, signal?: AbortSignal): Promise<string[]> {
     const fetchText = async (text: string): Promise<GoogleWebTranslateResponse> => {
-      signal?.throwIfAborted();
-      const endpoint = new URL("https://translate.googleapis.com/translate_a/single");
-      endpoint.searchParams.set("client", "gtx");
-      endpoint.searchParams.set("sl", normalizeGoogleLang(request.sourceLang ?? "auto"));
-      endpoint.searchParams.set("tl", normalizeGoogleLang(request.targetLang));
-      endpoint.searchParams.set("dt", "t");
-      endpoint.searchParams.set("q", text);
-
-      const response = await fetchWithTimeout(endpoint.toString(), { signal }, WEB_TRANSLATION_TIMEOUT_MS);
-      if (!response.ok) throw httpResponseError(response, `Google Web Translate request failed: ${response.status}`);
-      return readJsonResponse<GoogleWebTranslateResponse>(response, "Google Web Translate");
+      return fetchGoogleWebTranslation(text, normalizeGoogleLang(request.sourceLang ?? "auto"), normalizeGoogleLang(request.targetLang), signal);
     };
     let aligned: Array<string | undefined> = request.texts.map(() => undefined);
     if (request.context && request.texts.length) {

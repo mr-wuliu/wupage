@@ -107,11 +107,14 @@
         <p id="pdfFontDescription">安装后，译文可以搜索、复制，放大更清晰，并尽可能保留矢量图形。字体只需下载一次，之后可离线使用。</p>
         <p>暂不安装也能导出图像版 PDF，外观与预览一致，但文字无法选中或搜索。</p>
         <p id="pdfFontSize" class="pdf-font-size"></p>
+        <p class="pdf-font-size">下载失败时，可<a id="pdfFontDownload" target="_blank" rel="noopener noreferrer">手动下载字体文件</a>，再从文件安装。也可使用其他设备下载后复制到本机，无需在系统中安装字体。</p>
+        <input id="pdfFontFile" type="file" accept=".otf,font/otf,application/vnd.ms-opentype" hidden>
         <progress id="pdfFontProgress" hidden aria-label="字体包下载进度"></progress>
         <p id="pdfFontStatus" class="pdf-font-status" role="status" aria-live="polite"></p>
         <div class="pdf-font-actions">
           <button id="pdfFontClose" type="button" class="ghost-button">取消</button>
           <button id="pdfFontBasic" type="button" class="ghost-button">直接导出</button>
+          <button id="pdfFontImport" type="button" class="ghost-button">从文件安装</button>
           <button id="pdfFontInstall" type="button" class="primary-button">安装并导出</button>
         </div>
       </dialog>

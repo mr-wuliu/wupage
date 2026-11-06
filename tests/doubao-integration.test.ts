@@ -69,6 +69,18 @@ afterEach(() => {
 });
 
 describe("Doubao integration with the common translation path", () => {
+  it("translates individual paragraphs when only page-sized language samples can be detected", async () => {
+    const config = settings();
+    const texts = ["Read the guide.", "Continue to the next chapter.", "Check the installation instructions before starting."];
+    detectLanguage.mockImplementation(async (sample: string) => ({
+      languages: [{ language: sample.length >= 80 ? "en" : "und", percentage: sample.length >= 80 ? 95 : 0 }]
+    }));
+    expect((await translateWithSettings(config, { texts, sourceLang: "auto", targetLang: "zh-CN" })).translations)
+      .toEqual(texts.map(text => `译文：${text}`));
+    expect((await translateWithSettings(config, { texts: [texts[0]], sourceLang: "auto", targetLang: "zh-CN", preservePlaceholders: true })).translations)
+      .toEqual([`译文：${texts[0]}`]);
+  });
+
   it("preserves the selected source language and native arrays without mutating page requests", async () => {
     const config = settings();
     const request: TranslateBatchRequest = {
@@ -92,7 +104,7 @@ describe("Doubao integration with the common translation path", () => {
     expect(detectLanguage).not.toHaveBeenCalled();
   });
 
-  it("resolves automatic source language locally before translation and shares the matching manual-language cache", async () => {
+  it("keeps automatic source requests in one cache without depending on browser detection", async () => {
     memoryStorage();
     const config = settings(true);
     const request: TranslateBatchRequest = {
@@ -101,39 +113,40 @@ describe("Doubao integration with the common translation path", () => {
     detectLanguage.mockResolvedValueOnce({ languages: [{ language: "fr", percentage: 92 }] });
 
     expect((await translateWithSettings(config, request)).cached).toBe(0);
-    expect(translateBatch).toHaveBeenCalledWith(expect.objectContaining({ sourceLang: "fr" }), expect.any(AbortSignal));
+    expect(translateBatch).toHaveBeenCalledWith(expect.objectContaining({ sourceLang: "auto" }), expect.any(AbortSignal));
     expect(request.sourceLang).toBe("auto");
-    expect((await translateWithSettings(config, { ...request, sourceLang: "fr" })).cached).toBe(1);
-    expect(detectLanguage).toHaveBeenCalledTimes(1);
+    expect((await translateWithSettings(config, { ...request, sourceLang: undefined })).cached).toBe(1);
+    expect(detectLanguage).not.toHaveBeenCalled();
     expect(translateBatch).toHaveBeenCalledTimes(1);
-    expect(getTranslationDebugSnapshot().tasks.find((task) => task.providerId === config.activeProviderId)?.sourceLang).toBe("fr");
+    expect(getTranslationDebugSnapshot().tasks.find((task) => task.providerId === config.activeProviderId)?.sourceLang).toBe("auto");
   });
 
-  it("asks for a manual source when browser detection is uncertain before sending or caching any text", async () => {
+  it("translates and caches a short paragraph even when the browser cannot identify its language", async () => {
     const storage = memoryStorage();
     const config = settings(true);
     detectLanguage.mockResolvedValueOnce({ languages: [{ language: "und", percentage: 0 }] });
     const request = { texts: ["A short label"], sourceLang: "auto", targetLang: "zh-CN" };
 
-    await expect(translateWithSettings(config, request)).rejects.toThrow("手动选择源语言");
-    expect(translateBatch).not.toHaveBeenCalled();
-    expect(storage.set).not.toHaveBeenCalled();
-    expect((await translateWithSettings(config, { ...request, sourceLang: "en" })).translations).toEqual(["译文：A short label"]);
-    expect(detectLanguage).toHaveBeenCalledTimes(1);
+    await expect(translateWithSettings(config, request)).resolves.toEqual({ translations: ["译文：A short label"], cached: 0 });
+    expect(storage.set).toHaveBeenCalledOnce();
+    expect((await translateWithSettings(config, request)).cached).toBe(1);
+    expect(translateBatch).toHaveBeenCalledOnce();
+    expect(detectLanguage).not.toHaveBeenCalled();
   });
 
-  it("includes browser source detection in the deadline and never translates after a late detector result", async () => {
-    vi.useFakeTimers();
+  it("does not wait for a stalled browser detector before translating", async () => {
     const detection = deferred<{ languages: Array<{ language: string; percentage: number }> }>();
     detectLanguage.mockReturnValueOnce(detection.promise);
-    const pending = translateWithSettings(settings(), { texts: ["Hello"], targetLang: "zh-CN" });
-    const rejected = expect(pending).rejects.toMatchObject({ errorCode: "timeout" });
+    await expect(translateWithSettings(settings(), { texts: ["Hello"], targetLang: "zh-CN" }))
+      .resolves.toEqual({ translations: ["译文：Hello"], cached: 0 });
+    expect(detectLanguage).not.toHaveBeenCalled();
+    expect(translateBatch).toHaveBeenCalledOnce();
+  });
 
-    await vi.advanceTimersByTimeAsync(110_000);
-    await rejected;
-    detection.resolve({ languages: [{ language: "en", percentage: 95 }] });
-    await vi.advanceTimersByTimeAsync(0);
-    expect(translateBatch).not.toHaveBeenCalled();
+  it("supports automatic source translation when the browser language API is unavailable", async () => {
+    vi.stubGlobal("chrome", {});
+    await expect(translateWithSettings(settings(), { texts: ["Hello"], targetLang: "zh-CN" }))
+      .resolves.toEqual({ translations: ["译文：Hello"], cached: 0 });
   });
 
   it("does not skip a mixed-language batch just because its dominant source matches the target", async () => {
@@ -143,7 +156,8 @@ describe("Doubao integration with the common translation path", () => {
 
     expect((await translateWithSettings(settings(), { texts, sourceLang: "auto", targetLang: "zh-CN" })).translations)
       .toEqual([texts[0], "较短的英文段落。"]);
-    expect(translateBatch).toHaveBeenCalledWith(expect.objectContaining({ texts, sourceLang: "zh-CN" }), expect.any(AbortSignal));
+    expect(translateBatch).toHaveBeenCalledWith(expect.objectContaining({ texts, sourceLang: "auto" }), expect.any(AbortSignal));
+    expect(detectLanguage).not.toHaveBeenCalled();
   });
 
   it("does not detect empty input", async () => {

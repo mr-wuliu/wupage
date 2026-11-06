@@ -1,5 +1,5 @@
 import { uiIconMarkup } from "../shared/ui-icons";
-import { PDF_FONT, installPdfFont, readPdfFont, removePdfFont } from "./font-store";
+import { PDF_FONT, importPdfFont, installPdfFont, readPdfFont, removePdfFont } from "./font-store";
 
 export interface PdfExportChoice { fontBytes?: Uint8Array }
 
@@ -16,11 +16,17 @@ export function setupPdfFontControl(): {
   const install = document.querySelector<HTMLButtonElement>("#pdfFontInstall")!;
   const basic = document.querySelector<HTMLButtonElement>("#pdfFontBasic")!;
   const close = document.querySelector<HTMLButtonElement>("#pdfFontClose")!;
+  const importButton = document.querySelector<HTMLButtonElement>("#pdfFontImport")!;
+  const fileInput = document.querySelector<HTMLInputElement>("#pdfFontFile")!;
+  const download = document.querySelector<HTMLAnchorElement>("#pdfFontDownload")!;
+  download.href = PDF_FONT.source;
+  download.title = PDF_FONT.file;
   document.querySelector<HTMLElement>("#pdfFontSize")!.textContent = `完整字体包 · ${(PDF_FONT.bytes / 1_000_000).toFixed(1)} MB · 仅下载一次`;
   let installed = false, exporting = false, skipPrompt = false, disposed = false;
   let choiceRun = 0;
   let mode: "export" | "install" = "install";
   let controller: AbortController | undefined;
+  let importing = false;
   let resolveChoice: ((choice: PdfExportChoice | undefined) => void) | undefined;
 
   function render(): void {
@@ -30,10 +36,11 @@ export function setupPdfFontControl(): {
     action.setAttribute("aria-label", action.title);
     action.disabled = exporting || Boolean(controller);
     install.disabled = Boolean(controller);
+    importButton.disabled = Boolean(controller);
     install.textContent = controller ? "正在安装…" : mode === "export" ? "安装并导出" : "安装字体包";
     basic.hidden = mode !== "export";
-    close.textContent = controller ? "取消下载" : "取消";
-    progress.hidden = !controller;
+    close.textContent = controller ? importing ? "取消安装" : "取消下载" : "取消";
+    progress.hidden = !controller || importing;
     title.textContent = mode === "export" ? "安装完整字体，提升导出效果" : "安装 PDF 导出字体";
   }
 
@@ -78,13 +85,15 @@ export function setupPdfFontControl(): {
     return new Promise((resolve) => { resolveChoice = resolve; show("export"); });
   }
 
-  install.addEventListener("click", async () => {
+  async function installFont(file?: File): Promise<void> {
     if (controller) return;
     const operation = new AbortController(); controller = operation;
-    status.dataset.state = "installing"; status.textContent = "正在下载字体包 · 0%";
+    importing = Boolean(file);
+    status.dataset.state = "installing"; status.textContent = file ? "正在校验字体文件…" : "正在下载字体包 · 0%";
+    progress.value = 0;
     render();
     try {
-      const fontBytes = await installPdfFont(operation.signal, (bytes) => {
+      const fontBytes = file ? await importPdfFont(file, operation.signal) : await installPdfFont(operation.signal, (bytes) => {
         if (controller !== operation) return;
         progress.value = bytes;
         status.textContent = bytes === PDF_FONT.bytes ? "下载完成，正在校验…" : `正在下载字体包 · ${Math.floor(bytes / PDF_FONT.bytes * 100)}%`;
@@ -100,6 +109,12 @@ export function setupPdfFontControl(): {
     } finally {
       if (controller === operation) { controller = undefined; render(); }
     }
+  }
+  install.addEventListener("click", () => { void installFont(); });
+  importButton.addEventListener("click", () => { if (!controller) fileInput.click(); });
+  fileInput.addEventListener("change", () => {
+    const file = fileInput.files?.[0]; fileInput.value = "";
+    if (file && dialog.open && !disposed) void installFont(file);
   });
   basic.addEventListener("click", () => { skipPrompt = true; finish({}); });
   close.addEventListener("click", () => finish());
