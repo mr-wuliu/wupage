@@ -151,6 +151,18 @@ describe("inline structure plans", () => {
     expect([...document.querySelectorAll("p > span")].map(node => node.textContent)).toEqual(["更新", "取消提交"]);
   });
 
+  it.each(["class", "title", "href"])("still rejects a page-owned %s change while a structured response is pending", async attribute => {
+    document.body.innerHTML = '<p class="article-copy">Read <a href="/guide" title="Guide">the guide</a> carefully.</p>';
+    const [segment] = await collectTextSegmentsProgressive();
+    const request = segment.requestText!;
+    const target = document.querySelector(attribute === "class" ? "p" : "a")!;
+    target.setAttribute(attribute, "updated-by-page");
+    expect(renderTranslations([{ id: segment.id, text: request.replace("Read", "阅读") }], "replace")).toEqual([]);
+    expect(invalidateStaleSegments()).toContain(segment.id);
+    expect(target.getAttribute(attribute)).toBe("updated-by-page");
+    expect(document.querySelector("p")!.textContent).toBe("Read the guide carefully.");
+  });
+
   it("keeps a host update made while the structured response is pending", async () => {
     document.body.innerHTML = '<p>Read <strong>the guide</strong> carefully.</p>';
     const [segment] = await collectTextSegmentsProgressive();

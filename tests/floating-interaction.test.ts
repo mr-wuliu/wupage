@@ -14,6 +14,7 @@ import { sendRuntimeRequest } from "../src/content/runtime";
 import { injectContentStyles } from "../src/content/styles";
 import { ProviderError } from "../src/shared/errors";
 import { PARAGRAPH_MODE_KEY } from "../src/shared/paragraph-mode";
+import { structuredTranslation } from "./helpers/structured-translation";
 
 describe("floating translation interactions", () => {
   let stored: ExtensionSettings;
@@ -666,6 +667,38 @@ describe("floating translation interactions", () => {
     expect(translationRequests()).toHaveLength(2);
     expect(query(".wupage-translation").textContent).toBe("继续之前，请阅读此段内容。");
     await setParagraphMode(false);
+  });
+
+  it.each([null, "article-copy"])("shows a rich paragraph on the first Ctrl-click without changing its class (%s)", async sourceClass => {
+    query("main").innerHTML = '<p id="first">Read <em>this complete guide</em> before continuing.</p><p id="second">Another paragraph to hover over.</p>';
+    if (sourceClass !== null) query("#first").setAttribute("class", sourceClass);
+    await setParagraphMode(true);
+    let finish!: (response: { translations: string[]; cached: number }) => void;
+    const runtime = vi.mocked(sendRuntimeRequest).getMockImplementation()!;
+    vi.mocked(sendRuntimeRequest).mockImplementation(request => request.type === "TRANSLATE_BATCH"
+      ? new Promise(resolve => { finish = resolve; }) : runtime(request));
+    const first = query("#first"), second = query("#second");
+    first.dispatchEvent(new MouseEvent("mousemove", { bubbles: true }));
+    expect(first.getAttribute("data-wupage-paragraph-active")).toBe("true");
+    expect(first.getAttribute("class")).toBe(sourceClass);
+    first.dispatchEvent(new MouseEvent("click", { bubbles: true, ctrlKey: true }));
+    await vi.waitFor(() => expect(translationRequests()).toHaveLength(1));
+    second.dispatchEvent(new MouseEvent("mousemove", { bubbles: true }));
+    expect(first.hasAttribute("data-wupage-paragraph-active")).toBe(false);
+    expect(second.getAttribute("data-wupage-paragraph-active")).toBe("true");
+    expect(first.getAttribute("class")).toBe(sourceClass);
+    expect(second.hasAttribute("class")).toBe(false);
+    const request = translationRequests()[0];
+    if (request.type !== "TRANSLATE_BATCH") throw new Error("Expected a translation request");
+    finish({ translations: request.texts.map(text => structuredTranslation(text, "首次点击就显示的译文。")), cached: 0 });
+    await vi.waitFor(() => expect(query("main").textContent).toContain("首次点击就显示的译文。"));
+    expect(first.querySelector(".wupage-translation-pending")).toBeNull();
+    expect(second.querySelector(".wupage-translation")).toBeNull();
+    expect(translationRequests()).toHaveLength(1);
+    await setParagraphMode(false);
+    expect(document.querySelector("[data-wupage-paragraph-active]")).toBeNull();
+    expect(first.getAttribute("class")).toBe(sourceClass);
+    expect(second.hasAttribute("class")).toBe(false);
   });
 
   it("follows paragraph mode changes from other tabs without clearing existing translations", async () => {

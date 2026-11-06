@@ -44,7 +44,8 @@ import { showTouchHint } from "./touch-hint";
 const FLOATING_ID = "wupage-floating-ball";
 const FLOATING_HITBOX_ID = "wupage-floating-hitbox";
 const DEBUG_PANEL_ID = "wupage-debug-panel";
-const ACTIVE_CLASS = "wupage-paragraph-active";
+// Transient extension state must not change page-owned attributes such as class.
+const ACTIVE_ATTRIBUTE = "data-wupage-paragraph-active";
 const HIGHLIGHT_ID = "wupage-paragraph-highlight";
 const POSITION_KEY = "wupage.floating.position";
 const EDGE_MARGIN = 8;
@@ -535,9 +536,9 @@ function createHighlight(): void {
 }
 
 function setActiveParagraph(paragraph: Element | null): void {
-  activeParagraph?.classList.remove(ACTIVE_CLASS);
+  activeParagraph?.removeAttribute(ACTIVE_ATTRIBUTE);
   activeParagraph = paragraph;
-  activeParagraph?.classList.add(ACTIVE_CLASS);
+  activeParagraph?.setAttribute(ACTIVE_ATTRIBUTE, "true");
   updateHighlight();
 }
 

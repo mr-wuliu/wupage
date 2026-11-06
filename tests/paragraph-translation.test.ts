@@ -30,6 +30,27 @@ const requests = () => vi.mocked(sendRuntimeRequest).mock.calls.map(([request]) 
 const targetAt = (selector: string) => findTranslatableParagraph(document.querySelector(selector))!;
 
 describe("paragraph translation clicks", () => {
+  it.each(["bilingual", "bilingual-accent", "replace"] as const)("renders the first %s result after the hover highlight moves away", async mode => {
+    setPageTranslationDisplayMode(mode);
+    document.body.innerHTML = '<main><p id="paragraph" data-wupage-paragraph-active="true">Read <em>this complete guide</em> before continuing.</p></main>';
+    const paragraph = document.querySelector("#paragraph")!;
+    let finish!: (response: { translations: string[]; cached: number }) => void;
+    const normal = vi.mocked(sendRuntimeRequest).getMockImplementation()!;
+    vi.mocked(sendRuntimeRequest).mockImplementation(request => request.type === "TRANSLATE_BATCH"
+      ? new Promise(resolve => { finish = resolve; }) : normal(request));
+    const task = translateParagraph(paragraph);
+    await vi.waitFor(() => expect(requests()).toHaveLength(1));
+    expect(requests()[0].texts[0]).toContain("⟪WUPAGEOPEN");
+    paragraph.removeAttribute("data-wupage-paragraph-active");
+    finish({ translations: requests()[0].texts.map(text => structuredTranslation(text, "这是完整段落的译文。")), cached: 0 });
+    await task;
+    expect(document.body.textContent).toContain("这是完整段落的译文。");
+    expect(document.querySelector(".wupage-translation-pending")).toBeNull();
+    expect(requests()).toHaveLength(1);
+    await translateParagraph(paragraph);
+    expect(paragraph.textContent).toBe("Read this complete guide before continuing.");
+  });
+
   it.each([
     '<div id="paragraph"><span id="first">Read <em id="second">this complete guide</em> before continuing.</span></div>',
     '<div><span id="paragraph">Read <em id="first">this complete guide</em><br><strong id="second">before continuing.</strong><br></span></div>',

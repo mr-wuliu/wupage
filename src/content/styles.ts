@@ -932,7 +932,7 @@ const CONTENT_CSS = `
     #wupage-floating-menu[data-touch="true"] .wupage-provider-notice { order: 3; margin: 0; padding: 2px 8px; }
     #wupage-floating-menu .ocr-model-progress { display: block; width: 100%; height: 5px; margin: 6px 0; accent-color: var(--wp-accent, #116466); }
 
-    .wupage-paragraph-active {
+    [data-wupage-paragraph-active="true"] {
       outline: 1px dashed color-mix(in srgb, var(--wp-paragraph-highlight, #116466) 45%, transparent);
       outline-offset: 3px;
     }
