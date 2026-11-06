@@ -13,6 +13,16 @@ button:focus-visible, select:focus-visible, a:focus-visible { outline: 2px solid
 .trigger-line { height: 12px; min-width: 4px; border-radius: 2px; }
 .trigger-line::after { content: ''; position: absolute; left: 0; right: 0; top: 5px; height: 2px; background: var(--wp-selection-trigger, var(--accent)); border-radius: 2px; }
 .trigger-line:hover::after, .trigger-line:focus-visible::after { height: 3px; }
+.touch-triggers { position: fixed; display: flex; align-items: center; gap: 8px; padding: 8px; border: 1px solid var(--line); border-radius: 12px; background: var(--bg); color: var(--fg); box-shadow: 0 4px 20px #0003; font: 14px/1.4 system-ui,sans-serif; pointer-events: auto; }
+.touch-triggers:empty { display: none; }
+.selection-preview { flex: 1; min-width: 0; padding-left: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.trigger-touch, .dismiss-trigger { flex: none; min-height: 44px; padding: 0 14px; border: 0; border-radius: 8px; color: var(--bg); background: var(--accent); touch-action: manipulation; user-select: none; -webkit-user-select: none; }
+.dismiss-trigger { display: grid; place-items: center; width: 44px; padding: 0; color: var(--fg); background: var(--soft); }
+.dismiss-trigger svg { width: 16px; height: 16px; }
+.touch-card .close, .touch-card .speak { flex-basis: 44px; min-width: 44px; height: 44px; }
+.touch-card select, .touch-card .submit-source, .touch-card .retry { min-height: 44px; }
+.touch-card header { flex-wrap: wrap; gap: 6px; padding: 10px; }
+.card.touch-card .word { font-size: 16px; flex-basis: 45%; }
 .card { position: fixed; display: flex; flex-direction: column; width: min(360px, calc(100vw - 24px)); max-height: calc(100vh - 24px); margin: 0; padding: 0; overflow: hidden; pointer-events: auto; border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 8px 36px #162d2a26; background: var(--bg); color: var(--fg); text-align: left; direction: ltr; font: 14px/1.6 system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; user-select: text; }
 .card:focus { outline: none; }
 header { display: flex; align-items: center; flex: 0 0 auto; gap: 10px; padding: 14px 14px 10px; }

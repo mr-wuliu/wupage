@@ -38,6 +38,23 @@ afterEach(() => {
 });
 
 describe("image translation controls", () => {
+  it("keeps touch buttons visible after release without sending the image", async () => {
+    setImageTranslationEnabled(true);
+    expect(button().hidden).toBe(true);
+    const touch = new MouseEvent("pointerdown", { bubbles: true });
+    Object.defineProperty(touch, "pointerType", { value: "touch" });
+    document.querySelector("img")!.dispatchEvent(touch);
+    await vi.waitFor(() => expect(button().hidden).toBe(false));
+    document.dispatchEvent(new Event("pointerout"));
+    window.dispatchEvent(new Event("scroll"));
+    await new Promise<void>(resolve => window.requestAnimationFrame(() => resolve()));
+    expect(button().hidden).toBe(false);
+    expect(sendRuntimeRequest).not.toHaveBeenCalled();
+    const mouse = new MouseEvent("pointermove", { clientX: 700, clientY: 700, bubbles: true });
+    Object.defineProperty(mouse, "pointerType", { value: "mouse" });
+    document.dispatchEvent(mouse);
+    await vi.waitFor(() => expect(button().hidden).toBe(true));
+  });
   it.each(['contenteditable=""', 'contenteditable="plaintext-only"', 'role="textbox"', 'translate="no"', 'class="notranslate"'])
     ("excludes images in %s", async attribute => {
       const image = document.querySelector("img")!;

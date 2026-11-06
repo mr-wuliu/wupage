@@ -13,6 +13,7 @@
           <h1>WuPage</h1>
           <button id="openOptions" type="button" title="打开设置" aria-label="打开设置"><span data-wupage-icon="settings" aria-hidden="true"></span></button>
         </header>
+        <div class="touch-primary" hidden></div>
         <div class="language-field">
           <div class="language-pair">
             <label class="language-select">
@@ -39,7 +40,7 @@
           <select id="provider"></select>
         </label>
       </div>
-      <label>
+      <label data-touch-extra>
         翻译模式
         <select id="translationDisplayMode" disabled></select>
       </label>
@@ -82,6 +83,7 @@
         <button id="debug" data-popup-menu-item="debug" type="button" class="secondary">Debug</button>
         <button id="clearCache" data-popup-menu-item="clearCache" type="button" class="secondary">清除缓存</button>
       </div>
+      <button id="moreFeatures" type="button" class="secondary" aria-expanded="false" hidden><span>更多功能</span><span data-wupage-icon="arrow-down-03" aria-hidden="true"></span></button>
       <span id="paragraphModeHint" class="field-description" hidden>所有网页生效；按住 Ctrl 点击段落翻译，再次点击恢复原文。</span>
       <p id="status" role="status"></p>
       <div id="fileAccessHelp" hidden>

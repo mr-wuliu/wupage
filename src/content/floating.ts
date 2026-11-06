@@ -9,7 +9,7 @@ import type {
 } from "../shared/types";
 import { sendRuntimeRequest } from "./runtime";
 import { refreshPageContextState } from "./page-context";
-import { localProviderNotice } from "../shared/local-notice";
+import { localProviderNotice, renderLocalModelNotice } from "../shared/local-notice";
 import { enhanceProviderSelect } from "../shared/provider-picker";
 import { addAutoTranslationWebsite, currentWebsitePattern, excludeAutoTranslationWebsite, hasAutoTranslationWebsite, normalizeAutoTranslation, setAutoTranslationEnabled } from "../shared/auto-translation";
 import { normalizeSelectionTranslation } from "../shared/dictionary";
@@ -37,6 +37,9 @@ import { createSettingsSnapshot } from "../shared/settings-snapshot";
 import { isLikelyPdfUrl } from "../pdf/launch";
 import { observeParagraphMode } from "../shared/paragraph-mode";
 import { SOURCE_LANGUAGES, TARGET_LANGUAGES } from "../shared/languages";
+import { hasTouchInput, TOUCH_INPUT_QUERY, visibleViewport } from "../shared/touch";
+import { startTouchParagraph } from "./touch-paragraph";
+import { showTouchHint } from "./touch-hint";
 
 const FLOATING_ID = "wupage-floating-ball";
 const FLOATING_HITBOX_ID = "wupage-floating-hitbox";
@@ -125,6 +128,7 @@ export function initFloatingBall(): void {
   label.className = "wupage-floating-label";
   label.textContent = "译";
   button.append(label);
+  button.addEventListener("selectstart", event => event.preventDefault());
   button.addEventListener("click", (event) => {
     cancelMenuOpen();
     cancelLongPress();
@@ -183,6 +187,12 @@ export function initFloatingBall(): void {
   document.addEventListener("mousemove", handleParagraphPreview, { passive: true });
   document.addEventListener("click", handleDocumentClick, true);
   window.addEventListener("resize", () => keepPositionInViewport(button));
+  const positionVisibleMenu = () => {
+    const menu = document.getElementById("wupage-floating-menu");
+    if (menu && !menu.hidden) positionMenu(menu, button);
+  };
+  window.visualViewport?.addEventListener("resize", positionVisibleMenu);
+  window.visualViewport?.addEventListener("scroll", positionVisibleMenu);
   window.addEventListener("scroll", updateHighlight, { passive: true });
   document.addEventListener("fullscreenchange", applyFloatingBallVisibility);
   document.addEventListener("click", closeMenuOnOutsideClick, true);
@@ -200,6 +210,8 @@ export function initFloatingBall(): void {
     cancelLongPress();
     cancelMenuOpen();
     cancelMenuClose();
+    window.visualViewport?.removeEventListener("resize", positionVisibleMenu);
+    window.visualViewport?.removeEventListener("scroll", positionVisibleMenu);
   }, { once: true });
 }
 
@@ -212,6 +224,7 @@ async function initializeFloatingBall(button: HTMLElement): Promise<void> {
   if (!hitbox) return;
   hitbox.dataset.positionReady = "true";
   applyFloatingBallVisibility();
+  if (hasTouchInput()) void showTouchHint(button);
 }
 
 function subscribeToPositionChanges(button: HTMLElement): void {
@@ -284,6 +297,7 @@ function startDrag(event: PointerEvent): void {
   const button = event.currentTarget as HTMLElement;
   activePointerId = event.pointerId;
   touchInteraction = event.pointerType === "touch";
+  if (touchInteraction) void showTouchHint(button);
   longPressTriggered = false;
   dragging = true;
   movedDuringDrag = false;
@@ -399,7 +413,7 @@ function createMenu(): void {
       </span>
     </label>
     </div>
-    <label class="wupage-menu-field">
+    <label class="wupage-menu-field" data-touch-extra>
       <span class="wupage-field-label" id="wupage-display-mode-label">翻译模式</span>
       <select data-role="display-mode" aria-labelledby="wupage-display-mode-label">
         ${TRANSLATION_DISPLAY_MODES.map((mode) =>
@@ -408,11 +422,11 @@ function createMenu(): void {
       </select>
     </label>
     <div class="wupage-feature-buttons" role="group" aria-label="翻译功能">
-      <button type="button" data-action="context-menu-translation" class="wupage-feature-button" aria-pressed="false" title="右键点击网页，通过菜单翻译全文或恢复原文">
+      <button type="button" data-action="context-menu-translation" data-touch-extra class="wupage-feature-button" aria-pressed="false" title="右键点击网页，通过菜单翻译全文或恢复原文">
         <span>右键翻译</span>
         <span class="wupage-feature-indicator" aria-hidden="true"></span>
       </button>
-      <button type="button" data-action="close" class="wupage-feature-button" aria-pressed="true" title="隐藏悬浮球，可在扩展弹窗中重新开启">
+      <button type="button" data-action="close" data-touch-extra class="wupage-feature-button" aria-pressed="true" title="隐藏悬浮球，可在扩展弹窗中重新开启">
         <span>悬浮球</span>
         <span class="wupage-feature-indicator" aria-hidden="true"></span>
       </button>
@@ -437,22 +451,18 @@ function createMenu(): void {
       </button>
     </div>
     <p id="wupage-paragraph-mode-hint" class="wupage-menu-hint" hidden>所有网页生效；按住 Ctrl 点击段落翻译，再次点击恢复原文。</p>
+    <button type="button" data-action="more" class="wupage-more-button" aria-expanded="false" hidden><span>更多功能</span>${uiIconMarkup("arrow-down-03")}</button>
     <div class="wupage-translation-feedback">
       <p data-role="translation-status" role="status" aria-live="polite" aria-atomic="true">点击悬浮球即可翻译全文</p>
       <button type="button" data-action="retranslate" hidden>重新翻译</button>
       <button type="button" data-action="doubao-settings" hidden>豆包登录与检测</button>
     </div>
   `);
-  const pointerMedia = window.matchMedia?.("(any-hover: none) and (any-pointer: coarse)");
-  const updateParagraphVisibility = () => {
-    const button = menu.querySelector<HTMLButtonElement>('[data-action="paragraph-mode"]')!;
-    button.hidden = pointerMedia?.matches === true;
-    button.disabled = button.hidden || button.getAttribute("aria-busy") === "true";
-    syncParagraphModeButton(menu);
-  };
-  updateParagraphVisibility();
-  pointerMedia?.addEventListener("change", updateParagraphVisibility);
-  window.addEventListener("pagehide", () => pointerMedia?.removeEventListener("change", updateParagraphVisibility), { once: true });
+  const pointerMedia = window.matchMedia?.(TOUCH_INPUT_QUERY);
+  const updateTouchControls = () => { touchInteraction = hasTouchInput(); syncTouchMenu(menu); };
+  updateTouchControls();
+  pointerMedia?.addEventListener("change", updateTouchControls);
+  window.addEventListener("pagehide", () => pointerMedia?.removeEventListener("change", updateTouchControls), { once: true });
   menu.addEventListener("pointerenter", (event) => {
     touchInteraction = event.pointerType === "touch";
     cancelMenuClose();
@@ -482,6 +492,14 @@ function createMenu(): void {
     event.preventDefault();
 
     const action = target.dataset.action;
+    if (action === "more") {
+      const expanded = menu.toggleAttribute("data-more-open");
+      target.setAttribute("aria-expanded", String(expanded));
+      target.querySelector("span")!.textContent = expanded ? "收起更多" : "更多功能";
+      const ball = document.getElementById(FLOATING_ID);
+      if (ball) positionMenu(menu, ball);
+      return;
+    }
     if (action === "settings" || action === "doubao-settings") {
       void sendRuntimeRequest({ type: "OPEN_OPTIONS_PAGE" }).catch(showMenuError);
       return;
@@ -500,6 +518,12 @@ function createMenu(): void {
     if (action === "retranslate") void togglePageTranslationFromFloating(true);
   });
   document.documentElement.append(menu);
+  const menuSize = typeof ResizeObserver === "undefined" ? undefined : new ResizeObserver(() => {
+    const ball = document.getElementById(FLOATING_ID);
+    if (!menu.hidden && ball) positionMenu(menu, ball, true);
+  });
+  menuSize?.observe(menu);
+  window.addEventListener("pagehide", () => menuSize?.disconnect(), { once: true });
 }
 
 function createHighlight(): void {
@@ -588,6 +612,18 @@ function scheduleMenuClose(): void {
 }
 
 function positionMenu(menu: HTMLElement, button: HTMLElement, preserveTop = false): void {
+  if (menu.dataset.touch === "true" && visibleViewport().width < 640) {
+    const view = visibleViewport();
+    const width = Math.max(0, view.width - EDGE_MARGIN * 2);
+    const maxHeight = Math.max(0, Math.min(560, view.height * 0.8, view.height - EDGE_MARGIN * 2));
+    menu.style.width = `${width}px`;
+    menu.style.maxHeight = `${maxHeight}px`;
+    menu.style.setProperty("left", `${view.left + EDGE_MARGIN}px`, "important");
+    const bottomTop = view.bottom - Math.min(menu.offsetHeight || maxHeight, maxHeight) - EDGE_MARGIN;
+    const previousTop = preserveTop ? Number.parseFloat(menu.style.top) : NaN;
+    menu.style.setProperty("top", `${Number.isFinite(previousTop) ? clamp(previousTop, view.top + EDGE_MARGIN, bottomTop) : bottomTop}px`, "important");
+    return;
+  }
   const size = getFloatingSize(button);
   const hitbox = document.getElementById(FLOATING_HITBOX_ID);
   // Use the settled position so the edge reveal animation cannot move the menu.
@@ -655,10 +691,14 @@ function applyMenuSettings(menu: HTMLElement, settings: ExtensionSettings): void
     localNotice = document.createElement("p");
     localNotice.dataset.role = "local-notice";
     localNotice.setAttribute("role", "status");
-    localNotice.style.cssText = "font-size:12px!important;line-height:1.6!important;margin:8px!important;padding:8px!important;border:1px solid #c7a557!important;border-radius:8px!important";
+    localNotice.className = "wupage-provider-notice";
     menu.querySelector("[data-role='provider']")?.closest("label")?.after(localNotice);
   }
-  if (localNotice) { localNotice.textContent = noticeText ?? ""; localNotice.hidden = !noticeText; }
+  if (localNotice) {
+    localNotice.textContent = noticeText ?? ""; localNotice.hidden = !noticeText;
+    renderLocalModelNotice(localNotice, settings, sendRuntimeRequest,
+      () => { void sendRuntimeRequest({ type: "OPEN_OPTIONS_PAGE" }).catch(showMenuError); }, () => !menu.hidden);
+  }
   const sourceLangSelect = menu.querySelector<HTMLSelectElement>("[data-role='source-lang']");
   if (sourceLangSelect) {
     ensureLanguageOption(sourceLangSelect, settings.sourceLang);
@@ -815,7 +855,9 @@ function setMenuOpen(menu: HTMLElement, open: boolean): void {
   cancelMenuClose();
   if (!open) cancelLongPress();
   menu.hidden = !open;
+  syncTouchMenu(menu);
   if (open) {
+    document.getElementById("wupage-touch-hint")?.remove();
     if (menuOcr) void menuOcr.refresh();
     else {
       const toggle = menu.querySelector<HTMLButtonElement>("[data-action='image-translation']")!;
@@ -1439,16 +1481,29 @@ async function updateDisplayMode(menu: HTMLElement, select: HTMLSelectElement): 
 
 function syncParagraphModeButton(menu: HTMLElement): void {
   const button = menu.querySelector<HTMLButtonElement>('[data-action="paragraph-mode"]');
-  button?.setAttribute("aria-pressed", String(paragraphMode));
+  const touch = menu.dataset.touch === "true";
+  if (button) {
+    const pressed = String(!touch && paragraphMode);
+    if (button.getAttribute("aria-pressed") !== pressed) button.setAttribute("aria-pressed", pressed);
+    const label = button.querySelector("span")!, text = touch ? "点选段落" : "段落翻译";
+    if (label.textContent !== text) label.textContent = text;
+    const title = touch ? "点选一个正文段落，翻译后自动退出" : "开启段落翻译模式";
+    if (button.title !== title) button.title = title;
+  }
   const hint = menu.querySelector<HTMLElement>(".wupage-menu-hint");
   if (hint) {
-    hint.hidden = !paragraphMode || button?.hidden === true;
+    hint.hidden = touch || !paragraphMode || button?.hidden === true;
     const text = paragraphClickHint(localShortcuts, shortcutEnabled["paragraph-click"]);
     if (hint.textContent !== text) hint.textContent = text;
   }
 }
 
 async function toggleMenuParagraphMode(menu: HTMLElement, button: HTMLButtonElement): Promise<void> {
+  if (menu.dataset.touch === "true") {
+    setMenuOpen(menu, false);
+    startTouchParagraph();
+    return;
+  }
   const previous = paragraphMode;
   button.disabled = true;
   button.setAttribute("aria-busy", "true");
@@ -1462,6 +1517,16 @@ async function toggleMenuParagraphMode(menu: HTMLElement, button: HTMLButtonElem
     button.disabled = button.hidden;
     button.setAttribute("aria-busy", "false");
   }
+}
+
+function syncTouchMenu(menu: HTMLElement): void {
+  const touch = touchInteraction || hasTouchInput();
+  menu.dataset.touch = String(touch);
+  const ball = document.getElementById(FLOATING_ID);
+  if (ball) ball.dataset.touch = String(touch);
+  const more = menu.querySelector<HTMLButtonElement>('[data-action="more"]');
+  if (more) more.hidden = !touch;
+  syncParagraphModeButton(menu);
 }
 
 function updateFloatingSettings(menu: HTMLElement, change: Partial<ExtensionSettings> | ((settings: ExtensionSettings) => Partial<ExtensionSettings>)): Promise<void> {

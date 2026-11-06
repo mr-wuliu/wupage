@@ -480,3 +480,31 @@ button[aria-busy="true"]:disabled {
 
 .language-chevron svg, .provider-chevron svg { display: block; width: 100%; height: 100%; }
 .language-direction svg { width: 15px; height: 15px; }
+
+.wupage-provider-notice { margin: 4px 0; padding: 8px; border: 1px solid var(--wp-border, #c7a557); border-radius: 8px; font-size: 12px; line-height: 1.6; }
+.wupage-local-notice { display: flex; align-items: center; gap: 8px; }
+.wupage-local-notice span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.wupage-local-notice button { flex: none; padding: 0 8px; color: var(--wp-accent, #116466); background: var(--wp-soft, #eef2f1); font-size: 12px; }
+.wupage-local-notice[data-state="missing"], .wupage-local-notice[data-state="error"] { border-color: var(--wp-danger, #b13e36); }
+
+.popup [hidden] { display: none !important; }
+.popup[data-touch="true"] { gap: 8px; padding-bottom: max(12px, env(safe-area-inset-bottom)); }
+.popup[data-touch="true"]:not([data-more-open]) [data-touch-extra] { display: none !important; }
+.popup[data-touch="true"] .touch-primary { display: grid; }
+.popup[data-touch="true"] .popup-top { gap: 8px; }
+.popup[data-touch="true"] button, .popup[data-touch="true"] select { min-height: 44px; touch-action: manipulation; }
+.popup[data-touch="true"] .wupage-provider-picker button { min-height: 44px !important; }
+.popup[data-touch="true"] #openOptions { width: 44px; }
+.popup[data-touch="true"] #pageToggle { width: 100%; min-height: 48px; font-size: 16px; }
+.popup[data-touch="true"] #paragraphMode { grid-column: 1 / -1; }
+.popup[data-touch="true"] #autoTranslation, .popup[data-touch="true"] #addAutoTranslationSite { width: 44px; }
+.popup[data-touch="true"] .language-value { min-height: 44px; line-height: 44px; }
+.popup[data-touch="true"] .ocr-model-action { width: 44px; }
+.popup[data-touch="true"]:not([data-more-open]) .ocr-help-slot,
+.popup[data-touch="true"]:not([data-more-open]) .ocr-model-action[data-state="installed"] { display: none; }
+.popup[data-touch="true"][data-more-open] .image-feature { grid-column: 1 / -1; }
+.popup[data-touch="true"] .feature-toggles .ocr-help { flex-basis: 44px; }
+.popup[data-touch="true"] .feature-toggles .ocr-help-trigger { width: 44px; height: 44px; border: 0; }
+.popup[data-touch="true"] .wupage-provider-notice { margin: 0; padding: 2px 8px; }
+#moreFeatures { display: flex; align-items: center; justify-content: center; gap: 8px; }
+#moreFeatures svg { width: 14px; height: 14px; }

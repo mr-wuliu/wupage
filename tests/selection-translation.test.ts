@@ -42,6 +42,36 @@ afterEach(() => {
 });
 
 describe("selection dictionary UI", () => {
+  it("recovers a native touch selection after pointer cancellation and waits for activation", async () => {
+    const event = new MouseEvent("pointerdown", { bubbles: true });
+    Object.defineProperty(event, "pointerType", { value: "touch" });
+    document.getElementById("first")!.dispatchEvent(event);
+    const range = document.createRange(); range.selectNodeContents(document.getElementById("first")!);
+    window.getSelection()!.removeAllRanges(); window.getSelection()!.addRange(range);
+    const cancel = new Event("pointercancel", { bubbles: true });
+    Object.defineProperty(cancel, "pointerType", { value: "touch" });
+    document.dispatchEvent(cancel);
+    document.dispatchEvent(new Event("selectionchange"));
+    await vi.waitFor(() => expect(root().querySelector(".trigger-touch")?.textContent).toBe("查词"));
+    expect(sendRuntimeRequest).not.toHaveBeenCalled();
+    expect(root().querySelector(".trigger-dot,.trigger-line")).toBeNull();
+    root().querySelector<HTMLButtonElement>(".trigger-touch")!.click();
+    await vi.waitFor(() => expect(root().querySelector(".meanings")?.textContent).toContain("例子"));
+    expect(window.getSelection()?.toString()).toBe("example");
+  });
+  it("keeps a touch editor open when keyboard scrolling moves the source offscreen", async () => {
+    const event = new MouseEvent("pointerdown", { bubbles: true });
+    Object.defineProperty(event, "pointerType", { value: "touch" });
+    document.getElementById("first")!.dispatchEvent(event); select();
+    await vi.waitFor(() => expect(root().querySelector(".trigger-touch")).not.toBeNull());
+    root().querySelector<HTMLButtonElement>(".trigger-touch")!.click();
+    await vi.waitFor(() => expect(root().querySelector(".meanings")).not.toBeNull());
+    source().focus();
+    vi.mocked(Range.prototype.getClientRects).mockReturnValue([] as unknown as DOMRectList);
+    document.dispatchEvent(new Event("scroll")); window.dispatchEvent(new Event("resize"));
+    expect(card().hidden).toBe(false); expect(source().value).toBe("example");
+    expect(card().style.top).not.toBe("");
+  });
   it("rejects a selection that crosses an editor even when both endpoints are ordinary prose", async () => {
     vi.useFakeTimers();
     document.body.innerHTML = '<main><p id="start">Public introduction.</p><div contenteditable="plaintext-only">Private unsent draft.</div><p id="end">Public conclusion.</p></main>';

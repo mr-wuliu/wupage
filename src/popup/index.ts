@@ -7,7 +7,7 @@ import "../shared/appearance.css";
 import { setupAppearance } from "../shared/appearance-runtime";
 import { setImageTranslationToggle, setupOcrControl } from "../shared/ocr-control";
 import { getExtensionDetailsUrl, isLikelyPdfUrl, openPdfWorkspaceInNewTab } from "../pdf/launch";
-import { localProviderNotice } from "../shared/local-notice";
+import { localProviderNotice, renderLocalModelNotice } from "../shared/local-notice";
 import { enhanceProviderSelect } from "../shared/provider-picker";
 import { addAutoTranslationWebsite, currentWebsitePattern, excludeAutoTranslationWebsite, hasAutoTranslationWebsite, normalizeAutoTranslation, setAutoTranslationEnabled } from "../shared/auto-translation";
 import { normalizeSelectionTranslation } from "../shared/dictionary";
@@ -20,6 +20,7 @@ import { normalizeVideoTranslation } from "../shared/video";
 import { normalizeAppearance } from "../shared/appearance";
 import { applyPopupMenuLayout } from "../shared/popup-menu";
 import { paragraphClickHint } from "../shared/local-shortcuts";
+import { hasTouchInput, TOUCH_INPUT_QUERY } from "../shared/touch";
 
 renderUiIcons();
 
@@ -46,6 +47,7 @@ const clearCacheButton = query<HTMLButtonElement>("#clearCache");
 const optionsButton = query<HTMLButtonElement>("#openOptions");
 const githubButton = query<HTMLButtonElement>("#openGithub");
 const websiteButton = query<HTMLButtonElement>("#openWebsite");
+const moreFeaturesButton = query<HTMLButtonElement>("#moreFeatures");
 const GITHUB_URL = "https://github.com/mr-wuliu/wupage";
 const WEBSITE_URL = "https://wupage.mrwuliu.top/";
 
@@ -63,6 +65,8 @@ let activePageURL: string | undefined;
 let pageTranslationAvailable = true;
 let settingsReady = false;
 let settingsSave: Promise<unknown> = Promise.resolve();
+let touchControls = hasTouchInput();
+let lastPointerTouch = touchControls;
 const settingsSnapshot = createSettingsSnapshot(() => sendRuntimeMessage<ExtensionSettings>({ type: "GET_SETTINGS" }));
 
 void init().catch((error: unknown) => {
@@ -111,15 +115,31 @@ async function init(): Promise<void> {
   translationDisplayMode.innerHTML = TRANSLATION_DISPLAY_MODES
     .map((mode) => `<option value="${mode.value}">${mode.label}</option>`)
     .join("");
-  const pointerMedia = window.matchMedia?.("(any-hover: none) and (any-pointer: coarse)");
-  const updateParagraphVisibility = () => {
-    paragraphModeButton.hidden = pointerMedia?.matches === true;
+  const pointerMedia = window.matchMedia?.(TOUCH_INPUT_QUERY);
+  const updateTouchControls = () => {
+    touchControls = hasTouchInput();
+    lastPointerTouch = touchControls;
     refreshMenuLayout();
     updateParagraphModeButton();
   };
-  updateParagraphVisibility();
-  pointerMedia?.addEventListener("change", updateParagraphVisibility);
-  window.addEventListener("pagehide", () => pointerMedia?.removeEventListener("change", updateParagraphVisibility), { once: true });
+  updateTouchControls();
+  pointerMedia?.addEventListener("change", updateTouchControls);
+  moreFeaturesButton.addEventListener("click", () => {
+    const expanded = document.querySelector(".popup")!.toggleAttribute("data-more-open");
+    moreFeaturesButton.setAttribute("aria-expanded", String(expanded));
+    moreFeaturesButton.querySelector("span")!.textContent = expanded ? "收起更多" : "更多功能";
+  });
+  const detectTouch = (event: PointerEvent) => {
+    if (event.pointerType) lastPointerTouch = event.pointerType === "touch";
+    if (event.pointerType !== "touch" || touchControls) return;
+    // Wait until activation completes, so reordering cannot move a control under the finger.
+    window.setTimeout(() => { touchControls = true; refreshMenuLayout(); updateParagraphModeButton(); }, 0);
+  };
+  document.addEventListener("pointerup", detectTouch);
+  window.addEventListener("pagehide", () => {
+    pointerMedia?.removeEventListener("change", updateTouchControls);
+    document.removeEventListener("pointerup", detectTouch);
+  }, { once: true });
   translationDisplayMode.value = settings.translationDisplayMode;
   updateAutoTranslationButton();
   autoTranslationButton.addEventListener("click", toggleAutoTranslation);
@@ -291,10 +311,13 @@ function updateLocalNotice(): void {
   const message = localProviderNotice(settings) ?? doubaoProviderNotice(settings);
   if (!notice && message) {
     notice = document.createElement("p"); notice.id = "localProviderNotice";
-    notice.setAttribute("role", "status"); notice.style.cssText = "line-height:1.6;font-size:12px;padding:10px;border:1px solid #c7a557;border-radius:8px";
+    notice.setAttribute("role", "status"); notice.className = "wupage-provider-notice";
     provider.closest("label")?.after(notice);
   }
-  if (notice) { notice.textContent = message ?? ""; notice.hidden = !message; }
+  if (notice) {
+    notice.textContent = message ?? ""; notice.hidden = !message;
+    renderLocalModelNotice(notice, settings, sendRuntimeMessage, () => { void chrome.runtime.openOptionsPage(); });
+  }
 }
 
 function renderLanguageOptions(
@@ -587,6 +610,11 @@ async function toggleParagraphMode(): Promise<void> {
     if (!paragraphModeAvailable) throw new Error("此页面不支持段落模式。");
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (!tab?.id) throw new Error("没有活动标签页。");
+    if (touchControls || lastPointerTouch) {
+      await sendTabMessage(tab.id, { type: "START_TOUCH_PARAGRAPH" });
+      window.close();
+      return;
+    }
     const result = await sendTabMessage<{ enabled: boolean }>(tab.id, { type: "SET_PARAGRAPH_MODE", enabled });
     if (revision === paragraphModeRevision) paragraphMode = result.enabled;
     paragraphModeButton.removeAttribute("title");
@@ -684,7 +712,19 @@ async function clearCache(): Promise<void> {
 
 function refreshMenuLayout(): void {
   applyPopupMenuLayout(document, normalizeAppearance(settings.appearance).popupMenu);
-  document.querySelector(".popup")?.removeAttribute("data-menu-loading");
+  const popup = document.querySelector<HTMLElement>(".popup")!;
+  popup.dataset.touch = String(touchControls);
+  const primary = query<HTMLElement>(".touch-primary");
+  primary.hidden = !touchControls;
+  if (touchControls) primary.append(pageToggleButton);
+  const common = new Set(["pageToggle", "paragraphMode", "selectionTranslation", "imageTranslation"]);
+  for (const element of document.querySelectorAll<HTMLElement>("[data-popup-menu-item]")) {
+    element.toggleAttribute("data-touch-extra", !common.has(element.dataset.popupMenuItem!));
+  }
+  const footer = document.querySelector<HTMLElement>("[data-popup-menu-footer]");
+  footer?.setAttribute("data-touch-extra", "");
+  if (moreFeaturesButton.hidden !== !touchControls) moreFeaturesButton.hidden = !touchControls;
+  popup.removeAttribute("data-menu-loading");
 }
 
 function updateVideoTranslationButton(): void {
@@ -709,9 +749,15 @@ async function toggleVideoTranslation(): Promise<void> {
 function updateParagraphModeButton(): void {
   const hint = paragraphClickHint(settings.localShortcuts, settings.shortcutEnabled?.["paragraph-click"] !== false);
   if (paragraphModeHint.textContent !== hint) paragraphModeHint.textContent = hint;
-  const value = String(paragraphMode);
+  const label = paragraphModeButton.querySelector("span")!;
+  const text = touchControls ? "点选段落" : "段落翻译";
+  if (label.textContent !== text) label.textContent = text;
+  const touchHint = "点选一个正文段落，翻译后自动退出";
+  if (touchControls && paragraphModeButton.title !== touchHint) paragraphModeButton.title = touchHint;
+  else if (!touchControls && paragraphModeButton.title === touchHint) paragraphModeButton.removeAttribute("title");
+  const value = String(!touchControls && paragraphMode);
   if (paragraphModeButton.getAttribute("aria-pressed") !== value) paragraphModeButton.setAttribute("aria-pressed", value);
-  const hideHint = !paragraphMode || paragraphModeButton.hidden || paragraphModeButton.hasAttribute("data-popup-menu-hidden");
+  const hideHint = touchControls || !paragraphMode || paragraphModeButton.hidden || paragraphModeButton.hasAttribute("data-popup-menu-hidden");
   if (paragraphModeHint.hidden !== hideHint) paragraphModeHint.hidden = hideHint;
 }
 

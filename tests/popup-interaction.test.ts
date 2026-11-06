@@ -77,6 +77,21 @@ describe("popup translation interactions", () => {
     expect(button().classList.contains("is-loading")).toBe(false);
   });
 
+  it("starts a page-local touch paragraph action without saving the global mode", async () => {
+    const close = vi.spyOn(window, "close").mockImplementation(() => {});
+    try {
+      const event = new Event("pointerup", { bubbles: true });
+      Object.defineProperty(event, "pointerType", { value: "touch" });
+      document.dispatchEvent(event);
+      const paragraphButton = document.querySelector<HTMLButtonElement>("#paragraphMode")!;
+      await vi.waitFor(() => expect(paragraphButton.textContent).toContain("点选段落"));
+      paragraphButton.click();
+      await vi.waitFor(() => expect(close).toHaveBeenCalledOnce());
+      expect(chrome.tabs.sendMessage).toHaveBeenCalledWith(4, { type: "START_TOUCH_PARAGRAPH" }, { frameId: 0 });
+      expect(paragraph).not.toHaveBeenCalled(); expect(save).not.toHaveBeenCalled();
+    } finally { close.mockRestore(); }
+  });
+
   it("does not start a cancelled action after a delayed settings save", async () => {
     const pending = deferred();
     save.mockImplementationOnce(() => pending.promise);

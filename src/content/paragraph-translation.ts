@@ -13,7 +13,7 @@ const pending = new WeakMap<Element, object>();
 
 /** All paragraph entry points share rendering, deduplication, and restoration. */
 export async function translateParagraph(target: Element, action: "toggle" | "translate" | "restore" = "toggle"): Promise<void> {
-  if (!target.isConnected) throw new Error("该段落已发生变化，请重新右键选择。");
+  if (!target.isConnected) throw new Error("该段落已发生变化，请重新选择。");
   if (action === "restore" || (action === "toggle" && hasTranslationsIn(target))) {
     pending.delete(target);
     clearTranslationsIn(target);

@@ -335,6 +335,7 @@ export type RuntimeRequest =
   | { type: "PAGE_TRANSLATION_STATE_CHANGED" }
   | { type: "GET_PARAGRAPH_MODE" }
   | { type: "SET_PARAGRAPH_MODE"; enabled: boolean }
+  | { type: "START_TOUCH_PARAGRAPH" }
   | { type: "GET_FLOATING_BALL" }
   | { type: "SET_FLOATING_BALL"; enabled: boolean }
   | { type: "OPEN_TRANSLATION_DEBUG" }
