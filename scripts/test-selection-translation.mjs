@@ -4,11 +4,13 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createServer } from 'node:http';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { browserTarget, verifyBrowserIdentity } from './lib/browser-target.mjs';
 
 const root = path.resolve(fileURLToPath(new URL('..', import.meta.url)));
 const moduleName = process.env.PLAYWRIGHT_MODULE || 'playwright';
 const { chromium } = await import(path.isAbsolute(moduleName) ? pathToFileURL(moduleName).href : moduleName);
-const output = path.join(root, '.npm-cache/selection-translation');
+const target = browserTarget();
+const output = path.join(root, '.npm-cache/selection-translation', target.kind);
 await fs.mkdir(output, { recursive: true });
 const checks = [];
 const errors = [];
@@ -22,6 +24,27 @@ audio.write('data', 36); audio.writeUInt32LE(3200, 40);
 for (let i = 0; i < 1600; i++) audio.writeInt16LE(Math.round(Math.sin(i * Math.PI * 2 * 440 / 8000) * 500), 44 + i * 2);
 
 const server = createServer(async (request, response) => {
+  if (request.url === '/field-frame') {
+    response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }).end('<input aria-label="Frame draft" value="before frame selected phrase after" style="width:90%;margin:30px">');
+    return;
+  }
+  if (request.url === '/fields') {
+    response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }).end(`<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+      <title>Editable selection fixture</title><style>body{font:18px system-ui;margin:30px;color:#243a35}input,textarea{display:block;width:min(600px,90%);margin:20px 0;font:inherit;padding:12px}#rich{margin:30px 0}iframe{width:90%;height:120px}</style>
+      <h1>Translate a draft</h1><form id="draftForm"><input id="description" name="description" value="before selected phrase after">
+      <textarea id="draft" name="draft">before\nselected phrase\nafter</textarea></form>
+      <input id="readonly" readonly value="read only phrase"><input id="password" type="password" value="private password">
+      <div id="rich" contenteditable="true"><span>before </span><strong>selected phrase</strong><span> after</span></div>
+      <iframe src="/field-frame" title="Embedded draft"></iframe>
+      <script>
+      // A controlled field tracks changes in the same way as value-tracking UI frameworks.
+      const field=document.getElementById('description'), descriptor=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value');
+      let tracked=field.value;window.savedDraft=tracked;window.fieldInputCount=0;
+      Object.defineProperty(field,'value',{configurable:true,get(){return descriptor.get.call(this)},set(value){tracked=String(value);descriptor.set.call(this,value)}});
+      field.addEventListener('input',()=>{if(field.value!==tracked){tracked=field.value;window.savedDraft=tracked;window.fieldInputCount++}});
+      </script>`);
+    return;
+  }
   if (request.method === 'POST' && request.url === '/translate') {
     let raw = ''; for await (const chunk of request) raw += chunk;
     let input;
@@ -44,10 +67,12 @@ const origin = `http://127.0.0.1:${server.address().port}`;
 let context;
 try {
   context = await chromium.launchPersistentContext(path.join(output, `profile-${Date.now()}`), {
-    ...(process.env.PDF_TEST_BROWSER ? { executablePath: process.env.PDF_TEST_BROWSER } : { channel: 'chromium' }),
+    ...(process.env.PDF_TEST_BROWSER && target.kind !== 'edge' ? { executablePath: process.env.PDF_TEST_BROWSER } : target.chromiumOptions),
     headless: true, ignoreDefaultArgs: ['--disable-extensions'],
-    args: [`--load-extension=${path.join(root, 'dist')}`, '--mute-audio'], viewport: { width: 1100, height: 800 }
+    args: ['--enable-unsafe-extension-debugging', '--mute-audio'], viewport: { width: 1100, height: 800 }
   });
+  const session = await context.browser().newBrowserCDPSession();
+  await session.send('Extensions.loadUnpacked', { path: path.join(root, 'dist') }); await session.detach();
   const worker = context.serviceWorkers()[0] || await context.waitForEvent('serviceworker');
   const extensionId = new URL(worker.url()).host;
   await worker.evaluate(({ wav }) => {
@@ -103,6 +128,7 @@ try {
   const page = await context.newPage();
   page.on('pageerror', error => errors.push(error.message));
   await page.goto(origin);
+  const identity = verifyBrowserIdentity(target, await page.evaluate(() => navigator.userAgent));
   await page.locator('#wupage-selection-tools').waitFor({ state: 'attached' });
   const selector = '#wupage-selection-tools';
   const card = page.locator(`${selector} .card`);
@@ -282,16 +308,100 @@ try {
   assert.equal(await card.locator('option[value="bing"]').isDisabled(), false);
   checks.push('Chinese lookup preserves the default dictionary for the next alphabetic word');
   await page.keyboard.press('Escape');
-  await page.locator('#editable').evaluate(element => { const range = document.createRange(); range.selectNodeContents(element); window.getSelection().removeAllRanges(); window.getSelection().addRange(range); });
-  await page.waitForTimeout(80); assert.equal(await page.locator(`${selector} .trigger-line`).count(), 0);
+  await open('#editable'); await card.locator('.selection-translation').waitFor();
+  assert.equal(translationCalls.at(-1).texts[0], 'private note');
+  assert.equal(await card.getByRole('button', { name: '替换所选' }).isVisible(), true);
+  await page.keyboard.press('Escape');
   await settings.locator('label:has(#selectionTranslationEnabled)').click(); await settings.locator('#save').click();
   await settings.waitForFunction(async () => !(await chrome.runtime.sendMessage({ type: 'GET_SETTINGS' })).data.selectionTranslation.enabled);
   await page.locator('#first').dblclick({ position: { x: 25, y: 14 } }); await page.waitForTimeout(80);
   assert.equal(await page.locator(`${selector} .trigger-line`).count(), 0);
-  checks.push('editable text exclusion and disabled feature');
+  checks.push('editable text translates only after activation; disabled feature remains inactive');
+  await settings.locator('label:has(#selectionTranslationEnabled)').click(); await settings.locator('#save').click();
+  await settings.waitForFunction(async () => (await chrome.runtime.sendMessage({ type: 'GET_SETTINGS' })).data.selectionTranslation.enabled);
+  await page.setViewportSize({ width: 1100, height: 800 }); await page.goto(`${origin}/fields`);
+  await page.locator(selector).waitFor({ state: 'attached' });
+  const replace = card.getByRole('button', { name: '替换所选', exact: true });
+  async function selectField(field, start, end, surface = page) {
+    await field.scrollIntoViewIfNeeded();
+    await surface.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+    await field.evaluate((element, [start, end]) => {
+      element.focus();
+      // Undo can leave this exact range selected. Move the caret first so the
+      // next selection emits the native events a user selection would produce.
+      element.setSelectionRange(start, start); element.setSelectionRange(start, end);
+    }, [start, end]);
+    await surface.locator(`${selector} .trigger-dot`).waitFor();
+  }
+  async function translateField(field, start, end) {
+    await selectField(field, start, end);
+    await page.locator(`${selector} .trigger-dot`).click(); await card.locator('.selection-translation').waitFor();
+  }
+  const description = page.locator('#description');
+  const callsBeforeField = translationCalls.length;
+  await selectField(description, 7, 22);
+  assert.equal(translationCalls.length, callsBeforeField);
+  assert.equal(await page.locator(`${selector} .trigger-dot`).getAttribute('title'), '翻译');
+  await page.locator(`${selector} .trigger-dot`).click(); await card.locator('.selection-translation').waitFor();
+  assert.deepEqual(translationCalls.at(-1).texts, ['selected phrase']);
+  assert.equal(await description.inputValue(), 'before selected phrase after');
+  await replace.click();
+  assert.equal(await description.inputValue(), 'before 译文：selected phrase after');
+  assert.equal(await page.evaluate(() => window.savedDraft), 'before 译文：selected phrase after');
+  assert.equal(await page.evaluate(() => window.fieldInputCount), 1);
+  assert.equal(await page.evaluate(() => new FormData(document.getElementById('draftForm')).get('description')), 'before 译文：selected phrase after');
+  await description.press('Control+z');
+  assert.equal(await description.inputValue(), 'before selected phrase after');
+  checks.push('input selection, explicit partial replacement, controlled-field notification, saved form data and native undo');
+  await page.keyboard.press('Escape');
+  await translateField(description, 7, 22);
+  await description.evaluate(element => { element.value += ' new draft'; });
+  await replace.click();
+  await card.getByText('原文已变化，请重新选择后翻译。').waitFor();
+  assert.equal(await description.inputValue(), 'before selected phrase after new draft');
+  assert.equal(await replace.isDisabled(), true);
+  checks.push('programmatic draft changes prevent stale replacement');
+  await page.keyboard.press('Escape');
+  await translateField(page.locator('#draft'), 7, 22); await replace.click();
+  assert.equal(await page.locator('#draft').inputValue(), 'before\n译文：selected phrase\nafter');
+  await page.locator('#draft').press('Control+z');
+  assert.equal(await page.locator('#draft').inputValue(), 'before\nselected phrase\nafter');
+  checks.push('textarea partial replacement retains surrounding line breaks and native undo');
+  await page.keyboard.press('Escape');
+  await translateField(page.locator('#readonly'), 0, 16);
+  assert.equal(await replace.isVisible(), false);
+  await page.keyboard.press('Escape');
+  await page.locator('#password').focus(); await page.locator('#password').press('Control+a');
+  await page.waitForTimeout(100);
+  assert.equal(await page.locator(`${selector} .trigger-dot,${selector} .trigger-line`).count(), 0);
+  checks.push('read-only lookup and password-field exclusion');
+  await page.locator('#password').blur(); await open('#rich strong'); await card.locator('.selection-translation').waitFor();
+  await replace.click();
+  // Native contenteditable edits may normalize strong/b and boundary spaces.
+  assert.equal((await page.locator('#rich').innerText()).replaceAll('\u00a0', ' '), 'before 译文：selected phrase after');
+  assert.equal(await page.locator('#rich b,#rich strong').innerText(), '译文：selected phrase');
+  await page.locator('#rich').press('Control+z');
+  assert.equal(await page.locator('#rich').innerText(), 'before selected phrase after');
+  assert.equal(await page.locator('#rich').innerHTML(), '<span>before </span><strong>selected phrase</strong><span> after</span>');
+  checks.push('contenteditable replacement preserves surrounding text, inline format and native undo restores the original markup');
+  await page.keyboard.press('Escape');
+  const frame = page.frameLocator('iframe'); const frameField = frame.getByRole('textbox', { name: 'Frame draft' });
+  await frameField.evaluate(element => { element.focus(); element.setSelectionRange(7, 28); });
+  await frame.locator(`${selector} .trigger-dot`).waitFor();
+  await frame.locator(`${selector} .trigger-dot`).click();
+  await frame.locator('.selection-translation').waitFor();
+  assert.deepEqual(translationCalls.at(-1).texts, ['frame selected phrase']);
+  await frame.getByRole('button', { name: '替换所选', exact: true }).click();
+  assert.equal(await frameField.inputValue(), 'before 译文：frame selected phrase after');
+  checks.push('dormant frame activates from a native input selection and replaces only that selection');
+  await page.setViewportSize({ width: 390, height: 650 });
+  await translateField(description, 7, 22);
+  const fieldBounds = await card.boundingBox(); assert.ok(fieldBounds.x >= 0 && fieldBounds.x + fieldBounds.width <= 390);
+  await card.screenshot({ path: path.join(output, 'field-translation.png') });
+  checks.push('narrow input translation and replacement layout');
   assert.ok(await worker.evaluate(() => globalThis.dictionaryCalls.every(call => call.credentials === 'omit')));
   assert.deepEqual(errors, []);
-  await fs.writeFile(path.join(output, 'report.json'), JSON.stringify({ passed: true, checks, errors }, null, 2));
+  await fs.writeFile(path.join(output, 'report.json'), JSON.stringify({ passed: true, ...identity, checks, errors }, null, 2));
   console.log(JSON.stringify({ passed: true, checks: checks.length, output }));
 } catch (error) {
   await fs.writeFile(path.join(output, 'report.json'), JSON.stringify({ passed: false, checks, errors, error: String(error) }, null, 2));

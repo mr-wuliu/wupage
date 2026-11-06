@@ -41,6 +41,7 @@
     "test:floating-responsive": "node scripts/test-floating-responsive.mjs",
     "test:mobile": "node scripts/test-mobile-interactions.mjs",
     "test:selection": "node scripts/test-selection-translation.mjs",
+    "test:selection:firefox": "node scripts/test-selection-fields.mjs --firefox",
     "test:video": "node scripts/test-video-subtitles.mjs",
     "test:video:frame": "node scripts/test-video-frame.mjs",
     "test:video:frame:edge": "node scripts/test-video-frame.mjs --edge",

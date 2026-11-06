@@ -20,7 +20,7 @@ button:focus-visible, select:focus-visible, a:focus-visible { outline: 2px solid
 .dismiss-trigger { display: grid; place-items: center; width: 44px; padding: 0; color: var(--fg); background: var(--soft); }
 .dismiss-trigger svg { width: 16px; height: 16px; }
 .touch-card .close, .touch-card .speak { flex-basis: 44px; min-width: 44px; height: 44px; }
-.touch-card select, .touch-card .submit-source, .touch-card .retry { min-height: 44px; }
+.touch-card select, .touch-card .submit-source, .touch-card .retry, .touch-card .replace-selection { min-height: 44px; }
 .touch-card header { flex-wrap: wrap; gap: 6px; padding: 10px; }
 .card.touch-card .word { font-size: 16px; flex-basis: 45%; }
 .card { position: fixed; display: flex; flex-direction: column; width: min(360px, calc(100vw - 24px)); max-height: calc(100vh - 24px); margin: 0; padding: 0; overflow: hidden; pointer-events: auto; border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 8px 36px #162d2a26; background: var(--bg); color: var(--fg); text-align: left; direction: ltr; font: 14px/1.6 system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; user-select: text; }
@@ -35,6 +35,11 @@ header { display: flex; align-items: center; flex: 0 0 auto; gap: 10px; padding:
 .source-actions [role="alert"] { flex: 1; min-width: 0; color: #ad3737; overflow-wrap: anywhere; }
 .submit-source { flex: 0 0 auto; padding: 5px 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--soft); color: var(--accent); }
 .submit-source:hover { background: var(--line); }
+.result-actions { display: flex; flex: 0 0 auto; align-items: center; justify-content: flex-end; gap: 10px; padding: 0 16px 12px; font-size: 12px; }
+.result-actions [role="status"] { flex: 1; min-width: 0; color: var(--muted); overflow-wrap: anywhere; }
+.replace-selection { flex: 0 0 auto; padding: 5px 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--soft); color: var(--accent); }
+.replace-selection:hover { background: var(--line); }
+.replace-selection:disabled { opacity: .55; cursor: default; }
 .translation-service { flex: 0 1 auto; max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 4px 7px; border-radius: 6px; background: var(--soft); color: var(--muted); font-size: 12px; }
 select { max-width: 110px; min-width: 0; padding: 5px 24px 5px 7px; border: 1px solid var(--line); border-radius: 6px; background: var(--soft); font-size: 12px; appearance: none; background-image: var(--wp-selection-select-arrow); background-position: right 7px center; background-size: 9px 9px; background-repeat: no-repeat; }
 .close { flex: 0 0 26px; height: 26px; padding: 0; border: 0; border-radius: 5px; color: var(--muted); background: transparent; font-size: 22px; line-height: 1; }

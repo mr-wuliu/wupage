@@ -11,6 +11,7 @@ import { initEmbeddedVideoSubtitles } from "./video-bootstrap";
 import { observeParagraphMode } from "../shared/paragraph-mode";
 import { supportsHtmlContent } from "../shared/html";
 import { configureElementExclusions } from "./element-exclusions";
+import { captureSelectionSource } from "./selection-source";
 
 const scope = globalThis as typeof globalThis & { __wupageFrameBootstrap?: boolean };
 const visibility = supportsHtmlContent() ? installFrameVisibilityBridge() : { ready: Promise.resolve() };
@@ -110,10 +111,13 @@ if (window !== window.top && supportsHtmlContent() && !scope.__wupageFrameBootst
     if (command === "translate-selection") { if (!current || allowed(current)) await (await activate()).selection(); }
     else await sendRuntimeRequest({ type: "FRAME_FORWARD_SHORTCUT", command });
   });
-  document.addEventListener("selectionchange", () => {
-    if (!supported() || worker || current?.settings.selectionTranslation?.enabled === false || !window.getSelection()?.toString().trim() || current && !allowed(current)) return;
+  const activateSelection = () => {
+    if (!supported() || worker || current?.settings.selectionTranslation?.enabled === false || current && !allowed(current)
+      || !captureSelectionSource()?.text.trim()) return;
     void activate().then(() => document.dispatchEvent(new Event("selectionchange"))).catch(() => {});
-  });
+  };
+  document.addEventListener("selectionchange", activateSelection, true);
+  document.addEventListener("select", activateSelection, true);
   window.addEventListener("pageshow", event => { if (event.persisted) void register().catch(() => {}); });
   window.addEventListener("pagehide", () => { void sendRuntimeRequest({ type: "FRAME_LEAVE", documentKey }).catch(() => {}); });
   void ready.then(register).catch(() => {});

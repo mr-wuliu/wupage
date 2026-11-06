@@ -100,13 +100,11 @@ describe("selection dictionary UI", () => {
     source().dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", altKey: true, bubbles: true }));
     expect(card().hidden).toBe(true);
   });
-  it("hides entry points for missing selections, editable text and disabled selection translation", async () => {
+  it("hides entry points for missing selections and disabled selection translation", async () => {
     vi.useFakeTimers();
     window.getSelection()?.removeAllRanges();
     document.dispatchEvent(new Event("selectionchange"));
     await vi.advanceTimersByTimeAsync(50);
-    expect(root().querySelector(".trigger-dot,.trigger-line")).toBeNull();
-    select("editable"); await vi.advanceTimersByTimeAsync(50);
     expect(root().querySelector(".trigger-dot,.trigger-line")).toBeNull();
     controller.update({ enabled: false, provider: "youdao", style: "dot" });
     select(); await vi.advanceTimersByTimeAsync(50);
@@ -175,9 +173,7 @@ describe("selection dictionary UI", () => {
     expect(sendRuntimeRequest).toHaveBeenLastCalledWith(expect.objectContaining({ type: "TRANSLATE_BATCH", texts: [text] }));
     expect(vi.mocked(sendRuntimeRequest).mock.calls.some(([request]) => request.type === "LOOKUP_DICTIONARY")).toBe(false);
   });
-  it("ignores editable selections, stale text selections in form fields, oversized text and a disabled feature", async () => {
-    select("editable"); await new Promise(resolve => setTimeout(resolve, 60));
-    expect(root().querySelector(".trigger-dot")).toBeNull();
+  it("ignores stale text selections in form fields, oversized text and a disabled feature", async () => {
     document.querySelector("textarea")!.focus(); select(); await new Promise(resolve => setTimeout(resolve, 60));
     expect(root().querySelector(".trigger-dot")).toBeNull();
     document.querySelector("textarea")!.blur(); document.getElementById("first")!.textContent = "a".repeat(5001);
@@ -301,6 +297,107 @@ describe("selection dictionary UI", () => {
     vi.mocked(sendRuntimeRequest).mockResolvedValue({ ...entry, word: '<img src=x onerror="alert(1)">', meanings: [{ partOfSpeech: "n.", definition: "<script>bad()</script>" }] });
     await show(); open(); await vi.waitFor(() => expect(source().value).toContain("<img"));
     expect(root().querySelector("img,script")).toBeNull();
+  });
+});
+
+describe("selection translation in form fields", () => {
+  async function showControl(value = "Before selected phrase after", start = 7, end = 22) {
+    const field = document.querySelector("textarea")!;
+    field.value = value;
+    vi.spyOn(field, "getBoundingClientRect").mockReturnValue(new DOMRect(80, 50, 400, 40));
+    field.focus(); field.setSelectionRange(start, end);
+    field.dispatchEvent(new Event("select", { bubbles: true }));
+    await vi.waitFor(() => expect(root().querySelector(".trigger-dot")).not.toBeNull());
+    return field;
+  }
+  async function translated() {
+    open(); await vi.waitFor(() => expect(root().querySelector(".selection-translation")).not.toBeNull());
+    return root().querySelector<HTMLButtonElement>(".replace-selection")!;
+  }
+  it("translates only the selected input text and replaces it after focus moves into the card", async () => {
+    const field = await showControl();
+    expect(sendRuntimeRequest).not.toHaveBeenCalled();
+    const replace = await translated();
+    expect(sendRuntimeRequest).toHaveBeenLastCalledWith(expect.objectContaining({ type: "TRANSLATE_BATCH", texts: ["selected phrase"] }));
+    expect(field.value).toBe("Before selected phrase after");
+    expect(document.activeElement?.id).toBe("wupage-selection-tools");
+    const input = vi.fn(); field.addEventListener("input", input);
+    replace.click();
+    expect(field.value).toBe("Before 翻译结果 after");
+    expect(field.selectionStart).toBe("Before 翻译结果".length);
+    expect(input).toHaveBeenCalledOnce(); expect(card().hidden).toBe(true);
+  });
+  it("translates single words in fields directly and uses a dot for the underline setting", async () => {
+    controller.update({ enabled: true, provider: "youdao", style: "underline" });
+    await showControl("example", 0, 7); await translated();
+    expect(vi.mocked(sendRuntimeRequest).mock.calls.map(([request]) => request.type)).toEqual(["GET_SETTINGS", "TRANSLATE_BATCH"]);
+  });
+  it("recovers an input selection made before a lazily loaded controller is initialized", async () => {
+    controller.dispose();
+    const field = document.querySelector("textarea")!;
+    field.value = "selected phrase";
+    vi.spyOn(field, "getBoundingClientRect").mockReturnValue(new DOMRect(80, 50, 400, 40));
+    field.focus(); field.setSelectionRange(0, 15);
+    controller = new SelectionTranslationController({ enabled: true, provider: "youdao", style: "dot" });
+    await vi.waitFor(() => expect(root().querySelector(".trigger-dot")).not.toBeNull());
+    expect(sendRuntimeRequest).not.toHaveBeenCalled();
+  });
+  it("refreshes the selection when an old entry point is clicked before the debounce finishes", async () => {
+    const field = await showControl();
+    field.setSelectionRange(0, 6);
+    await translated();
+    expect(sendRuntimeRequest).toHaveBeenLastCalledWith(expect.objectContaining({ texts: ["Before"] }));
+  });
+  it("supports a contenteditable selection without translating its surrounding draft", async () => {
+    document.getElementById("editable")!.textContent = "private selected phrase";
+    const range = document.createRange(); range.setStart(document.getElementById("editable")!.firstChild!, 8);
+    range.setEnd(document.getElementById("editable")!.firstChild!, 23);
+    window.getSelection()!.removeAllRanges(); window.getSelection()!.addRange(range);
+    document.dispatchEvent(new Event("selectionchange"));
+    await vi.waitFor(() => expect(root().querySelector(".trigger-dot")).not.toBeNull());
+    const replace = await translated();
+    expect(replace.hidden).toBe(false); expect(replace.disabled).toBe(false);
+    expect(sendRuntimeRequest).toHaveBeenLastCalledWith(expect.objectContaining({ texts: ["selected phrase"] }));
+    expect(document.getElementById("editable")!.textContent).toBe("private selected phrase");
+  });
+  it("shows read-only translations without a replacement action", async () => {
+    document.querySelector("textarea")!.readOnly = true;
+    await showControl(); await translated();
+    expect(root().querySelector<HTMLElement>(".result-actions")!.hidden).toBe(true);
+  });
+  it("keeps the card open when blurring the source field resets its internal scroll", async () => {
+    const field = await showControl(); await translated();
+    field.dispatchEvent(new Event("scroll", { bubbles: true }));
+    expect(card().hidden).toBe(false);
+    document.dispatchEvent(new Event("scroll"));
+    expect(card().hidden).toBe(true);
+  });
+  it("refuses a changed draft even when its selected substring still matches", async () => {
+    const field = await showControl(); const replace = await translated();
+    field.value += " new draft";
+    replace.click();
+    expect(field.value).toBe("Before selected phrase after new draft");
+    expect(root().querySelector(".result-actions [role='status']")!.textContent).toContain("原文已变化");
+    expect(replace.disabled).toBe(true);
+  });
+  it("invalidates replacement when typing occurs during an unfinished translation", async () => {
+    let finish!: (value: unknown) => void;
+    vi.mocked(sendRuntimeRequest).mockResolvedValueOnce(translationSettings)
+      .mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+    const field = await showControl(); open();
+    await vi.waitFor(() => expect(finish).toBeTypeOf("function"));
+    field.dispatchEvent(new InputEvent("input", { bubbles: true, data: "x" }));
+    finish({ translations: ["旧译文"], cached: 0 });
+    await vi.waitFor(() => expect(root().querySelector(".selection-translation")).not.toBeNull());
+    expect(root().querySelector<HTMLButtonElement>(".replace-selection")!.disabled).toBe(true);
+    expect(field.value).toBe("Before selected phrase after");
+  });
+  it("clears an old replacement action when editing or resubmitting the card source", async () => {
+    await showControl(); await translated();
+    edit("new phrase");
+    expect(root().querySelector<HTMLElement>(".result-actions")!.hidden).toBe(true);
+    submit(); await vi.waitFor(() => expect(root().querySelector(".selection-translation")).not.toBeNull());
+    expect(root().querySelector<HTMLElement>(".result-actions")!.hidden).toBe(false);
   });
 });
 

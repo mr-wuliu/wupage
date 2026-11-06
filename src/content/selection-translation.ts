@@ -9,9 +9,10 @@ import { formatLocalShortcut, matchesLocalShortcut, normalizeLocalShortcuts } fr
 import { uiIconMarkup } from "../shared/ui-icons";
 import { setHtmlContent } from "../shared/html";
 import { hasTouchInput, visibleViewport } from "../shared/touch";
+import { captureSelectionSource, isEditorSelection, replaceSelectionSource, selectionReplacementAvailable,
+  selectionSourceConnected, selectionSourceRects, selectionSourceUnchanged, type SelectionSource } from "./selection-source";
 
 const HOST_ID = "wupage-selection-tools";
-const EXCLUDED = "input,textarea,select,button,[contenteditable]:not([contenteditable='false']),[role='textbox'],#wupage-selection-tools,#wupage-floating-hitbox,#wupage-floating-menu,#wupage-debug-panel,#wupage-image-tools,#wupage-touch-paragraph,#wupage-touch-hint";
 
 export class SelectionTranslationController {
   private settings: SelectionTranslationSettings;
@@ -31,7 +32,12 @@ export class SelectionTranslationController {
   private footer: HTMLElement;
   private source: HTMLAnchorElement;
   private audioStatus: HTMLElement;
-  private range?: Range;
+  private selection?: SelectionSource;
+  private resultActions: HTMLElement;
+  private replaceButton: HTMLButtonElement;
+  private replacementStatus: HTMLElement;
+  private translation = "";
+  private replacementInvalidated = false;
   private query = "";
   private version = 0;
   private audioVersion = 0;
@@ -73,6 +79,7 @@ export class SelectionTranslationController {
       this.body.replaceChildren();
       this.body.hidden = true;
       this.body.removeAttribute("aria-busy");
+      this.resetTranslation();
       this.footer.hidden = true;
       this.sourceActions.hidden = false;
       this.sourceError.textContent = "";
@@ -127,7 +134,18 @@ export class SelectionTranslationController {
     this.source.target = "_blank";
     this.source.rel = "noopener noreferrer";
     this.footer.append(this.audioStatus, this.source);
-    this.card.append(header, this.sourceActions, this.body, this.footer);
+    this.resultActions = document.createElement("div");
+    this.resultActions.className = "result-actions";
+    this.resultActions.hidden = true;
+    this.replaceButton = document.createElement("button");
+    this.replaceButton.type = "button";
+    this.replaceButton.className = "replace-selection";
+    this.replaceButton.textContent = "替换所选";
+    this.replaceButton.addEventListener("click", () => this.replaceSelection());
+    this.replacementStatus = document.createElement("span");
+    this.replacementStatus.setAttribute("role", "status");
+    this.resultActions.append(this.replacementStatus, this.replaceButton);
+    this.card.append(header, this.sourceActions, this.body, this.resultActions, this.footer);
     this.root.append(style, this.triggers, this.card);
     // Clicking an entry point must retain the browser selection until its query is captured.
     this.triggers.addEventListener("pointerdown", event => event.preventDefault());
@@ -135,7 +153,9 @@ export class SelectionTranslationController {
     document.addEventListener("pointerdown", this.onPointerDown, true);
     document.addEventListener("pointerup", this.onPointerUp);
     document.addEventListener("pointercancel", this.onPointerCancel);
-    document.addEventListener("selectionchange", this.onSelectionChange);
+    document.addEventListener("selectionchange", this.onSelectionChange, true);
+    document.addEventListener("select", this.onSelectionChange, true);
+    document.addEventListener("input", this.onSourceInput, true);
     document.addEventListener("keyup", this.onKeyUp);
     document.addEventListener("keydown", this.onKeyDown);
     document.addEventListener("scroll", this.onScroll, true);
@@ -143,6 +163,8 @@ export class SelectionTranslationController {
     window.addEventListener("pagehide", this.onResize);
     window.visualViewport?.addEventListener("resize", this.onViewportChange);
     window.visualViewport?.addEventListener("scroll", this.onViewportChange);
+    // Lazy frame activation can finish after the native select/selectionchange events.
+    this.scheduleSelection();
   }
 
   update(settings: SelectionTranslationSettings): void {
@@ -162,7 +184,9 @@ export class SelectionTranslationController {
     document.removeEventListener("pointerdown", this.onPointerDown, true);
     document.removeEventListener("pointerup", this.onPointerUp);
     document.removeEventListener("pointercancel", this.onPointerCancel);
-    document.removeEventListener("selectionchange", this.onSelectionChange);
+    document.removeEventListener("selectionchange", this.onSelectionChange, true);
+    document.removeEventListener("select", this.onSelectionChange, true);
+    document.removeEventListener("input", this.onSourceInput, true);
     document.removeEventListener("keyup", this.onKeyUp);
     document.removeEventListener("keydown", this.onKeyDown);
     document.removeEventListener("scroll", this.onScroll, true);
@@ -193,6 +217,14 @@ export class SelectionTranslationController {
   private onSelectionChange = (): void => {
     if (!this.selecting && this.card.hidden) this.scheduleSelection();
   };
+  private onSourceInput = (event: Event): void => {
+    if (this.owns(event) || !this.selection) return;
+    const element = this.selection.kind === "control" ? this.selection.element : this.selection.editor;
+    if (!element || !event.composedPath().includes(element)) return;
+    this.replacementInvalidated = true;
+    if (this.card.hidden) this.close();
+    else this.updateReplacement();
+  };
   private onKeyUp = (event: KeyboardEvent): void => {
     if (this.owns(event) || event.key === "Escape" || !this.card.hidden) return;
     if (event.key.startsWith("Arrow") || event.key === "Shift" || event.key === "Home" || event.key === "End") this.scheduleSelection();
@@ -202,6 +234,9 @@ export class SelectionTranslationController {
   };
   private onScroll = (event: Event): void => {
     if (this.owns(event)) return;
+    // Blurring a long single-line field can reset its internal horizontal scroll.
+    // Its bounding box (our anchor) stays put, so keep the translation card open.
+    if (this.selection?.kind === "control" && event.composedPath().includes(this.selection.element)) return;
     if (this.touchSelection && !this.card.hidden && this.root.activeElement === this.word) this.onViewportChange();
     else this.close();
   };
@@ -221,22 +256,11 @@ export class SelectionTranslationController {
 
   private captureSelection(): void {
     if (this.disposed || !this.settings.enabled || !this.card.hidden) return;
-    const selection = window.getSelection();
-    const query = normalizeSelectionText(selection?.toString());
-    if (!selection || selection.isCollapsed || selection.rangeCount !== 1 || !query
-      || document.activeElement?.closest(EXCLUDED)) { this.close(); return; }
-    const range = selection.getRangeAt(0);
-    for (const node of [range.startContainer, range.endContainer, range.commonAncestorContainer]) {
-      const element = node.nodeType === Node.ELEMENT_NODE ? node as Element : node.parentElement;
-      if (!node.isConnected || element?.closest(EXCLUDED)) { this.close(); return; }
-    }
-    // A selection can begin/end in prose and cross an editor in the middle.
-    // Checking only its endpoints would send that editor's draft as source text.
-    const common = range.commonAncestorContainer;
-    if (common instanceof Element && [...common.querySelectorAll(EXCLUDED)].some(element => range.intersectsNode(element))) {
-      this.close(); return;
-    }
-    this.range = range.cloneRange(); this.query = query;
+    const selection = captureSelectionSource();
+    const query = normalizeSelectionText(selection?.text);
+    if (!selection || !query) { this.close(); return; }
+    this.selection = selection; this.query = query;
+    this.replacementInvalidated = false;
     const rects = this.rects();
     this.triggers.replaceChildren();
     if (!rects.length) return;
@@ -247,13 +271,13 @@ export class SelectionTranslationController {
       const view = visibleViewport(), width = Math.max(0, Math.min(360, view.width - 24));
       this.triggers.style.cssText = `left:${view.left + (view.width - width) / 2}px;top:${Math.max(view.top + 12, view.bottom - 76)}px;width:${width}px`;
       const button = this.trigger("trigger-touch");
-      button.textContent = isSingleDictionaryWord(query) ? "查词" : "翻译所选";
+      button.textContent = this.usesTranslation(query) ? "翻译所选" : "查词";
       const preview = document.createElement("span"); preview.className = "selection-preview"; preview.textContent = query;
       const dismiss = document.createElement("button"); dismiss.type = "button"; dismiss.className = "dismiss-trigger";
       dismiss.setAttribute("aria-label", "关闭划词入口"); setHtmlContent(dismiss, uiIconMarkup("cross"));
       dismiss.addEventListener("click", () => this.close());
       this.triggers.append(preview, button, dismiss);
-    } else if (this.settings.style === "dot") {
+    } else if (this.settings.style === "dot" || selection.kind === "control") {
       this.triggers.removeAttribute("style");
       const button = this.trigger("trigger-dot");
       button.style.left = `${Math.max(8, Math.min(window.innerWidth - 36, last.right + 3))}px`;
@@ -268,8 +292,8 @@ export class SelectionTranslationController {
   }
 
   private rects(): DOMRect[] {
-    if (!this.range?.startContainer.isConnected || !this.range.endContainer.isConnected) return [];
-    const rects = Array.from(this.range.getClientRects()).filter(rect => rect.width > 0 && rect.height > 0
+    if (!this.selection || !selectionSourceConnected(this.selection)) return [];
+    const rects = selectionSourceRects(this.selection).filter(rect => rect.width > 0 && rect.height > 0
       && rect.bottom > 0 && rect.top < window.innerHeight && rect.right > 0 && rect.left < window.innerWidth);
     const lines: DOMRect[] = [];
     for (const rect of rects) {
@@ -285,9 +309,14 @@ export class SelectionTranslationController {
   private trigger(className: string): HTMLButtonElement {
     const button = document.createElement("button");
     button.type = "button"; button.className = className;
-    const action = isSingleDictionaryWord(this.query) ? "查词" : "翻译";
+    const action = this.usesTranslation(this.query) ? "翻译" : "查词";
     button.title = action; button.setAttribute("aria-label", `${action}“${this.query.slice(0, 100)}”`);
-    button.addEventListener("click", () => { void this.lookup(this.settings.provider); });
+    button.addEventListener("click", () => {
+      // A field can change focus/selection before the debounced entry point catches up.
+      // Keyboard activation focuses our own button, so retain its saved selection there.
+      if (!this.root.activeElement) this.captureSelection();
+      void this.lookup(this.settings.provider);
+    });
     return button;
   }
 
@@ -295,13 +324,14 @@ export class SelectionTranslationController {
     if (!this.query || !this.settings.enabled || this.disposed) return;
     const version = ++this.version;
     this.stopAudio();
+    this.resetTranslation();
     this.triggers.replaceChildren();
     this.card.hidden = false;
     this.sourceActions.hidden = true;
     this.sourceError.textContent = "";
     this.word.removeAttribute("aria-invalid");
     this.body.hidden = false;
-    let translating = forceTranslation || !isSingleDictionaryWord(this.query);
+    let translating = forceTranslation || this.usesTranslation(this.query);
     this.setTranslationMode(translating);
     const chinese = isChineseDictionaryQuery(this.query);
     provider = dictionaryProviderForQuery(provider, this.query);
@@ -340,7 +370,7 @@ export class SelectionTranslationController {
   }
 
   private updateSourceAction(): void {
-    const action = isSingleDictionaryWord(this.word.value.trim()) ? "查词" : "翻译";
+    const action = this.usesTranslation(this.word.value.trim()) ? "翻译" : "查词";
     this.submitSource.textContent = action;
     this.submitSource.title = this.shortcutEnabled["selection-submit"] ? `${action}（${formatLocalShortcut(this.localShortcuts["selection-submit"])}）` : action;
   }
@@ -374,7 +404,7 @@ export class SelectionTranslationController {
 
   private canRender(version: number): boolean {
     if (version !== this.version || this.disposed) return false;
-    if (!this.range?.startContainer.isConnected || !this.range.endContainer.isConnected) { this.close(); return false; }
+    if (!this.selection || !selectionSourceConnected(this.selection)) { this.close(); return false; }
     return true;
   }
 
@@ -411,6 +441,39 @@ export class SelectionTranslationController {
     text.lang = settings.targetLang;
     text.textContent = translated.trim();
     this.body.replaceChildren(text);
+    this.translation = translated.trim();
+    this.updateReplacement();
+  }
+
+  private usesTranslation(query: string): boolean {
+    return !!this.selection && isEditorSelection(this.selection) || !isSingleDictionaryWord(query);
+  }
+
+  private resetTranslation(): void {
+    this.translation = "";
+    this.resultActions.hidden = true;
+    this.replacementStatus.textContent = "";
+  }
+
+  private updateReplacement(): void {
+    this.resultActions.hidden = !this.translation || !this.selection || !selectionReplacementAvailable(this.selection);
+    if (this.resultActions.hidden || !this.selection) return;
+    const stale = this.replacementInvalidated || !selectionSourceUnchanged(this.selection);
+    this.replaceButton.disabled = stale;
+    this.replacementStatus.textContent = stale ? "原文已变化，请重新选择后翻译。" : "";
+    this.positionCard();
+  }
+
+  private replaceSelection(): void {
+    if (!this.selection || !this.translation || this.replacementInvalidated) return;
+    try {
+      replaceSelectionSource(this.selection, this.translation);
+      this.close();
+    } catch (error) {
+      this.replacementStatus.textContent = this.errorMessage(error);
+      this.replaceButton.disabled = !selectionSourceUnchanged(this.selection);
+      this.positionCard();
+    }
   }
 
   private errorMessage(error: unknown): string {
@@ -491,7 +554,7 @@ export class SelectionTranslationController {
   private positionCard(): boolean {
     const rects = this.rects();
     const view = visibleViewport();
-    if (!rects.length && (!this.touchSelection || !this.range?.startContainer.isConnected || !this.range.endContainer.isConnected)) return false;
+    if (!rects.length && (!this.touchSelection || !this.selection || !selectionSourceConnected(this.selection))) return false;
     // Keyboard scrolling may move the source selection offscreen while its editor remains open.
     const first = rects[0] ?? new DOMRect(view.left, view.top, 0, 0), last = rects[rects.length - 1] ?? first;
     this.card.classList.toggle("touch-card", this.touchSelection);
@@ -512,7 +575,8 @@ export class SelectionTranslationController {
     if (this.root.activeElement instanceof HTMLElement) this.root.activeElement.blur();
     this.card.hidden = true;
     this.triggers.replaceChildren();
-    this.range = undefined;
+    this.selection = undefined;
+    this.resetTranslation();
     this.query = "";
     this.stopAudio();
   }
