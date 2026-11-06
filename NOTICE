@@ -1,0 +1,29 @@
+WuPage Translator
+Copyright (C) 2026 WuPage contributors
+
+Except for third-party materials identified by their own notices, the original
+source code in this repository is licensed under the GNU General Public License,
+version 3 only (SPDX-License-Identifier: GPL-3.0-only).
+
+You may use, modify, and redistribute this software under the terms of that
+license, including for commercial purposes. When distributing the software or
+a covered derivative work, provide the complete Corresponding Source and
+preserve the applicable copyright and license notices as required by GPLv3.
+The complete license is included in LICENSE.
+
+This program is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+FOR A PARTICULAR PURPOSE. See LICENSE for details.
+
+Source code: https://github.com/mr-wuliu/wupage
+Release source archives: https://github.com/mr-wuliu/wupage/releases
+For a released extension, use the matching v<version> Git tag.
+Build instructions: docs/development.md in the matching source archive, or
+https://github.com/mr-wuliu/wupage/blob/main/docs/development.md
+
+Third-party materials retain their respective licenses and copyright notices.
+Their notices are included with the corresponding resources, including:
+- bergamot-runtime/: Mozilla Public License 2.0 and upstream source information.
+- ocr-runtime/: OpenCV and ONNX Runtime licenses and notices.
+- licenses/: UI icon licenses.
+- pdf-fonts/: SIL Open Font License and optional font provenance.

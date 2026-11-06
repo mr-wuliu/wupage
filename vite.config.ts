@@ -25,6 +25,9 @@ export default defineConfig(({ mode }) => {
           action: { ...manifest.action, default_title: "WuPage 视频字幕预览版" }
         } : generated;
         await writeFile(resolve(__dirname, outDir, "manifest.json"), JSON.stringify(extensionManifest, null, 2) + "\n");
+        for (const file of ["LICENSE", "NOTICE"]) {
+          await copyFile(resolve(__dirname, file), resolve(__dirname, outDir, file));
+        }
         await bundle({ entryPoints: ["src/content/index.ts"], outfile: resolve(__dirname, outDir, "content.js"),
           bundle: true, minify: true, sourcemap, format: "iife", platform: "browser", target });
         await bundle({ entryPoints: ["src/content/frame-bootstrap.ts"], outfile: resolve(__dirname, outDir, "frame-bootstrap.js"),
