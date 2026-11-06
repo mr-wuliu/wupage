@@ -325,6 +325,8 @@ const CONTENT_CSS = `
       text-indent: 0;
       text-transform: none;
       user-select: none;
+      -webkit-user-select: none;
+      -webkit-touch-callout: none;
       white-space: nowrap;
       touch-action: none;
       transition: transform 160ms ease, background 160ms ease, opacity 160ms ease;
@@ -332,6 +334,10 @@ const CONTENT_CSS = `
 
     #wupage-floating-ball > .wupage-floating-label {
       all: initial;
+      user-select: none !important;
+      -webkit-user-select: none !important;
+      -webkit-touch-callout: none !important;
+      pointer-events: none !important;
       display: block;
       color: var(--wp-floating-foreground, #ffffff);
       font-family: "Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", "Noto Sans CJK SC", sans-serif;
@@ -885,6 +891,45 @@ const CONTENT_CSS = `
     #wupage-floating-menu .ocr-description, #wupage-floating-menu .ocr-model-status { margin: 5px 0 0; font: 12px/1.6 system-ui; color: var(--wp-muted, #526068); white-space: normal; overflow-wrap: anywhere; }
     #wupage-floating-menu .ocr-help-panel .ocr-description { margin-top: 0; }
     #wupage-floating-menu .ocr-model-status[data-state="error"] { color: var(--wp-danger, #b13e36); }
+    #wupage-floating-ball[data-touch="true"] { width: 44px; height: 44px; }
+    #wupage-floating-hitbox:has(#wupage-floating-ball[data-touch="true"]) { width: 76px !important; height: 76px !important; }
+    #wupage-floating-ball[data-touch="true"][data-edge="left"]:not(.is-dragging) { transform: translateX(30px) !important; }
+    #wupage-floating-ball[data-touch="true"][data-edge="right"]:not(.is-dragging) { transform: translateX(-30px) !important; }
+    #wupage-floating-menu[data-touch="true"] { gap: 8px; padding: 12px; padding-bottom: max(12px, env(safe-area-inset-bottom)); border-radius: 16px; }
+    #wupage-floating-menu[data-touch="true"] .wupage-menu-top { display: contents; }
+    #wupage-floating-menu[data-touch="true"] .wupage-menu-header { order: 0; }
+    #wupage-floating-menu[data-touch="true"] .wupage-translation-actions { order: 1; display: grid; grid-template-columns: 1fr; gap: 6px; }
+    #wupage-floating-menu[data-touch="true"] button[data-action="page-toggle"] { min-height: 48px; font-size: 16px; }
+    #wupage-floating-menu[data-touch="true"] .wupage-menu-section { order: 2; }
+    #wupage-floating-menu[data-touch="true"] label.wupage-menu-field { order: 3; gap: 4px; }
+    #wupage-floating-menu[data-touch="true"] .wupage-feature-buttons { order: 4; gap: 8px; }
+    #wupage-floating-menu[data-touch="true"] label[data-touch-extra] { order: 5; }
+    #wupage-floating-menu[data-touch="true"] .wupage-more-button { order: 6; display: flex; align-items: center; justify-content: center; gap: 8px; }
+    #wupage-floating-menu .wupage-more-button svg { width: 14px; height: 14px; }
+    #wupage-floating-menu[data-touch="true"] .wupage-translation-feedback { order: 7; }
+    #wupage-floating-menu[data-touch="true"]:not([data-more-open]) [data-touch-extra] { display: none !important; }
+    #wupage-floating-menu[data-touch="true"] button,
+    #wupage-floating-menu[data-touch="true"] select { min-height: 44px; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+    #wupage-floating-menu[data-touch="true"] .wupage-more-button { background: var(--wp-soft,#eef2f1); border: 1px solid var(--wp-border,#c9d1cf); border-radius: 8px; }
+    #wupage-floating-menu[data-touch="true"] .wupage-provider-picker button { min-height: 44px !important; }
+    #wupage-floating-menu[data-touch="true"] .wupage-menu-header button { width: 44px; }
+    #wupage-floating-menu[data-touch="true"] .wupage-language-value { min-height: 44px; line-height: 44px; }
+    #wupage-floating-menu[data-touch="true"] .wupage-language-auto { width: 44px; }
+    #wupage-floating-menu[data-touch="true"] .wupage-language-add-site { width: 44px; }
+    #wupage-floating-menu[data-touch="true"] .ocr-model-action { flex-basis: 44px; width: 44px; }
+    #wupage-floating-menu[data-touch="true"] .ocr-help-trigger { width: 44px; height: 44px; border: 0; }
+    #wupage-floating-menu[data-touch="true"] .image-feature-row { min-width: 0; }
+    #wupage-floating-menu[data-touch="true"] .image-feature-row .wupage-feature-button { white-space: normal; }
+    #wupage-floating-menu[data-touch="true"]:not([data-more-open]) .ocr-help-slot,
+    #wupage-floating-menu[data-touch="true"]:not([data-more-open]) .ocr-model-action[data-state="installed"] { display: none; }
+    #wupage-floating-menu[data-touch="true"][data-more-open] .image-feature { grid-column: 1 / -1; }
+    #wupage-floating-menu .wupage-provider-notice { margin: 4px 0; padding: 8px; border: 1px solid var(--wp-border, #c7a557); border-radius: 8px; font: 12px/1.6 system-ui,sans-serif; }
+    #wupage-floating-menu .wupage-local-notice { display: flex; align-items: center; gap: 8px; }
+    #wupage-floating-menu .wupage-local-notice span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+    #wupage-floating-menu .wupage-local-notice button { flex: none; width: auto; padding: 0 8px; color: var(--wp-accent,#116466); }
+    #wupage-floating-menu .wupage-local-notice[data-state="missing"],
+    #wupage-floating-menu .wupage-local-notice[data-state="error"] { border-color: var(--wp-danger,#b13e36); }
+    #wupage-floating-menu[data-touch="true"] .wupage-provider-notice { order: 3; margin: 0; padding: 2px 8px; }
     #wupage-floating-menu .ocr-model-progress { display: block; width: 100%; height: 5px; margin: 6px 0; accent-color: var(--wp-accent, #116466); }
 
     .wupage-paragraph-active {

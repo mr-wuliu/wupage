@@ -142,7 +142,7 @@ try {
     assert(triggerBox?.height >= 36 && nameBox?.width > 0 && iconBox?.width > 0);
     assert(nameBox.x >= iconBox.x + iconBox.width);
     assert.equal(await menu.evaluate(element => element.scrollWidth > element.clientWidth), false);
-    assert.equal(await menu.locator('[data-action="paragraph-mode"]').evaluate(button => button.hidden), true);
+    assert.equal(await menu.locator('[data-action="paragraph-mode"]').textContent().then(text => text.trim()), '点选段落');
     assert.equal(await menu.locator('.wupage-menu-hint').isVisible(), false);
     await trigger.tap();
     const list = menu.locator('.wupage-provider-list');
@@ -152,6 +152,7 @@ try {
     assert(listBox.x + listBox.width <= viewport.width && listBox.y + listBox.height <= viewport.height);
     await list.locator('[data-value="http-template"]').tap();
     assert.equal(await list.isVisible(), false);
+    if (!await menu.locator('[data-role="display-mode"]').isVisible()) await menu.locator('[data-action="more"]').tap();
     await menu.locator('[data-role="display-mode"]').selectOption('bilingual-accent');
     await page.waitForFunction(() => document.querySelector('[data-role="display-mode"]').value === 'bilingual-accent');
     await page.screenshot({ path: path.join(output, `${name}.png`) });
@@ -159,28 +160,28 @@ try {
   }
   // A mouse-capable tablet keeps the desktop controls, regardless of viewport width.
   await touch.send('Emulation.setTouchEmulationEnabled', { enabled: false });
-  await page.waitForFunction(() => !document.querySelector('[data-action="paragraph-mode"]').hidden);
+  await page.waitForFunction(() => document.querySelector('[data-action="paragraph-mode"] span').textContent === '段落翻译');
   assert.equal(await menu.locator('.wupage-menu-hint').isVisible(), false);
   await touch.send('Emulation.setTouchEmulationEnabled', { enabled: true });
-  await page.waitForFunction(() => document.querySelector('[data-action="paragraph-mode"]').hidden);
+  await page.waitForFunction(() => document.querySelector('[data-action="paragraph-mode"] span').textContent === '点选段落');
   const popup = await context.newPage();
   await popup.setViewportSize({ width: 320, height: 800 });
   await popup.goto(`chrome-extension://${extensionId}/popup.html`);
   const popupMedia = await context.newCDPSession(popup);
   await popupMedia.send('Emulation.setTouchEmulationEnabled', { enabled: true });
-  await popup.locator('#floatingBall').waitFor({ state: 'visible' });
-  await popup.waitForFunction(() => document.querySelector('#paragraphMode').hidden);
+  await popup.locator('#pageToggle').waitFor({ state: 'visible' });
+  await popup.waitForFunction(() => document.querySelector('#paragraphMode span').textContent === '点选段落');
   const fullPageAction = await popup.locator('#pageToggle').boundingBox();
   assert(Math.abs(fullPageAction.width - await popup.locator('[data-popup-menu-grid]').evaluate(row => row.clientWidth)) < 1, 'The page button fills the row on touch devices');
-  const featureGrid = await popup.locator('.feature-toggles').boundingBox();
-  const floatingToggle = await popup.locator('#floatingBall').boundingBox();
-  const autoToggle = await popup.locator('#contextMenuTranslation').boundingBox();
-  const imageFeature = await popup.locator('.image-feature').boundingBox();
-  assert(Math.abs(floatingToggle.y - autoToggle.y) < 1, 'The visible feature buttons share a row');
-  assert(Math.abs(featureGrid.width - floatingToggle.width - autoToggle.width - 8) < 1, 'The feature buttons fill two columns');
-  assert(Math.abs(floatingToggle.width - imageFeature.width) < 1, 'The image feature fits one column');
+  assert.equal(await popup.locator('#floatingBall').isVisible(), false, 'Infrequent switches start folded');
+  assert.equal(await popup.locator('#paragraphMode').isVisible(), true, 'Touch paragraph picking is reachable');
+  assert.equal(await popup.locator('#clearCache').isVisible(), false);
+  await popup.locator('#moreFeatures').tap();
+  assert.equal(await popup.locator('#floatingBall').isVisible(), true);
+  assert.equal(await popup.locator('#clearCache').isVisible(), true);
+  assert.equal(await popup.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
   await popupMedia.send('Emulation.setTouchEmulationEnabled', { enabled: false });
-  await popup.waitForFunction(() => !document.querySelector('#paragraphMode').hidden);
+  await popup.waitForFunction(() => document.querySelector('#paragraphMode span').textContent === '段落翻译');
   await popup.close();
 
   // Feed updates must not alternate the primary action or move an already open menu.
@@ -212,7 +213,8 @@ try {
     await page.evaluate(index => {
       const post = document.createElement('p');
       post.textContent = `New feed post number ${index} for incremental translation.`;
-      document.querySelector('main').append(post);
+      // Keep the new post in the reading area above the mobile bottom panel.
+      document.querySelector('main').prepend(post);
     }, index);
     await page.waitForFunction(() => document.querySelector('#wupage-floating-ball').getAttribute('aria-busy') === 'true');
     assert.equal(await menu.locator('[data-action="page-toggle"]').textContent(), '显示原文');
@@ -230,7 +232,7 @@ try {
   assert.deepEqual(errors, []);
   const report = { passed: true, calls, touchWithoutHover: true, longPressElapsed,
     heldMenuAfterRelease: true, outsideTapDismissed: true, dragCancelledLongPress: true,
-    touchParagraphModeHidden: true, mouseParagraphModeVisible: true,
+    touchParagraphPickerVisible: true, mouseParagraphModeVisible: true,
     stableFeedAction: true, stableFeedMenuPosition: true, errors, layouts };
   await fs.writeFile(path.join(output, 'report.json'), JSON.stringify(report, null, 2));
   console.log(JSON.stringify(report));

@@ -3,6 +3,7 @@ import { SETTINGS_KEY } from "../shared/defaults";
 import { hasRuntimeContext, sendRuntimeRequest } from "./runtime";
 import { getImageRasterSize, renderImageTranslation } from "./image-rendering";
 import { isNonProseElement, isTranslationOptedOut } from "./content-policy";
+import { hasTouchInput, TOUCH_INPUT_QUERY, visibleViewport } from "../shared/touch";
 
 interface ImageEntry {
   image: HTMLImageElement;
@@ -37,6 +38,8 @@ let scanTimer: number | undefined;
 let frame: number | undefined;
 let hoverFrame: number | undefined;
 let pointer: { x: number; y: number } | undefined;
+let touchControls = false;
+let stopTouchMedia: (() => void) | undefined;
 let initialized = false;
 let contextTarget: { image: HTMLImageElement; source: string } | undefined;
 
@@ -77,8 +80,12 @@ export function setImageTranslationEnabled(value: boolean): void {
     document.removeEventListener("load", scheduleScan, true);
     document.removeEventListener("contextmenu", rememberContextImage, true);
     document.removeEventListener("pointermove", trackPointer, true);
+    document.removeEventListener("pointerdown", trackInput, true);
     document.removeEventListener("pointerout", leavePage, true);
     window.removeEventListener("blur", clearPointer);
+    window.visualViewport?.removeEventListener("resize", scheduleLayout);
+    window.visualViewport?.removeEventListener("scroll", scheduleLayout);
+    stopTouchMedia?.(); stopTouchMedia = undefined;
     if (hoverFrame !== undefined) window.cancelAnimationFrame(hoverFrame);
     hoverFrame = undefined; pointer = undefined;
     contextTarget = undefined;
@@ -90,7 +97,12 @@ export function setImageTranslationEnabled(value: boolean): void {
     sourceStyle?.remove(); sourceStyle = undefined;
     return;
   }
+  touchControls = hasTouchInput();
   createHost();
+  const media = window.matchMedia?.(TOUCH_INPUT_QUERY);
+  const changed = () => setTouchControls(hasTouchInput());
+  media?.addEventListener("change", changed);
+  stopTouchMedia = () => media?.removeEventListener("change", changed);
   observer = new MutationObserver((records) => {
     if (records.some((record) => record.target !== host
       && !(record.target instanceof Element && record.target.closest(`#${HOST_ID},.wupage-translation`)))) scheduleScan();
@@ -103,8 +115,11 @@ export function setImageTranslationEnabled(value: boolean): void {
   document.addEventListener("load", scheduleScan, true);
   document.addEventListener("contextmenu", rememberContextImage, true);
   document.addEventListener("pointermove", trackPointer, { capture: true, passive: true });
+  document.addEventListener("pointerdown", trackInput, { capture: true, passive: true });
   document.addEventListener("pointerout", leavePage, true);
   window.addEventListener("blur", clearPointer);
+  window.visualViewport?.addEventListener("resize", scheduleLayout);
+  window.visualViewport?.addEventListener("scroll", scheduleLayout);
   scanImages();
 }
 
@@ -121,6 +136,7 @@ function createHost(): void {
   host.setAttribute("translate", "no");
   host.style.cssText = "all:initial!important;position:fixed!important;inset:0!important;z-index:2147483646!important;pointer-events:none!important;";
   root = host.attachShadow({ mode: "open" });
+  host.dataset.touch = String(touchControls);
   root.addEventListener("focusin", scheduleHover);
   root.addEventListener("focusout", scheduleHover);
   const style = document.createElement("style");
@@ -129,6 +145,7 @@ function createHost(): void {
     button:hover,button[aria-pressed=true]{background:var(--wp-image-button-foreground,#1856ba);color:var(--wp-image-button-background,#fff)}
     button:focus-visible{outline:3px solid var(--wp-image-button-background,#60a5fa);outline-offset:2px}
     button:disabled{cursor:wait;opacity:.8}
+    :host([data-touch="true"]) button{width:44px;height:44px;touch-action:manipulation;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
     canvas{position:fixed;pointer-events:none;box-sizing:content-box}
     .status{position:fixed;max-width:min(280px,85vw);padding:7px 10px;background:var(--wp-surface,#172033);color:var(--wp-foreground,#fff);border:1px solid var(--wp-border,transparent);border-radius:7px;font:12px/1.5 system-ui,sans-serif;overflow-wrap:anywhere;pointer-events:none}
     [hidden]{display:none!important}
@@ -268,8 +285,20 @@ function scheduleLayout(): void {
 }
 
 function trackPointer(event: PointerEvent): void {
+  if (event.pointerType === "mouse") setTouchControls(false);
   pointer = { x: event.clientX, y: event.clientY };
   scheduleHover();
+}
+
+function trackInput(event: PointerEvent): void {
+  if (event.pointerType === "touch" || event.pointerType === "mouse") setTouchControls(event.pointerType === "touch");
+}
+
+function setTouchControls(value: boolean): void {
+  if (value === touchControls) return;
+  touchControls = value;
+  if (host) host.dataset.touch = String(value);
+  scheduleLayout();
 }
 
 function leavePage(event: PointerEvent): void {
@@ -300,7 +329,7 @@ function updateHover(): void {
       hovered = Boolean((onImage && imageHit) || onButton);
     }
     const keyboardFocus = root?.activeElement === entry.button && entry.button.matches(":focus-visible");
-    entry.button.hidden = !bounds || (!hovered && !keyboardFocus);
+    entry.button.hidden = !bounds || (!touchControls && !hovered && !keyboardFocus);
   }
 }
 
@@ -309,6 +338,8 @@ function updateLayout(): void {
   // particular, background presentations must remain discoverable next frame.
   restoreSourcePixels();
   if (!host?.isConnected) return;
+  const view = visibleViewport(), buttonSize = touchControls ? 44 : 30;
+  const minimumHeight = buttonSize + (touchControls ? 4 : 0);
   const replacements: HTMLElement[] = [];
   for (const entry of entries.values()) {
     const { image, button, status, canvas } = entry;
@@ -317,11 +348,11 @@ function updateLayout(): void {
     entry.presentation = imagePresentation(image);
     const presentation = entry.presentation ?? image;
     const rect = presentation.getBoundingClientRect();
-    let left = Math.max(0, rect.left), top = Math.max(0, rect.top);
-    let right = Math.min(window.innerWidth, rect.right), bottom = Math.min(window.innerHeight, rect.bottom);
+    let left = Math.max(view.left, rect.left), top = Math.max(view.top, rect.top);
+    let right = Math.min(view.right, rect.right), bottom = Math.min(view.bottom, rect.bottom);
     let hidden = !image.isConnected || imageSource(image) !== entry.source || isNonProseElement(image) || isTranslationOptedOut(image)
       || rect.width < (entry.manual ? 1 : 80) || rect.height < (entry.manual ? 1 : 40);
-    if (hidden || right - left < 30 || bottom - top < 30) {
+    if (hidden || right - left < buttonSize || bottom - top < minimumHeight) {
       button.hidden = true; status.hidden = true; if (canvas) canvas.hidden = true;
       continue;
     }
@@ -338,7 +369,7 @@ function updateLayout(): void {
       if (/hidden|clip|auto|scroll/.test(css.overflowX || css.overflow)) { left = Math.max(left, bounds.left); right = Math.min(right, bounds.right); }
       if (/hidden|clip|auto|scroll/.test(css.overflowY || css.overflow)) { top = Math.max(top, bounds.top); bottom = Math.min(bottom, bounds.bottom); }
     }
-    hidden ||= right - left < 30 || bottom - top < 30;
+    hidden ||= right - left < buttonSize || bottom - top < minimumHeight;
     if (!hidden && document.elementFromPoint) {
       const hit = document.elementFromPoint((left + right) / 2, (top + bottom) / 2);
       hidden = Boolean(hit && hit !== image && !hit.contains(image) && !presentation.contains(hit)
@@ -348,10 +379,10 @@ function updateLayout(): void {
     status.hidden = hidden || !status.textContent;
     if (canvas) canvas.hidden = hidden || !entry.showing;
     if (hidden) continue;
-    const buttonLeft = right + 4 + 30 < window.innerWidth ? right + 4 : right - 34;
+    const buttonLeft = right + 4 + buttonSize < view.right ? right + 4 : right - buttonSize - 4;
     entry.hoverBounds = { left, top, right, bottom, buttonLeft: Math.max(0, buttonLeft) };
     button.style.left = `${Math.max(0, buttonLeft)}px`; button.style.top = `${top + 4}px`;
-    status.style.left = `${Math.max(4, Math.min(buttonLeft, window.innerWidth - 290))}px`; status.style.top = `${top + 38}px`;
+    status.style.left = `${Math.max(view.left + 4, Math.min(buttonLeft, view.right - 290))}px`; status.style.top = `${top + buttonSize + 8}px`;
     if (canvas) {
       const scaleX = presentation.offsetWidth ? rect.width / presentation.offsetWidth : 1;
       const scaleY = presentation.offsetHeight ? rect.height / presentation.offsetHeight : 1;

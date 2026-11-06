@@ -1,6 +1,6 @@
 {
   "name": "wupage",
-  "version": "1.8.0",
+  "version": "1.9.0",
   "private": true,
   "license": "GPL-3.0-only",
   "type": "module",
@@ -39,6 +39,7 @@
     "test:spa:firefox": "node scripts/test-spa-translation.mjs --firefox",
     "test:floating": "node scripts/test-floating-interactions.mjs",
     "test:floating-responsive": "node scripts/test-floating-responsive.mjs",
+    "test:mobile": "node scripts/test-mobile-interactions.mjs",
     "test:selection": "node scripts/test-selection-translation.mjs",
     "test:video": "node scripts/test-video-subtitles.mjs",
     "test:video:frame": "node scripts/test-video-frame.mjs",

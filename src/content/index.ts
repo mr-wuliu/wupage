@@ -28,6 +28,7 @@ import { createDocumentKey } from "../shared/frame-session";
 import { initVideoSubtitles, openVideoSubtitles } from "./video-subtitles";
 import { readParagraphMode } from "../shared/paragraph-mode";
 import { supportsHtmlContent } from "../shared/html";
+import { startTouchParagraph } from "./touch-paragraph";
 
 let pageActionVersion = 0;
 const supported = supportsHtmlContent();
@@ -92,6 +93,10 @@ function initializeFeature(name: string, initialize: () => unknown): void {
 }
 
 async function handleMessage(request: RuntimeRequest): Promise<unknown> {
+  if (request.type === "START_TOUCH_PARAGRAPH") {
+    startTouchParagraph();
+    return { started: true };
+  }
   if (request.type === "OPEN_VIDEO_SUBTITLES") {
     return openVideoSubtitles();
   }

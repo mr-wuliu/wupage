@@ -8,9 +8,10 @@ import { normalizeShortcutEnabled } from "../shared/shortcuts";
 import { formatLocalShortcut, matchesLocalShortcut, normalizeLocalShortcuts } from "../shared/local-shortcuts";
 import { uiIconMarkup } from "../shared/ui-icons";
 import { setHtmlContent } from "../shared/html";
+import { hasTouchInput, visibleViewport } from "../shared/touch";
 
 const HOST_ID = "wupage-selection-tools";
-const EXCLUDED = "input,textarea,select,button,[contenteditable]:not([contenteditable='false']),[role='textbox'],#wupage-selection-tools,#wupage-floating-hitbox,#wupage-floating-menu,#wupage-debug-panel,#wupage-image-tools";
+const EXCLUDED = "input,textarea,select,button,[contenteditable]:not([contenteditable='false']),[role='textbox'],#wupage-selection-tools,#wupage-floating-hitbox,#wupage-floating-menu,#wupage-debug-panel,#wupage-image-tools,#wupage-touch-paragraph,#wupage-touch-hint";
 
 export class SelectionTranslationController {
   private settings: SelectionTranslationSettings;
@@ -36,6 +37,7 @@ export class SelectionTranslationController {
   private audioVersion = 0;
   private audioRequested = false;
   private selecting = false;
+  private touchSelection = hasTouchInput();
   private disposed = false;
   private selectionTimer?: number;
 
@@ -132,12 +134,15 @@ export class SelectionTranslationController {
     document.documentElement.append(this.host);
     document.addEventListener("pointerdown", this.onPointerDown, true);
     document.addEventListener("pointerup", this.onPointerUp);
+    document.addEventListener("pointercancel", this.onPointerCancel);
     document.addEventListener("selectionchange", this.onSelectionChange);
     document.addEventListener("keyup", this.onKeyUp);
     document.addEventListener("keydown", this.onKeyDown);
     document.addEventListener("scroll", this.onScroll, true);
     window.addEventListener("resize", this.onResize);
     window.addEventListener("pagehide", this.onResize);
+    window.visualViewport?.addEventListener("resize", this.onViewportChange);
+    window.visualViewport?.addEventListener("scroll", this.onViewportChange);
   }
 
   update(settings: SelectionTranslationSettings): void {
@@ -156,24 +161,34 @@ export class SelectionTranslationController {
     this.host.remove();
     document.removeEventListener("pointerdown", this.onPointerDown, true);
     document.removeEventListener("pointerup", this.onPointerUp);
+    document.removeEventListener("pointercancel", this.onPointerCancel);
     document.removeEventListener("selectionchange", this.onSelectionChange);
     document.removeEventListener("keyup", this.onKeyUp);
     document.removeEventListener("keydown", this.onKeyDown);
     document.removeEventListener("scroll", this.onScroll, true);
     window.removeEventListener("resize", this.onResize);
     window.removeEventListener("pagehide", this.onResize);
+    window.visualViewport?.removeEventListener("resize", this.onViewportChange);
+    window.visualViewport?.removeEventListener("scroll", this.onViewportChange);
   }
 
   private owns(event: Event): boolean { return event.composedPath().includes(this.host); }
 
   private onPointerDown = (event: PointerEvent): void => {
     if (this.owns(event)) return;
+    if (event.pointerType) this.touchSelection = event.pointerType === "touch";
     this.selecting = true;
     this.close();
   };
   private onPointerUp = (event: PointerEvent): void => {
     this.selecting = false;
+    if (event.pointerType && !this.owns(event)) this.touchSelection = event.pointerType === "touch";
     if (!this.owns(event) && event.button === 0) this.scheduleSelection();
+  };
+  private onPointerCancel = (event: PointerEvent): void => {
+    this.selecting = false;
+    if (event.pointerType === "touch") this.touchSelection = true;
+    if (!this.owns(event)) this.scheduleSelection();
   };
   private onSelectionChange = (): void => {
     if (!this.selecting && this.card.hidden) this.scheduleSelection();
@@ -185,12 +200,23 @@ export class SelectionTranslationController {
   private onKeyDown = (event: KeyboardEvent): void => {
     if (this.shortcutEnabled["dismiss-overlays"] && matchesLocalShortcut(event, this.localShortcuts["dismiss-overlays"])) { if (!this.card.hidden) event.preventDefault(); this.close(); }
   };
-  private onScroll = (event: Event): void => { if (!this.owns(event)) this.close(); };
-  private onResize = (): void => { this.close(); };
+  private onScroll = (event: Event): void => {
+    if (this.owns(event)) return;
+    if (this.touchSelection && !this.card.hidden && this.root.activeElement === this.word) this.onViewportChange();
+    else this.close();
+  };
+  private onResize = (event: Event): void => {
+    if (event.type === "pagehide" || !this.touchSelection) this.close();
+    else this.onViewportChange();
+  };
+  private onViewportChange = (): void => {
+    if (!this.card.hidden) this.resizeSourceEditor();
+    else if (this.triggers.childElementCount) this.captureSelection();
+  };
 
   private scheduleSelection(): void {
     window.clearTimeout(this.selectionTimer);
-    this.selectionTimer = window.setTimeout(() => this.captureSelection(), 30);
+    this.selectionTimer = window.setTimeout(() => this.captureSelection(), this.touchSelection ? 180 : 30);
   }
 
   private captureSelection(): void {
@@ -215,17 +241,30 @@ export class SelectionTranslationController {
     this.triggers.replaceChildren();
     if (!rects.length) return;
     const last = rects[rects.length - 1];
-    if (this.settings.style === "dot") {
+    this.triggers.classList.toggle("touch-triggers", this.touchSelection);
+    this.host.style.setProperty("z-index", String(this.touchSelection ? 2147483647 : 2147483646), "important");
+    if (this.touchSelection) {
+      const view = visibleViewport(), width = Math.max(0, Math.min(360, view.width - 24));
+      this.triggers.style.cssText = `left:${view.left + (view.width - width) / 2}px;top:${Math.max(view.top + 12, view.bottom - 76)}px;width:${width}px`;
+      const button = this.trigger("trigger-touch");
+      button.textContent = isSingleDictionaryWord(query) ? "查词" : "翻译所选";
+      const preview = document.createElement("span"); preview.className = "selection-preview"; preview.textContent = query;
+      const dismiss = document.createElement("button"); dismiss.type = "button"; dismiss.className = "dismiss-trigger";
+      dismiss.setAttribute("aria-label", "关闭划词入口"); setHtmlContent(dismiss, uiIconMarkup("cross"));
+      dismiss.addEventListener("click", () => this.close());
+      this.triggers.append(preview, button, dismiss);
+    } else if (this.settings.style === "dot") {
+      this.triggers.removeAttribute("style");
       const button = this.trigger("trigger-dot");
       button.style.left = `${Math.max(8, Math.min(window.innerWidth - 36, last.right + 3))}px`;
       button.style.top = `${Math.max(8, Math.min(window.innerHeight - 36, last.bottom - 8))}px`;
       this.triggers.append(button);
-    } else rects.forEach((rect, index) => {
+    } else { this.triggers.removeAttribute("style"); rects.forEach((rect, index) => {
       const button = this.trigger("trigger-line");
       button.style.left = `${rect.left}px`; button.style.top = `${rect.bottom - 5}px`; button.style.width = `${rect.width}px`;
       button.tabIndex = index === 0 ? 0 : -1;
       this.triggers.append(button);
-    });
+    }); }
   }
 
   private rects(): DOMRect[] {
@@ -327,7 +366,7 @@ export class SelectionTranslationController {
     const measured = Number.parseFloat(window.getComputedStyle(this.word).lineHeight);
     const lineHeight = measured >= 8 ? measured : this.card.classList.contains("translation-mode") ? 20 : 28;
     const expanded = this.root.activeElement === this.word;
-    const limit = Math.max(36, Math.min(expanded ? 150 : lineHeight * 2 + 8, window.innerHeight / 3));
+    const limit = Math.max(36, Math.min(expanded ? 150 : lineHeight * 2 + 8, visibleViewport().height / 3));
     this.word.style.height = "0px";
     this.word.style.height = `${Math.min(limit, Math.max(lineHeight + 8, this.word.scrollHeight))}px`;
     this.positionCard();
@@ -451,13 +490,19 @@ export class SelectionTranslationController {
 
   private positionCard(): boolean {
     const rects = this.rects();
-    if (!rects.length) return false;
-    const first = rects[0], last = rects[rects.length - 1];
-    const width = this.card.offsetWidth || Math.min(360, window.innerWidth - 24);
+    const view = visibleViewport();
+    if (!rects.length && (!this.touchSelection || !this.range?.startContainer.isConnected || !this.range.endContainer.isConnected)) return false;
+    // Keyboard scrolling may move the source selection offscreen while its editor remains open.
+    const first = rects[0] ?? new DOMRect(view.left, view.top, 0, 0), last = rects[rects.length - 1] ?? first;
+    this.card.classList.toggle("touch-card", this.touchSelection);
+    this.card.style.maxHeight = `${Math.max(0, view.height - 24)}px`;
+    this.card.style.maxWidth = `${Math.max(0, view.width - 24)}px`;
+    const width = this.card.offsetWidth || Math.min(360, view.width - 24);
     const height = this.card.offsetHeight || 160;
-    const top = last.bottom + 10 + height <= window.innerHeight - 12 ? last.bottom + 10 : first.top - height - 10;
-    this.card.style.left = `${Math.max(12, Math.min(window.innerWidth - width - 12, first.left))}px`;
-    this.card.style.top = `${Math.max(12, Math.min(window.innerHeight - height - 12, top))}px`;
+    const top = this.touchSelection ? view.bottom - height - 12
+      : last.bottom + 10 + height <= view.bottom - 12 ? last.bottom + 10 : first.top - height - 10;
+    this.card.style.left = `${Math.max(view.left + 12, Math.min(view.right - width - 12, this.touchSelection ? view.left + (view.width - width) / 2 : first.left))}px`;
+    this.card.style.top = `${Math.max(view.top + 12, Math.min(view.bottom - height - 12, top))}px`;
     return true;
   }
 

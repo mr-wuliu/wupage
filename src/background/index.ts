@@ -196,6 +196,7 @@ async function handleMessage(request: RuntimeRequest, sender: chrome.runtime.Mes
     }
     case "TRANSLATE_PAGE":
     case "EXECUTE_TRANSLATION_SHORTCUT":
+    case "START_TOUCH_PARAGRAPH":
     case "TRANSLATE_CONTEXT_IMAGE":
     case "CLEAR_TRANSLATION":
     case "GET_TRANSLATION_STATE":

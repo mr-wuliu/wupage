@@ -143,6 +143,10 @@ npm run test:page
 
 嵌入文档连接使用 `npm run test:frame-connection` 验证；Edge、Firefox 分别使用 `test:frame-connection:edge`、`test:frame-connection:firefox`。脚本仅修改临时复制的构建，通过移除测试文档的消息接收器触发浏览器原始连接错误，覆盖隐藏辅助文档失联、无离开通知的文档删除、可见正文失联及新文档重新接入。隐藏辅助文档的不可访问状态保留在 Debug 中，可见正文和主页面的真实错误仍须上报。
 
+触屏交互使用 `npm run test:mobile` 检查 320、360、390、430 像素宽度下的菜单、悬浮球长按、一次性段落点选、选区取消事件恢复、短视口划词卡片及图片按钮。`npm run test:floating-responsive` 补充平板横竖屏、鼠标与触屏切换、动态页面上的菜单稳定性。两项检查均使用本地样例和模拟翻译服务，不安装 OCR 或语言模型；可通过 `PLAYWRIGHT_MODULE` 和 `PDF_TEST_BROWSER` 指定工具与 Chromium 浏览器路径。
+
+手机真机复查包括系统长按选词、拖动选区手柄、软键盘弹出、浏览器工具栏伸缩，以及图片长按菜单。桌面 Chromium 的触屏模拟不能替代 Android 浏览器对这些系统交互的验证。
+
 ## 调试
 
 网页内容脚本在目标网页的开发者工具中调试；弹窗、设置页和 PDF 工作区使用各自的开发者工具。后台日志从扩展管理页的 Service Worker 检查入口查看，Firefox 使用 `about:debugging`。翻译链路的请求状态和错误可通过扩展的 Debug 面板查看。
