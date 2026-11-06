@@ -9,7 +9,8 @@
     <a href="https://github.com/mr-wuliu/wupage/releases/latest">下载发布包</a> ·
     <a href="https://wupage.mrwuliu.top/">项目主页</a> ·
     <a href="https://github.com/mr-wuliu/wupage/issues">问题反馈</a> ·
-    <a href="PRIVACY.md">隐私政策</a>
+    <a href="PRIVACY.md">隐私政策</a> ·
+    <a href="LICENSE">GPL-3.0</a>
   </p>
   <p>
     <a href="https://github.com/mr-wuliu/wupage/releases"><img src="https://img.shields.io/github/v/release/mr-wuliu/wupage?include_prereleases&sort=semver" alt="GitHub Release" /></a>
@@ -152,6 +153,12 @@ QQ 开发交流群：**582857596**。
 <img src="docs/communicate/qrcode_1793126599797.jpg" width="320" alt="WuPage 开发交流群二维码，群号 582857596" />
 
 源码构建、项目结构和验证说明见[开发指南](docs/development.md)。
+
+## 许可证
+
+WuPage 的原创代码采用 [GNU General Public License v3.0 only（GPL-3.0-only）](LICENSE)。允许使用、修改和商业分发；分发本项目或衍生版本时，须按 GPL-3.0 向接收者提供完整的对应源码，并保留版权和许可声明。软件按现状提供，不作任何担保，具体条款以许可证全文为准。
+
+源码见[项目仓库](https://github.com/mr-wuliu/wupage)，发布版本的对应源码可在 [Releases](https://github.com/mr-wuliu/wupage/releases) 中获取，构建方法见[开发指南](docs/development.md)。随包分发的第三方代码、图标、运行库及字体许可仍适用各自的许可证，详见 [NOTICE](NOTICE) 及对应资源目录中的许可文件。
 
 ## 致谢
 
