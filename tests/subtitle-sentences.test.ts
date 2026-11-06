@@ -5,6 +5,13 @@ import type { SubtitleCue } from "../src/video/subtitles";
 const line = (start: number, text: string, duration = 1): SubtitleCue => ({ start, end: start + duration, text });
 
 describe("subtitle sentences", () => {
+  it("separates multiple sentences inside an authored cue while preserving its full time span", () => {
+    const result = subtitleSentences([line(0, "First sentence. Second sentence!", 8)]);
+    expect(result.map(cue => cue.text)).toEqual(["First sentence.", "Second sentence!"]);
+    expect(result[0].start).toBe(0);
+    expect(result[0].end).toBe(result[1].start);
+    expect(result[1].end).toBe(8);
+  });
   it("joins short ASR fragments without changing the input timeline", () => {
     const cues = [line(0, "This tool can"), line(1, "save you a lot"), line(2, "of time."), line(3, "Try it!")];
     expect(subtitleSentences(cues)).toEqual([line(0, "This tool can save you a lot of time.", 3), line(3, "Try it!")]);

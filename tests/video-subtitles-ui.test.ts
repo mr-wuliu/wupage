@@ -40,6 +40,81 @@ afterEach(() => {
 });
 
 describe("player subtitle controls", () => {
+  it("follows current source while a translation is stalled and never paints the expired sentence", async () => {
+    let finish!: (value: { translations: string[]; cached: number }) => void;
+    const runtime = vi.mocked(sendRuntimeRequest).getMockImplementation()!;
+    vi.mocked(sendRuntimeRequest).mockImplementation(request => request.type === "TRANSLATE_VIDEO_SUBTITLES"
+      ? new Promise(resolve => { finish = resolve; }) : runtime(request));
+    toggle().click(); await flush();
+    expect(root().querySelector(".source span")?.textContent).toBe("Hello");
+    expect(root().querySelector<HTMLElement>(".captions")!.hidden).toBe(false);
+    video.currentTime = 20; await vi.advanceTimersByTimeAsync(120);
+    expect(root().querySelector(".source span")?.textContent).toBe("Later");
+    expect(root().querySelector(".translation span")?.textContent).toBe("");
+    finish({ translations: ["过期的你好", "稍后"], cached: 0 }); await flush();
+    expect(root().querySelector(".translation span")?.textContent).not.toContain("过期");
+  });
+
+  it("pages a long translated sentence by media time, keeps pause stable, and reuses pages after seeking", async () => {
+    Object.defineProperty(track, "cues", { value: [{ startTime: 0, endTime: 12, text: "A long spoken explanation without punctuation ".repeat(7) }] });
+    vi.mocked(sendRuntimeRequest).mockImplementation(async request => request.type === "GET_SETTINGS" ? structuredClone(DEFAULT_SETTINGS)
+      : request.type === "TRANSLATE_VIDEO_SUBTITLES" ? { translations: request.texts.map(() => "这是一段需要分屏显示的长字幕不能一次挡住画面也不能丢失内容".repeat(8)), cached: 0 } : null);
+    toggle().click(); await flush();
+    const first = root().querySelector(".translation span")!.textContent;
+    expect(first!.split("\n").length).toBeLessThanOrEqual(2);
+    video.currentTime = 10; await vi.advanceTimersByTimeAsync(120);
+    const later = root().querySelector(".translation span")!.textContent;
+    expect(later).not.toBe(first);
+    await vi.advanceTimersByTimeAsync(2400);
+    expect(root().querySelector(".translation span")!.textContent).toBe(later);
+    video.currentTime = 0; await vi.advanceTimersByTimeAsync(120);
+    expect(root().querySelector(".translation span")!.textContent).toBe(first);
+    expect(vi.mocked(sendRuntimeRequest).mock.calls.filter(([request]) => request.type === "TRANSLATE_VIDEO_SUBTITLES")).toHaveLength(1);
+  });
+
+  it("releases native caption suppression when disabled and permits later native CC changes", async () => {
+    const captions = document.createElement("div"); captions.className = "vjs-text-track-display";
+    video.parentElement!.append(captions);
+    toggle().click(); await flush();
+    const style = document.querySelector("[data-wupage-video-style]")!;
+    expect(captions.hasAttribute("data-wupage-video-native")).toBe(true);
+    expect(style.textContent).toContain("opacity: 0");
+    settingsListener({ [SETTINGS_KEY]: { newValue: { ...DEFAULT_SETTINGS, videoTranslation: { ...DEFAULT_SETTINGS.videoTranslation!, enabled: false } } } }, "local");
+    expect(track.mode).toBe("showing");
+    expect(captions.hasAttribute("data-wupage-video-native")).toBe(false);
+    expect(video.hasAttribute("data-wupage-video-cues")).toBe(false);
+    expect(style.textContent).toBe("");
+    track.mode = "disabled"; await vi.advanceTimersByTimeAsync(500);
+    expect(track.mode).toBe("disabled");
+    track.mode = "showing"; await vi.advanceTimersByTimeAsync(500);
+    expect(track.mode).toBe("showing");
+  });
+
+  it("saves independent language typography and order without translating again", async () => {
+    let stored = structuredClone(DEFAULT_SETTINGS);
+    const runtime = vi.mocked(sendRuntimeRequest).getMockImplementation()!;
+    vi.mocked(sendRuntimeRequest).mockImplementation(request => {
+      if (request.type === "GET_SETTINGS") return Promise.resolve(structuredClone(stored));
+      if (request.type === "SAVE_SETTINGS") { stored = structuredClone(request.settings); return Promise.resolve(null); }
+      return runtime(request);
+    });
+    toggle().click(); await flush();
+    const requests = vi.mocked(sendRuntimeRequest).mock.calls.filter(([request]) => request.type === "TRANSLATE_VIDEO_SUBTITLES").length;
+    const change = async (selector: string, value: string) => {
+      const input = root().querySelector<HTMLSelectElement>(selector)!; input.value = value;
+      input.dispatchEvent(new Event("change")); await flush();
+    };
+    await change(".order", "below");
+    await change(".source-size", "18");
+    await change(".source-family", "serif");
+    await change(".translation-size", "32");
+    await change(".translation-weight", "700");
+    const saved = vi.mocked(sendRuntimeRequest).mock.calls.map(([request]) => request).filter(request => request.type === "SAVE_SETTINGS").at(-1)!;
+    expect(saved.settings.videoTranslation).toMatchObject({ originalPosition: "below", sourceStyle: { fontSize: 18, fontFamily: "serif" }, translationStyle: { fontSize: 32, fontWeight: 700 } });
+    expect(document.querySelector("[data-wupage-video]")!.hasAttribute("data-original-below")).toBe(true);
+    expect(vi.mocked(sendRuntimeRequest).mock.calls.filter(([request]) => request.type === "TRANSLATE_VIDEO_SUBTITLES")).toHaveLength(requests);
+  });
+
   it("shows the display mode after the first result and keeps it through subtitle gaps", async () => {
     let finish!: () => void;
     vi.mocked(sendRuntimeRequest).mockImplementation(async request => {
@@ -227,7 +302,7 @@ describe("player subtitle controls", () => {
     expect(root().querySelector<HTMLElement>(".captions")!.hidden).toBe(true);
     video.currentTime = 0; await vi.advanceTimersByTimeAsync(120);
     expect(root().querySelector(".translation span")?.textContent).toBe("你好");
-    expect(vi.mocked(sendRuntimeRequest).mock.calls.filter(([request]) => request.type === "TRANSLATE_VIDEO_SUBTITLES")).toHaveLength(2);
+    expect(vi.mocked(sendRuntimeRequest).mock.calls.filter(([request]) => request.type === "TRANSLATE_VIDEO_SUBTITLES")).toHaveLength(1);
   });
   it("a stop while settings are loading cannot restart after the response", async () => {
     await flush();
@@ -241,7 +316,7 @@ describe("player subtitle controls", () => {
     toggle().click(); await flush();
     const changed = { ...DEFAULT_SETTINGS, targetLang: "ja" };
     vi.mocked(sendRuntimeRequest).mockImplementation(async request => request.type === "GET_SETTINGS" ? changed
-      : request.type === "TRANSLATE_VIDEO_SUBTITLES" ? { translations: ["こんにちは"], cached: 0 } : null);
+      : request.type === "TRANSLATE_VIDEO_SUBTITLES" ? { translations: request.texts.map(() => "こんにちは"), cached: 0 } : null);
     settingsListener({ [SETTINGS_KEY]: { newValue: changed } }, "local"); await flush();
     expect(root().querySelector(".translation span")?.textContent).toBe("こんにちは");
     const count = vi.mocked(sendRuntimeRequest).mock.calls.filter(([request]) => request.type === "TRANSLATE_VIDEO_SUBTITLES").length;
@@ -313,7 +388,7 @@ describe("player subtitle controls", () => {
   });
   it("uses text nodes for service output", async () => {
     vi.mocked(sendRuntimeRequest).mockImplementation(async request => request.type === "GET_SETTINGS" ? DEFAULT_SETTINGS
-      : request.type === "TRANSLATE_VIDEO_SUBTITLES" ? { translations: ['<img src=x onerror="alert(1)">'], cached: 0 } : null);
+      : request.type === "TRANSLATE_VIDEO_SUBTITLES" ? { translations: request.texts.map(() => '<img src=x onerror="alert(1)">'), cached: 0 } : null);
     toggle().click(); await flush();
     expect(root().querySelector(".translation span")?.textContent).toContain("<img");
     expect(root().querySelector("img")).toBeNull();

@@ -78,6 +78,14 @@ export class SubtitleTranslator {
     return { source: texts.join("\n"), translation: texts.every(text => this.cache.has(text)) ? texts.map(text => this.cache.get(text)!).join("\n") : "" };
   }
 
+  /** Media time, not request completion time, controls long-caption paging. */
+  progress(): number {
+    const active = this.readSentences().filter(cue => cue.start <= this.time && cue.end > this.time).slice(0, 8);
+    if (!active.length) return 0;
+    const start = Math.min(...active.map(cue => cue.start)), end = Math.max(...active.map(cue => cue.end));
+    return Math.max(0, Math.min(1, (this.time - start) / (end - start)));
+  }
+
   retry(): void { this.error = ""; this.update(this.time); }
   dispose(): void { this.disposed = true; this.controller?.abort(); this.cache.clear(); }
 
@@ -94,7 +102,7 @@ export class SubtitleTranslator {
     if (this.disposed || this.busy || this.error) return;
     const cues = this.readSentences();
     const active = cues.filter(cue => cue.start <= this.time && cue.end > this.time);
-    const future = cues.filter(cue => cue.start > this.time && cue.start <= this.time + 15);
+    const future = cues.filter(cue => cue.start > this.time && cue.start <= this.time + 45);
     const texts: string[] = [];
     let size = 0;
     for (const cue of [...active, ...future].slice(0, 128)) {

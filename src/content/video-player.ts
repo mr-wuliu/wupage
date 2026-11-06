@@ -82,8 +82,6 @@ export class PlayerSubtitleController {
       container.style.setProperty("position", "relative");
     }
     this.nativeStyle.dataset.wupageVideoStyle = this.view.id;
-    this.nativeStyle.textContent = `[data-wupage-video-native="${this.view.id}"] { opacity: 0 !important; }
-      video[data-wupage-video-cues="${this.view.id}"]::cue { color: transparent; background-color: transparent; text-shadow: none; }`;
     container.append(this.nativeStyle, this.view.host);
     this.on(container, "pointermove", () => this.showControls());
     this.on(container, "pointerenter", () => this.showControls());
@@ -325,9 +323,12 @@ export class PlayerSubtitleController {
     const value = this.timeline?.current() ?? this.live?.current() ?? { source: "", translation: "" };
     const error = this.sourceError || this.timeline?.error || this.live?.error;
     if (this.advertising() || this.video.seeking || Date.now() < this.suppressUntil) { this.clearCaption(); return; }
-    this.view.render(value.source, value.translation, this.preferences);
-    this.hideNative(!!value.translation);
-    this.renderNativeFullscreen(value.source, value.translation);
+    // Rendered ASR captions have no future timestamps: follow the newest page
+    // rather than replaying the beginning whenever a rolling window grows.
+    const progress = this.timeline?.progress() ?? 1;
+    const shown = this.view.render(value.source, value.translation, this.preferences, progress);
+    this.hideNative(!!shown.translation || !!shown.source);
+    this.renderNativeFullscreen(shown.source, shown.translation);
     if (error) { this.phase = "error"; this.state(`翻译暂不可用：${error}`); }
     else if (!value.source && Date.now() - this.started > 2500 && !this.loadedPageTrack && (!this.timeline || !this.timelineHasCues)) {
       const message = this.timeline ? "原字幕尚未就绪，请先在播放器开启字幕，或选择其他原字幕语言。"
@@ -348,7 +349,8 @@ export class PlayerSubtitleController {
     }
     if (!this.nativeFullscreenTrack) this.nativeFullscreenTrack = this.video.addTextTrack("subtitles", "WuPage 双语", this.settings?.targetLang);
     const track = this.nativeFullscreenTrack;
-    const text = translation ? `${this.preferences.showOriginal && source !== translation ? `${source}\n` : ""}${translation}` : "";
+    const original = this.preferences.showOriginal && source !== translation ? source : "";
+    const text = translation ? (this.preferences.originalPosition === "below" ? [translation, original] : [original, translation]).filter(Boolean).join("\n") : source;
     if (this.nativeFullscreenCue?.text === text && this.nativeFullscreenCue.endTime > this.video.currentTime) return;
     if (this.nativeFullscreenCue) { try { track.removeCue(this.nativeFullscreenCue); } catch { /* Media source replacement clears cues. */ } }
     this.nativeFullscreenCue = undefined;
@@ -359,6 +361,11 @@ export class PlayerSubtitleController {
   }
 
   private hideNative(hide: boolean): void {
+    // Suppression has the same lifetime as a visible replacement. Clearing the
+    // rule also releases detached/rebuilt native layers with leftover markers.
+    const css = hide ? `[data-wupage-video-native="${this.view.id}"] { opacity: 0 !important; }
+      video[data-wupage-video-cues="${this.view.id}"]::cue { color: transparent; background-color: transparent; text-shadow: none; }` : "";
+    if (this.nativeStyle.textContent !== css) this.nativeStyle.textContent = css;
     if (hide && document.fullscreenElement !== this.video) this.video.setAttribute("data-wupage-video-cues", this.view.id);
     else if (this.video.getAttribute("data-wupage-video-cues") === this.view.id) this.video.removeAttribute("data-wupage-video-cues");
     const elements = hide ? captionElements(this.container, this.platform) : [];
@@ -401,6 +408,7 @@ export class PlayerSubtitleController {
   private receiveSettings(settings: ExtensionSettings): void {
     const previous = this.settings;
     this.applySettings(settings);
+    if (this.enabled && !this.preferences.enabled) { this.stop(); return; }
     const signature = (value: ExtensionSettings) => JSON.stringify([value.sourceLang, value.targetLang, value.activeProviderId,
       value.providers.find(provider => provider.id === value.activeProviderId), normalizeVideoTranslation(value.videoTranslation).preferredSource]);
     if (previous && (signature(previous) !== signature(settings) || previous.imageTranslationEnabled !== settings.imageTranslationEnabled)) this.frameTranslation.reset();

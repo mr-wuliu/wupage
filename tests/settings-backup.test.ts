@@ -10,6 +10,8 @@ const now = new Date("2026-11-03T01:02:03.456Z");
 function fixture(): ExtensionSettings {
   const settings = structuredClone(DEFAULT_SETTINGS);
   settings.videoTranslation = { enabled: false, showOriginal: false, fontSize: 26, background: "none", preferredSource: "en", enabledSites: ["youtube.com"],
+    originalPosition: "below", sourceStyle: { fontSize: 18, fontFamily: "serif", fontWeight: 400 },
+    translationStyle: { fontSize: 26, fontFamily: "sans-serif", fontWeight: 700 },
     siteLayouts: [{ id: "www.youtube.com", x: 45, bottom: 20, width: 65, fontSize: 28 }] };
   settings.providers.push({ type: "http-template", id: "custom-http", label: "<b>自定义</b>", method: "POST",
     url: "https://user:password@example.com/Api@proxy?signature=short-secret", headers: { "X-Signature2": "opaque-value", "Content-Type": "application/json" },

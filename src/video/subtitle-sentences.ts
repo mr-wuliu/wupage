@@ -31,7 +31,21 @@ export function subtitleSentences(cues: readonly SubtitleCue[]): SubtitleCue[] {
   const output: SubtitleCue[] = [];
   let current: SubtitleCue | undefined;
   let count = 0;
-  for (const cue of cues) {
+  const segmenter = new Intl.Segmenter(undefined, { granularity: "sentence" });
+  // Some authored tracks put several sentences in a single cue. Its timestamps
+  // only bound the whole cue; distribute those sentences by reading length.
+  const split = (cue: SubtitleCue): SubtitleCue[] => {
+    const text = cue.text.replace(/\s+/gu, " ").trim();
+    const parts = [...segmenter.segment(text)].map(part => part.segment.trim()).filter(Boolean);
+    const total = parts.reduce((sum, part) => sum + part.length, 0);
+    let used = 0;
+    return parts.map((text, index) => {
+      const start = cue.start + (cue.end - cue.start) * used / total;
+      used += text.length;
+      return { start, end: index === parts.length - 1 ? cue.end : cue.start + (cue.end - cue.start) * used / total, text };
+    });
+  };
+  for (const cue of cues.flatMap(split)) {
     const text = cue.text.replace(/\s+/gu, " ").trim();
     if (!text) continue;
     const joined = current ? joinCaption(current.text, text) : text;

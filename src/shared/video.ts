@@ -13,6 +13,25 @@ export interface VideoTranslationSettings {
   preferredSource: string;
   enabledSites: string[];
   siteLayouts?: Array<VideoSubtitleLayout & { id: string }>;
+  originalPosition?: "above" | "below";
+  sourceStyle?: VideoSubtitleStyle;
+  translationStyle?: VideoSubtitleStyle;
+}
+
+export interface VideoSubtitleStyle {
+  fontSize?: number;
+  fontFamily: "sans-serif" | "serif" | "monospace";
+  fontWeight: 400 | 600 | 700;
+}
+
+function normalizeSubtitleStyle(value: unknown): VideoSubtitleStyle {
+  const data = value && typeof value === "object" ? value as Record<string, unknown> : {};
+  return {
+    ...(typeof data.fontSize === "number" && Number.isFinite(data.fontSize)
+      ? { fontSize: Math.max(14, Math.min(48, Math.round(data.fontSize))) } : {}),
+    fontFamily: data.fontFamily === "serif" || data.fontFamily === "monospace" ? data.fontFamily : "sans-serif",
+    fontWeight: data.fontWeight === 400 || data.fontWeight === 700 ? data.fontWeight : 600
+  };
 }
 
 export const DEFAULT_VIDEO_LAYOUT: Readonly<VideoSubtitleLayout> = { x: 50, bottom: 10, width: 90, fontSize: 22 };
@@ -39,7 +58,10 @@ export function normalizeVideoTranslation(value: unknown): VideoTranslationSetti
     background: data.background === "none" ? "none" : "soft",
     preferredSource: typeof data.preferredSource === "string" && /^[\w-]{1,32}$/u.test(data.preferredSource) ? data.preferredSource : "auto",
     enabledSites: Array.isArray(data.enabledSites) ? [...new Set(data.enabledSites.filter((site): site is string => typeof site === "string" && /^[\w.-]{1,200}$/u.test(site)))].slice(0, 100) : [],
-    ...(data.siteLayouts !== undefined ? { siteLayouts: normalizeSiteLayouts(data.siteLayouts) } : {})
+    ...(data.siteLayouts !== undefined ? { siteLayouts: normalizeSiteLayouts(data.siteLayouts) } : {}),
+    ...(data.originalPosition !== undefined ? { originalPosition: data.originalPosition === "below" ? "below" : "above" } : {}),
+    ...(data.sourceStyle !== undefined ? { sourceStyle: normalizeSubtitleStyle(data.sourceStyle) } : {}),
+    ...(data.translationStyle !== undefined ? { translationStyle: normalizeSubtitleStyle(data.translationStyle) } : {})
   };
 }
 

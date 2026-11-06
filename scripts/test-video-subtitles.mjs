@@ -119,10 +119,10 @@ try {
   await view.locator('.original').uncheck();
   await page.waitForFunction(() => document.querySelector('[data-wupage-video]').shadowRoot.querySelector('.source span').textContent === '');
   assert.equal(requests.length, 1, 'changing appearance must reuse text'); await view.locator('.original').check();
-  await view.locator('details').evaluate(details => { details.open = true; });
+  await view.locator('details').filter({ hasText: '更多选项' }).evaluate(details => { details.open = true; });
   const [cancelledImport] = await Promise.all([page.waitForEvent('filechooser'), view.locator('.import').click()]);
   await cancelledImport.setFiles([]);
-  await view.locator('details').evaluate(details => { details.open = false; });
+  await view.locator('details').filter({ hasText: '更多选项' }).evaluate(details => { details.open = false; });
   checks.push('subtitle import button opens its file picker');
   const beforeLayout = await view.locator('.captions').boundingBox();
   const unexpectedPicker = page.waitForEvent('filechooser', { timeout: 500 }).then(async chooser => {
@@ -202,7 +202,7 @@ try {
   await page.screenshot({path:path.join(output,'page-fullscreen.png')});
   await view.locator('.close').click(); await page.evaluate(() => document.exitFullscreen());
   checks.push('whole-page fullscreen with zero-height HTML; hover controls remain clickable');
-  await view.locator('.settings').evaluate(button => button.click()); await view.locator('details').evaluate(details => { details.open = true; });
+  await view.locator('.settings').evaluate(button => button.click()); await view.locator('details').filter({ hasText: '更多选项' }).evaluate(details => { details.open = true; });
   await view.locator('input[type=file]').setInputFiles({ name: 'sample.srt', mimeType: 'text/plain', buffer: Buffer.from('1\n00:00:00,000 --> 00:00:04,000\n<i>Imported subtitles.</i>') });
   await translated.filter({ hasText: '导入的字幕。' }).waitFor(); checks.push('SRT import starts immediately');
   await view.locator('.settings').evaluate(button => button.click());

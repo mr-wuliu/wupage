@@ -57,12 +57,12 @@ describe("subtitle translation scheduling", () => {
     const translate = vi.fn(async (texts: string[]) => texts.map(text => `译:${text}`));
     const session = new SubtitleTranslator(() => cues, translate, vi.fn());
     session.update(0); await flush();
-    expect(translate.mock.calls.map(call => call[0])).toEqual([["Hello"]]);
+    expect(translate.mock.calls.map(call => call[0])).toEqual([["Hello", "Later"]]);
     expect(session.current()).toEqual({ source: "Hello", translation: "译:Hello" });
     session.update(3); expect(session.current().source).toBe("");
     session.update(20); await flush();
     expect(session.current().translation).toBe("译:Later");
-    session.update(0); await flush(); expect(translate).toHaveBeenCalledTimes(2);
+    session.update(0); await flush(); expect(translate).toHaveBeenCalledTimes(1);
   });
   it("does not display a late response for the cue before a seek", async () => {
     let finish!: (texts: string[]) => void;
@@ -85,7 +85,7 @@ describe("subtitle translation scheduling", () => {
     expect(session.current().translation).toBe("");
   });
   it("does not retry failures on every playback tick and supports explicit retry", async () => {
-    const translate = vi.fn().mockRejectedValueOnce(new Error("Quota exceeded")).mockResolvedValueOnce(["你好"]);
+    const translate = vi.fn().mockRejectedValueOnce(new Error("Quota exceeded")).mockResolvedValueOnce(["你好", "稍后"]);
     const session = new SubtitleTranslator(() => cues, translate, vi.fn());
     session.update(0); await flush();
     for (let i = 0; i < 20; i++) session.update(1);

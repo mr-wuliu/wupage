@@ -4,6 +4,7 @@ import { normalizeVideoTranslation, type VideoSubtitleLayout, type VideoTranslat
 import { VideoLayoutEditor, VIDEO_LAYOUT_STYLES } from "./video-layout";
 import { uiIconMarkup } from "../shared/ui-icons";
 import { setHtmlContent } from "../shared/html";
+import { SubtitlePresentation } from "./subtitle-presentation";
 
 let nextView = 0;
 const NOTICE_DURATION_MS = 5000;
@@ -32,7 +33,12 @@ const styles = `
   .settings { display: grid; place-items: center; border-left: 1px solid #ffffff1c !important; border-radius: 0 8px 8px 0; } .settings svg { width: 15px; height: 15px; }
   button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid #a9ead3; outline-offset: 2px; }
   .captions,.layout-preview { position: absolute; left: 50%; bottom: max(10%, 46px); transform: translateX(-50%); width: 90%; text-align: center; color: #fff; font: 600 clamp(14px,3cqw,var(--wp-video-font,22px))/1.4 system-ui,sans-serif; text-shadow: 0 1px 3px #000,0 0 2px #000; }
-  .source,.translation { white-space: pre-line; overflow-wrap: anywhere; } .source { font-size: .78em; font-weight: 500; margin-bottom: 5px; color: #f1f4f3; }
+  .captions,.layout-preview { display: flex; flex-direction: column; gap: 5px; }
+  :host([data-original-below]) .source { order: 1; }
+  .source,.translation { white-space: pre-line; overflow-wrap: anywhere; line-height: 1.4; }
+  .source { font-size: min(var(--wp-source-size,.78em),var(--wp-caption-font-cap,48px)); font-family: var(--wp-source-family,system-ui,sans-serif); font-weight: var(--wp-source-weight,500); color: #f1f4f3; }
+  .translation { font-size: min(var(--wp-translation-size,1em),var(--wp-caption-font-cap,48px)); font-family: var(--wp-translation-family,system-ui,sans-serif); font-weight: var(--wp-translation-weight,600); }
+  .captions > .source,.captions > .translation { max-height: calc(var(--wp-caption-lines,2) * 1.4em); overflow: hidden; padding: 3px 0; box-sizing: content-box; }
   .source span,.translation span { background: var(--wp-video-bg,#101718bf); box-decoration-break: clone; -webkit-box-decoration-break: clone; padding: 3px 8px; border-radius: 4px; }
   .source:has(span:empty),.translation:has(span:empty) { display: none; }
   .panel { position: fixed; inset: auto; left: var(--wp-panel-left,12px); top: var(--wp-panel-top,60px); margin: 0; width: min(304px,calc(100vw - 24px)); max-height: calc(100vh - 24px); overflow: auto; padding: 16px; border: 1px solid #ffffff26; border-radius: 12px; color: #f3f6f5; background: #172024f7; box-shadow: 0 12px 40px #0006; font: 13px/1.5 system-ui,sans-serif; pointer-events: auto; }
@@ -87,6 +93,7 @@ export class VideoView {
   private readonly notice: HTMLElement;
   private readonly retry: HTMLButtonElement;
   private readonly layoutEditor: VideoLayoutEditor;
+  private readonly presentation: SubtitlePresentation;
   private noticeTimer?: ReturnType<typeof setTimeout>;
   private frameStatusTimer?: ReturnType<typeof setTimeout>;
   private hasTranslation = false;
@@ -110,6 +117,15 @@ export class VideoView {
         <label class="field">翻译服务<select class="provider" aria-label="字幕翻译服务"></select></label>
         <label class="field">原字幕<select class="track" aria-label="原字幕语言"><option value="auto">跟随播放器</option></select></label>
         <label class="check"><input class="original" type="checkbox" checked>显示原文</label>
+        <details><summary>字幕外观</summary>
+          <label class="field">排列<select class="order" aria-label="原文与译文顺序"><option value="above">原文在上</option><option value="below">译文在上</option></select></label>
+          ${[ ["source", "原文"], ["translation", "译文"] ].map(([key, label]) => `<div class="row">
+            <label class="field">${label}字号<select class="${key}-size" aria-label="${label}字号"><option value="auto">跟随整体字号</option>${[14,18,22,26,32,40,48].map(size => `<option value="${size}">${size}px</option>`).join("")}</select></label>
+            <label class="field">${label}字体<select class="${key}-family" aria-label="${label}字体"><option value="sans-serif">黑体</option><option value="serif">宋体</option><option value="monospace">等宽</option></select></label>
+            <label class="field">${label}字重<select class="${key}-weight" aria-label="${label}字重"><option value="400">常规</option><option value="600">中粗</option><option value="700">粗体</option></select></label>
+          </div>`).join("")}
+          <p class="help">长字幕随播放进度分屏，每种语言最多两行；字号随播放器尺寸自动适配。</p>
+        </details>
         <label class="check"><input class="automatic" type="checkbox">在此网站自动开启</label>
         <button class="layout-open panel-action" type="button">${uiIconMarkup("cursor-move")} 调整字幕布局</button>
         <p class="status" role="status"></p><button class="retry" type="button" hidden>重试读取</button>
@@ -128,6 +144,7 @@ export class VideoView {
     this.controlsHost.setAttribute("data-docked", ""); this.controlsHost.setAttribute("translate", "no");
     setHtmlContent(this.controlsRoot, `<style>${styles}</style>`);
     this.source = query(".source span"); this.translation = query(".translation span"); this.status = query(".status"); this.notice = query(".notice"); this.retry = query(".retry");
+    this.presentation = new SubtitlePresentation(this.host, this.caption);
     this.layoutEditor = new VideoLayoutEditor(this.host, this.caption, actions.layout, () => {
       this.setControls(true); this.settingsButton.focus();
     });
@@ -149,6 +166,14 @@ export class VideoView {
       else actions.preferences({ fontSize: Number(font.value) as 18 | 22 | 26 });
     });
     const original = query<HTMLInputElement>(".original"); this.on(original, "change", () => actions.preferences({ showOriginal: original.checked }));
+    const order = query<HTMLSelectElement>(".order"); this.on(order, "change", () => actions.preferences({ originalPosition: order.value as "above" | "below" }));
+    for (const key of ["source", "translation"] as const) {
+      const size = query<HTMLSelectElement>(`.${key}-size`), family = query<HTMLSelectElement>(`.${key}-family`), weight = query<HTMLSelectElement>(`.${key}-weight`);
+      const update = () => actions.preferences({ [key === "source" ? "sourceStyle" : "translationStyle"]: {
+        ...(size.value !== "auto" ? { fontSize: Number(size.value) } : {}), fontFamily: family.value, fontWeight: Number(weight.value)
+      } });
+      for (const control of [size, family, weight]) this.on(control, "change", update);
+    }
     const background = query<HTMLSelectElement>(".background"); this.on(background, "change", () => actions.preferences({ background: background.value as "soft" | "none" }));
     const automatic = query<HTMLInputElement>(".automatic"); this.on(automatic, "change", () => actions.preferences({ enabledSites: automatic.checked ? [label] : [] }));
     const file = query<HTMLInputElement>(".file"); this.on(query(".import"), "click", () => file.click());
@@ -295,6 +320,19 @@ export class VideoView {
     this.root.querySelector<HTMLInputElement>(".automatic")!.checked = preferences.enabledSites.includes(site);
     this.host.style.setProperty("--wp-video-font", `${preferences.fontSize}px`);
     this.host.style.setProperty("--wp-video-bg", preferences.background === "soft" ? "#101718bf" : "transparent");
+    this.host.toggleAttribute("data-original-below", preferences.originalPosition === "below");
+    for (const key of ["source", "translation"] as const) {
+      const style = preferences[key === "source" ? "sourceStyle" : "translationStyle"];
+      const size = this.root.querySelector<HTMLSelectElement>(`.${key}-size`)!;
+      if (style?.fontSize && ![...size.options].some(option => option.value === String(style.fontSize))) size.add(new Option(`${style.fontSize}px`, String(style.fontSize)));
+      size.value = style?.fontSize ? String(style.fontSize) : "auto";
+      this.root.querySelector<HTMLSelectElement>(`.${key}-family`)!.value = style?.fontFamily ?? "sans-serif";
+      this.root.querySelector<HTMLSelectElement>(`.${key}-weight`)!.value = String(style?.fontWeight ?? (key === "source" ? 400 : 600));
+      for (const [name, value] of [["size", style?.fontSize ? `${style.fontSize}px` : ""], ["family", style?.fontFamily ?? ""], ["weight", style ? String(style.fontWeight) : ""]]) {
+        if (value) this.host.style.setProperty(`--wp-${key}-${name}`, value);
+        else this.host.style.removeProperty(`--wp-${key}-${name}`);
+      }
+    }
   }
 
   tracks(tracks: Array<{ id: string; label: string }>, selected = "auto"): void {
@@ -303,16 +341,21 @@ export class VideoView {
     select.value = [...select.options].some(option => option.value === selected) ? selected : "auto";
   }
 
-  render(source: string, translation: string, preferences: VideoTranslationSettings): void {
+  render(source: string, translation: string, preferences: VideoTranslationSettings, progress = 0): { source: string; translation: string } {
     this.showOriginal = preferences.showOriginal;
     if (translation) this.hasTranslation = true;
     this.updateMark();
-    const shownSource = preferences.showOriginal && source !== translation ? source : "";
+    // Keep current speech readable while a provider is slow. Never freeze the
+    // previous translated page just because the next result has not arrived.
+    const page = this.presentation.current((preferences.showOriginal || !translation) && source !== translation ? source : "", translation, progress);
+    const shownSource = page.source;
+    translation = page.translation;
     const changed = this.source.textContent !== shownSource || this.translation.textContent !== translation;
     this.setText(this.source, shownSource);
     this.setText(this.translation, translation);
-    this.caption.hidden = !translation;
+    this.caption.hidden = !translation && !shownSource;
     if (changed) this.layoutEditor.refresh();
+    return page;
   }
 
   private updateMark(): void {

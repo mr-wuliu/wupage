@@ -48,6 +48,7 @@ function accumulatedCaption(previous: string, next: string): string {
 export class LiveSubtitleTranslator {
   private cache = new Map<string, string>();
   private text = "";
+  private visibleText = "";
   private shown?: { source: string; translation: string };
   private carryUntil = 0;
   private timer?: ReturnType<typeof setTimeout>;
@@ -64,12 +65,14 @@ export class LiveSubtitleTranslator {
   constructor(private translate: (texts: string[], signal?: AbortSignal) => Promise<string[]>, private changed: () => void) {}
   current(): { source: string; translation: string } {
     if (this.shown && (this.shown.source === this.text || Date.now() < this.carryUntil)) return this.shown;
-    return { source: this.text, translation: "" };
+    return { source: this.visibleText, translation: "" };
   }
 
   update(value: string): void {
     value = value.replace(/\s+/gu, " ").trim();
-    if (this.disposed || value === this.text) return;
+    if (this.disposed) return;
+    this.visibleText = value;
+    if (value === this.text) return;
     const previous = this.text, now = Date.now();
     // A rendered ASR window can drop its first words before translation returns.
     // Retain verified overlap so later requests still contain the whole thought.
@@ -96,7 +99,7 @@ export class LiveSubtitleTranslator {
 
   reset(): void {
     this.controller?.abort(); clearTimeout(this.timer); clearTimeout(this.emptyTimer);
-    this.revision++; this.text = ""; this.shown = undefined; this.carryUntil = 0; this.stableAt = 0; this.changed();
+    this.revision++; this.text = ""; this.visibleText = ""; this.shown = undefined; this.carryUntil = 0; this.stableAt = 0; this.changed();
   }
   retry(): void { this.error = ""; void this.pump(); }
   dispose(): void {
