@@ -57,12 +57,15 @@ try {
   const inspect = () => browser.evaluate(`const props=['fontSize','fontFamily','fontWeight','fontStyle','lineHeight','letterSpacing','wordSpacing','textTransform'];
     return [...document.querySelectorAll('[data-typography]')].map(source=>{
       const id=source.getAttribute('data-wupage-target-id');
-      const output=source.querySelector('.wupage-translation')||[...document.querySelectorAll('.wupage-translation')].find(e=>id&&e.getAttribute('data-wupage-translation-target')===id);
+      const original=(window.wrappedJSObject||window).typographyOriginal?.find(entry=>entry.e===source);
+      const inline=${JSON.stringify(settings.translationDisplayMode)}==='replace'&&original&&original.nodes.length>0
+        &&source.innerHTML!==original.html&&original.nodes.every(node=>node.isConnected);
+      const output=source.querySelector('.wupage-translation')||[...document.querySelectorAll('.wupage-translation')].find(e=>id&&e.getAttribute('data-wupage-translation-target')===id)||(inline?source:null);
       const read=e=>Object.fromEntries(props.map(p=>[p,getComputedStyle(e)[p]]));
       const anchor=source.querySelector('a.anchor');
       return {id:source.id,source:read(source),output:output&&read(output),text:output?.textContent,
-        contained:output&&source.contains(output),mode:output?.dataset.wupageDisplayMode,
-        anchorBeforeResult:!anchor||!output||output.dataset.wupageDisplayMode==='replace'||anchor.getBoundingClientRect().bottom<=output.getBoundingClientRect().top+1};});`);
+        contained:output&&source.contains(output),mode:output===source?'replace':output?.dataset.wupageDisplayMode,
+        anchorBeforeResult:!anchor||!output||output===source||output.dataset.wupageDisplayMode==='replace'||anchor.getBoundingClientRect().bottom<=output.getBoundingClientRect().top+1};});`);
   for (const live of process.argv.includes('--live') ? [false, true] : [false]) {
     for (const mode of baseline ? ['bilingual'] : ['bilingual', 'bilingual-accent', 'replace']) {
       settings.translationDisplayMode = mode; await runtime({ type: 'SAVE_SETTINGS', settings });
