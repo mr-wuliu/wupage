@@ -63,7 +63,8 @@ try{
   const url=new URL(route.request().url());const site=sites.find(site=>new URL(site.url).hostname===url.hostname);
   if(url.pathname==='/api/timedtext'){
    const timeline=youtubeFragments?[{start:0,end:.3,text:'This tool'},{start:.3,end:.6,text:'can save'},{start:.6,end:.9,text:'you time.'}]:cues;
-   return route.fulfill({contentType:'application/json',body:youtubeEmpty?'':JSON.stringify({events:timeline.map(cue=>({tStartMs:cue.start*1000,dDurationMs:(cue.end-cue.start)*1000,segs:[{utf8:cue.text}]}))})});
+   return route.fulfill({contentType:'application/json',body:youtubeEmpty?'':JSON.stringify({events:timeline.map(cue=>({tStartMs:cue.start*1000,dDurationMs:(cue.end-cue.start)*1000,
+    segs:youtubeFragments?cue.text.split(' ').map((word,index)=>({utf8:(index?' ':'')+word,tOffsetMs:index?240:0})):[{utf8:cue.text}]}))})});
   }
   if(url.pathname==='/x/v2/subtitle/web/view')return route.fulfill({contentType:'application/octet-stream',body:biliMetadata,headers:{'Access-Control-Allow-Origin':'https://www.bilibili.com','Access-Control-Allow-Credentials':'true'}});
   if(url.hostname==='aisubtitle.hdslb.com')return route.fulfill({contentType:'application/json',body:JSON.stringify({body:cues.map(cue=>({from:cue.start,to:cue.end,content:cue.text}))}),headers:{'Access-Control-Allow-Origin':'*','Access-Control-Allow-Credentials':'true'}});
@@ -115,6 +116,30 @@ try{
    await view.locator('.source span').filter({hasText:'This tool can save you time.'}).waitFor();
    await view.locator('.translation span').filter({hasText:'这个工具能为你节省时间。'}).waitFor();
    await page.screenshot({path:path.join(output,'youtube-sentence-fixture.png')});
+   const beforeLayoutChange=calls.length;
+   await view.locator('.settings').evaluate(button=>button.click());
+   await view.locator('details').filter({hasText:'字幕外观'}).evaluate(details=>{details.open=true;});
+   await view.locator('.display-mode').selectOption('western');
+   await page.waitForFunction(()=>document.querySelector('[data-wupage-video]').hasAttribute('data-western-subtitles'));
+   await view.locator('.close').click();
+   let timedFirstWordX;
+   for(const [time,text] of [[.1,'This'],[.23,'This'],[.25,'This tool'],[.31,'This tool can'],[.55,'This tool can save'],[.61,'This tool can save you'],[.85,'This tool can save you time.'],[.1,'This']]){
+    await page.evaluate(time=>{document.querySelector('video').currentTime=time;},time);
+    await page.waitForFunction(text=>document.querySelector('[data-wupage-video]').shadowRoot.querySelector('.source span').textContent===text,text);
+    assert.equal(await view.locator('.captions .translation span').textContent(),'这个工具能为你节省时间。');
+    const x=await view.locator('.captions .source span').evaluate(span=>{const range=document.createRange();range.setStart(span.firstChild,0);range.setEnd(span.firstChild,4);return range.getBoundingClientRect().x;});
+    timedFirstWordX??=x;assert.ok(Math.abs(x-timedFirstWordX)<.5,'timed words retain their left origin');
+   }
+   await page.waitForTimeout(450);
+   assert.equal(await view.locator('.captions .source span').textContent(),'This','pause must not advance the original');
+   assert.equal(await view.locator('.captions .translation').evaluate(element=>getComputedStyle(element).textAlign),'left');
+   await page.screenshot({path:path.join(output,'youtube-western-word-timing.png')});
+   await view.locator('.settings').evaluate(button=>button.click());
+   await view.locator('.display-mode').selectOption('chinese');
+   await page.waitForFunction(()=>document.querySelector('[data-wupage-video]').shadowRoot.querySelector('.source span').textContent==='This tool can save you time.');
+   await view.locator('.close').click();
+   assert.equal(calls.length,beforeLayoutChange,'layout switches, word updates and seeks reuse the sentence translation');
+   checks.push('youtube: original follows real word offsets; both languages left align; pause, backward seek and Chinese layout reuse the full translation');
    await page.evaluate(()=>{document.querySelector('video').currentTime=1.1;});
    await page.waitForFunction(()=>document.querySelector('[data-wupage-video]').shadowRoot.querySelector('.translation span').textContent==='');
    await view.locator('.toggle').evaluate(button=>button.click());
@@ -129,6 +154,26 @@ try{
    assert.ok(calls.length>fallbackStart,'empty timedtext must fall back to rendered captions');
    await page.evaluate(()=>{document.querySelector('video').currentTime=2.3;});
    await view.locator('.translation span').filter({hasText:translated[2]}).waitFor();
+   await view.locator('.toggle').evaluate(button=>button.click());
+   await view.locator('.settings').evaluate(button=>button.click());
+   await view.locator('details').filter({hasText:'字幕外观'}).evaluate(details=>{details.open=true;});
+   await view.locator('.display-mode').selectOption('western');
+   await page.waitForFunction(()=>getComputedStyle(document.querySelector('[data-wupage-video]').shadowRoot.querySelector('.source')).textAlign==='left');
+   await view.locator('.close').click();
+   await page.evaluate(()=>{window.captionOverride='This';});
+   await view.locator('.toggle').evaluate(button=>button.click());
+   let firstWordX;
+   for(const text of ['This','This is','This is an ever-lasting','This is an ever-lasting subtitle as video plays']){
+    await page.evaluate(text=>{window.captionOverride=text;},text);
+    await page.waitForFunction(text=>document.querySelector('[data-wupage-video]').shadowRoot.querySelector('.source span').textContent===text,text);
+    const x=await view.locator('.captions .source span').evaluate(span=>{
+     const range=document.createRange();range.setStart(span.firstChild,0);range.setEnd(span.firstChild,4);return range.getBoundingClientRect().x;
+    });
+    firstWordX??=x;assert.ok(Math.abs(x-firstWordX)<.5,'appending ASR words must keep the first word at the same horizontal position');
+   }
+   assert.equal(await view.locator('.captions .translation').evaluate(element=>getComputedStyle(element).textAlign),'left');
+   await page.screenshot({path:path.join(output,'youtube-left-aligned-asr.png')});
+   checks.push('youtube: growing ASR keeps the first word fixed with both languages left aligned');
    await view.locator('.toggle').evaluate(button=>button.click());
    translationDelay=700;
    await page.evaluate(()=>{

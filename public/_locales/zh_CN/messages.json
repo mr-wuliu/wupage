@@ -2119,6 +2119,18 @@
   "subtitleAppearance": {
     "message": "字幕外观"
   },
+  "subtitleDisplayMode": {
+    "message": "字幕版式"
+  },
+  "subtitleChineseLayout": {
+    "message": "中文版式"
+  },
+  "subtitleWesternLayout": {
+    "message": "西文版式"
+  },
+  "subtitleLayoutHelp": {
+    "message": "中文版式居中显示语句；西文版式双语左对齐，原文逐词出现。缺少词级时间时按字幕区间估算。"
+  },
   "order": {
     "message": "排列"
   },

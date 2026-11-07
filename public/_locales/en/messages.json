@@ -2119,6 +2119,18 @@
   "subtitleAppearance": {
     "message": "Subtitle appearance"
   },
+  "subtitleDisplayMode": {
+    "message": "Subtitle layout"
+  },
+  "subtitleChineseLayout": {
+    "message": "Chinese layout"
+  },
+  "subtitleWesternLayout": {
+    "message": "Western layout"
+  },
+  "subtitleLayoutHelp": {
+    "message": "Chinese: centered sentences. Western: both languages left aligned, with the original appearing word by word. Word timing is estimated when unavailable."
+  },
   "order": {
     "message": "Order"
   },

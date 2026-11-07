@@ -1,4 +1,5 @@
 import { t } from "../shared/i18n";
+import { hasExtensionContext } from "../shared/extension-context";
 import { VideoView } from "./video-view";
 import { VideoRequests } from "./video-requests";
 import { PlayerFrameTranslation } from "./video-frame";
@@ -11,7 +12,7 @@ import { normalizeVideoTranslation, sameVideoLanguage, type VideoSubtitleLayout,
 import { loadPageSubtitles, pageSubtitleCatalogue } from "../video/bridge-client";
 import { captionElements, mediaKey, renderedCaption, selectedNativeTrack, type VideoPlatform } from "../video/platforms";
 import type { PageSubtitleCatalogue } from "../video/site-cues";
-import { MAX_SUBTITLE_FILE_BYTES, parseSubtitles, SubtitleTranslator, subtitleText, type SubtitleCue } from "../video/subtitles";
+import { MAX_SUBTITLE_FILE_BYTES, parseSubtitles, SubtitleTranslator, subtitleCue, type SubtitleCue } from "../video/subtitles";
 import { LiveSubtitleTranslator } from "../video/live-subtitles";
 import { playerControlDock, playerControlObstacles, playerControlScope, playerControlsVisible, playerContains, type PlayerControlDock } from "../video/player-controls";
 
@@ -106,7 +107,7 @@ export class PlayerSubtitleController {
       if (this.enabled && target.closest("[class*='subtitle'],[class*='caption']")) this.lastCatalogue = 0;
     });
     chrome.storage?.onChanged?.addListener(this.settingsChanged);
-    this.cleanups.push(() => chrome.storage?.onChanged?.removeListener?.(this.settingsChanged));
+    this.cleanups.push(() => { if (hasExtensionContext()) chrome.storage?.onChanged?.removeListener?.(this.settingsChanged); });
     const resize = typeof ResizeObserver !== "undefined" ? new ResizeObserver(() => { this.controlsScanned = false; this.position(); }) : undefined;
     resize?.observe(video); resize?.observe(container); this.cleanups.push(() => resize?.disconnect());
     const controls = new MutationObserver(records => {
@@ -139,7 +140,14 @@ export class PlayerSubtitleController {
   open(): void { this.showControls(); if (!this.enabled) void this.start(); else this.view.setPanel(true); }
 
   private on(target: EventTarget, type: string, callback: EventListener, capture = false): void {
-    target.addEventListener(type, callback, capture); this.cleanups.push(() => target.removeEventListener(type, callback, capture));
+    const listener: EventListener = event => { if (this.activeContext()) callback(event); };
+    target.addEventListener(type, listener, capture); this.cleanups.push(() => target.removeEventListener(type, listener, capture));
+  }
+
+  private activeContext(): boolean {
+    if (this.disposed) return false;
+    if (!hasExtensionContext()) { this.dispose(); return false; }
+    return true;
   }
 
   private showControls(): void {
@@ -149,7 +157,7 @@ export class PlayerSubtitleController {
   }
 
   async start(): Promise<void> {
-    if (this.disposed || !this.video.isConnected) return;
+    if (!this.activeContext() || !this.video.isConnected) return;
     this.clearSession(false); this.enabled = true; this.phase = "loading"; this.started = Date.now();
     const epoch = ++this.epoch;
     const controller = new AbortController(); this.controller = controller;
@@ -202,8 +210,8 @@ export class PlayerSubtitleController {
       const current = track.cues;
       if (current !== list || (current?.length ?? 0) !== length) {
         list = current; length = current?.length ?? 0;
-        cues = current ? Array.from(current).slice(0, 20_000).map(cue => ({ start: cue.startTime, end: cue.endTime,
-          text: subtitleText("text" in cue ? String(cue.text) : "") })).filter(cue => cue.text && cue.text.length <= 4000) : [];
+        cues = current ? Array.from(current).slice(0, 20_000).map(cue => subtitleCue(cue.startTime, cue.endTime,
+          "text" in cue ? String(cue.text) : "")).filter(cue => cue.text && cue.text.length <= 4000) : [];
       }
       return cues;
     }, track.language || this.settings!.sourceLang);
@@ -285,7 +293,7 @@ export class PlayerSubtitleController {
   private advertising(): boolean { return this.platform?.id === "youtube" && this.container.classList.contains("ad-showing"); }
 
   private tick(): void {
-    if (!this.enabled || this.disposed) return;
+    if (!this.activeContext() || !this.enabled) return;
     if (!this.connected) { this.dispose(true); return; }
     // The clock fires more than eight times a second. A paused video in a
     // background tab cannot change anything a user could see, and the state is
@@ -298,7 +306,9 @@ export class PlayerSubtitleController {
       if (this.source === "auto") {
         const tracks = this.nativeTracks(), current = this.nativeTrack;
         const selected = selectedNativeTrack(this.container, this.platform, tracks);
-        if (selected === current && current?.mode === "disabled") current.mode = "hidden";
+        // Native fullscreen controls can disable the source when our replacement
+        // track becomes visible. Keep reading it without changing its saved mode.
+        if (current?.mode === "disabled" && (selected === current || this.nativeFullscreenTrack?.mode === "showing")) current.mode = "hidden";
         const changed = current && (current.mode === "disabled" || !tracks.includes(current)
           || (current.language || this.settings!.sourceLang) !== this.sourceLanguage
           || (selected && selected !== current)
@@ -321,8 +331,9 @@ export class PlayerSubtitleController {
   }
 
   private paint(): void {
-    if (!this.enabled || this.disposed) return;
-    const value = this.timeline?.current() ?? this.live?.current() ?? { source: "", translation: "" };
+    if (!this.activeContext() || !this.enabled) return;
+    const progressive = this.preferences.displayMode === "western";
+    const value = this.timeline?.current(progressive) ?? this.live?.current(progressive) ?? { source: "", translation: "" };
     const error = this.sourceError || this.timeline?.error || this.live?.error;
     if (this.advertising() || this.video.seeking || Date.now() < this.suppressUntil) { this.clearCaption(); return; }
     // Rendered ASR captions have no future timestamps: follow the newest page
@@ -353,11 +364,17 @@ export class PlayerSubtitleController {
     const track = this.nativeFullscreenTrack;
     const original = this.preferences.showOriginal && source !== translation ? source : "";
     const text = translation ? (this.preferences.originalPosition === "below" ? [translation, original] : [original, translation]).filter(Boolean).join("\n") : source;
-    if (this.nativeFullscreenCue?.text === text && this.nativeFullscreenCue.endTime > this.video.currentTime) return;
+    const align = this.preferences.displayMode === "western" ? "left" : "center";
+    if (this.nativeFullscreenCue?.text === text && this.nativeFullscreenCue.align === align && this.nativeFullscreenCue.endTime > this.video.currentTime) {
+      track.mode = "showing";
+      return;
+    }
     if (this.nativeFullscreenCue) { try { track.removeCue(this.nativeFullscreenCue); } catch { /* Media source replacement clears cues. */ } }
     this.nativeFullscreenCue = undefined;
     if (text) {
       const cue = new VTTCue(Math.max(0, this.video.currentTime - .05), this.video.currentTime + 1, text);
+      cue.align = align; cue.position = align === "left" ? 5 : 50; cue.size = 90;
+      if ("positionAlign" in cue) cue.positionAlign = align === "left" ? "line-left" : "center";
       track.addCue(cue); this.nativeFullscreenCue = cue; track.mode = "showing";
     }
   }
@@ -496,13 +513,19 @@ export class PlayerSubtitleController {
   }
 
   private clearSession(restoreNative = true): void {
+    const fullscreenSource = this.nativeFullscreenTrack?.mode === "showing" ? this.nativeTrack : undefined;
+    if (this.nativeFullscreenTrack) this.nativeFullscreenTrack.mode = "disabled";
     this.nativeTrack = undefined;
     this.sourceError = "";
     this.view.host.dataset.subtitleSource = "none";
     this.controller?.abort(); this.timeline?.dispose(); this.live?.dispose(); this.requests?.cancel();
     this.timeline = undefined; this.timelineHasCues = false; this.live = undefined; this.requests = undefined;
     clearInterval(this.clock); this.clock = undefined; this.catalogueEpoch = 0;
-    for (const entry of this.originalModes) if (entry.track.mode === "hidden") entry.track.mode = entry.mode;
+    // A stop can arrive before the next tick repairs a source disabled by the
+    // native fullscreen controls. Restore that source after hiding our track.
+    for (const entry of this.originalModes) {
+      if (entry.track.mode === "hidden" || (entry.track === fullscreenSource && entry.track.mode === "disabled")) entry.track.mode = entry.mode;
+    }
     this.originalModes = [];
     if (this.nativeToggled && restoreNative) {
       const button = this.container.querySelector<HTMLElement>(".ytp-subtitles-button");
@@ -515,7 +538,10 @@ export class PlayerSubtitleController {
   dispose(preserveTranslation = false): void {
     if (this.disposed) return;
     const resume = preserveTranslation && this.enabled;
-    this.frameTranslation.dispose(); this.stop(); this.disposed = true; clearTimeout(this.controlsTimer);
+    // Teardown must not repaint the idle UI or register another controls timer:
+    // both can still call extension APIs after a reload.
+    this.disposed = true; this.enabled = false; this.epoch++;
+    this.clearSession(); this.frameTranslation.dispose(); clearTimeout(this.controlsTimer);
     this.resumeOnReplacement = resume;
     for (const cleanup of this.cleanups) cleanup(); this.cleanups.length = 0;
     if (this.originalPosition && this.container.style.position === "relative") {

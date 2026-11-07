@@ -25,7 +25,7 @@ const server=createServer(async(request,response)=>{
 await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));const origin='http://127.0.0.1:'+server.address().port;
 let firefox;
 try{
- firefox=await startFirefox(output,path.join(root,'dist-firefox'));
+ firefox=await startFirefox(output,path.join(root,'dist-firefox'),{'full-screen-api.allow-trusted-requests-only':false});
  const first=await firefox.command('WebDriver:GetWindowHandle');const control=first.value??first;
  const select=handle=>firefox.command('WebDriver:SwitchToWindow',{handle});
  const api=async script=>{
@@ -56,12 +56,20 @@ try{
  await wait(translation,text=>text==='跳转到另一个时间。','seek');checks.push('media-time seek');
  await firefox.execute('document.querySelector("[data-wupage-video]").shadowRoot.querySelector(".settings").click();');
  assert.equal(await firefox.execute('return document.querySelector("[data-wupage-video]").shadowRoot.querySelector(".panel").hidden;'),false);
+ await firefox.execute(`const root=document.querySelector('[data-wupage-video]').shadowRoot;
+   const align=root.querySelector('.display-mode');align.value='western';align.dispatchEvent(new Event('change'));
+   root.querySelector('details').open=true;`);
+ await wait(()=>firefox.execute(`return getComputedStyle(document.querySelector('[data-wupage-video]').shadowRoot.querySelector('.captions .source')).textAlign;`),value=>value==='left','source alignment');
+ assert.equal(await firefox.execute(`return getComputedStyle(document.querySelector('[data-wupage-video]').shadowRoot.querySelector('.captions .translation')).textAlign;`),'left');
+ assert.equal(requests.length,1,'alignment reuses the translated text');
+ checks.push('Firefox Western layout left-aligns both languages');
  const shot=await firefox.command('WebDriver:TakeScreenshot',{id:null,highlights:[],full:true});
  await fs.writeFile(path.join(output,'settings.png'),Buffer.from(shot.value,'base64'));
   await firefox.execute(`const root=document.querySelector('[data-wupage-video]').shadowRoot;
     root.querySelector('.layout-open').click();
     const width=root.querySelector('.layout-width');width.value='55';width.dispatchEvent(new Event('input'));
     root.querySelector('.layout-cancel').click();`);
+  assert.equal(await firefox.execute(`return getComputedStyle(document.querySelector('[data-wupage-video]').shadowRoot.querySelector('.layout-preview .source')).textAlign;`),'left');
   assert.equal(await firefox.execute(`return document.querySelector('[data-wupage-video]').shadowRoot.querySelector('.captions').style.width;`),'90%');
   await firefox.execute(`const root=document.querySelector('[data-wupage-video]').shadowRoot;
     root.querySelector('.settings').click();root.querySelector('.layout-open').click();
@@ -77,7 +85,18 @@ try{
   assert.equal(await firefox.execute(`return getComputedStyle(document.querySelector('[data-wupage-video]').shadowRoot.querySelector('.captions')).fontSize;`),'28px');
   await firefox.execute(`document.querySelector('[data-wupage-video]').shadowRoot.querySelector('.settings').click();`);
   checks.push('Firefox layout preview, cancel, range controls, keyboard movement and website layout persistence');
- await firefox.execute('const root=document.querySelector("[data-wupage-video]").shadowRoot;root.querySelector(".close").click();root.querySelector(".toggle").click();');
+ await firefox.execute('document.querySelector("[data-wupage-video]").shadowRoot.querySelector(".close").click();document.querySelector("video").requestFullscreen();');
+ await wait(()=>firefox.execute('return document.fullscreenElement===document.querySelector("video");'),Boolean,'native fullscreen');
+ const nativeCues=()=>firefox.execute(`return [...[...document.querySelector('video').textTracks].find(track=>track.label==='WuPage 双语').cues]
+   .map(cue=>({text:cue.text,align:cue.align,line:cue.line,position:cue.position,size:cue.size}));`);
+ await wait(nativeCues,cues=>cues.length===1,'native fullscreen cue');
+ assert.deepEqual(await nativeCues(),[{text:'Seek\n跳转到另一个时间。',align:'left',line:'auto',position:5,size:90}]);
+ const nativeShot=await firefox.command('WebDriver:TakeScreenshot',{id:null,highlights:[],full:true});
+ await fs.writeFile(path.join(output,'alignment-native-fullscreen.png'),Buffer.from(nativeShot.value,'base64'));
+ await firefox.execute('document.exitFullscreen();');
+ await wait(()=>firefox.execute('return !document.fullscreenElement;'),Boolean,'exit native fullscreen');
+ checks.push('Firefox native fullscreen retains Western layout and progressive original text');
+ await firefox.execute('document.querySelector("[data-wupage-video]").shadowRoot.querySelector(".toggle").click();');
  assert.equal(await firefox.execute('return document.querySelector("video").textTracks[0].mode;'),'showing');checks.push('popover and native subtitle restoration');
  await firefox.command('WebDriver:Navigate',{url:origin+'/embedded'});
  const frame=await firefox.command('WebDriver:FindElement',{using:'css selector',value:'iframe'});

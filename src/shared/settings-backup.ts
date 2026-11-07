@@ -185,6 +185,7 @@ const settingsShape = {
   videoTranslation: optional(object({ enabled: boolean, showOriginal: boolean, fontSize: oneOf(18, 22, 26),
     background: oneOf("soft", "none"), preferredSource: string, enabledSites: strings,
     originalPosition: optional(oneOf("above", "below")),
+    displayMode: optional(oneOf("chinese", "western")),
     sourceStyle: optional(object({ fontSize: optional(number(14, 48)), fontFamily: oneOf("sans-serif", "serif", "monospace"), fontWeight: oneOf(400, 600, 700) })),
     translationStyle: optional(object({ fontSize: optional(number(14, 48)), fontFamily: oneOf("sans-serif", "serif", "monospace"), fontWeight: oneOf(400, 600, 700) })),
     siteLayouts: optional(array(object({ id: string, x: number(2, 98), bottom: number(2, 98), width: number(20, 96), fontSize: number(14, 48) }), 100)) })),

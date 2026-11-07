@@ -52,6 +52,8 @@
     "test:video:youtube-layout": "node scripts/test-youtube-portrait-controls.mjs",
     "test:video:firefox": "node scripts/test-video-firefox.mjs",
     "test:video:performance": "node scripts/test-video-performance.mjs",
+    "test:extension-reload": "node scripts/test-extension-reload.mjs",
+    "test:extension-reload:edge": "node scripts/test-extension-reload.mjs --edge",
     "test:shortcuts": "node scripts/test-shortcuts.mjs",
     "test:local-shortcuts": "node scripts/test-local-shortcuts.mjs",
     "test:local-shortcuts:edge": "node scripts/test-local-shortcuts.mjs --edge",

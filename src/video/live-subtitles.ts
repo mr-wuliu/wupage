@@ -64,8 +64,10 @@ export class LiveSubtitleTranslator {
   error = "";
 
   constructor(private translate: (texts: string[], signal?: AbortSignal) => Promise<string[]>, private changed: () => void) {}
-  current(): { source: string; translation: string } {
-    if (this.shown && (this.shown.source === this.text || Date.now() < this.carryUntil)) return this.shown;
+  current(progressive = false): { source: string; translation: string } {
+    if (this.shown && (this.shown.source === this.text || Date.now() < this.carryUntil)) {
+      return progressive ? { source: this.visibleText, translation: this.shown.translation } : this.shown;
+    }
     return { source: this.visibleText, translation: "" };
   }
 

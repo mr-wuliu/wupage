@@ -37,6 +37,20 @@ beforeEach(() => {
 afterEach(() => { view.dispose(); vi.restoreAllMocks(); document.body.replaceChildren(); });
 
 describe("subtitle layout editing", () => {
+  it("rolls long Western originals while translated pages keep following media time", () => {
+    const preferences = normalizeVideoTranslation({ displayMode: "western" });
+    view.settings({ ...DEFAULT_SETTINGS, videoTranslation: preferences }, "fixture");
+    const source = Array.from({ length: 40 }, (_, index) => `word${index}`).join(" ");
+    const translated = "译文内容".repeat(60);
+    const first = view.render(source, translated, preferences, 0);
+    expect(first.source).toContain("word39");
+    expect(first.source).not.toContain("word0");
+    expect(first.source.split("\n").length).toBeLessThanOrEqual(2);
+    const later = view.render(source, translated, preferences, .9);
+    expect(later.source).toBe(first.source);
+    expect(later.translation).not.toBe(first.translation);
+    expect(view.render("word0 word1", translated, preferences, 0).source).toBe("word0 word1");
+  });
   it("opens layout editing without invoking the file picker and reserves the picker for subtitle import", () => {
     const picker = vi.spyOn(query<HTMLInputElement>(".file"), "click");
     open();

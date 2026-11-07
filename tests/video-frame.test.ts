@@ -26,7 +26,7 @@ const result: TranslateImageResponse = { cached: false, targetLang: "zh-CN", reg
 beforeEach(() => {
   vi.useFakeTimers();
   settings = { ...structuredClone(DEFAULT_SETTINGS), imageTranslationEnabled: true };
-  vi.stubGlobal("chrome", { storage: { onChanged: { addListener: (listener: typeof changed) => { changed = listener; }, removeListener: vi.fn() } } });
+  vi.stubGlobal("chrome", { runtime: { id: "wupage" }, storage: { onChanged: { addListener: (listener: typeof changed) => { changed = listener; }, removeListener: vi.fn() } } });
   document.body.innerHTML = '<div style="position:relative"><video></video></div>';
   video = document.querySelector("video")!; paused = false;
   Object.defineProperty(video, "paused", { configurable: true, get: () => paused });

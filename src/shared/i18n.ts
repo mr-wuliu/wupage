@@ -1,4 +1,5 @@
 import type messages from "../../public/_locales/en/messages.json";
+import { isContextInvalidatedError } from "./extension-context";
 
 export type MessageKey = keyof typeof messages;
 export type InterfaceLanguage = "browser" | "zh-CN" | "en";
@@ -15,9 +16,35 @@ let selectedLanguage: InterfaceLanguage = "browser";
 let catalog: Catalog | undefined;
 let ready: Promise<void> | undefined;
 let runtimeLanguageRequest: Promise<void> | undefined;
+// Keep at most the last result per message, so stale controls can retain their
+// labels during teardown without repeatedly calling an invalid extension API.
+const nativeMessages = new WeakMap<object, Map<MessageKey, { values: string; text: string }>>();
+const invalidatedApis = new WeakSet<object>();
 
 function messageApi() {
   return typeof globalThis.chrome?.i18n?.getMessage === "function" ? globalThis.chrome.i18n : (globalThis as BrowserNamespace).browser?.i18n;
+}
+
+function nativeMessage(key: MessageKey, values: unknown[] = []): string | undefined {
+  const api = messageApi();
+  if (!api) return;
+  const substitutions = values.map(String), signature = JSON.stringify(substitutions);
+  let cached = nativeMessages.get(api);
+  if (!invalidatedApis.has(api)) {
+    try {
+      const text = api.getMessage(key, substitutions.length ? substitutions : undefined);
+      if (text) {
+        if (!cached) { cached = new Map(); nativeMessages.set(api, cached); }
+        cached.set(key, { values: signature, text });
+      }
+      return text;
+    } catch (error) {
+      if (!isContextInvalidatedError(error)) throw error;
+      invalidatedApis.add(api);
+    }
+  }
+  const previous = cached?.get(key);
+  return previous?.values === signature ? previous.text : undefined;
 }
 
 function normalizeLanguage(value: unknown): InterfaceLanguage {
@@ -42,7 +69,7 @@ function loadCatalog(language: Exclude<InterfaceLanguage, "browser">): Promise<C
 
 async function applyLanguage(value: unknown): Promise<void> {
   const language = normalizeLanguage(value);
-  catalog = language === "browser" || language === messageApi()?.getMessage("interfaceLanguage")
+  catalog = language === "browser" || language === nativeMessage("interfaceLanguage")
     ? undefined : await loadCatalog(language);
   selectedLanguage = language;
 }
@@ -108,7 +135,7 @@ function translate(key: MessageKey, values: unknown[]): string | undefined {
       return index === undefined ? "" : String(values[Number(index) - 1] ?? "");
     });
   }
-  return messageApi()?.getMessage(key, values.length ? values.map(String) : undefined);
+  return nativeMessage(key, values);
 }
 
 export function t(key: MessageKey, ...values: unknown[]): string {

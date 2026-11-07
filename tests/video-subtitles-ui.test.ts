@@ -5,6 +5,7 @@ import { VIDEO_PLATFORMS } from "../src/video/platforms";
 import { sendRuntimeRequest } from "../src/content/runtime";
 import { DEFAULT_SETTINGS, SETTINGS_KEY } from "../src/shared/defaults";
 import type { ExtensionSettings } from "../src/shared/types";
+import { normalizeVideoTranslation } from "../src/shared/video";
 
 vi.mock("../src/content/runtime", () => ({ sendRuntimeRequest: vi.fn() }));
 let controller: PlayerSubtitleController;
@@ -17,7 +18,7 @@ const toggle = () => root().querySelector<HTMLButtonElement>(".toggle")!;
 
 beforeEach(() => {
   vi.useFakeTimers();
-  vi.stubGlobal("chrome", { storage: { onChanged: {
+  vi.stubGlobal("chrome", { runtime: { id: "wupage" }, storage: { onChanged: {
     addListener: (listener: typeof settingsListener) => { settingsListener = listener; }, removeListener: vi.fn()
   } } });
   document.body.innerHTML = '<div class="player" style="position:relative"><video></video></div>';
@@ -40,6 +41,27 @@ afterEach(() => {
 });
 
 describe("player subtitle controls", () => {
+  it("stops after an extension reload, restores native captions and releases old listeners", async () => {
+    toggle().click(); await flush();
+    expect(track.mode).toBe("hidden");
+    expect(root().querySelector(".translation span")?.textContent).toBe("你好");
+    Object.defineProperty(chrome.runtime, "id", { value: undefined });
+    const expired = () => { throw new Error("Extension context invalidated."); };
+    Object.assign(chrome, { i18n: { getMessage: vi.fn(expired) } });
+    vi.mocked(chrome.storage.onChanged.removeListener).mockImplementation(expired);
+    await vi.advanceTimersByTimeAsync(120);
+    expect(document.querySelector("[data-wupage-video]")).toBeNull();
+    expect(track.mode).toBe("showing");
+    expect(controller.enabled).toBe(false);
+    expect(chrome.storage.onChanged.removeListener).not.toHaveBeenCalled();
+    const requests = vi.mocked(sendRuntimeRequest).mock.calls.length;
+    video.dispatchEvent(new Event("playing"));
+    video.parentElement!.dispatchEvent(new Event("pointermove"));
+    await vi.advanceTimersByTimeAsync(6000);
+    expect(vi.getTimerCount()).toBe(0);
+    expect(vi.mocked(sendRuntimeRequest).mock.calls).toHaveLength(requests);
+  });
+
   it("follows current source while a translation is stalled and never paints the expired sentence", async () => {
     let finish!: (value: { translations: string[]; cached: number }) => void;
     const runtime = vi.mocked(sendRuntimeRequest).getMockImplementation()!;
@@ -105,14 +127,64 @@ describe("player subtitle controls", () => {
       input.dispatchEvent(new Event("change")); await flush();
     };
     await change(".order", "below");
+    expect(root().querySelector<HTMLSelectElement>(".display-mode")!.value).toBe("chinese");
+    await change(".display-mode", "western");
     await change(".source-size", "18");
     await change(".source-family", "serif");
     await change(".translation-size", "32");
     await change(".translation-weight", "700");
     const saved = vi.mocked(sendRuntimeRequest).mock.calls.map(([request]) => request).filter(request => request.type === "SAVE_SETTINGS").at(-1)!;
-    expect(saved.settings.videoTranslation).toMatchObject({ originalPosition: "below", sourceStyle: { fontSize: 18, fontFamily: "serif" }, translationStyle: { fontSize: 32, fontWeight: 700 } });
+    expect(saved.settings.videoTranslation).toMatchObject({ originalPosition: "below", displayMode: "western", sourceStyle: { fontSize: 18, fontFamily: "serif" }, translationStyle: { fontSize: 32, fontWeight: 700 } });
     expect(document.querySelector("[data-wupage-video]")!.hasAttribute("data-original-below")).toBe(true);
+    expect(document.querySelector("[data-wupage-video]")!.hasAttribute("data-western-subtitles")).toBe(true);
+    await change(".display-mode", "chinese");
+    expect(stored.videoTranslation).toMatchObject({ displayMode: "chinese", sourceStyle: { fontSize: 18 }, translationStyle: { fontSize: 32 } });
+    expect(document.querySelector("[data-wupage-video]")!.hasAttribute("data-western-subtitles")).toBe(false);
     expect(vi.mocked(sendRuntimeRequest).mock.calls.filter(([request]) => request.type === "TRANSLATE_VIDEO_SUBTITLES")).toHaveLength(requests);
+  });
+
+  it("updates native fullscreen layout and row order while paused, and restores cues on reentry", async () => {
+    vi.stubGlobal("VTTCue", class {
+      align = "center"; line: number | string = "auto";
+      constructor(public startTime: number, public endTime: number, public text: string) {}
+    });
+    const native = { mode: "hidden", cues: [] as VTTCue[],
+      addCue(cue: VTTCue) { this.cues.push(cue); },
+      removeCue(cue: VTTCue) { this.cues.splice(this.cues.indexOf(cue), 1); }
+    };
+    vi.spyOn(video, "addTextTrack").mockReturnValue(native as unknown as TextTrack);
+    const before = Object.getOwnPropertyDescriptor(document, "fullscreenElement");
+    const fullscreen = (element: Element | null) => {
+      Object.defineProperty(document, "fullscreenElement", { configurable: true, value: element });
+      document.dispatchEvent(new Event("fullscreenchange"));
+    };
+    const settings = structuredClone(DEFAULT_SETTINGS);
+    settings.videoTranslation = normalizeVideoTranslation(settings.videoTranslation);
+    const update = () => settingsListener({ [SETTINGS_KEY]: { newValue: structuredClone(settings) } }, "local");
+    try {
+      toggle().click(); await flush(); fullscreen(video);
+      expect(native.cues).toMatchObject([{ text: "Hello\n你好", align: "center" }]);
+      track.mode = "disabled";
+      await vi.advanceTimersByTimeAsync(120);
+      expect(track.mode).toBe("hidden");
+      settings.videoTranslation!.displayMode = "western"; update();
+      expect(native.cues).toMatchObject([{ text: "Hello\n你好", align: "left", position: 5, size: 90 }]);
+      settings.videoTranslation!.originalPosition = "below"; update();
+      expect(native.cues).toMatchObject([{ text: "你好\nHello", align: "left" }]);
+      fullscreen(null); expect(native.mode).toBe("disabled");
+      fullscreen(video); expect(native.mode).toBe("showing"); expect(native.cues).toHaveLength(1);
+      settings.videoTranslation!.showOriginal = false; update();
+      expect(native.cues).toMatchObject([{ text: "你好", align: "left" }]);
+      settings.videoTranslation!.displayMode = "chinese"; update();
+      expect(native.cues).toMatchObject([{ text: "你好", align: "center", position: 50 }]);
+      track.mode = "disabled";
+      toggle().click(); expect(native.cues).toHaveLength(0); expect(track.mode).toBe("showing"); expect(native.mode).toBe("disabled");
+      expect(vi.mocked(sendRuntimeRequest).mock.calls.filter(([request]) => request.type === "TRANSLATE_VIDEO_SUBTITLES")).toHaveLength(1);
+    } finally {
+      if (before) Object.defineProperty(document, "fullscreenElement", before);
+      else Reflect.deleteProperty(document, "fullscreenElement");
+      document.dispatchEvent(new Event("fullscreenchange"));
+    }
   });
 
   it("shows the display mode after the first result and keeps it through subtitle gaps", async () => {

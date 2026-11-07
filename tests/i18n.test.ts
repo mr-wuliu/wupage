@@ -10,6 +10,22 @@ import { catalogApi } from "./helpers/browser-i18n";
 describe("extension interface language", () => {
   afterEach(() => vi.unstubAllGlobals());
 
+  it("keeps stale labels readable after reload without retrying invalid APIs or reusing different substitutions", () => {
+    const getMessage = vi.fn(catalogApi(english).getMessage);
+    vi.stubGlobal("chrome", { i18n: { getMessage } });
+    expect(t("retryInS", 7)).toBe("Retry in 7 s");
+    getMessage.mockImplementation(() => { throw new Error("Extension context invalidated."); });
+    expect(t("retryInS", 7)).toBe("Retry in 7 s");
+    expect(t("retryInS", 8)).toBe("__MSG_retryInS__");
+    expect(t("retryInS", 7)).toBe("Retry in 7 s");
+    expect(getMessage).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not hide unrelated localization failures", () => {
+    vi.stubGlobal("chrome", { i18n: { getMessage: () => { throw new Error("Unexpected locale failure"); } } });
+    expect(() => t("retryInS", 7)).toThrow("Unexpected locale failure");
+  });
+
   it("ships the same messages and substitutions for both browser locales", () => {
     expect(Object.keys(chinese).sort()).toEqual(Object.keys(english).sort());
     for (const key of Object.keys(english) as (keyof typeof english)[]) {

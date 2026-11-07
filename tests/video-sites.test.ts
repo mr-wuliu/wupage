@@ -26,7 +26,7 @@ describe("site subtitle data", () => {
       { tStartMs: 1000, dDurationMs: 3000, segs: [{ utf8: "Hello" }] },
       { tStartMs: 1200, dDurationMs: 2500, aAppend: 1, segs: [{ utf8: "world" }] },
       { tStartMs: 3000, dDurationMs: 2000, segs: [{ utf8: "<i>Later</i>" }] }
-    ] })).toEqual([{ start: 1, end: 3, text: "Hello world" }, { start: 3, end: 5, text: "Later" }]);
+    ] })).toMatchObject([{ start: 1, end: 3, text: "Hello world" }, { start: 3, end: 5, text: "Later" }]);
   });
   it("parses Bilibili subtitle JSON with seconds, rejecting invalid cues", () => {
     expect(bilibiliCues({ body: [{ from: 1.2, to: 3.4, content: "你好 &amp; hello" }, { from: -1, to: 2, content: "bad" }] }))
@@ -65,5 +65,12 @@ describe("site subtitle data", () => {
     expect(sameVideoLanguage("zh-Hans", "zh-CN")).toBe(true);
     expect(sameVideoLanguage("zh-TW", "zh-CN")).toBe(false);
     expect(sameVideoLanguage("auto", "en")).toBe(false);
+  });
+  it("defaults to Chinese layout and validates Western layout without changing typography", () => {
+    const style = { fontSize: 18, fontFamily: "serif", fontWeight: 400 };
+    expect(normalizeVideoTranslation({ sourceStyle: style }).sourceStyle).toEqual(style);
+    expect(normalizeVideoTranslation({ sourceStyle: style, displayMode: "western" }))
+      .toMatchObject({ sourceStyle: style, displayMode: "western" });
+    expect(normalizeVideoTranslation({ displayMode: "unknown" }).displayMode).toBe("chinese");
   });
 });

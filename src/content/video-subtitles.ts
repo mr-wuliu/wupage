@@ -6,6 +6,7 @@ import { SETTINGS_KEY } from "../shared/defaults";
 import { createSettingsSnapshot } from "../shared/settings-snapshot";
 import type { ExtensionSettings } from "../shared/types";
 import { initializeInterfaceLanguage } from "../shared/i18n";
+import { hasExtensionContext } from "../shared/extension-context";
 
 let current: VideoSubtitleManager | undefined;
 let feature: { ready: Promise<void> } | undefined;
@@ -16,11 +17,11 @@ export async function initEmbeddedVideoSubtitles(): Promise<void> {
 }
 
 export function initVideoSubtitles(): void {
-  if (feature || typeof location === "undefined" || typeof document === "undefined" || !/^https?:$/u.test(location.protocol) || !document.documentElement) return;
+  if (feature || !hasExtensionContext() || typeof location === "undefined" || typeof document === "undefined" || !/^https?:$/u.test(location.protocol) || !document.documentElement) return;
   const snapshot = createSettingsSnapshot(() => sendRuntimeRequest<ExtensionSettings>({ type: "GET_SETTINGS" }));
   let disposed = false;
   const apply = (settings: ExtensionSettings) => {
-    if (disposed) return;
+    if (disposed || !hasExtensionContext()) return;
     if (!normalizeVideoTranslation(settings?.videoTranslation).enabled) current?.dispose();
     else current ??= new VideoSubtitleManager();
   };
@@ -34,7 +35,7 @@ export function initVideoSubtitles(): void {
   const leave = (event: PageTransitionEvent) => {
     if (event.persisted) return;
     disposed = true;
-    chrome.storage?.onChanged?.removeListener?.(changed);
+    if (hasExtensionContext()) chrome.storage?.onChanged?.removeListener?.(changed);
     window.removeEventListener("pageshow", restored); window.removeEventListener("pagehide", leave);
     current?.dispose(); feature = undefined;
   };
@@ -77,6 +78,7 @@ export class VideoSubtitleManager {
     });
     this.observer.observe(document.documentElement, { childList: true, subtree: true });
     this.timer = setInterval(() => {
+      if (!hasExtensionContext()) { this.dispose(); return; }
       // attachShadow() does not mutate the light DOM. Revisit connected hosts
       // too, even while another player remains mounted on the page.
       if (document.visibilityState !== "hidden") this.refresh();
@@ -95,11 +97,13 @@ export class VideoSubtitleManager {
   }
 
   private schedule(): void {
+    if (this.disposed) return;
     clearTimeout(this.pending); this.pending = setTimeout(() => this.refresh(), 160);
   }
 
   refresh(): void {
     if (this.disposed) return;
+    if (!hasExtensionContext()) { this.dispose(); return; }
     this.observer.disconnect();
     const candidates = queryVideoRoots(document, root => this.observer.observe(root, { childList: true, subtree: true }))
       .map(video => ({ video, rect: video.getBoundingClientRect() }))
@@ -133,6 +137,7 @@ export class VideoSubtitleManager {
   }
 
   private announce(): void {
+    if (!hasExtensionContext()) return;
     const players = [...this.players.values()].filter(player => player.connected);
     if (!players.length && !this.registered) return;
     this.registered = players.length > 0;

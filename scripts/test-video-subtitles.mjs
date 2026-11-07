@@ -116,6 +116,14 @@ try {
   await page.screenshot({ path: path.join(output, 'bilingual.png') });
   await view.locator('.settings').evaluate(button => button.click()); await view.locator('.panel').waitFor();
   await page.screenshot({ path: path.join(output, 'settings.png') });
+  await view.locator('details').filter({ hasText: '字幕外观' }).evaluate(details => { details.open = true; });
+  assert.equal(await view.locator('.display-mode').inputValue(), 'chinese');
+  await view.locator('.display-mode').selectOption('western');
+  await page.waitForFunction(() => getComputedStyle(document.querySelector('[data-wupage-video]').shadowRoot.querySelector('.source')).textAlign === 'left');
+  assert.equal(await view.locator('.captions .translation').evaluate(element => getComputedStyle(element).textAlign), 'left');
+  await page.screenshot({ path: path.join(output, 'alignment-settings.png') });
+  await view.locator('details').filter({ hasText: '字幕外观' }).evaluate(details => { details.open = false; });
+  checks.push('Chinese and Western layout switch without another translation');
   await view.locator('.original').uncheck();
   await page.waitForFunction(() => document.querySelector('[data-wupage-video]').shadowRoot.querySelector('.source span').textContent === '');
   assert.equal(requests.length, 1, 'changing appearance must reuse text'); await view.locator('.original').check();
@@ -129,6 +137,8 @@ try {
     await chooser.setFiles([]); return true;
   }, error => { if (error.name !== 'TimeoutError') throw error; return false; });
   await view.locator('.layout-open').click();
+  assert.equal(await view.locator('.layout-preview .source').evaluate(element => getComputedStyle(element).textAlign), 'left');
+  assert.equal(await view.locator('.layout-preview .translation').evaluate(element => getComputedStyle(element).textAlign), 'left');
   assert.equal(await unexpectedPicker, false, 'layout editing must not open a file picker');
   const setLayoutRange = async (selector, value) => view.locator(selector).evaluate((input, value) => {
     input.value = String(value); input.dispatchEvent(new Event('input', { bubbles: true }));
@@ -189,6 +199,10 @@ try {
   await translated.filter({ hasText: '跳转到另一个时间。' }).waitFor(); await page.evaluate(() => document.exitFullscreen());
   await page.locator('#nativeFullscreen').click();
   await page.waitForFunction(() => [...document.querySelector('video').textTracks].some(track => track.label === 'WuPage 双语' && track.mode === 'showing' && track.cues?.length));
+  const nativeCues = await page.evaluate(() => [...[...document.querySelector('video').textTracks].find(track => track.label === 'WuPage 双语').cues]
+    .map(cue => ({ text: cue.text, align: cue.align, line: cue.line, position: cue.position, size: cue.size })));
+  assert.deepEqual(nativeCues, [{ text: 'Seek\n跳转到另一个时间。', align: 'left', line: 'auto', position: 5, size: 90 }]);
+  await page.screenshot({ path: path.join(output, 'alignment-native-fullscreen.png') });
   await page.evaluate(() => document.exitFullscreen()); checks.push('container and native video fullscreen');
   await page.locator('#pageFullscreen').click();
   await page.waitForFunction(() => document.fullscreenElement === document.documentElement);
@@ -215,7 +229,9 @@ try {
   await translated.filter({ hasText: '重试这条字幕。' }).waitFor(); checks.push('bounded quota failure and manual retry');
   await view.locator('.close').click().catch(() => {});
   await page.setViewportSize({ width: 390, height: 760 }); await view.locator('.settings').evaluate(button => button.click());
+  await view.locator('details').filter({ hasText: '字幕外观' }).evaluate(details => { details.open = true; });
   const bounds = await view.locator('.panel').boundingBox(); assert.ok(bounds.x >= 0 && bounds.x + bounds.width <= 390);
+  assert.equal(await view.locator('.panel').evaluate(panel => panel.scrollWidth <= panel.clientWidth), true, 'alignment controls fit the mobile panel');
   await page.screenshot({ path: path.join(output, 'mobile.png') }); checks.push('responsive settings');
   await view.locator('.layout-open').click();
   const layoutPanel = await view.locator('.layout-panel').boundingBox();
@@ -246,6 +262,7 @@ try {
     return host?.id!==previous&&host?.hasAttribute('data-enabled')&&host?.shadowRoot.querySelector('.translation span').textContent==='你好，世界。';
   }, previousPlayer);
   assert.equal(await view.locator('.captions').evaluate(element => getComputedStyle(element).fontSize), '24px', 'replacement player restores the website layout');
+  assert.equal(await view.locator('.captions .source').evaluate(element => getComputedStyle(element).textAlign), 'left', 'replacement player restores source alignment');
   await view.locator('.toggle').evaluate(button => button.click());
   const stoppedPlayer = await view.getAttribute('id');
   await page.evaluate(() => { const old=document.querySelector('video');old.replaceWith(old.cloneNode(true)); });

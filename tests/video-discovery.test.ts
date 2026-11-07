@@ -12,7 +12,7 @@ let manager: VideoSubtitleManager | undefined;
 let changed: (changes: Record<string, chrome.storage.StorageChange>, area: string) => void;
 beforeEach(() => {
   vi.useFakeTimers();
-  vi.stubGlobal("chrome", { storage: { onChanged: { addListener: (listener: typeof changed) => { changed = listener; }, removeListener: vi.fn() } } });
+  vi.stubGlobal("chrome", { runtime: { id: "wupage" }, storage: { onChanged: { addListener: (listener: typeof changed) => { changed = listener; }, removeListener: vi.fn() } } });
   vi.mocked(sendRuntimeRequest).mockImplementation(async request => request.type === "GET_SETTINGS" ? structuredClone(DEFAULT_SETTINGS) : null);
   vi.mocked(PlayerSubtitleController).mockImplementation(function (video, container) {
     const player = {
@@ -28,6 +28,25 @@ afterEach(() => {
   manager?.dispose(); manager = undefined;
   window.dispatchEvent(new Event("pagehide"));
   document.body.replaceChildren(); vi.useRealTimers(); vi.clearAllMocks(); vi.restoreAllMocks(); vi.unstubAllGlobals();
+});
+
+it("stops discovery after reload, including in hidden tabs, without recreating orphan controls", async () => {
+  vi.spyOn(document, "visibilityState", "get").mockReturnValue("hidden");
+  document.body.innerHTML = '<div><video></video></div>';
+  manager = new VideoSubtitleManager();
+  const player = vi.mocked(PlayerSubtitleController).mock.results[0].value;
+  vi.mocked(sendRuntimeRequest).mockClear();
+  Object.defineProperty(chrome.runtime, "id", { value: undefined });
+  await vi.advanceTimersByTimeAsync(6000);
+  expect(player.dispose).toHaveBeenCalledOnce();
+  document.querySelector("div")!.append(document.createElement("video"));
+  document.dispatchEvent(new Event("playing"));
+  await vi.advanceTimersByTimeAsync(6000);
+  expect(PlayerSubtitleController).toHaveBeenCalledTimes(1);
+  expect(sendRuntimeRequest).not.toHaveBeenCalled();
+  expect(vi.getTimerCount()).toBe(0);
+  initVideoSubtitles();
+  expect(sendRuntimeRequest).not.toHaveBeenCalled();
 });
 
 it("discovers a video inserted into an already mounted open shadow root", async () => {

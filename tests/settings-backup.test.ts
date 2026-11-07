@@ -10,7 +10,7 @@ const now = new Date("2026-11-03T01:02:03.456Z");
 function fixture(): ExtensionSettings {
   const settings = structuredClone(DEFAULT_SETTINGS);
   settings.videoTranslation = { enabled: false, showOriginal: false, fontSize: 26, background: "none", preferredSource: "en", enabledSites: ["youtube.com"],
-    originalPosition: "below", sourceStyle: { fontSize: 18, fontFamily: "serif", fontWeight: 400 },
+    originalPosition: "below", displayMode: "western", sourceStyle: { fontSize: 18, fontFamily: "serif", fontWeight: 400 },
     translationStyle: { fontSize: 26, fontFamily: "sans-serif", fontWeight: 700 },
     siteLayouts: [{ id: "www.youtube.com", x: 45, bottom: 20, width: 65, fontSize: 28 }] };
   settings.providers.push({ type: "http-template", id: "custom-http", label: "<b>自定义</b>", method: "POST",
@@ -76,6 +76,7 @@ describe("settings backup format", () => {
     ["invalid site rule", (b: any) => { b.settings.autoTranslation.customSites[0].pattern = "https://"; return serializeSettingsBackup(b); }],
     ["invalid number", (b: any) => { b.settings.concurrency = 100; return serializeSettingsBackup(b); }],
     ["invalid subtitle layout", (b: any) => { b.settings.videoTranslation.siteLayouts[0].width = 200; return serializeSettingsBackup(b); }],
+    ["invalid subtitle layout mode", (b: any) => { b.settings.videoTranslation.displayMode = "unknown"; return serializeSettingsBackup(b); }],
     ["polluting key", (b: any) => '__proto__.polluted = true\n' + serializeSettingsBackup(b)],
     ["duplicate TOML key", (b: any) => 'kind = "duplicate"\n' + serializeSettingsBackup(b)],
     ["invalid numeric value", (b: any) => serializeSettingsBackup(b).replace(`concurrency = ${b.settings.concurrency}`, 'concurrency = nan')],

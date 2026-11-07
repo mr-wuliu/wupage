@@ -9,7 +9,7 @@ export class SubtitlePresentation {
 
   constructor(private readonly host: HTMLElement, private readonly caption: HTMLElement) {}
 
-  current(source: string, translation: string, progress: number): { source: string; translation: string } {
+  current(source: string, translation: string, progress: number, progressive = false): { source: string; translation: string } {
     const width = this.caption.clientWidth || (parseFloat(this.host.style.getPropertyValue("--wp-layer-width")) || 640)
       * (parseFloat(this.caption.style.width) || 90) / 100;
     const height = parseFloat(this.host.style.getPropertyValue("--wp-layer-height")) || 360;
@@ -20,7 +20,7 @@ export class SubtitlePresentation {
     const textHeight = rows.reduce((sum, style, index) => sum + ((index === 0 ? source : translation) ? (parseFloat(style.fontSize) || 22) * 1.4 : 0), 0);
     const maxLines = Math.max(1, Math.min(2, Math.floor((height * .34 - 17) / (textHeight || 1))));
     if (this.host.style.getPropertyValue("--wp-caption-lines") !== String(maxLines)) this.host.style.setProperty("--wp-caption-lines", String(maxLines));
-    const signature = JSON.stringify([source, translation, width, height, fonts, maxLines]);
+    const signature = JSON.stringify([source, translation, width, height, fonts, maxLines, progressive]);
     if (signature !== this.signature) {
       this.signature = signature;
       const pages = (text: string, index: number) => {
@@ -29,10 +29,12 @@ export class SubtitlePresentation {
         // The fallback is for environments without canvas, including DOM tests.
         const measure = (value: string) => this.context ? this.context.measureText(value).width
           : [...value].reduce((sum, char) => sum + (/[^\u0000-\u00ff]/u.test(char) ? size : size * .6), 0);
-        return subtitlePages(text, Math.max(24, width - 20), measure, maxLines);
+        const pages = subtitlePages(text, Math.max(24, width - 20), measure, progressive && index === 0 ? 1 : maxLines);
+        return progressive && index === 0 ? [pages.slice(-maxLines).join("\n")] : pages;
       };
       this.pages = { source: pages(source, 0), translation: pages(translation, 1) };
     }
-    return subtitlePagePair(this.pages.source, this.pages.translation, progress);
+    return progressive ? { source: this.pages.source[0] ?? "", translation: subtitlePagePair([], this.pages.translation, progress).translation }
+      : subtitlePagePair(this.pages.source, this.pages.translation, progress);
   }
 }

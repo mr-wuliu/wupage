@@ -9,7 +9,7 @@ let manager: VideoSubtitleManager;
 const flush = async () => { for (let index = 0; index < 30; index++) await Promise.resolve(); };
 beforeEach(() => {
   vi.useFakeTimers();
-  vi.stubGlobal('chrome', {storage:{onChanged:{addListener:vi.fn(),removeListener:vi.fn()}}});
+  vi.stubGlobal('chrome', {runtime:{id:'wupage'},storage:{onChanged:{addListener:vi.fn(),removeListener:vi.fn()}}});
   document.body.innerHTML = '<div style="position:relative"><video></video><div class="vjs-text-track-display">First lecture.</div></div>';
   vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, 0, 640, 360));
   vi.spyOn(HTMLElement.prototype, 'getClientRects').mockReturnValue([new DOMRect(0, 0, 640, 360)] as unknown as DOMRectList);

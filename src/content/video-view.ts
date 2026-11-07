@@ -37,6 +37,7 @@ const styles = `
   .captions,.layout-preview { display: flex; flex-direction: column; gap: 5px; }
   :host([data-original-below]) .source { order: 1; }
   .source,.translation { white-space: pre-line; overflow-wrap: anywhere; line-height: 1.4; }
+  :host([data-western-subtitles]) .source,:host([data-western-subtitles]) .translation { text-align: left; }
   .source { font-size: min(var(--wp-source-size,.78em),var(--wp-caption-font-cap,48px)); font-family: var(--wp-source-family,system-ui,sans-serif); font-weight: var(--wp-source-weight,500); color: #f1f4f3; }
   .translation { font-size: min(var(--wp-translation-size,1em),var(--wp-caption-font-cap,48px)); font-family: var(--wp-translation-family,system-ui,sans-serif); font-weight: var(--wp-translation-weight,600); }
   .captions > .source,.captions > .translation { max-height: calc(var(--wp-caption-lines,2) * 1.4em); overflow: hidden; padding: 3px 0; box-sizing: content-box; }
@@ -48,6 +49,7 @@ const styles = `
   .field { display: grid; gap: 5px; margin: 12px 0; color: #bacac5; font-size: 12px; }
   select { width: 100%; min-width: 0; height: 33px; color: #f3f6f5; background: #233135; border: 1px solid #50615e; border-radius: 6px; padding: 5px 8px; font-size: 13px; }
   .row { display: flex; gap: 12px; } .row > .field { flex: 1; min-width: 0; margin: 0; }
+  .row + .row { margin-top: 10px; }
   .check { display: flex; align-items: center; gap: 8px; margin: 12px 0; font-size: 12px; } input[type=checkbox] { accent-color: #a9ead3; margin: 0; width: 14px; height: 14px; }
   .status { color: #bcd0c8; font-size: 12px; margin: 12px 0 0; overflow-wrap: anywhere; } :host([data-error]) .status { color: #ffcfaa; }
   .help { margin: 5px 0 0; color: #93a6a0; font-size: 11px; }
@@ -116,11 +118,15 @@ export class VideoView {
       <section class="panel" popover="manual" aria-label="${htmlMessage("subtitleSettings")}" hidden>
         <header><h2>${htmlMessage("videoSubtitles")}</h2><button class="close" type="button" aria-label="${htmlMessage("closeSubtitleSettings")}">${uiIconMarkup("cross")}</button></header>
         <div class="row"><label class="field">${htmlMessage("translateTo")}<select class="target" aria-label="${htmlMessage("subtitleTargetLanguage")}"></select></label><label class="field">${htmlMessage("fontSize")}<select class="font" aria-label="${htmlMessage("subtitleFontSize")}"><option value="18">${htmlMessage("small")}</option><option value="22">${htmlMessage("mediumFontSize")}</option><option value="26">${htmlMessage("large")}</option></select></label></div>
-        <label class="field">${htmlMessage("translationService")}<select class="provider" aria-label="${htmlMessage("subtitleTranslationService")}"></select></label>
-        <label class="field">${htmlMessage("sourceSubtitles")}<select class="track" aria-label="${htmlMessage("sourceSubtitleLanguage")}"><option value="auto">${htmlMessage("followPlayer")}</option></select></label>
+        <div class="row">
+          <label class="field">${htmlMessage("translationService")}<select class="provider" aria-label="${htmlMessage("subtitleTranslationService")}"></select></label>
+          <label class="field">${htmlMessage("sourceSubtitles")}<select class="track" aria-label="${htmlMessage("sourceSubtitleLanguage")}"><option value="auto">${htmlMessage("followPlayer")}</option></select></label>
+        </div>
         <label class="check"><input class="original" type="checkbox" checked>${htmlMessage("showOriginal")}</label>
         <details><summary>${htmlMessage("subtitleAppearance")}</summary>
           <label class="field">${htmlMessage("order")}<select class="order" aria-label="${htmlMessage("originalAndTranslationOrder")}"><option value="above">${htmlMessage("originalOnTop")}</option><option value="below">${htmlMessage("translationOnTop")}</option></select></label>
+          <label class="field">${htmlMessage("subtitleDisplayMode")}<select class="display-mode" aria-label="${htmlMessage("subtitleDisplayMode")}"><option value="chinese">${htmlMessage("subtitleChineseLayout")}</option><option value="western">${htmlMessage("subtitleWesternLayout")}</option></select></label>
+          <p class="help">${htmlMessage("subtitleLayoutHelp")}</p>
           ${[ ["source", t("original")], ["translation", t("translation")] ].map(([key, label]) => `<div class="row">
             <label class="field">${htmlMessage("namedFontSize", label)}<select class="${key}-size" aria-label="${htmlMessage("namedFontSize", label)}"><option value="auto">${htmlMessage("useOverallFontSize")}</option>${[14,18,22,26,32,40,48].map(size => `<option value="${size}">${size}px</option>`).join("")}</select></label>
             <label class="field">${htmlMessage("font", label)}<select class="${key}-family" aria-label="${htmlMessage("font", label)}"><option value="sans-serif">${htmlMessage("sansSerif")}</option><option value="serif">${htmlMessage("serif")}</option><option value="monospace">${htmlMessage("monospace")}</option></select></label>
@@ -169,6 +175,7 @@ export class VideoView {
     });
     const original = query<HTMLInputElement>(".original"); this.on(original, "change", () => actions.preferences({ showOriginal: original.checked }));
     const order = query<HTMLSelectElement>(".order"); this.on(order, "change", () => actions.preferences({ originalPosition: order.value as "above" | "below" }));
+    const displayMode = query<HTMLSelectElement>(".display-mode"); this.on(displayMode, "change", () => actions.preferences({ displayMode: displayMode.value as "chinese" | "western" }));
     for (const key of ["source", "translation"] as const) {
       const size = query<HTMLSelectElement>(`.${key}-size`), family = query<HTMLSelectElement>(`.${key}-family`), weight = query<HTMLSelectElement>(`.${key}-weight`);
       const update = () => actions.preferences({ [key === "source" ? "sourceStyle" : "translationStyle"]: {
@@ -338,6 +345,8 @@ export class VideoView {
     this.host.style.setProperty("--wp-video-font", `${preferences.fontSize}px`);
     this.host.style.setProperty("--wp-video-bg", preferences.background === "soft" ? "#101718bf" : "transparent");
     this.host.toggleAttribute("data-original-below", preferences.originalPosition === "below");
+    this.host.toggleAttribute("data-western-subtitles", preferences.displayMode === "western");
+    this.root.querySelector<HTMLSelectElement>(".display-mode")!.value = preferences.displayMode ?? "chinese";
     for (const key of ["source", "translation"] as const) {
       const style = preferences[key === "source" ? "sourceStyle" : "translationStyle"];
       const size = this.root.querySelector<HTMLSelectElement>(`.${key}-size`)!;
@@ -364,7 +373,7 @@ export class VideoView {
     this.updateMark();
     // Keep current speech readable while a provider is slow. Never freeze the
     // previous translated page just because the next result has not arrived.
-    const page = this.presentation.current((preferences.showOriginal || !translation) && source !== translation ? source : "", translation, progress);
+    const page = this.presentation.current((preferences.showOriginal || !translation) && source !== translation ? source : "", translation, progress, preferences.displayMode === "western");
     const shownSource = page.source;
     translation = page.translation;
     const changed = this.source.textContent !== shownSource || this.translation.textContent !== translation;

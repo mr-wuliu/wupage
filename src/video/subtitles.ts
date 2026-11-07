@@ -1,10 +1,18 @@
 import { t } from "../shared/i18n";
 import { subtitleSentences } from "./subtitle-sentences";
+import { estimateSubtitleWords, revealedSubtitle } from "./subtitle-timing";
+
+export interface SubtitleWord {
+  start: number;
+  /** Exclusive UTF-16 offset in the cue's plain text. */
+  endOffset: number;
+}
 
 export interface SubtitleCue {
   start: number;
   end: number;
   text: string;
+  words?: SubtitleWord[];
 }
 
 const MAX_CUES = 20_000;
@@ -25,6 +33,26 @@ function timestamp(value: string): number {
   return Number(match[1] ?? 0) * 3600 + Number(match[2]) * 60 + Number(match[3]) + Number(match[4]) / 1000;
 }
 
+/** Preserve WebVTT karaoke timestamps before removing cue markup. */
+export function subtitleCue(start: number, end: number, raw: string): SubtitleCue {
+  const text = subtitleText(raw);
+  const marks = [...raw.matchAll(/<((?:\d+:)?\d{2}:\d{2}\.\d{3})>/gu)];
+  if (!marks.length) return { start, end, text };
+  const words: SubtitleWord[] = [];
+  let offset = 0, time = start;
+  for (const mark of marks) {
+    let next: number;
+    try { next = timestamp(mark[1]); } catch { continue; }
+    if (next < time || next >= end) continue;
+    const boundary = subtitleText(raw.slice(0, mark.index)).length;
+    words.push(...estimateSubtitleWords(text.slice(offset, boundary), time, next)
+      .map(word => ({ ...word, endOffset: word.endOffset + offset })));
+    offset = boundary; time = next;
+  }
+  words.push(...estimateSubtitleWords(text.slice(offset), time, end).map(word => ({ ...word, endOffset: word.endOffset + offset })));
+  return { start, end, text, words };
+}
+
 /** Read SRT and WebVTT, including cue identifiers and WebVTT cue settings. */
 export function parseSubtitles(source: string): SubtitleCue[] {
   const cues: SubtitleCue[] = [];
@@ -37,10 +65,11 @@ export function parseSubtitles(source: string): SubtitleCue[] {
     if (!match) throw new Error(t("invalidSubtitleTimeFormat"));
     const start = timestamp(match[1]);
     const end = timestamp(match[2]);
-    const text = subtitleText(lines.slice(index + 1).join("\n"));
+    const cue = subtitleCue(start, end, lines.slice(index + 1).join("\n"));
+    const { text } = cue;
     if (end <= start) throw new Error(t("subtitleEndTimeMustBeLaterThanStart"));
     if (text.length > 4000) throw new Error(t("aSubtitleCueIsTooLongSplitIt"));
-    if (text) cues.push({ start, end, text });
+    if (text) cues.push(cue);
     if (cues.length > MAX_CUES) throw new Error(t("moreThan20000SubtitleCuesSplitThe"));
   }
   if (!cues.length) throw new Error(t("noUsableSubtitlesFoundChooseAUtf8"));
@@ -73,10 +102,11 @@ export class SubtitleTranslator {
     void this.pump();
   }
 
-  current(): { source: string; translation: string } {
+  current(progressive = false): { source: string; translation: string } {
     const active = this.readSentences().filter(cue => cue.start <= this.time && cue.end > this.time).slice(0, 8);
     const texts = [...new Set(active.map(cue => cue.text))];
-    return { source: texts.join("\n"), translation: texts.every(text => this.cache.has(text)) ? texts.map(text => this.cache.get(text)!).join("\n") : "" };
+    return { source: progressive ? [...new Set(active.map(cue => revealedSubtitle(cue, this.time)))].filter(Boolean).join("\n") : texts.join("\n"),
+      translation: texts.every(text => this.cache.has(text)) ? texts.map(text => this.cache.get(text)!).join("\n") : "" };
   }
 
   /** Media time, not request completion time, controls long-caption paging. */
@@ -94,7 +124,7 @@ export class SubtitleTranslator {
     const cues = this.readCues();
     if (cues !== this.sourceCues || cues.length !== this.sourceLength) {
       this.sourceCues = cues; this.sourceLength = cues.length;
-      this.sentences = subtitleSentences(cues);
+      this.sentences = subtitleSentences(cues, true);
     }
     return this.sentences;
   }

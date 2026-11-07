@@ -11,7 +11,7 @@ let controller: PlayerSubtitleController;
 const flush = async () => { for (let index = 0; index < 30; index++) await Promise.resolve(); };
 beforeEach(() => {
   vi.useFakeTimers();
-  vi.stubGlobal('chrome', { storage: { onChanged: { addListener: vi.fn(), removeListener: vi.fn() } } });
+  vi.stubGlobal('chrome', { runtime: { id: 'wupage' }, storage: { onChanged: { addListener: vi.fn(), removeListener: vi.fn() } } });
   document.body.innerHTML = '<div class="bpx-player-container" style="position:relative"><video></video><div class="bili-subtitle-x-subtitle-panel-major-group">另一种语言</div></div>';
   const video = document.querySelector('video')!;
   Object.defineProperty(video, 'textTracks', { value: [], configurable: true });

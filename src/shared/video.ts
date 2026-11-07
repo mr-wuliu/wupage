@@ -14,6 +14,7 @@ export interface VideoTranslationSettings {
   enabledSites: string[];
   siteLayouts?: Array<VideoSubtitleLayout & { id: string }>;
   originalPosition?: "above" | "below";
+  displayMode?: "chinese" | "western";
   sourceStyle?: VideoSubtitleStyle;
   translationStyle?: VideoSubtitleStyle;
 }
@@ -60,6 +61,7 @@ export function normalizeVideoTranslation(value: unknown): VideoTranslationSetti
     enabledSites: Array.isArray(data.enabledSites) ? [...new Set(data.enabledSites.filter((site): site is string => typeof site === "string" && /^[\w.-]{1,200}$/u.test(site)))].slice(0, 100) : [],
     ...(data.siteLayouts !== undefined ? { siteLayouts: normalizeSiteLayouts(data.siteLayouts) } : {}),
     ...(data.originalPosition !== undefined ? { originalPosition: data.originalPosition === "below" ? "below" : "above" } : {}),
+    ...(data.displayMode !== undefined ? { displayMode: data.displayMode === "western" ? "western" : "chinese" } : {}),
     ...(data.sourceStyle !== undefined ? { sourceStyle: normalizeSubtitleStyle(data.sourceStyle) } : {}),
     ...(data.translationStyle !== undefined ? { translationStyle: normalizeSubtitleStyle(data.translationStyle) } : {})
   };

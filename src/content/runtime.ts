@@ -1,9 +1,8 @@
 import type { RuntimeRequest, RuntimeResponse } from "../shared/types";
 import { restoreRuntimeError } from "../shared/errors";
+import { hasExtensionContext as hasRuntimeContext, isContextInvalidatedError } from "../shared/extension-context";
 
-export function hasRuntimeContext(): boolean {
-  return Boolean(chrome?.runtime?.id);
-}
+export { hasRuntimeContext };
 
 export function addRuntimeMessageListener(
   listener: (
@@ -32,8 +31,4 @@ export async function sendRuntimeRequest<T>(request: RuntimeRequest): Promise<T>
     }
     throw error;
   }
-}
-
-function isContextInvalidatedError(error: unknown): boolean {
-  return error instanceof Error && error.message.includes("Extension context invalidated");
 }

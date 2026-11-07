@@ -3,6 +3,18 @@ import { LiveSubtitleTranslator } from "../src/video/live-subtitles";
 beforeEach(() => vi.useFakeTimers());
 afterEach(() => vi.useRealTimers());
 describe("rendered subtitle scheduling", () => {
+  it("shows the latest original in Western layout while a translated snapshot is still displayed", async () => {
+    const translate = vi.fn(async (texts: string[]) => texts.map(text => `译:${text}`));
+    const session = new LiveSubtitleTranslator(translate, vi.fn());
+    session.update("This tool"); await vi.advanceTimersByTimeAsync(300);
+    session.update("This tool can");
+    expect(session.current()).toEqual({ source: "This tool", translation: "译:This tool" });
+    expect(session.current(true)).toEqual({ source: "This tool can", translation: "译:This tool" });
+    session.update("This tool can save");
+    expect(session.current(true).source).toBe("This tool can save");
+    expect(translate).toHaveBeenCalledTimes(1);
+    session.dispose();
+  });
   it("retains the beginning of an utterance when the visible ASR window rolls forward", async () => {
     const translate = vi.fn(async (texts: string[]) => texts.map(text => `译:${text}`));
     const session = new LiveSubtitleTranslator(translate, vi.fn());
