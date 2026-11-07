@@ -23,6 +23,7 @@ export class RequestTemplateError extends Error {
 
 export function supportsRequestTemplate(provider: ProviderConfig): provider is LlmTemplateProvider {
   return provider.type === "openai-compatible" || provider.type === "anthropic-compatible"
+    || provider.type === "index-translate"
     || provider.type === "deepseek" || provider.type === "zhipu-glm";
 }
 
@@ -69,6 +70,7 @@ export function defaultLlmRequestTemplate(config: LlmTemplateProvider): Pick<Llm
     // Newer Claude models reject `temperature` with 400, so Anthropic defaults omit it.
     ...(anthropic ? {} : { temperature: 0 }),
     ...(config.type === "deepseek" ? { thinking: { type: "disabled" } } : {}),
+    ...(config.type === "index-translate" ? { stream: false, chat_template_kwargs: { enable_thinking: false } } : {}),
     ...(anthropic ? { system: "{{systemPrompt}}" } : {}),
     messages: [
       ...(!anthropic ? [{ role: "system", content: "{{systemPrompt}}" }] : []),

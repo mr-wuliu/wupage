@@ -1,5 +1,5 @@
 import { t } from "../../shared/i18n";
-import type { AnthropicCompatibleConfig, DeepSeekConfig, OpenAICompatibleConfig, TranslateBatchRequest, TranslatorProvider, ValidationResult, ZhipuGlmConfig } from "../../shared/types";
+import type { AnthropicCompatibleConfig, DeepSeekConfig, IndexTranslateConfig, OpenAICompatibleConfig, TranslateBatchRequest, TranslatorProvider, ValidationResult, ZhipuGlmConfig } from "../../shared/types";
 import { renderTemplate } from "../template";
 import { chatCompletionsEndpoint, usesOllamaCompatibility } from "../ollama-compatibility";
 import { TranslationResponseError } from "../translation-response";
@@ -16,7 +16,7 @@ export class OpenAICompatibleProvider implements TranslatorProvider {
     return this.config.label;
   }
 
-  constructor(protected readonly config: OpenAICompatibleConfig | DeepSeekConfig | ZhipuGlmConfig) {}
+  constructor(protected readonly config: OpenAICompatibleConfig | DeepSeekConfig | ZhipuGlmConfig | IndexTranslateConfig) {}
 
   validateConfig(): ValidationResult {
     if (!this.config.baseURL.trim()) return { ok: false, message: t("baseUrlRequired") };
@@ -60,8 +60,22 @@ export class OpenAICompatibleProvider implements TranslatorProvider {
       throw httpResponseError(response, t("llmRequestFailed", response.status, response.statusText, await readErrorBody(response)) + hint);
     }
     const payload = await readJsonResponse<OpenAIChatResponse>(response, "LLM provider", onUsage);
-    const content = payload.choices?.[0]?.message?.content;
+    let content = payload.choices?.[0]?.message?.content;
     if (!content) throw new TranslationResponseError(t("llmEmptyResponse"));
+
+    if (this.config.type === "index-translate" && typeof content === "string") {
+      // Some local servers still emit a leading reasoning block with thinking disabled.
+      // An unfinished block is not a translation and must never reach the page.
+      content = content.trim();
+      // A server may prefill the opening tag in its chat template, so the
+      // returned content starts inside the block. Never strip tags inside JSON.
+      if (!/^(?:[\[{"]|```)/.test(content)) {
+        const end = content.toLowerCase().indexOf("</think>");
+        if (end >= 0) content = content.slice(end + "</think>".length).trim();
+      }
+      content = content.replace(/^(?:<think>[\s\S]*?<\/think>\s*)+/i, "");
+      if (!content || /^<think>/i.test(content)) throw new TranslationResponseError(t("llmEmptyResponse"));
+    }
 
     return parseTranslationArray(content, request.texts.length);
   }

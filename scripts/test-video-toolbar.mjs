@@ -97,7 +97,7 @@ try {
   assert.equal(await dock.locator('.toggle').textContent(), '译');
   assert.equal(await page.locator('.native-controls > [data-wupage-video-toolbar]').count(), 1);
   assert.equal(await dock.evaluate(element => !!element.nextElementSibling?.matches('.native,.native-control-wrapper')), true, 'next to native caption controls');
-  await dock.locator('.toggle').click(); await view.locator('.translation span').filter({ hasText: '这是一条测试字幕。' }).waitFor();
+  await dock.locator('.toggle').click(); await view.locator('.captions .translation span').filter({ hasText: '这是一条测试字幕。' }).waitFor();
   assert.equal(await dock.locator('.toggle').textContent(), '双');
   assert.equal(await view.locator('.toolbar').count(), 0, 'caption layer has no floating toolbar');
   for (const width of [1280, 390]) {
@@ -121,7 +121,7 @@ try {
     assert.equal(await dock.evaluate(host => {
       const r = host.getBoundingClientRect(); return document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2) === host;
     }), false, 'hidden native controls cannot intercept clicks');
-    assert.equal(await view.locator('.translation span').isVisible(), true, 'captions stay visible while controls hide');
+    assert.equal(await view.locator('.captions .translation span').isVisible(), true, 'captions stay visible while controls hide');
     await page.screenshot({ path: path.join(output, `${site.id}-hidden-${width}.png`) });
     await page.evaluate(() => document.querySelector('#movie_player').classList.remove('native-hidden'));
     await page.waitForFunction(() => !document.querySelector('[data-wupage-video-toolbar]').inert);

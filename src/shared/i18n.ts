@@ -14,6 +14,7 @@ const catalogs = new Map<Exclude<InterfaceLanguage, "browser">, Promise<Catalog>
 let selectedLanguage: InterfaceLanguage = "browser";
 let catalog: Catalog | undefined;
 let ready: Promise<void> | undefined;
+let runtimeLanguageRequest: Promise<void> | undefined;
 
 function messageApi() {
   return typeof globalThis.chrome?.i18n?.getMessage === "function" ? globalThis.chrome.i18n : (globalThis as BrowserNamespace).browser?.i18n;
@@ -47,10 +48,23 @@ async function applyLanguage(value: unknown): Promise<void> {
 }
 
 export async function initializeInterfaceLanguage(): Promise<void> {
-  ready ??= Promise.resolve().then(async () => {
-    const stored = await globalThis.chrome?.storage?.local?.get?.(INTERFACE_LANGUAGE_KEY);
-    await applyLanguage(stored?.[INTERFACE_LANGUAGE_KEY]);
-  }).catch(reportLocaleError);
+  if (!messageApi() && typeof globalThis.chrome?.runtime?.sendMessage === "function"
+    && typeof globalThis.chrome?.storage?.local?.get !== "function") {
+    // Chromium offscreen documents only have runtime APIs. Ask the background
+    // for the effective locale, including a saved override, on each operation.
+    runtimeLanguageRequest ??= (ready ?? Promise.resolve()).then(async () => {
+      const language = await chrome.runtime.sendMessage({ target: "wupage-interface-language" });
+      if (language?.locale !== "en" && language?.locale !== "zh-CN") throw new Error("Unable to read interface language.");
+      catalog = await loadCatalog(language.locale);
+      selectedLanguage = normalizeLanguage(language.selected);
+    }).catch(reportLocaleError).finally(() => { runtimeLanguageRequest = undefined; });
+    ready = runtimeLanguageRequest;
+  } else {
+    ready ??= Promise.resolve().then(async () => {
+      const stored = await globalThis.chrome?.storage?.local?.get?.(INTERFACE_LANGUAGE_KEY);
+      await applyLanguage(stored?.[INTERFACE_LANGUAGE_KEY]);
+    }).catch(reportLocaleError);
+  }
   let pending: Promise<void>;
   do {
     pending = ready;
@@ -60,6 +74,13 @@ export async function initializeInterfaceLanguage(): Promise<void> {
 
 /** Background and offscreen pages can outlive the settings page. */
 export function watchInterfaceLanguage(refresh?: () => void): void {
+  if (messageApi() && typeof globalThis.chrome?.storage?.local?.get === "function") {
+    chrome.runtime?.onMessage?.addListener((request, sender, sendResponse) => {
+      if (request?.target !== "wupage-interface-language" || sender.id !== chrome.runtime.id || sender.tab) return;
+      void initializeInterfaceLanguage().then(() => sendResponse({ selected: selectedLanguage, locale: t("interfaceLanguage") }));
+      return true;
+    });
+  }
   globalThis.chrome?.storage?.onChanged?.addListener((changes, area) => {
     if (area !== "local" || !changes[INTERFACE_LANGUAGE_KEY]) return;
     const value = changes[INTERFACE_LANGUAGE_KEY].newValue;

@@ -5,6 +5,7 @@ import { DoubaoProvider } from "./doubao";
 import { MicrosoftTranslatorProvider, GoogleCloudTranslationProvider, CloudTranslationProvider, GoogleWebTranslateProvider, MicrosoftWebTranslateProvider, PublicTranslationProvider } from "./providers/services";
 import { OpenAICompatibleProvider, AnthropicCompatibleProvider, DeepSeekProvider, ZhipuGlmProvider } from "./providers/llm";
 import { HttpTemplateProvider } from "./providers/http-template";
+import { DeepLProvider } from "./providers/deepl";
 
 export function createProvider(config: ProviderConfig): TranslatorProvider {
   if (supportsServiceMode(config) && config.serviceMode === "api") {
@@ -33,7 +34,8 @@ export function createProvider(config: ProviderConfig): TranslatorProvider {
   if (config.type === "google-cloud-translation") {
     return new GoogleCloudTranslationProvider(config);
   }
-  if (config.type === "openai-compatible") return new OpenAICompatibleProvider(config);
+  if (config.type === "deepl") return new DeepLProvider(config);
+  if (config.type === "openai-compatible" || config.type === "index-translate") return new OpenAICompatibleProvider(config);
   if (config.type === "anthropic-compatible") return new AnthropicCompatibleProvider(config);
   if (config.type === "deepseek") return new DeepSeekProvider(config);
   if (config.type === "zhipu-glm") return new ZhipuGlmProvider(config);

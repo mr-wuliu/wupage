@@ -92,4 +92,45 @@ describe("extension interface language", () => {
     expect(SOURCE_LANGUAGES[0].label).toBe("自动检测");
     expect(fetchCatalog).toHaveBeenCalledOnce();
   });
+
+  it("loads and refreshes the background locale in runtime-only offscreen documents", async () => {
+    vi.resetModules();
+    vi.stubGlobal("browser", undefined);
+    let language = { selected: "browser", locale: "zh-CN" };
+    const sendMessage = vi.fn(async () => language);
+    const fetchCatalog = vi.fn(async (url: string) => new Response(JSON.stringify(url.includes("/zh_CN/") ? chinese : english)));
+    vi.stubGlobal("fetch", fetchCatalog);
+    vi.stubGlobal("chrome", { runtime: {
+      getURL: (path: string) => `chrome-extension://wupage/${path}`, sendMessage
+    } });
+    const i18n = await import("../src/shared/i18n");
+    await Promise.all([i18n.initializeInterfaceLanguage(), i18n.initializeInterfaceLanguage()]);
+    expect(sendMessage).toHaveBeenCalledExactlyOnceWith({ target: "wupage-interface-language" });
+    expect(i18n.t("downloadedDataWasKeptRetryOrImportOffline", "HTTP 503")).toBe("HTTP 503 已保留完成的数据，可重试或离线导入。");
+    language = { selected: "en", locale: "en" };
+    await i18n.initializeInterfaceLanguage();
+    expect(i18n.getInterfaceLanguage()).toBe("en");
+    expect(i18n.t("downloadedDataWasKeptRetryOrImportOffline", "HTTP 503")).toBe("HTTP 503 Downloaded data was kept. Retry or import offline.");
+    await i18n.initializeInterfaceLanguage();
+    expect(fetchCatalog).toHaveBeenCalledTimes(2);
+  });
+
+  it("only shares the effective locale with extension runtime documents", async () => {
+    vi.resetModules();
+    let listener!: (request: unknown, sender: chrome.runtime.MessageSender, reply: (value: unknown) => void) => unknown;
+    vi.stubGlobal("chrome", {
+      i18n: catalogApi(chinese),
+      runtime: { id: "wupage", onMessage: { addListener: (handler: typeof listener) => { listener = handler; } } },
+      storage: { local: { get: async () => ({}) } }
+    });
+    const i18n = await import("../src/shared/i18n");
+    i18n.watchInterfaceLanguage();
+    const reply = vi.fn();
+    const request = { target: "wupage-interface-language" };
+    expect(listener(request, { id: "other" }, reply)).toBeUndefined();
+    expect(listener(request, { id: "wupage", tab: { id: 1 } as chrome.tabs.Tab }, reply)).toBeUndefined();
+    expect(reply).not.toHaveBeenCalled();
+    expect(listener(request, { id: "wupage" }, reply)).toBe(true);
+    await vi.waitFor(() => expect(reply).toHaveBeenCalledWith({ selected: "browser", locale: "zh-CN" }));
+  });
 });

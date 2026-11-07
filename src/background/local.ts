@@ -3,8 +3,16 @@ import { getLocalRoute, normalizeLocalLanguage } from "../local/models";
 import type { RuntimeResponse, TranslateBatchRequest } from "../shared/types";
 import { ensureOffscreenDocument } from "./offscreen";
 import { detectSourceLanguage } from "./source-language";
+import { ensureLocalModelDownloadCompatibility } from "./local-model-compatibility";
 
 export async function requestLocal<T>(action: string, data?: unknown): Promise<T> {
+  if (action === "status" || action === "install") {
+    try { await ensureLocalModelDownloadCompatibility(); }
+    catch (error) {
+      // Keep status and offline imports available if the browser rejects rules.
+      if (action === "install") throw error;
+    }
+  }
   await ensureOffscreenDocument();
   const response = await chrome.runtime.sendMessage({ target: "bergamot-offscreen", action, data }) as RuntimeResponse;
   if (!response?.ok) throw new Error(response?.error ?? t("localTranslationCouldNotStartReloadTheExtension"));

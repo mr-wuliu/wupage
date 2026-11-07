@@ -24,7 +24,7 @@ export interface VideoViewActions {
 const styles = `
   :host { all: initial !important; position: absolute !important; top: var(--wp-layer-top,0px) !important; left: var(--wp-layer-left,0px) !important; width: var(--wp-layer-width,100%) !important; height: var(--wp-layer-height,100%) !important; z-index: 2147483600 !important; pointer-events: none !important; container-type: inline-size !important; color-scheme: dark !important; direction: ltr; } :host([hidden]) { display: none !important; }
   * { box-sizing: border-box; } [hidden] { display: none !important; }
-  .toolbar { position: absolute; right: 14px; top: 14px; display: flex; gap: 1px; align-items: center; color: #fff; background: #172024eb; border: 1px solid #ffffff29; border-radius: 9px; box-shadow: 0 3px 12px #0003; opacity: 0; transform: translateY(-3px); transition: opacity .16s,transform .16s; pointer-events: none; }
+  .toolbar { position: absolute; right: 14px; top: var(--wp-toolbar-top,14px); display: flex; gap: 1px; align-items: center; color: #fff; background: #172024eb; border: 1px solid #ffffff29; border-radius: 9px; box-shadow: 0 3px 12px #0003; opacity: 0; transform: translateY(-3px); transition: opacity .16s,transform .16s; pointer-events: none; }
   :host([data-controls]) .toolbar, .toolbar:hover, .toolbar:focus-within, :host([data-panel]) .toolbar, :host([data-error]) .toolbar, :host([data-waiting]) .toolbar { opacity: 1; transform: none; pointer-events: auto; }
   button, select, input { font: inherit; } button { cursor: pointer; } button:disabled { opacity: .5; cursor: default; }
   .toolbar button { border: 0; color: inherit; background: transparent; min-height: 34px; padding: 7px 10px; font: 500 12px/20px system-ui,sans-serif; }
@@ -233,6 +233,21 @@ export class VideoView {
       if (this.toolbar.parentNode !== this.root) this.root.prepend(this.toolbar);
       this.controlsHost.remove();
     }
+  }
+
+  avoidControlOverlap(obstacles: readonly DOMRect[]): void {
+    const bounds = this.host.getBoundingClientRect();
+    const scaleX = bounds.width / (this.host.offsetWidth || bounds.width || 1);
+    const scaleY = bounds.height / (this.host.offsetHeight || bounds.height || 1);
+    const height = this.toolbar.offsetHeight;
+    const right = bounds.right - 14 * scaleX, left = right - this.toolbar.offsetWidth * scaleX;
+    let top = 14;
+    for (const obstacle of [...obstacles].sort((a, b) => a.top - b.top)) {
+      if (left < obstacle.right && right > obstacle.left && bounds.top + top * scaleY < obstacle.bottom
+        && bounds.top + (top + height) * scaleY > obstacle.top) top = (obstacle.bottom - bounds.top) / scaleY + 8;
+    }
+    const value = `${Math.min(top, Math.max(14, bounds.height / (scaleY || 1) - height - 14))}px`;
+    if (this.host.style.getPropertyValue("--wp-toolbar-top") !== value) this.host.style.setProperty("--wp-toolbar-top", value);
   }
 
   private alignControls(reference?: Element): void {

@@ -49,6 +49,40 @@ describe("options provider model and test state", () => {
     await vi.waitFor(() => expect(query<HTMLElement>("#providerForm").dataset.providerId).toBe(id));
   }
 
+  it("saves and restores DeepL and Index-Translate configuration without mixing their fields", async () => {
+    await mount();
+    await selectProvider("deepl");
+    expect(query<HTMLInputElement>("[data-field='endpoint']").value).toBe("");
+    expect(query<HTMLInputElement>("[data-field='apiKey']").type).toBe("password");
+    query<HTMLInputElement>("[data-field='apiKey']").value = "deepl-test-key:fx";
+    query<HTMLInputElement>("[data-field='endpoint']").value = "http://localhost:8088/v2";
+    query<HTMLButtonElement>("#save").click();
+    await vi.waitFor(() => expect(stored.providers.find(p => p.id === "deepl"))
+      .toMatchObject({ apiKey: "deepl-test-key:fx", endpoint: "http://localhost:8088/v2" }));
+
+    await selectProvider("index-translate");
+    expect(query<HTMLInputElement>("[data-field='baseURL']").value).toBe("http://127.0.0.1:8080/v1");
+    expect(query<HTMLInputElement>("[data-field='apiKey']").value).toBe("");
+    expect(document.querySelector("[data-field='ollamaCompatibility']")).toBeNull();
+    query<HTMLInputElement>("[data-field='baseURL']").value = "http://localhost:8000/v1";
+    query<HTMLSelectElement>("[data-field='model']").value = "Index-Translate-9B";
+    query<HTMLInputElement>("[data-field='apiKey']").value = "local-test-key";
+    query<HTMLButtonElement>("#providerAdvancedTab").click();
+    query<HTMLButtonElement>("[data-action='load-default-request-template']").click();
+    expect(JSON.parse(query<HTMLTextAreaElement>("[data-field='requestBodyTemplate']").value))
+      .toMatchObject({ chat_template_kwargs: { enable_thinking: false } });
+    query<HTMLButtonElement>("#save").click();
+    await vi.waitFor(() => expect(stored.providers.find(p => p.id === "index-translate"))
+      .toMatchObject({ model: "Index-Translate-9B", baseURL: "http://localhost:8000/v1", apiKey: "local-test-key", requestTemplate: { enabled: true } }));
+
+    await selectProvider("deepl");
+    expect(query<HTMLInputElement>("[data-field='apiKey']").value).toBe("deepl-test-key:fx");
+    query<HTMLInputElement>("[data-field='endpoint']").value = "";
+    query<HTMLButtonElement>("#test").click();
+    await vi.waitFor(() => expect(testService).toHaveBeenCalledWith("deepl"));
+    expect(stored.providers.find(p => p.id === "deepl")).toMatchObject({ endpoint: "" });
+  });
+
   it("edits and saves a disabled service while retaining the enabled translation service", async () => {
     stored.providers.find(entry => entry.id === "zhipu-glm")!.enabled = false;
     await mount();

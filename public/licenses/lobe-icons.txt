@@ -2,6 +2,11 @@ Provider icons from Lobe Icons: https://github.com/lobehub/lobe-icons
 Source revision: 8b7bbc433d38437fa2b0cca58ae896917162b812
 Microsoft, Google, DeepSeek, Zhipu, OpenAI, Anthropic and Doubao marks.
 
+DeepL and Bilibili Index marks:
+Source revision: ea434b96e75813517b377825e01c0df61dee8836
+packages/static-svg/icons/deepl-color.svg
+packages/static-svg/icons/bilibiliindex.svg
+
 MIT License
 
 Copyright (c) 2023 LobeHub

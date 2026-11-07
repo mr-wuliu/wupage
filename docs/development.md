@@ -57,6 +57,8 @@ PDF 的参考文献边界由 `src/pdf/document.ts` 按标题所属栏及上下�
 
 `src/background/providers.ts` 是服务工厂；`providers/` 按在线翻译服务、LLM 和 HTTP 模板组织适配器，`provider-transport.ts` 统一管理超时、重试与响应读取。网页渐进扫描的分块、让出主线程及变更补扫位于 `src/content/progressive-scan.ts`，内容判断与渲染仍由 `dom.ts` 处理。正文采集测试使用与产品相同的渐进扫描入口。
 
+DeepL 适配位于 `src/background/providers/deepl.ts`，负责语言代码、按条数与 UTF-8 请求体大小分批、结果顺序及错误状态；空接口地址按密钥选择官方 Free / Pro 服务。上下文通过独立参数传递，不拼入计费原文；请求复用现有的临时来源请求头兼容规则，仅作用于扩展自身的目标 POST 地址。Index-Translate 复用 OpenAI 兼容请求链路，提供本地桥接预设、关闭思考的请求参数及前置思考块过滤。两项服务纳入设置规范化、性能参数、请求模板（Index-Translate）和备份恢复。`tests/deepl-provider.test.ts`、`tests/index-translate-provider.test.ts` 通过模拟接口验证协议和异常，`tests/options-provider-state.test.ts` 检查界面保存。构建后运行 `npm run test:translation-providers` 可检查实际扩展请求和窄屏设置页，支持 `-- --edge`、`-- --firefox`；报告位于 `.npm-cache/translation-providers/`。这些测试不使用真实密钥、不访问在线翻译服务或安装模型。
+
 `src/content/line-break-paragraphs.ts` 将连续 `<br>` 分隔的旧式正文识别为独立段落，供采集、视口调度和译文定位共用。临时行内容器保留原节点与段间换行，清除翻译时移除；代码、编辑区及独立控件不参与该归一化。`tests/line-break-paragraphs.test.ts` 和 `tests/page-translation.test.ts` 覆盖长篇正文、内联格式、滚动加载、动态更新与精确恢复。
 
 网页翻译使用绑定到原节点的写入计划。`translation-boundaries.ts` 将自定义组件、插槽和交互元素作为独立范围；`dom-roots.ts` 通过扩展接口发现开放及封闭的 Shadow DOM，并记录实际插槽路径。`TextSegment.text` 保留可读原文，`requestText` 按需生成用于传输的格式标记。`inline-translation.ts` 只接纳已确认的句内格式，替换模式复用原文本和格式节点，双语模式生成展示副本。共享校验器检查标记数量、配对、嵌套和非空内容；失效结果不写入页面，后台对损坏标记执行有界重试和保留结构的分片回退。本地引擎将这些格式标记转换为受限 HTML，利用 Bergamot 对齐后再还原标记；其他服务继续使用受保护的文本协议。
@@ -76,6 +78,10 @@ PDF 的参考文献边界由 `src/pdf/document.ts` 按标题所属栏及上下�
 使用 `npm run test:settings-backup`、`npm run test:settings-backup:edge` 或 `npm run test:settings-backup:firefox` 验证实际下载、导入确认、配置与表单同步、缺失模型、后续普通保存及窄屏布局。测试使用独立浏览器配置和模拟凭据，不调用翻译服务。
 
 Chrome / Edge 使用后台 Service Worker，并通过 offscreen 文档承载需要 DOM 或 Worker 的本地能力；Firefox 使用后台事件页和隐藏 iframe。相关适配入口为 `build/manifest.ts` 与 `src/background/offscreen.ts`。
+
+Mozilla 模型 CDN 会拒绝 Chromium 的 User-Agent。`src/background/local-model-compatibility.ts` 为扩展发起的官方模型 GET 请求设置 WuPage 下载标识，覆盖自动下载与设置页中的文件链接；规则不匹配其他网站请求，Firefox 保留原生标识。Chromium offscreen 文档通过后台取得界面语言，再读取扩展内的语言包，避免缺少 i18n API 时显示消息占位符。
+
+`node scripts/test-local-translation.mjs` 默认下载真实英译中模型，检查自动下载、两类手动文件链接的校验值和断网翻译。设置 `LOCAL_MODEL_FIXTURE_DIR` 可复用已有模型，在本地模拟 HTTP 503、下载中断及续传，并检查离线导入；无需访问模型 CDN。
 
 后台重启后，`src/background/frame-sessions.ts` 从浏览器的当前文档树恢复页面登记。主页面和嵌入页面通过同步的 `FRAME_IDENTIFY` 返回文档标识，已启用的翻译运行时同时返回本地状态；该应答不等待后台请求、不启动翻译。只有文档身份仍有效且会话编号一致时才恢复统计，避免把导航前的状态用于新页面。`npm run test:background-resume` 和 `npm run test:background-resume:edge` 在静态页面保持打开时终止真实后台，检查首次翻译、跨域嵌入页面、停止及已有译文恢复；全部请求使用本地模拟服务。
 

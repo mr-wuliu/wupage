@@ -97,6 +97,8 @@ describe("normalizeSettings", () => {
       "yandex-web-translate",
       "volcengine-web-translate",
       "mymemory",
+      "deepl",
+      "index-translate",
       "openai-compatible",
       "deepseek",
       "zhipu-glm",

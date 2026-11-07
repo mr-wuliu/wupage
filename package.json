@@ -49,6 +49,7 @@
     "test:video:sites": "node scripts/test-video-sites.mjs",
     "test:video:x-layout": "node scripts/test-x-video-layout.mjs",
     "test:video:x-layout:edge": "node scripts/test-x-video-layout.mjs --edge",
+    "test:video:youtube-layout": "node scripts/test-youtube-portrait-controls.mjs",
     "test:video:firefox": "node scripts/test-video-firefox.mjs",
     "test:video:performance": "node scripts/test-video-performance.mjs",
     "test:shortcuts": "node scripts/test-shortcuts.mjs",
@@ -107,6 +108,7 @@
     "test:github-code": "node scripts/test-github-code-comments.mjs",
     "test:image-resolution": "node scripts/test-image-resolution.mjs",
     "typecheck": "tsc --noEmit",
+    "test:translation-providers": "node scripts/test-translation-providers.mjs",
     "test:page-scan": "node scripts/test-page-scan.mjs",
     "test:page-scan:edge": "node scripts/test-page-scan.mjs --edge",
     "test:page-scan:firefox": "node scripts/test-page-scan.mjs --firefox"

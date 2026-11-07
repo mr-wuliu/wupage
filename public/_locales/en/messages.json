@@ -1,4 +1,52 @@
 {
+  "providerOriginCompatibilityUnavailable": {
+    "message": "Reload the updated extension to enable API request compatibility."
+  },
+  "tooManyConcurrentProviderConnections": {
+    "message": "Too many concurrent API connections. Try again later."
+  },
+  "deepLEndpointLabel": {
+    "message": "API endpoint (optional)"
+  },
+  "deepLAutoEndpoint": {
+    "message": "Automatic from API key"
+  },
+  "deepLSetupHint": {
+    "message": "Requires a DeepL API key. Leave the endpoint empty to select API Free for keys ending in :fx, or API Pro otherwise. Supports API hosts, /v2 base URLs and full /v2/translate URLs."
+  },
+  "deepLManageKeys": {
+    "message": "Manage DeepL API keys"
+  },
+  "deepLInvalidEndpoint": {
+    "message": "Enter a valid HTTP or HTTPS DeepL API endpoint, or leave it empty for automatic selection."
+  },
+  "deepLRequestTooLarge": {
+    "message": "The text or context exceeds DeepL's request size limit. Reduce the text or context and try again."
+  },
+  "deepLAuthenticationFailed": {
+    "message": "DeepL rejected the API key (HTTP 403). Check the key, API subscription and Free/Pro endpoint."
+  },
+  "deepLQuotaExceeded": {
+    "message": "DeepL quota or cost limit reached (HTTP 456). Check your account limits."
+  },
+  "deepLInvalidRequest": {
+    "message": "DeepL rejected the translation parameters (HTTP 400). Check the source and target languages and API endpoint."
+  },
+  "deepLInvalidResponse": {
+    "message": "DeepL returned missing, empty or mismatched translations."
+  },
+  "deepLRequestLimit": {
+    "message": "DeepL limits total requests to 128 KiB. WuPage sends up to 50 texts and 120 KiB of JSON per group, reserving space for headers."
+  },
+  "indexTranslateSetupHint": {
+    "message": "Start the official bridge with python inference/llm/call_api.py --serve, then keep the default URL and model; no key is required. The bridge forwards text to the online service. For a self-hosted model, enter its URL, actual model ID and optional key. Models are not downloaded automatically."
+  },
+  "indexTranslateSetupGuide": {
+    "message": "Index-Translate setup guide"
+  },
+  "indexTranslateUsageHint": {
+    "message": "Limits depend on the connected service and device. The official local bridge calls the online API; it is not offline inference. Default concurrency is 1."
+  },
   "extensionName": {
     "message": "WuPage Translator"
   },
@@ -2310,6 +2358,18 @@
         "content": "$1"
       }
     }
+  },
+  "modelFileDownloadFailed": {
+    "message": "Could not download model file $ARG1$ (HTTP $ARG2$).",
+    "placeholders": { "arg1": { "content": "$1" }, "arg2": { "content": "$2" } }
+  },
+  "modelFileDownloadTimedOut": {
+    "message": "Download of model file $ARG1$ timed out. Check your connection to $ARG2$, or download the files and import them offline.",
+    "placeholders": { "arg1": { "content": "$1" }, "arg2": { "content": "$2" } }
+  },
+  "modelFileNetworkError": {
+    "message": "Could not connect to download model file $ARG1$. Check your network or proxy settings for $ARG2$. Browser error: $ARG3$.",
+    "placeholders": { "arg1": { "content": "$1" }, "arg2": { "content": "$2" }, "arg3": { "content": "$3" } }
   },
   "theServerResponseDoesNotMatchTheRequested": {
     "message": "The server response does not match the requested resume position."

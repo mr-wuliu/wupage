@@ -28,7 +28,7 @@ beforeEach(async () => {
     try { return await callback({}); } finally { locked = false; }
   } } });
 });
-afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
+afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 
 describe("Bergamot model storage and weak networks", () => {
   it("never fetches during status checks or inference reads, and describes missing models", async () => {
@@ -49,6 +49,25 @@ describe("Bergamot model storage and weak networks", () => {
     expect(fetch).toHaveBeenCalledWith("https://models.example/0", expect.objectContaining({ credentials: "omit", cache: "no-store" }));
     await removeLocalModel("en-es");
     expect((await localModelStates())[0].state).toBe("missing");
+  });
+
+  it.each(["http", "network", "timeout"])("reports the file and cause of a %s failure after bounded retries", async (failure) => {
+    vi.useFakeTimers();
+    const fetch = vi.fn(async (_url: string, options: RequestInit) => {
+      if (failure === "http") return new Response(null, { status: 503 });
+      if (failure === "network") throw new TypeError("Failed to fetch");
+      return new Promise<Response>((_resolve, reject) => options.signal!.addEventListener("abort", () => reject(new DOMException("Aborted", "AbortError")), { once: true }));
+    });
+    vi.stubGlobal("fetch", fetch);
+    const result = downloadLocalModel("en-es", new AbortController().signal, vi.fn()).catch(error => error);
+    await vi.runAllTimersAsync();
+    const error = await result;
+    expect(error).toBeInstanceOf(Error);
+    expect(error.message).toContain("0.bin");
+    expect(error.message).toContain(failure === "http" ? "HTTP 503" : "models.example");
+    expect(error.message).toContain(failure === "timeout" ? "超时" : failure === "network" ? "Failed to fetch" : "下载失败");
+    expect(error.message).not.toContain("__MSG_");
+    expect(fetch).toHaveBeenCalledTimes(3);
   });
 
   it("finishes checksum verification locally if cancellation occurs after all bytes were checkpointed", async () => {

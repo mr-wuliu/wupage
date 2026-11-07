@@ -78,6 +78,27 @@ export const DEFAULT_SETTINGS: ExtensionSettings = {
       concurrency: 5
     },
     {
+      type: "deepl",
+      id: "deepl",
+      label: "DeepL",
+      enabled: true,
+      endpoint: "",
+      apiKey: ""
+    },
+    {
+      type: "index-translate",
+      id: "index-translate",
+      label: "Index-Translate",
+      enabled: true,
+      performanceMode: "custom",
+      chunkSize: 1200,
+      concurrency: 1,
+      baseURL: "http://127.0.0.1:8080/v1",
+      apiKey: "",
+      model: "Index-Translate-35B-A3B",
+      systemPrompt: "Translate each item in texts into {{targetLang}}. Preserve all formatting, placeholders such as ⟪WUPAGE0⟫, names, numbers, and links. Return only a valid JSON array of translated strings in the same order, with exactly one output per input."
+    },
+    {
       type: "openai-compatible",
       id: "openai-compatible",
       label: "OpenAI Compatible",

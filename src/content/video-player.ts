@@ -13,7 +13,7 @@ import { captionElements, mediaKey, renderedCaption, selectedNativeTrack, type V
 import type { PageSubtitleCatalogue } from "../video/site-cues";
 import { MAX_SUBTITLE_FILE_BYTES, parseSubtitles, SubtitleTranslator, subtitleText, type SubtitleCue } from "../video/subtitles";
 import { LiveSubtitleTranslator } from "../video/live-subtitles";
-import { playerControlDock, playerControlsVisible, playerContains, type PlayerControlDock } from "../video/player-controls";
+import { playerControlDock, playerControlObstacles, playerControlScope, playerControlsVisible, playerContains, type PlayerControlDock } from "../video/player-controls";
 
 export class PlayerSubtitleController {
   readonly view: VideoView;
@@ -113,7 +113,7 @@ export class PlayerSubtitleController {
       if (records.some(record => !(record.target instanceof Element) || !record.target.closest('[id^="wupage-"]'))) this.mountControls(true);
     });
     this.controlsObserver = controls;
-    controls.observe(container, this.controlsObservation);
+    controls.observe(playerControlScope(video, container, platform), this.controlsObservation);
     this.cleanups.push(() => controls.disconnect());
     this.on(container, "transitionend", () => this.mountControls(), true);
     this.on(container, "animationend", () => this.mountControls(), true);
@@ -144,6 +144,7 @@ export class PlayerSubtitleController {
 
   private showControls(): void {
     clearTimeout(this.controlsTimer); this.view.setControls(true);
+    if (!this.nativeDock) this.mountControls();
     this.controlsTimer = setTimeout(() => { if (!this.view.panelOpen) this.view.setControls(false); }, 2600);
   }
 
@@ -486,6 +487,7 @@ export class PlayerSubtitleController {
     const controls = dock && (!fullscreen || playerContains(fullscreen, dock.container)) ? dock : undefined;
     this.view.mountControls(controls?.container, controls?.before, controls?.reference);
     if (controls) this.view.setNativeControlsVisible(playerControlsVisible(controls.container));
+    else this.view.avoidControlOverlap(playerControlObstacles(this.video, this.container, this.platform));
   }
 
   stop(): void {

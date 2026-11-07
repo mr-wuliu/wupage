@@ -1,4 +1,52 @@
 {
+  "providerOriginCompatibilityUnavailable": {
+    "message": "请重新加载更新后的扩展，以启用 API 请求兼容处理。"
+  },
+  "tooManyConcurrentProviderConnections": {
+    "message": "同时连接的 API 服务过多，请稍后重试。"
+  },
+  "deepLEndpointLabel": {
+    "message": "接口地址（可选）"
+  },
+  "deepLAutoEndpoint": {
+    "message": "根据 API Key 自动选择"
+  },
+  "deepLSetupHint": {
+    "message": "需要 DeepL API 密钥。接口地址留空时，末尾为 :fx 的密钥使用 API Free，其他密钥使用 API Pro。支持 API 根地址、/v2 地址和完整的 /v2/translate 地址。"
+  },
+  "deepLManageKeys": {
+    "message": "管理 DeepL API 密钥"
+  },
+  "deepLInvalidEndpoint": {
+    "message": "请填写有效的 HTTP 或 HTTPS DeepL API 地址，或留空以自动选择。"
+  },
+  "deepLRequestTooLarge": {
+    "message": "文本或上下文超过 DeepL 单次请求大小限制，请缩短后重试。"
+  },
+  "deepLAuthenticationFailed": {
+    "message": "DeepL 密钥验证失败（HTTP 403），请检查密钥、API 订阅及 Free / Pro 接口地址。"
+  },
+  "deepLQuotaExceeded": {
+    "message": "DeepL 额度或费用上限已用尽（HTTP 456），请检查账号额度。"
+  },
+  "deepLInvalidRequest": {
+    "message": "DeepL 拒绝了翻译参数（HTTP 400），请检查原文语言、目标语言及 API 地址。"
+  },
+  "deepLInvalidResponse": {
+    "message": "DeepL 返回的译文缺失、为空或数量不匹配。"
+  },
+  "deepLRequestLimit": {
+    "message": "DeepL 请求总大小上限为 128 KiB。WuPage 每组最多发送 50 条文本和 120 KiB JSON，为请求头预留空间。"
+  },
+  "indexTranslateSetupHint": {
+    "message": "先运行官方桥接命令 python inference/llm/call_api.py --serve，再保留默认地址和模型，密钥可留空。桥接会将文本发送到在线服务。使用自行部署的模型时，填写服务地址、实际模型 ID 和可选密钥；扩展不会自动下载模型。"
+  },
+  "indexTranslateSetupGuide": {
+    "message": "Index-Translate 部署与连接说明"
+  },
+  "indexTranslateUsageHint": {
+    "message": "额度和速度取决于连接的服务及设备。官方本地桥接调用在线 API，并非离线推理。默认并发数为 1。"
+  },
   "extensionName": {
     "message": "WuPage 网页翻译"
   },
@@ -2310,6 +2358,18 @@
         "content": "$1"
       }
     }
+  },
+  "modelFileDownloadFailed": {
+    "message": "模型文件 $ARG1$ 下载失败（HTTP $ARG2$）。",
+    "placeholders": { "arg1": { "content": "$1" }, "arg2": { "content": "$2" } }
+  },
+  "modelFileDownloadTimedOut": {
+    "message": "模型文件 $ARG1$ 下载超时。请检查到 $ARG2$ 的网络连接，或下载文件后离线导入。",
+    "placeholders": { "arg1": { "content": "$1" }, "arg2": { "content": "$2" } }
+  },
+  "modelFileNetworkError": {
+    "message": "模型文件 $ARG1$ 下载连接失败，请检查 $ARG2$ 的网络或代理设置。浏览器错误：$ARG3$。",
+    "placeholders": { "arg1": { "content": "$1" }, "arg2": { "content": "$2" }, "arg3": { "content": "$3" } }
   },
   "theServerResponseDoesNotMatchTheRequested": {
     "message": "模型续传响应不匹配。"

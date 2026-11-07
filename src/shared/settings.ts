@@ -262,11 +262,15 @@ function isProviderConfig(value: unknown): value is ProviderConfig {
     );
   }
 
+  if (value.type === "deepl") {
+    return ["id", "label", "endpoint", "apiKey"].every((key) => typeof value[key] === "string");
+  }
+
   if (value.type === "google-cloud-translation") {
     return ["id", "label", "apiKey"].every((key) => typeof value[key] === "string");
   }
 
-  if (value.type === "openai-compatible") {
+  if (value.type === "openai-compatible" || value.type === "index-translate") {
     return ["id", "label", "baseURL", "apiKey", "model", "systemPrompt"].every((key) =>
       typeof value[key] === "string"
     );

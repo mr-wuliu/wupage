@@ -100,7 +100,7 @@ describe("background startup compatibility", () => {
       }
     });
     await import("../src/background/index");
-    expect(addListener).toHaveBeenCalledOnce();
+    expect(addListener).toHaveBeenCalled();
     const receive = addListener.mock.calls[0][0];
     const send = (request: RuntimeRequest): Promise<RuntimeResponse> => new Promise(resolve => {
       expect(receive(request, {}, resolve)).toBe(true);

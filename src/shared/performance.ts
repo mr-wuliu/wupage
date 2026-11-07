@@ -36,6 +36,7 @@ export function isLlmProvider(provider: ProviderConfig): boolean {
   return provider.type === "openai-compatible"
     || provider.type === "anthropic-compatible"
     || provider.type === "deepseek"
+    || provider.type === "index-translate"
     || provider.type === "zhipu-glm";
 }
 

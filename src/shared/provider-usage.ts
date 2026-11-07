@@ -1,5 +1,6 @@
 import { t } from "./i18n";
 import { supportsServiceMode, translationApiOptions } from "./translation-service";
+import { deepLEndpoint } from "./deepl";
 import type { ProviderConfig } from "./types";
 
 export interface UsageSource { label: string; url: string }
@@ -10,6 +11,7 @@ export interface ProviderUsage {
   rate: string;
   concurrency: string;
   note?: string;
+  checkedAt?: string;
   sources: UsageSource[];
 }
 
@@ -100,6 +102,17 @@ export function getProviderUsage(provider: ProviderConfig): ProviderUsage {
   if (provider.type === "microsoft-translator") return officialHost(provider.endpoint, ["cognitive.microsofttranslator.com", "cognitiveservices.azure.com"])
     ? azureUsage() : customUsage(t("microsoftTranslatorCustomApiAddress"));
   if (provider.type === "google-cloud-translation") return googleUsage();
+  if (provider.type === "deepl") {
+    let endpoint: string;
+    try { endpoint = deepLEndpoint(provider); } catch { return customUsage("DeepL"); }
+    if (!officialHost(endpoint, ["api.deepl.com", "api-free.deepl.com"])) return customUsage("DeepL");
+    return { service: "DeepL API", quota: t("dependsOnTheConfiguredServicePlanAndAccount"),
+      request: t("deepLRequestLimit"), rate: unknown, concurrency: unknown, checkedAt: "2026-11-07",
+      sources: [source("DeepL API", "https://developers.deepl.com/docs/resources/usage-limits")] };
+  }
+  if (provider.type === "index-translate") return { ...customUsage(`Index-Translate · ${provider.model}`),
+    note: t("indexTranslateUsageHint"), checkedAt: "2026-11-07",
+    sources: [source("Index-Translate", "https://github.com/bilibili/Index-Translate")] };
   if (provider.type === "deepseek") {
     if (!officialHost(provider.baseURL, ["api.deepseek.com"])) return customUsage(t("deepseekCustomApiAddress"));
     const concurrency = provider.model === "deepseek-flash" ? t("deepseekFlash2500ConcurrentRequestsPerAccount")

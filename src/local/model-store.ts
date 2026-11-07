@@ -115,7 +115,8 @@ async function downloadFile(cache: Cache, file: ModelFile, signal: AbortSignal, 
   const abort = () => controller.abort();
   signal.addEventListener("abort", abort, { once: true });
   let timer: ReturnType<typeof setTimeout>;
-  const resetTimeout = () => { clearTimeout(timer); timer = setTimeout(abort, 30_000); };
+  let timedOut = false;
+  const resetTimeout = () => { clearTimeout(timer); timer = setTimeout(() => { timedOut = true; abort(); }, 30_000); };
   let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
   try {
     signal.throwIfAborted();
@@ -123,7 +124,7 @@ async function downloadFile(cache: Cache, file: ModelFile, signal: AbortSignal, 
       resetTimeout();
       const response = await fetch(file.url, { credentials: "omit", cache: "no-store", signal: controller.signal,
         headers: offset ? { Range: `bytes=${offset}-` } : {} });
-      if (!response.ok || !response.body) throw new Error(t("modelDownloadFailed", response.status));
+      if (!response.ok || !response.body) throw new Error(t("modelFileDownloadFailed", file.name, response.status));
       if (response.status === 206) {
         const range = /^bytes (\d+)-(\d+)\/(\d+)$/.exec(response.headers.get("content-range") ?? "");
         if (!range || Number(range[1]) !== offset || Number(range[3]) !== file.bytes) throw new Error(t("theServerResponseDoesNotMatchTheRequested"));
@@ -151,6 +152,11 @@ async function downloadFile(cache: Cache, file: ModelFile, signal: AbortSignal, 
     if (offset !== file.bytes) throw new Error(t("modelDownloadInterruptedDownloadedDataWasKeptFor"));
     try { await storeFile(cache, file, bytes.buffer); }
     catch (error) { await deleteParts(cache, file); throw error; }
+  } catch (error) {
+    signal.throwIfAborted();
+    if (timedOut) throw new Error(t("modelFileDownloadTimedOut", file.name, new URL(file.url).hostname));
+    if (error instanceof TypeError) throw new Error(t("modelFileNetworkError", file.name, new URL(file.url).hostname, error.message));
+    throw error;
   } finally {
     clearTimeout(timer!);
     signal.removeEventListener("abort", abort);

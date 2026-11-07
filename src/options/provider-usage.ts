@@ -10,7 +10,7 @@ export function renderProviderUsage(container: HTMLElement, provider: ProviderCo
   container.setAttribute("aria-labelledby", "providerUsageTitle");
   const header = document.createElement("div"); header.className = "provider-usage-heading";
   const heading = document.createElement("h3"); heading.id = "providerUsageTitle"; heading.textContent = t("quotasAndLimits", usage.service);
-  const checked = document.createElement("time"); checked.dateTime = PROVIDER_USAGE_CHECKED_AT; checked.textContent = t("updated", PROVIDER_USAGE_CHECKED_AT);
+  const checked = document.createElement("time"); checked.dateTime = usage.checkedAt ?? PROVIDER_USAGE_CHECKED_AT; checked.textContent = t("updated", checked.dateTime);
   header.append(heading, checked);
   const details = document.createElement("dl"); details.className = "provider-usage-details";
   for (const [label, value] of [[t("freeAnonymousQuota"), usage.quota], [t("perRequest"), usage.request], [t("requestRate"), usage.rate], [t("providerConcurrency"), usage.concurrency]]) {
@@ -40,7 +40,7 @@ export function updateProviderScheduling(container: HTMLElement, provider: Provi
   const performance = getEffectiveProviderPerformance(settings, provider.id);
   const useApi = "serviceMode" in provider && provider.serviceMode === "api";
   const inner = provider.type === "google-web-translate" && !useApi ? t("upToFourInternalRequestsPerTask")
-    : ["yandex-web-translate", "volcengine-web-translate", "mymemory", "firefox-local"].includes(provider.type)
+    : ["yandex-web-translate", "volcengine-web-translate", "mymemory", "firefox-local", "deepl"].includes(provider.type)
       || provider.type === "tencent-transmart" && useApi ? t("sequentialProcessingWithinEachTask") : "";
   output.textContent = t("currentSettingsChunkSizeCharactersConcurrency", performance.chunkSize.toLocaleString(t("interfaceLanguage")), performance.concurrency, inner);
 }

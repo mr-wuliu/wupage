@@ -5,6 +5,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createServer } from 'node:http';
+import { createHash } from 'node:crypto';
 
 const root = path.resolve(fileURLToPath(new URL('..', import.meta.url)));
 const output = path.join(root, '.npm-cache/local-translation');
@@ -15,6 +16,10 @@ const catalog = JSON.parse(await fs.readFile(path.join(root, 'src/local/catalog.
 const model = catalog.find(entry => entry.id === 'en-zh-Hans');
 let fixtureServer;
 let fixtureRequests = 0;
+let fixtureFailures = 0;
+let fixtureUnavailable = true;
+let interrupted = false;
+let verifiedManualFiles = 0;
 let resumed = false;
 let fixtureOrigin;
 let extension = path.join(root, 'dist');
@@ -23,13 +28,15 @@ if (process.env.LOCAL_MODEL_FIXTURE_DIR) {
     const file = model.files.find(entry => `/${entry.name}` === request.url);
     if (!file) { response.writeHead(404); response.end(); return; }
     fixtureRequests++;
+    if (fixtureUnavailable) { fixtureFailures++; response.writeHead(503); response.end(); return; }
     const data = await fs.readFile(path.join(process.env.LOCAL_MODEL_FIXTURE_DIR, file.name));
     const offset = Number(/^bytes=(\d+)-$/.exec(request.headers.range ?? '')?.[1] ?? 0);
     if (offset) resumed = true;
     response.writeHead(offset ? 206 : 200, { 'content-type': 'application/octet-stream',
       'content-length': String(data.length - offset),
       ...(offset ? { 'content-range': `bytes ${offset}-${data.length - 1}/${data.length}` } : {}) });
-    if (fixtureRequests === 1) {
+    if (!interrupted) {
+      interrupted = true;
       // Force an actual broken HTTP stream after persisted checkpoints.
       response.write(data.subarray(0, 2 * 1024 * 1024));
       setTimeout(() => response.destroy(), 250);
@@ -76,12 +83,41 @@ try {
   assert.match(missing.error, /下载或导入/);
   assert.equal(requests.length, 0, 'Missing models must not trigger a download');
   assert.equal(fixtureRequests, 0);
+  if (fixtureServer) {
+    await options.locator('[data-local="download"]').click();
+    await options.locator('[data-local="status"]').filter({ hasText: 'HTTP 503' }).waitFor({ timeout: 20000 });
+    const failure = await options.locator('[data-local="status"]').textContent();
+    assert.match(failure, /model\.enzh\.intgemm\.alphas\.bin/);
+    assert.match(failure, /已保留完成的数据/);
+    assert.doesNotMatch(failure, /__MSG_/);
+    assert.equal(fixtureFailures, 3, 'Failed downloads retry a bounded number of times');
+    fixtureUnavailable = false;
+  }
   await options.locator('[data-local="download"]').click();
-  await options.waitForFunction(() => {
-    const option = document.querySelector('[data-local="model"]')?.selectedOptions[0];
-    return option?.textContent.includes('已就绪');
-  }, undefined, { timeout: 300000 });
+  let finalModelState;
+  for (const deadline = Date.now() + 300000; Date.now() < deadline;) {
+    const response = await options.evaluate(() => chrome.runtime.sendMessage({ type: 'GET_LOCAL_MODEL_STATUS' }));
+    finalModelState = response?.data?.models.find(entry => entry.id === 'en-zh-Hans');
+    if (finalModelState && ['ready', 'error'].includes(finalModelState.state)) break;
+    await new Promise(resolve => setTimeout(resolve, 1000));
+  }
+  assert.equal(finalModelState?.state, 'ready', finalModelState?.error ?? 'Model download did not finish');
   if (fixtureServer) assert.equal(resumed, true, 'An interrupted real download must resume with Range');
+  if (!fixtureServer) {
+    await options.locator('.local-model-control summary').click();
+    for (const file of model.files.filter(file => file.role === 'srcvocab' || file.role === 'lex')) {
+      const downloading = options.waitForEvent('download');
+      await options.locator('[data-local="links"] a').filter({ hasText: file.name }).click();
+      const download = await downloading;
+      const destination = path.join(output, file.name);
+      await download.saveAs(destination);
+      assert.equal(await download.failure(), null);
+      const data = await fs.readFile(destination);
+      assert.equal(data.length, file.bytes);
+      assert.equal(createHash('sha256').update(data).digest('hex'), file.sha256);
+      verifiedManualFiles++;
+    }
+  }
   await options.close();
   await context.setOffline(true);
   options = await context.newPage();
@@ -118,7 +154,9 @@ try {
   }
   assert.deepEqual(errors, []);
   const report = { translations: result.data.translations, automatic: automatic.data.translations,
-    modelVersion: model.version, downloadRequests: fixtureServer ? fixtureRequests : requests.length, resumed, errors };
+    modelVersion: model.version, downloadedModelBytes: finalModelState.downloaded,
+    downloadRequests: fixtureServer ? fixtureRequests : undefined,
+    fixtureFailures, verifiedManualFiles, resumed, errors };
   await fs.writeFile(path.join(output, 'report.json'), JSON.stringify(report, null, 2));
   console.log(JSON.stringify(report, null, 2));
 } catch (error) {

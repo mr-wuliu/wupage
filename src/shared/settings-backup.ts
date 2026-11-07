@@ -155,6 +155,8 @@ const providerShapes = {
   "doubao-web": providerBase, "firefox-local": providerBase,
   "microsoft-translator": { ...providerBase, endpoint: string, apiKey: string, region: string },
   "google-cloud-translation": { ...providerBase, apiKey: string },
+  deepl: { ...providerBase, endpoint: string, apiKey: string },
+  "index-translate": llm,
   "openai-compatible": { ...llm, ollamaCompatibility: optional(boolean) },
   "anthropic-compatible": llm, deepseek: llm, "zhipu-glm": llm,
   "http-template": { ...providerBase, method: oneOf("GET", "POST"), url: string, headers: stringMap, bodyTemplate: string, responsePath: string }

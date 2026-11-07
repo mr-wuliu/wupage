@@ -23,6 +23,8 @@ export function providerIconMarkup(provider: Pick<ProviderConfig, "type"> | unde
     case "volcengine-web-translate": icon = "volcengine"; break;
     case "doubao-web": icon = "doubao-color"; break;
     case "mymemory": icon = "mymemory"; break;
+    case "deepl": icon = "deepl-color"; break;
+    case "index-translate": icon = "bilibiliindex"; break;
     case "deepseek": icon = "deepseek-color"; break;
     case "zhipu-glm": icon = "zhipu-color"; break;
     case "openai-compatible": icon = "openai"; break;

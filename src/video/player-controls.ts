@@ -43,6 +43,23 @@ export function playerContains(element: Element, descendant: Node): boolean {
   return true;
 }
 
+/** Shorts paints its top buttons beside the inner player, in a higher layer. */
+export function playerControlScope(video: HTMLVideoElement, container: HTMLElement, platform?: VideoPlatform): HTMLElement {
+  return platform?.id === "youtube"
+    ? video.closest<HTMLElement>("ytd-reel-video-renderer,ytm-reel-video-renderer") ?? container : container;
+}
+
+export function playerControlObstacles(video: HTMLVideoElement, container: HTMLElement, platform?: VideoPlatform): DOMRect[] {
+  if (platform?.id !== "youtube") return [];
+  const bounds = video.getBoundingClientRect();
+  return [...playerControlScope(video, container, platform).querySelectorAll<HTMLElement>('button,[role="button"]')]
+    .filter(button => !button.closest('[id^="wupage-"]') && !playerContains(button, video))
+    .map(button => button.getBoundingClientRect())
+    // Reserve the same space while native controls fade out, avoiding a jump on hover.
+    .filter(rect => rect.width > 0 && rect.height > 0 && rect.left < bounds.right && rect.right > bounds.left
+      && rect.top < bounds.bottom && rect.bottom > bounds.top);
+}
+
 export function playerControlDock(video: HTMLVideoElement, container: HTMLElement, platform?: VideoPlatform, observe?: (root: ShadowRoot) => void): PlayerControlDock | undefined {
   // Some players keep their controls beside the video's open shadow root.
   const roots: Array<HTMLElement | ShadowRoot> = [container];

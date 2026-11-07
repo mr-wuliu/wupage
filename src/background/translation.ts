@@ -414,7 +414,8 @@ async function translateProviderTexts(
       translateProviderTexts(providerConfig, provider, { ...part, preservePlaceholders: false }, part.texts, signal, statistics)
     );
   }
-  if (providerConfig.type === "doubao-web" || providerConfig.type === "firefox-local"
+  // DeepL consumes context separately, without translating or billing it as source text.
+  if (providerConfig.type === "doubao-web" || providerConfig.type === "firefox-local" || providerConfig.type === "deepl"
     || (providerConfig.type === "google-web-translate" && providerConfig.serviceMode !== "api")
     || isLlmProvider(providerConfig) || !request.context || !texts.length) {
     return translate({ ...request, texts });

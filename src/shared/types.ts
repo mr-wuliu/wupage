@@ -15,6 +15,8 @@ export type ProviderType =
   | "mymemory"
   | "microsoft-translator"
   | "google-cloud-translation"
+  | "deepl"
+  | "index-translate"
   | "openai-compatible"
   | "anthropic-compatible"
   | "deepseek"
@@ -104,6 +106,13 @@ export interface GoogleCloudTranslationConfig extends ProviderBaseConfig {
   apiKey: string;
 }
 
+export interface DeepLConfig extends ProviderBaseConfig {
+  type: "deepl";
+  /** Empty selects the official Free/Pro endpoint from the API key. */
+  endpoint: string;
+  apiKey: string;
+}
+
 export interface LlmRequestTemplate {
   enabled: boolean;
   /** JSON object: string values override headers; null removes them. */
@@ -150,6 +159,14 @@ export interface ZhipuGlmConfig extends LlmProviderBaseConfig {
   systemPrompt: string;
 }
 
+export interface IndexTranslateConfig extends LlmProviderBaseConfig {
+  type: "index-translate";
+  baseURL: string;
+  apiKey: string;
+  model: string;
+  systemPrompt: string;
+}
+
 export interface HttpTemplateConfig extends ProviderBaseConfig {
   type: "http-template";
   method: "GET" | "POST";
@@ -170,6 +187,8 @@ export type ProviderConfig =
   | MyMemoryConfig
   | MicrosoftTranslatorConfig
   | GoogleCloudTranslationConfig
+  | DeepLConfig
+  | IndexTranslateConfig
   | OpenAICompatibleConfig
   | AnthropicCompatibleConfig
   | DeepSeekConfig

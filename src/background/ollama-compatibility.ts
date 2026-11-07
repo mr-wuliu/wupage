@@ -49,7 +49,7 @@ export async function initializeOllamaCompatibility(): Promise<void> {
 
 async function acquireRule(endpoint: string): Promise<void> {
   if (typeof chrome === "undefined" || !chrome.runtime?.id || !chrome.declarativeNetRequest) {
-    throw new Error(t("reloadTheUpdatedExtensionForOllamaCompatibilityOr"));
+    throw new Error(t("providerOriginCompatibilityUnavailable"));
   }
   await initializeOllamaCompatibility();
   await serialize(async () => {
@@ -62,7 +62,7 @@ async function acquireRule(endpoint: string): Promise<void> {
     const used = new Set([...activeRules.values()].map((rule) => rule.id));
     let id = FIRST_RULE_ID;
     while (used.has(id)) id++;
-    if (id > LAST_RULE_ID) throw new Error(t("tooManyConcurrentOllamaConnectionsTryAgainLater"));
+    if (id > LAST_RULE_ID) throw new Error(t("tooManyConcurrentProviderConnections"));
     const rule: chrome.declarativeNetRequest.Rule = {
       id,
       priority: 1,
@@ -93,8 +93,8 @@ async function releaseRule(endpoint: string): Promise<void> {
   });
 }
 
-export async function withOllamaCompatibility<T>(endpoint: string, request: () => Promise<T>): Promise<T> {
-  // Ollama accepts requests without Origin. Do this only for WuPage's own POST
+export async function withProviderOriginCompatibility<T>(endpoint: string, request: () => Promise<T>): Promise<T> {
+  // Ollama and DeepL accept authenticated API clients without Origin. Scope this to WuPage's own POST
   // to the configured endpoint, and only while that request is in flight.
   await acquireRule(endpoint);
   try {
@@ -103,3 +103,5 @@ export async function withOllamaCompatibility<T>(endpoint: string, request: () =
     await releaseRule(endpoint);
   }
 }
+
+export const withOllamaCompatibility = withProviderOriginCompatibility;

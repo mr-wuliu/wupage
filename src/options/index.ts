@@ -425,6 +425,19 @@ function renderProviderForm(rebuildPerformance = true): void {
     return;
   }
 
+  if (provider.type === "deepl") {
+    setProviderFormMarkup(provider, `
+      <div class="grid">
+        <label>${htmlMessage("displayName")} <input data-field="label" type="text" value="${escapeAttr(provider.label)}" /></label>
+        <label>API Key <input data-field="apiKey" type="password" value="${escapeAttr(provider.apiKey)}" autocomplete="off" /></label>
+        <label>${htmlMessage("deepLEndpointLabel")} <input data-field="endpoint" type="url" value="${escapeAttr(provider.endpoint)}" placeholder="${htmlMessage("deepLAutoEndpoint")}" /></label>
+      </div>
+      <p class="hint">${htmlMessage("deepLSetupHint")}</p>
+      <p class="hint"><a href="https://www.deepl.com/your-account/keys" target="_blank" rel="noreferrer">${htmlMessage("deepLManageKeys")}</a></p>
+    `);
+    return;
+  }
+
   if (provider.type === "microsoft-translator") {
     setProviderFormMarkup(provider, `
       <div class="grid">
@@ -447,7 +460,7 @@ function renderProviderForm(rebuildPerformance = true): void {
     return;
   }
 
-  if (provider.type === "openai-compatible" || provider.type === "anthropic-compatible") {
+  if (provider.type === "openai-compatible" || provider.type === "anthropic-compatible" || provider.type === "index-translate") {
     const isAnthropic = provider.type === "anthropic-compatible";
     setProviderFormMarkup(provider, `
       <div class="grid">
@@ -457,7 +470,7 @@ function renderProviderForm(rebuildPerformance = true): void {
         ${renderModelControl(provider)}
       </div>
       <label>${htmlMessage("systemPrompt")} <textarea data-field="systemPrompt">${escapeHtml(provider.systemPrompt)}</textarea></label>
-      ${isAnthropic ? "" : `
+      ${provider.type !== "openai-compatible" ? "" : `
         <label>${htmlMessage("ollamaCompatibility")}
           <select data-field="ollamaCompatibility">
             <option value="enabled" ${provider.type === "openai-compatible" && provider.ollamaCompatibility !== false ? "selected" : ""}>${htmlMessage("enabledDefault")}</option>
@@ -467,6 +480,8 @@ function renderProviderForm(rebuildPerformance = true): void {
         <p class="hint">${htmlMessage("enabledByDefaultSupportsIpv4Ipv6CustomPorts")}</p>
       `}
       <p class="hint">${htmlMessage("apiFormat", isAnthropic ? "Anthropic Messages" : "OpenAI Chat Completions")}</p>
+      ${provider.type === "index-translate" ? `<p class="hint">${htmlMessage("indexTranslateSetupHint")}</p>
+        <p class="hint"><a href="https://github.com/bilibili/Index-Translate#inference" target="_blank" rel="noreferrer">${htmlMessage("indexTranslateSetupGuide")}</a></p>` : ""}
     `);
     return;
   }
@@ -625,6 +640,7 @@ function refreshUsageScheduling(base: ProviderConfig): void {
 type ModelProvider = Extract<ProviderConfig, { model: string }>;
 
 function modelPresets(provider: ModelProvider): string[] {
+  if (provider.type === "index-translate") return ["Index-Translate-35B-A3B", "Index-Translate-9B", "Index-Translate-2B"];
   if (provider.type === "deepseek") return DEEPSEEK_MODEL_OPTIONS;
   if (provider.type === "zhipu-glm") return ZHIPU_MODEL_OPTIONS;
   return provider.type === "openai-compatible" ? LLM_MODEL_OPTIONS : [];
@@ -1145,6 +1161,10 @@ function readProviderFromForm(provider: ProviderConfig): ProviderConfig {
       region: field("region").trim()
     };
   }
+  if (provider.type === "deepl") {
+    return { ...provider, label: field("label").trim() || provider.label,
+      endpoint: field("endpoint").trim(), apiKey: field("apiKey").trim() };
+  }
   if (provider.type === "google-cloud-translation") {
     return {
       ...provider,
@@ -1152,7 +1172,7 @@ function readProviderFromForm(provider: ProviderConfig): ProviderConfig {
       apiKey: field("apiKey")
     };
   }
-  if (provider.type === "openai-compatible" || provider.type === "anthropic-compatible") {
+  if (provider.type === "openai-compatible" || provider.type === "anthropic-compatible" || provider.type === "index-translate") {
     return {
       ...provider,
       label: field("label").trim() || provider.label,

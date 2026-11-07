@@ -96,16 +96,35 @@ Windows、macOS 上的普通 Chrome 限制安装商店外的 CRX，请使用上�
 | Microsoft、Google、腾讯、Yandex、火山 | 预置无需密钥的免费服务，也可切换为自备凭据的 API 模式 |
 | MyMemory | 匿名免费服务或 RapidAPI，适合少量文本 |
 | 豆包（实验性） | 在同一浏览器中登录豆包，无需 API Key；仅支持 Chrome / Edge |
+| DeepL | DeepL API Key；按密钥自动选择官方 Free / Pro 地址，也可填写兼容接口地址 |
+| Index-Translate | 连接官方本地桥接或自行部署的 OpenAI 兼容服务，支持自定义模型和可选密钥 |
 | DeepSeek / Zhipu GLM | 对应平台的 API Key 和模型 |
 | OpenAI / Anthropic 兼容服务 | 自定义服务地址、模型、密钥和提示词；OpenAI 兼容服务可连接 Ollama 等本地接口 |
 | HTTP 模板 | 自定义请求地址、参数与响应路径 |
 | Firefox 本地翻译（实验） | 使用 Bergamot 引擎，Chrome / Edge 也可使用；需先下载或导入语言模型，准备完成后可离线翻译 |
+
+本地模型在该服务的设置中下载；离线安装可展开「网络不畅或离线安装」，保存所选方向的全部文件后点击「离线导入」。Chrome / Edge 请直接点击扩展页面中的文件链接；将原始链接复制到地址栏可能被 Mozilla 下载服务拒绝（HTTP 406），也可改用 Firefox 下载后导入。
 
 免费服务可能受限流、地区和接口变更影响。服务持续失败时需手动重试或切换，不会自动转发到其他服务；支持语言、额度与费用以服务商为准。
 
 Google 免费翻译连接失败时，会尝试同属 Google 的 `translate.googleapis.com` 与 `translate.google.com` 地址，并短暂复用可连接的地址；限流、权限拒绝或响应格式异常时不会切换地址重试。能打开 Google 网页不代表这两个接口域名都能连通，使用按域名分流的代理时需分别检查。问题持续时，在 Debug 面板提供错误状态，区分网络失败、HTTP 403、HTTP 429 和接口格式变化。
 
 本地翻译模型每个语言方向约 35–55 MB，非英语之间的翻译可能需要经英语中转的两个方向。选择服务不会自动下载模型；缺少模型时按设置页提示安装。
+
+### DeepL
+
+在「设置 → 翻译服务」选择 DeepL，填写 [DeepL 账号中的 API Key](https://www.deepl.com/your-account/keys)，保存后点击「测试服务」。接口地址留空时，以 `:fx` 结尾的密钥使用 `https://api-free.deepl.com`，其他密钥使用 `https://api.deepl.com`。自定义地址支持 API 根地址、以 `/v2` 结尾的地址或完整的 `/v2/translate` 地址。
+
+需要开通 DeepL API 服务；网页翻译订阅不等同于 API 使用权限。原文语言选择「自动检测」时由 DeepL 判断语言，简体与繁体中文分别使用对应目标语言。HTTP 403 通常表示密钥或接口地址不匹配，456 表示额度或费用上限已用尽，429 表示限流；可降低并发数后重试。额度、支持语言及费用以 [DeepL 官方说明](https://developers.deepl.com/docs/resources/usage-limits)和账号状态为准。
+
+### Index-Translate
+
+扩展连接已启动的 [Index-Translate 服务](https://github.com/bilibili/Index-Translate)，不会自动下载模型或启动服务。有两种连接方式：
+
+- **官方本地桥接**：下载官方项目，在项目目录运行 `python inference/llm/call_api.py --serve`，并保持进程运行。在扩展中选择 Index-Translate，保留默认地址 `http://127.0.0.1:8080/v1` 和模型 `Index-Translate-35B-A3B`，密钥可留空。桥接将文本发送到官方在线服务，需要联网，并非本地模型推理。
+- **自行部署模型**：按官方说明启动 vLLM、SGLang 等 OpenAI 兼容服务，将扩展的 Base URL 改为该服务地址（例如 `http://127.0.0.1:8000/v1`），模型填写服务实际公开的 ID（例如 `IndexTeam/Index-Translate-9B`），启用认证时填写密钥。通过模型旁的添加按钮可保存自定义模型名称。
+
+保存后点击「测试服务」，再在弹窗中选择 Index-Translate。默认并发数为 1，适合官方桥接和本地设备；可在性能设置中调整。连接失败时检查服务是否仍在运行、端口是否一致；模型不存在时核对服务公开的模型 ID。官方建议浏览器扩展通过桥接访问在线接口，直接填写在线地址可能遇到访问限制。扩展默认关闭思考输出，并要求按输入顺序返回译文数组；高级设置可调整请求模板。图片仍沿用扩展的本地 OCR 流程，仅将识别出的文字发送给翻译服务。
 
 ## 触屏操作
 
