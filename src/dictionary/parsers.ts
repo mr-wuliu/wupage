@@ -1,3 +1,4 @@
+import { t } from "../shared/i18n";
 import { dictionarySourceUrl, isChineseDictionaryQuery, isDictionaryAudioUrl, type DictionaryEntry, type DictionaryPronunciation } from "../shared/dictionary";
 
 function record(value: unknown): Record<string, unknown> {
@@ -17,7 +18,7 @@ function text(value: unknown, depth = 0): string {
 
 export function parseYoudaoDictionary(payload: unknown, query: string): DictionaryEntry {
   const data = record(payload);
-  if (!data.ec && !data.ce && !data.simple && !data.newhh && !data.input) throw new Error("有道词典返回了无法识别的数据，请稍后重试。");
+  if (!data.ec && !data.ce && !data.simple && !data.newhh && !data.input) throw new Error(t("youdaoReturnedAnUnrecognizedResponseTryAgainLater"));
   const ec = record(list(record(data.ec).word)[0]);
   const ce = record(list(record(data.ce).word)[0]);
   const simple = record(list(record(data.simple).word)[0]);
@@ -79,7 +80,7 @@ export function parseBingDictionary(html: string, query: string): DictionaryEntr
   const content = template.content;
   const root = content.querySelector(".qdef");
   if (!root && !/词典|dictionary/i.test(content.querySelector("title")?.textContent ?? "")) {
-    throw new Error("Bing 词典暂时不可用或页面结构已变化，请切换词典后重试。");
+    throw new Error(t("bingDictionaryIsUnavailableOrItsLayoutHas"));
   }
   const pronunciations: DictionaryPronunciation[] = [];
   for (const accent of ["uk", "us"] as const) {

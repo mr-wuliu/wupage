@@ -2,6 +2,7 @@ import type { DictionaryProvider, SelectionTranslationSettings } from "./diction
 import type { AppearanceSettings } from "./appearance";
 import type { VideoTranslationSettings } from "./video";
 import type { ShortcutEnabledSettings, ShortcutSettings, TranslationShortcut } from "./shortcuts";
+import type { InterfaceLanguage } from "./i18n";
 
 export type ProviderType =
   | "doubao-web"
@@ -352,7 +353,7 @@ export type RuntimeRequest =
   | { type: "IMPORT_SETTINGS"; backup: string }
   | { type: "OPEN_OPTIONS_PAGE" }
   | { type: "OPEN_EMBEDDED_PDF"; url: string }
-  | { type: "SAVE_SETTINGS"; settings: ExtensionSettings; previousSettings?: ExtensionSettings }
+  | { type: "SAVE_SETTINGS"; settings: ExtensionSettings; previousSettings?: ExtensionSettings; interfaceLanguage?: InterfaceLanguage }
   | { type: "TEST_PROVIDER"; providerId?: string };
 
 export type RuntimeResponse =

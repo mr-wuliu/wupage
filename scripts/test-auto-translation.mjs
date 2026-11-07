@@ -30,7 +30,7 @@ await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
 const origin=`http://127.0.0.1:${server.address().port}`;
 const context=await chromium.launchPersistentContext(path.join(output,`profile-${Date.now()}`),{
   ...(process.env.PDF_TEST_BROWSER?{executablePath:process.env.PDF_TEST_BROWSER}:{channel:'chromium'}),
-  headless:true,ignoreDefaultArgs:['--disable-extensions'],args:['--enable-unsafe-extension-debugging'],viewport:{width:1100,height:1000}
+  headless:true,ignoreDefaultArgs:['--disable-extensions'],args:['--lang=zh-CN', '--enable-unsafe-extension-debugging'],viewport:{width:1100,height:1000}
 });
 const errors=[];
 try{

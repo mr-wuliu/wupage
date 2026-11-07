@@ -13,6 +13,7 @@ export default defineConfig(({ mode }) => {
   const target = firefox ? "firefox154" : "chrome120";
   const sourcemap = process.env.WUPAGE_SOURCEMAP === "1";
   return {
+    test: { setupFiles: ["./tests/helpers/browser-i18n.ts"] },
     plugins: [{
       name: "bundle-local-ocr-runtime",
       async closeBundle() {

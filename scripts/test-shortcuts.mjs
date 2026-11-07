@@ -30,7 +30,7 @@ try {
   context = await chromium.launchPersistentContext(path.join(output, `profile-${Date.now()}`), {
     ...(chromeBrowser || process.env.PDF_TEST_BROWSER ? { executablePath: chromeBrowser || process.env.PDF_TEST_BROWSER } : { channel: 'chromium' }),
     headless: true, ignoreDefaultArgs: ['--disable-extensions'],
-    args: chromeBrowser ? ['--enable-unsafe-extension-debugging'] : [`--load-extension=${path.join(root, 'dist')}`],
+    args: chromeBrowser ? ['--lang=zh-CN', '--enable-unsafe-extension-debugging'] : ['--lang=zh-CN', `--load-extension=${path.join(root, 'dist')}`],
     viewport: { width: 1200, height: 1000 }
   });
   if (chromeBrowser) {

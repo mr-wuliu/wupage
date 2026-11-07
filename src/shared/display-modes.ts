@@ -1,3 +1,4 @@
+import { t } from "./i18n";
 import type { TranslationDisplayMode } from "./types";
 
 export const TRANSLATION_DISPLAY_MODES: ReadonlyArray<{
@@ -7,17 +8,17 @@ export const TRANSLATION_DISPLAY_MODES: ReadonlyArray<{
 }> = [
   {
     value: "replace",
-    label: "译文替换",
-    description: "隐藏原文，仅显示译文"
+    get label() { return t("replaceDisplayMode"); },
+    get description() { return t("hideTheOriginalAndShowOnlyTheTranslation"); }
   },
   {
     value: "bilingual",
-    label: "原色对照",
-    description: "译文显示在原文下方，并沿用原文颜色"
+    get label() { return t("originalColors"); },
+    get description() { return t("showTheTranslationBelowTheOriginalInThe"); }
   },
   {
     value: "bilingual-accent",
-    label: "双色对照",
-    description: "译文显示在原文下方，并用不同颜色区分"
+    get label() { return t("twoColorBilingual"); },
+    get description() { return t("showTheTranslationBelowTheOriginalInA"); }
   }
 ];

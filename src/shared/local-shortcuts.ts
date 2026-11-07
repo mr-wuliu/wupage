@@ -1,9 +1,10 @@
+import { t } from "./i18n";
 export const LOCAL_BINDINGS = [
-  { name: "paragraph-click", label: "段落点击", toggle: "paragraph-click" },
-  { name: "selection-submit", label: "提交划词原文", toggle: "selection-submit" },
-  { name: "dismiss-overlays", label: "关闭卡片 / 收起菜单", toggle: "dismiss-overlays" },
-  { name: "floating-activate", label: "悬浮球翻译", toggle: "floating-controls" },
-  { name: "floating-menu", label: "进入悬浮菜单", toggle: "floating-controls" }
+  { name: "paragraph-click", get label() { return t("paragraphClick"); }, toggle: "paragraph-click" },
+  { name: "selection-submit", get label() { return t("submitSelectedText"); }, toggle: "selection-submit" },
+  { name: "dismiss-overlays", get label() { return t("closeCardCollapseMenu"); }, toggle: "dismiss-overlays" },
+  { name: "floating-activate", get label() { return t("translateWithFloatingButton"); }, toggle: "floating-controls" },
+  { name: "floating-menu", get label() { return t("openFloatingMenu"); }, toggle: "floating-controls" }
 ] as const;
 export type LocalBinding = typeof LOCAL_BINDINGS[number]["name"];
 export type LocalShortcutSettings = Record<LocalBinding, string>;
@@ -68,12 +69,12 @@ export function matchesParagraphClick(event: MouseEvent, value: string): boolean
 export function formatLocalShortcut(value: string, mac = /Mac/.test(globalThis.navigator?.platform ?? "")): string {
   return value.split("|").map(binding => binding.replace("Primary", mac ? "Meta" : "Ctrl").split("+")
     .map(key => key === "Meta" ? mac ? "Command" : "Win" : key === "Alt" && mac ? "Option" : key).join("＋")
-    .replace(/Escape/g, "Esc").replace(/Space/g, "空格").replace(/ArrowDown/g, "向下键").replace(/ArrowUp/g, "向上键")
-    .replace(/ArrowLeft/g, "向左键").replace(/ArrowRight/g, "向右键")).join(" / ");
+    .replace(/Escape/g, "Esc").replace(/Space/g, t("space")).replace(/ArrowDown/g, t("downArrow")).replace(/ArrowUp/g, t("upArrow"))
+    .replace(/ArrowLeft/g, t("leftArrow")).replace(/ArrowRight/g, t("rightArrow"))).join(" / ");
 }
 
 export function paragraphClickHint(value: unknown, enabled = true): string {
   const binding = normalizeLocalShortcuts(value)["paragraph-click"];
-  return !binding ? "请在设置 → 快捷键中设置段落点击快捷键。" : !enabled ? "段落点击快捷键已关闭，可在设置 → 快捷键中开启。"
-    : `所有网页生效；按住 ${formatLocalShortcut(binding)} 点击段落翻译，再次点击恢复原文。`;
+  return !binding ? t("setAParagraphClickShortcutInSettingsKeyboard") : !enabled ? t("theParagraphClickShortcutIsOffEnableIt")
+    : t("onAnyPageHoldAndClickAParagraph", formatLocalShortcut(binding));
 }

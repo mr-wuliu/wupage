@@ -49,7 +49,7 @@ function fixture() {
 try {
   context = await chromium.launchPersistentContext(path.join(output, 'profile-' + Date.now()), {
     ...target.chromiumOptions, headless: true, ignoreDefaultArgs: ['--disable-extensions'],
-    args: ['--enable-unsafe-extension-debugging', '--blink-settings=primaryHoverType=1,availableHoverTypes=1,primaryPointerType=2,availablePointerTypes=2'],
+    args: ['--lang=zh-CN', '--enable-unsafe-extension-debugging', '--blink-settings=primaryHoverType=1,availableHoverTypes=1,primaryPointerType=2,availablePointerTypes=2'],
     viewport: { width: 390, height: 844 },
     hasTouch: true, isMobile: true, deviceScaleFactor: 1
   });

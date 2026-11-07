@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>WuPage Translator</title>
+    <title data-i18n="wupageTranslator">WuPage Translator</title>
     <script type="module" src="/src/popup/index.ts"></script>
   </head>
   <body>
@@ -11,84 +11,84 @@
       <div class="popup-top">
         <header>
           <h1>WuPage</h1>
-          <button id="openOptions" type="button" title="打开设置" aria-label="打开设置"><span data-wupage-icon="settings" aria-hidden="true"></span></button>
+          <button id="openOptions" type="button" title="打开设置" aria-label="打开设置" data-i18n-title="openSettings" data-i18n-aria-label="openSettings"><span data-wupage-icon="settings" aria-hidden="true"></span></button>
         </header>
         <div class="touch-primary" hidden></div>
         <div class="language-field">
           <div class="language-pair">
             <label class="language-select">
-              <span class="visually-hidden">源语言</span>
+              <span class="visually-hidden" data-i18n="sourceLanguage">源语言</span>
               <select id="sourceLang"></select>
-              <span class="language-value" aria-hidden="true">自动检测</span>
+              <span class="language-value" aria-hidden="true" data-i18n="detectLanguage">自动检测</span>
               <span class="language-chevron" data-wupage-icon="arrow-down-03" aria-hidden="true"></span>
             </label>
             <span class="language-direction" aria-hidden="true" data-wupage-icon="arrow-right"></span>
             <label class="language-select">
-              <span class="visually-hidden">目标语言</span>
+              <span class="visually-hidden" data-i18n="targetLanguage">目标语言</span>
               <select id="targetLang"></select>
-              <span class="language-value" aria-hidden="true">中文</span>
+              <span class="language-value" aria-hidden="true" data-i18n="chinese">中文</span>
               <span class="language-chevron" data-wupage-icon="arrow-down-03" aria-hidden="true"></span>
             </label>
             <div class="language-automatic">
-              <button id="autoTranslation" type="button" class="feature-button language-auto" data-loading disabled aria-label="自动翻译" title="按站点或页面语言规则自动翻译">自动</button>
-              <button id="addAutoTranslationSite" type="button" class="language-add-site" hidden disabled aria-label="将当前网站加入自动翻译列表" title="将当前网站加入自动翻译列表"><span data-wupage-icon="plus" aria-hidden="true"></span></button>
+              <button id="autoTranslation" type="button" class="feature-button language-auto" data-loading disabled aria-label="自动翻译" title="按站点或页面语言规则自动翻译" data-i18n-aria-label="automaticTranslation" data-i18n-title="translateAutomaticallyUsingSiteOrPageLanguageRules" data-i18n="auto">自动</button>
+              <button id="addAutoTranslationSite" type="button" class="language-add-site" hidden disabled aria-label="将当前网站加入自动翻译列表" title="将当前网站加入自动翻译列表" data-i18n-aria-label="addThisSiteToAutomaticTranslation" data-i18n-title="addThisSiteToAutomaticTranslation"><span data-wupage-icon="plus" aria-hidden="true"></span></button>
             </div>
           </div>
         </div>
-        <label>
+        <label data-i18n="translationService">
           翻译服务
           <select id="provider"></select>
         </label>
       </div>
-      <label data-touch-extra>
+      <label data-touch-extra data-i18n="displayMode">
         翻译模式
         <select id="translationDisplayMode" disabled></select>
       </label>
-      <div class="feature-toggles popup-menu-grid" role="group" aria-label="菜单功能" data-popup-menu-grid>
-        <button id="contextMenuTranslation" data-popup-menu-item="contextMenuTranslation" type="button" class="feature-button" disabled title="右键点击网页，通过菜单翻译全文或恢复原文">
-          <span>右键翻译</span>
+      <div class="feature-toggles popup-menu-grid" role="group" aria-label="菜单功能" data-popup-menu-grid data-i18n-aria-label="menuActions">
+        <button id="contextMenuTranslation" data-popup-menu-item="contextMenuTranslation" type="button" class="feature-button" disabled title="右键点击网页，通过菜单翻译全文或恢复原文" data-i18n-title="rightClickAPageToTranslateItOr">
+          <span data-i18n="contextMenu">右键翻译</span>
           <span class="feature-indicator" aria-hidden="true"></span>
         </button>
         <button id="floatingBall" data-popup-menu-item="floatingBall" type="button" class="feature-button" disabled>
-          <span>悬浮球</span>
+          <span data-i18n="floatingButton">悬浮球</span>
           <span class="feature-indicator" aria-hidden="true"></span>
         </button>
-        <button id="selectionTranslation" data-popup-menu-item="selectionTranslation" type="button" class="feature-button" disabled title="选中文字后显示查词或翻译入口">
-          <span>划词翻译</span>
+        <button id="selectionTranslation" data-popup-menu-item="selectionTranslation" type="button" class="feature-button" disabled title="选中文字后显示查词或翻译入口" data-i18n-title="showADictionaryOrTranslationShortcutWhenText">
+          <span data-i18n="selectionTranslation">划词翻译</span>
           <span class="feature-indicator" aria-hidden="true"></span>
         </button>
         <div class="image-feature" data-popup-menu-item="imageTranslation" data-loading aria-busy="true">
           <div class="image-feature-row">
-            <button id="imageTranslation" type="button" class="feature-button" disabled aria-describedby="ocrDescription ocrModelStatus" title="开启后，点击图片旁的按钮翻译并覆盖原文">
-              <span>图片翻译</span>
+            <button id="imageTranslation" type="button" class="feature-button" disabled aria-describedby="ocrDescription ocrModelStatus" title="开启后，点击图片旁的按钮翻译并覆盖原文" data-i18n-title="useTheButtonBesideAnImageToOverlay">
+              <span data-i18n="imageTranslation">图片翻译</span>
               <span class="feature-indicator" aria-hidden="true"></span>
             </button>
             <div class="ocr-help-slot"></div>
-            <button id="ocrModelAction" type="button" class="ocr-model-action" aria-label="安装 OCR 模型" disabled></button>
+            <button id="ocrModelAction" type="button" class="ocr-model-action" aria-label="安装 OCR 模型" disabled data-i18n-aria-label="installOcrModels"></button>
           </div>
           <p id="ocrDescription" class="ocr-description"></p>
-          <progress id="ocrModelProgress" class="ocr-model-progress" aria-label="OCR 模型下载进度" hidden></progress>
+          <progress id="ocrModelProgress" class="ocr-model-progress" aria-label="OCR 模型下载进度" hidden data-i18n-aria-label="ocrModelDownloadProgress"></progress>
           <p id="ocrModelStatus" class="ocr-model-status" role="status"></p>
         </div>
-        <button id="videoTranslation" data-popup-menu-item="videoTranslation" data-popup-menu-wide type="button" class="feature-button" data-loading disabled aria-pressed="false" title="在所有网页显示字幕翻译入口；关闭后停止字幕翻译并恢复原字幕">
-          <span>视频字幕</span>
+        <button id="videoTranslation" data-popup-menu-item="videoTranslation" data-popup-menu-wide type="button" class="feature-button" data-loading disabled aria-pressed="false" title="在所有网页显示字幕翻译入口；关闭后停止字幕翻译并恢复原字幕" data-i18n-title="showSubtitleControlsOnAllSitesTurningThis">
+          <span data-i18n="videoSubtitles">视频字幕</span>
           <span class="feature-indicator" aria-hidden="true"></span>
         </button>
-        <button id="pageToggle" data-popup-menu-item="pageToggle" type="button" disabled>翻译全文</button>
+        <button id="pageToggle" data-popup-menu-item="pageToggle" type="button" disabled data-i18n="translatePage">翻译全文</button>
         <button id="paragraphMode" data-popup-menu-item="paragraphMode" type="button" class="feature-button" aria-pressed="false" aria-describedby="paragraphModeHint" disabled>
-          <span>段落翻译</span>
+          <span data-i18n="paragraphTranslation">段落翻译</span>
           <span class="feature-indicator" aria-hidden="true"></span>
         </button>
-        <button id="openPdfWorkspace" data-popup-menu-item="openPdfWorkspace" data-popup-menu-wide type="button" class="secondary">打开 PDF</button>
+        <button id="openPdfWorkspace" data-popup-menu-item="openPdfWorkspace" data-popup-menu-wide type="button" class="secondary" data-i18n="openPdf">打开 PDF</button>
         <button id="debug" data-popup-menu-item="debug" type="button" class="secondary">Debug</button>
-        <button id="clearCache" data-popup-menu-item="clearCache" type="button" class="secondary">清除缓存</button>
+        <button id="clearCache" data-popup-menu-item="clearCache" type="button" class="secondary" data-i18n="clearCache">清除缓存</button>
       </div>
-      <button id="moreFeatures" type="button" class="secondary" aria-expanded="false" hidden><span>更多功能</span><span data-wupage-icon="arrow-down-03" aria-hidden="true"></span></button>
-      <span id="paragraphModeHint" class="field-description" hidden>所有网页生效；按住 Ctrl 点击段落翻译，再次点击恢复原文。</span>
+      <button id="moreFeatures" type="button" class="secondary" aria-expanded="false" hidden><span data-i18n="moreFeatures">更多功能</span><span data-wupage-icon="arrow-down-03" aria-hidden="true"></span></button>
+      <span id="paragraphModeHint" class="field-description" hidden data-i18n="onAnyPageHoldCtrlAndClickA">所有网页生效；按住 Ctrl 点击段落翻译，再次点击恢复原文。</span>
       <p id="status" role="status"></p>
       <div id="fileAccessHelp" hidden>
-        <p class="file-access-instructions">在扩展详情中开启「允许访问文件网址」或「允许访问文件 URL」，然后回到 PDF 重新打开 WuPage。</p>
-        <button id="openFileAccessSettings" type="button" class="secondary">打开扩展设置</button>
+        <p class="file-access-instructions" data-i18n="enableAllowAccessToFileUrlsInThe">在扩展详情中开启「允许访问文件网址」或「允许访问文件 URL」，然后回到 PDF 重新打开 WuPage。</p>
+        <button id="openFileAccessSettings" type="button" class="secondary" data-i18n="openExtensionSettings">打开扩展设置</button>
       </div>
       <div class="footer-links" data-popup-menu-footer>
         <button id="openGithub" data-popup-menu-item="openGithub" type="button" class="footer-link">
@@ -99,7 +99,7 @@
         </button>
         <button id="openWebsite" data-popup-menu-item="openWebsite" type="button" class="footer-link">
           <span data-wupage-icon="internet" aria-hidden="true"></span>
-          <span>官网</span>
+          <span data-i18n="website">官网</span>
         </button>
       </div>
     </main>

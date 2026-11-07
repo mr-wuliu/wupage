@@ -1,3 +1,4 @@
+import { t } from "../shared/i18n";
 import { applyColorScheme, BUILT_IN_SCHEMES, COLOR_FIELDS, COLOR_GROUPS, DEFAULT_APPEARANCE, getColorScheme,
   isHexColor, normalizeAppearance, type AppearanceMode, type AppearanceSettings, type AppearanceTone } from "../shared/appearance";
 import { setupAppearance } from "../shared/appearance-runtime";
@@ -47,7 +48,7 @@ export function setupAppearanceControls(root: HTMLElement): {
     const preview = query<HTMLElement>("#appearancePreview");
     applyColorScheme(preview, scheme);
     preview.style.colorScheme = tone;
-    query<HTMLElement>("#appearancePreviewTone").textContent = tone === "light" ? "浅色" : "深色";
+    query<HTMLElement>("#appearancePreviewTone").textContent = tone === "light" ? t("light") : t("dark");
     const palette = { light: scheme.colors["translation-light"], dark: scheme.colors["translation-dark"] };
     query<HTMLElement>(".appearance-preview-translation-light").style.color = mapTranslationTextColor("rgb(39, 49, 58)", "rgb(255, 255, 255)", palette)!;
     query<HTMLElement>(".appearance-preview-translation-dark").style.color = mapTranslationTextColor("rgb(231, 239, 236)", "rgb(23, 32, 38)", palette)!;
@@ -55,7 +56,7 @@ export function setupAppearanceControls(root: HTMLElement): {
 
   function renderEditor(): void {
     select.replaceChildren();
-    for (const [label, schemes] of [["内置方案", BUILT_IN_SCHEMES], ["自定义方案", draft.customSchemes]] as const) {
+    for (const [label, schemes] of [[t("builtInSchemes"), BUILT_IN_SCHEMES], [t("customSchemes"), draft.customSchemes]] as const) {
       const group = document.createElement("optgroup");
       group.label = label;
       for (const scheme of schemes.filter(scheme => scheme.tone === tone)) {
@@ -72,7 +73,7 @@ export function setupAppearanceControls(root: HTMLElement): {
     name.value = editable ? scheme.name : "";
     name.removeAttribute("aria-invalid");
     duplicate.disabled = draft.customSchemes.length >= 32;
-    duplicate.title = duplicate.disabled ? "最多保存 32 个自定义方案" : "复制当前方案并编辑";
+    duplicate.title = duplicate.disabled ? t("youCanSaveUpTo32CustomSchemes") : t("duplicateAndEditTheCurrentScheme");
     for (const button of root.querySelectorAll<HTMLButtonElement>("[data-appearance-tone]")) {
       button.setAttribute("aria-pressed", String(button.dataset.appearanceTone === tone));
     }
@@ -115,7 +116,7 @@ export function setupAppearanceControls(root: HTMLElement): {
       const hex = document.createElement("input");
       hex.type = "text"; hex.value = scheme.colors[key]; hex.maxLength = 7;
       hex.spellcheck = false; hex.disabled = !editable;
-      hex.setAttribute("aria-label", `${label}十六进制颜色`);
+      hex.setAttribute("aria-label", t("hexColor", label));
       hex.dataset.colorHex = key;
       picker.addEventListener("input", () => {
         const scheme = custom();
@@ -134,16 +135,16 @@ export function setupAppearanceControls(root: HTMLElement): {
       row.append(text, picker, hex); groups.get(group)!.append(row);
     }
     const opacityRow = document.createElement("div"); opacityRow.className = "appearance-opacity-row";
-    const opacityLabel = document.createElement("label"); opacityLabel.htmlFor = "floatingOpacityRange"; opacityLabel.textContent = "透明度";
+    const opacityLabel = document.createElement("label"); opacityLabel.htmlFor = "floatingOpacityRange"; opacityLabel.textContent = t("opacity");
     const opacityRange = document.createElement("input");
     opacityRange.type = "range"; opacityRange.id = opacityLabel.htmlFor;
     opacityRange.min = "0"; opacityRange.max = "100"; opacityRange.step = "1"; opacityRange.value = String(draft.floatingOpacity);
-    opacityRange.title = "数值越低越透明，100% 为完全不透明";
+    opacityRange.title = t("lowerValuesAreMoreTransparent100IsFully");
     const opacityValue = document.createElement("span"); opacityValue.className = "appearance-opacity-value";
     const opacityNumber = document.createElement("input");
     opacityNumber.type = "number"; opacityNumber.id = "floatingOpacityNumber";
     opacityNumber.min = "0"; opacityNumber.max = "100"; opacityNumber.step = "1"; opacityNumber.value = opacityRange.value;
-    opacityNumber.setAttribute("aria-label", "悬浮球透明度百分比");
+    opacityNumber.setAttribute("aria-label", t("floatingButtonOpacityPercentage"));
     const percent = document.createElement("span"); percent.textContent = "%"; percent.setAttribute("aria-hidden", "true");
     opacityRange.setAttribute("aria-valuetext", `${draft.floatingOpacity}%`);
     opacityRange.addEventListener("input", () => {
@@ -185,12 +186,12 @@ export function setupAppearanceControls(root: HTMLElement): {
     const source = selected();
     const id = `custom-${crypto.randomUUID()}`;
     const names = new Set([...BUILT_IN_SCHEMES, ...draft.customSchemes].map(scheme => scheme.name));
-    let newName = `${source.name.slice(0, 50)}（副本）`;
-    for (let n = 2; names.has(newName); n++) newName = `${source.name.slice(0, 50)}（副本 ${n}）`;
+    let newName = t("copy", source.name.slice(0, 50));
+    for (let n = 2; names.has(newName); n++) newName = t("numberedSchemeCopy", source.name.slice(0, 50), n);
     draft.customSchemes.push({ ...source, id, name: newName, colors: { ...source.colors } });
     if (tone === "light") draft.lightSchemeId = id;
     else draft.darkSchemeId = id;
-    status.textContent = "已复制，可调整颜色和名称。"; renderEditor(); name.focus(); name.select();
+    status.textContent = t("schemeCopiedYouCanEditItsColorsAnd"); renderEditor(); name.focus(); name.select();
   });
   name.addEventListener("input", () => {
     const scheme = custom();
@@ -206,7 +207,7 @@ export function setupAppearanceControls(root: HTMLElement): {
     const scheme = custom();
     if (!scheme) return;
     scheme.colors = { ...getColorScheme(DEFAULT_APPEARANCE, tone).colors };
-    renderEditor(); showActionStatus(status, "已重置为默认配色，保存后生效。");
+    renderEditor(); showActionStatus(status, t("defaultColorsRestoredSaveToApply"));
   });
   query<HTMLButtonElement>("#deleteScheme").addEventListener("click", () => {
     const scheme = custom();
@@ -214,7 +215,7 @@ export function setupAppearanceControls(root: HTMLElement): {
     draft.customSchemes = draft.customSchemes.filter(entry => entry.id !== scheme.id);
     if (tone === "light") draft.lightSchemeId = DEFAULT_APPEARANCE.lightSchemeId;
     else draft.darkSchemeId = DEFAULT_APPEARANCE.darkSchemeId;
-    status.textContent = "已删除方案并切换到默认配色，保存后生效。"; renderEditor(); select.focus();
+    status.textContent = t("schemeDeletedAndDefaultColorsSelectedSaveTo"); renderEditor(); select.focus();
   });
 
   return {
@@ -239,8 +240,8 @@ export function setupAppearanceControls(root: HTMLElement): {
         const group = invalid.closest("details");
         if (group) group.open = true;
         invalid.focus();
-        throw new Error(invalid === name ? "请填写配色方案名称。" : invalid.id === "floatingOpacityNumber"
-          ? "请输入 0 到 100 之间的整数透明度。" : "请输入完整的十六进制颜色，例如 #116466。");
+        throw new Error(invalid === name ? t("enterAColorSchemeName") : invalid.id === "floatingOpacityNumber"
+          ? t("enterAnIntegerOpacityFrom0To100") : t("enterAFullHexColorSuchAs116466"));
       }
       return normalizeAppearance({ ...draft, popupMenu: menu.read() });
     }

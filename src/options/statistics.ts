@@ -1,8 +1,9 @@
+import { t } from "../shared/i18n";
 import { sendRuntimeMessage } from "../shared/messaging";
 import { normalizeStatistics, summarizeStatistics, type UsageStatistics } from "../shared/statistics";
 import "./statistics.css";
 
-const format = (value: number): string => value.toLocaleString("zh-CN", { maximumFractionDigits: 1 });
+const format = (value: number): string => value.toLocaleString(t("interfaceLanguage"), { maximumFractionDigits: 1 });
 const svgNS = "http://www.w3.org/2000/svg";
 
 export function setupStatisticsControls(root: HTMLElement) {
@@ -20,22 +21,22 @@ export function setupStatisticsControls(root: HTMLElement) {
 
   function renderCollectionStatus(): void {
     collectionStatus.textContent = enabled.checked !== savedEnabled
-      ? `保存后${enabled.checked ? "开始" : "停止"}记录统计。`
-      : savedEnabled ? "已开启，仅记录开启后的使用数据。" : "统计已关闭；开启并保存后开始记录。已有数据仍可查看或清空。";
+      ? t("saveToRecordingUsage", enabled.checked ? t("start") : t("stop"))
+      : savedEnabled ? t("enabledUsageIsRecordedFromTheTimeTracking") : t("trackingIsOffEnableItAndSaveTo");
   }
 
   function renderData(): void {
     const summary = summarizeStatistics(statistics, Number(range.value));
     const { totals, models } = summary;
     const cards = [
-      ["翻译页面", format(totals.pages)], ["翻译请求", format(totals.requests)],
-      ["已报告 Token", totals.reportedUsage ? format(totals.totalTokens) : "暂无用量"],
-      ["最常用模型 / 服务", models[0]?.model || models[0]?.providerLabel || "暂无记录"],
-      ["已报告输入 / 输出 Token", totals.reportedUsage && (totals.inputTokens + totals.outputTokens || !totals.totalTokens)
-        ? `${format(totals.inputTokens)} / ${format(totals.outputTokens)}` : "暂无明细"],
-      ["成功率", totals.requests ? `${format(totals.succeeded / totals.requests * 100)}%` : "暂无请求"],
-      ["平均响应时间", totals.requests ? `${format(totals.durationMs / totals.requests / 1000)} 秒` : "暂无请求"],
-      ["缓存命中文本", format(totals.cachedTexts)]
+      [t("translatedPages"), format(totals.pages)], [t("translationRequests"), format(totals.requests)],
+      [t("reportedTokens"), totals.reportedUsage ? format(totals.totalTokens) : t("noUsageYet")],
+      [t("mostUsedModelService"), models[0]?.model || models[0]?.providerLabel || t("noRecords")],
+      [t("reportedInputOutputTokens"), totals.reportedUsage && (totals.inputTokens + totals.outputTokens || !totals.totalTokens)
+        ? `${format(totals.inputTokens)} / ${format(totals.outputTokens)}` : t("noBreakdownAvailable")],
+      [t("successRate"), totals.requests ? `${format(totals.succeeded / totals.requests * 100)}%` : t("noRequests")],
+      [t("averageResponseTime"), totals.requests ? t("durationSeconds", format(totals.durationMs / totals.requests / 1000)) : t("noRequests")],
+      [t("textServedFromCache"), format(totals.cachedTexts)]
     ];
     query("#statisticsSummary").replaceChildren(...cards.map(([label, value]) => {
       const card = document.createElement("div"); card.className = "statistics-card";
@@ -47,31 +48,31 @@ export function setupStatisticsControls(root: HTMLElement) {
     const metricLabel = metric.selectedOptions[0].textContent ?? "";
     renderChart(query("#statisticsTrend"), summary.days.map(day => ({ label: day.date, value: day[metricKey],
       unknown: metricKey === "totalTokens" && day.requests > day.reportedUsage })), metricLabel, false);
-    query("#statisticsFrequency").textContent = `活跃分钟平均 ${format(summary.averagePerActiveMinute)} 次 · 单分钟峰值 ${format(summary.peakPerMinute)} 次 · 失败 ${format(totals.failed)} 次。下图为所选日期内各小时的累计请求。`;
-    renderChart(query("#statisticsHours"), summary.hours.map((value, hour) => ({ label: `${String(hour).padStart(2, "0")}:00`, value })), "请求次数", true);
+    query("#statisticsFrequency").textContent = t("averagePerActiveMinutePeakPerMinuteFailed", format(summary.averagePerActiveMinute), format(summary.peakPerMinute), format(totals.failed));
+    renderChart(query("#statisticsHours"), summary.hours.map((value, hour) => ({ label: `${String(hour).padStart(2, "0")}:00`, value })), t("numberOfRequests"), true);
     query("#statisticsDailyRows").replaceChildren(...summary.days.slice().reverse().map(day => row([
-      day.date, format(day.pages), format(day.requests), day.reportedUsage ? `${format(day.totalTokens)}${day.reportedUsage < day.requests ? "（部分）" : ""}` : day.requests ? "未报告" : "—"
+      day.date, format(day.pages), format(day.requests), day.reportedUsage ? `${format(day.totalTokens)}${day.reportedUsage < day.requests ? t("partial") : ""}` : day.requests ? t("unreported") : "—"
     ])));
     query("#statisticsModelRows").replaceChildren(...(models.length ? models.map(model => row([
       model.model ? `${model.model} · ${model.providerLabel}` : model.providerLabel,
-      format(model.requests), model.reportedUsage ? `${format(model.totalTokens)}${model.reportedUsage < model.requests ? "（部分）" : ""}` : "未报告",
+      format(model.requests), model.reportedUsage ? `${format(model.totalTokens)}${model.reportedUsage < model.requests ? t("partial") : ""}` : t("unreported"),
       `${format(model.succeeded / model.requests * 100)}%`
-    ])) : [row(["暂无使用记录", "—", "—", "—"])]));
+    ])) : [row([t("noUsageRecorded"), "—", "—", "—"])]));
   }
 
   async function load(): Promise<void> {
     if (busy) return;
     const current = ++revision;
-    status.textContent = "正在读取统计…";
+    status.textContent = t("loadingStatistics");
     refresh.disabled = true;
     try {
       const data = await sendRuntimeMessage<UsageStatistics>({ type: "GET_STATISTICS" });
       if (current !== revision || controller.signal.aborted) return;
       statistics = normalizeStatistics(data);
       renderData();
-      status.textContent = statistics.days.length ? "" : "暂无统计记录。开启统计并完成翻译后，可在此查看用量。";
+      status.textContent = statistics.days.length ? "" : t("noRecordsYetEnableStatisticsAndTranslateSome");
     } catch (error) {
-      if (current === revision) status.textContent = `读取失败：${error instanceof Error ? error.message : String(error)}`;
+      if (current === revision) status.textContent = t("couldNotLoadData", error instanceof Error ? error.message : String(error));
     } finally { if (current === revision) refresh.disabled = false; }
   }
 
@@ -80,12 +81,12 @@ export function setupStatisticsControls(root: HTMLElement) {
   metric.addEventListener("change", renderData, { signal: controller.signal });
   refresh.addEventListener("click", () => { void load(); }, { signal: controller.signal });
   clear.addEventListener("click", async () => {
-    if (!window.confirm("清空全部使用统计？此操作无法撤销，翻译缓存和设置会保留。")) return;
+    if (!window.confirm(t("clearAllUsageStatisticsThisCannotBeUndone"))) return;
     busy = true; revision++; clear.disabled = true; refresh.disabled = true;
     try {
       await sendRuntimeMessage({ type: "CLEAR_STATISTICS" });
-      statistics = { version: 1, days: [] }; renderData(); status.textContent = "统计已清空。";
-    } catch (error) { status.textContent = `清空失败：${error instanceof Error ? error.message : String(error)}`; }
+      statistics = { version: 1, days: [] }; renderData(); status.textContent = t("statisticsCleared");
+    } catch (error) { status.textContent = t("couldNotClearStatistics", error instanceof Error ? error.message : String(error)); }
     finally { busy = false; clear.disabled = false; refresh.disabled = false; }
   }, { signal: controller.signal });
   const maybeLoad = () => { if (!root.hidden) void load(); };
@@ -122,8 +123,8 @@ function renderChart(container: HTMLElement, points: Array<{ label: string; valu
   const width = Math.min(640, Math.max(320, container.clientWidth || 640)), height = 190, left = 54, right = 20, top = 16, bottom = 34;
   const plotWidth = width - left - right, plotHeight = height - top - bottom;
   const max = Math.max(1, ...points.map(point => point.value));
-  const svg = svgElement("svg", { viewBox: `0 0 ${width} ${height}`, role: "img", "aria-label": `${label}，${points[0].label} 至 ${points.at(-1)!.label}` });
-  svg.append(svgElement("title", {}, `${label}；悬停数据点可查看数值，每日明细见下方表格。`));
+  const svg = svgElement("svg", { viewBox: `0 0 ${width} ${height}`, role: "img", "aria-label": t("to", label, points[0].label, points.at(-1)!.label) });
+  svg.append(svgElement("title", {}, t("hoverOverAPointForItsValueOr", label)));
   for (let index = 0; index <= 2; index++) {
     const y = top + index * plotHeight / 2;
     svg.append(svgElement("line", { x1: left, y1: y, x2: width - right, y2: y, class: "statistics-grid-line" }));
@@ -140,7 +141,7 @@ function renderChart(container: HTMLElement, points: Array<{ label: string; valu
     const mark = bars ? svgElement("rect", { x: point.x - plotWidth / points.length * .32, y: point.y,
       width: plotWidth / points.length * .64, height: top + plotHeight - point.y, rx: 2, class: "statistics-bar" })
       : svgElement("circle", { cx: point.x, cy: point.y, r: points.length <= 7 ? 4 : 2.5, class: `statistics-point${point.unknown ? " statistics-point-unknown" : ""}` });
-    mark.append(svgElement("title", {}, `${point.label}：${format(point.value)}${point.unknown ? "（仅已报告用量）" : ""}`));
+    mark.append(svgElement("title", {}, `${point.label}：${format(point.value)}${point.unknown ? t("reportedUsageOnly") : ""}`));
     svg.append(mark);
     const step = Math.ceil((points.length - 1) / 4);
     if (index % step === 0 || index === points.length - 1) svg.append(svgElement("text", { x: point.x, y: height - 9,

@@ -1,3 +1,4 @@
+import { t } from "../shared/i18n";
 import type { PdfTextItemLike } from "./model";
 
 export interface PdfFormula {
@@ -293,6 +294,6 @@ export function validatePdfMathTranslation(text: string, formulas: ReadonlyArray
   const expected = formulas.map((formula) => formula.placeholder).sort();
   const actual = (text.match(/⟪WUPAGE\d+⟫/gu) ?? []).sort();
   if (expected.length !== actual.length || expected.some((token, index) => token !== actual[index])) {
-    throw new Error("翻译服务未完整保留数学公式，请重试或切换翻译服务。");
+    throw new Error(t("theServiceDidNotPreserveTheMathExpressions"));
   }
 }

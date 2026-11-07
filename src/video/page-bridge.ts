@@ -1,3 +1,4 @@
+import { t } from "../shared/i18n";
 // Runs in the page's MAIN world. No extension APIs, settings or provider credentials.
 import { bilibiliCues, VIDEO_BRIDGE_CHANNEL, youtubeCues, type PageSubtitleTrack } from "./site-cues";
 import { mediaKey, YOUTUBE_PLAYER_SELECTOR } from "./platforms";
@@ -49,26 +50,26 @@ function observe(entries: PerformanceEntry[]): void {
 
 async function readJson(value: string, kind: "captions" | "metadata"): Promise<unknown> {
   const url = permitted(value, kind);
-  if (!url) throw new Error("字幕地址不属于当前播放器。");
+  if (!url) throw new Error(t("theSubtitleAddressDoesNotBelongToThis"));
   // Signed Bilibili caption files allow wildcard CORS, which rejects credentialed fetches.
   const credentials = bilibili && kind === "captions" ? "omit" : "include";
   const response = await fetch(url, { credentials, redirect: "error", signal: AbortSignal.timeout(8000) });
-  if (!response.ok) throw new Error("播放器未能返回字幕，请打开原生字幕后重试。");
+  if (!response.ok) throw new Error(t("thePlayerDidNotReturnSubtitlesEnableNative"));
   const reader = response.body?.getReader();
-  if (!reader) throw new Error("播放器没有返回字幕内容。");
+  if (!reader) throw new Error(t("thePlayerReturnedNoSubtitleContent"));
   const decoder = new TextDecoder(); let text = ""; let bytes = 0;
   const chunks: Uint8Array[] = [];
   try {
     for (;;) {
       const part = await reader.read(); if (part.done) break;
       bytes += part.value.byteLength;
-      if (bytes > 4 * 1024 * 1024) throw new Error("字幕数据过大。");
+      if (bytes > 4 * 1024 * 1024) throw new Error(t("subtitleDataTooLarge"));
       chunks.push(part.value);
       text += decoder.decode(part.value, { stream: true });
     }
     text += decoder.decode();
   } finally { await reader.cancel().catch(() => undefined); }
-  if (!text.trim()) throw new Error("字幕需要播放器授权，请先开启原生字幕。");
+  if (!text.trim()) throw new Error(t("theseSubtitlesRequirePlayerAuthorizationEnableNativeSubtitles"));
   if (bilibili && kind === "metadata" && url.pathname === "/x/v2/subtitle/web/view" && !/^\s*[{[]/u.test(text)) {
     const buffer = new Uint8Array(bytes); let offset = 0;
     for (const chunk of chunks) { buffer.set(chunk, offset); offset += chunk.byteLength; }
@@ -105,7 +106,7 @@ async function readCatalogue(): Promise<{ key: string; tracks: PageSubtitleTrack
       if (!url) continue;
       const id = track.vssId || `${track.languageCode}-${index}`;
       next.push({ id, language: (track.languageCode ?? "auto").slice(0, 32), automatic: track.kind === "asr", url: url.href,
-        label: (track.name?.simpleText || track.name?.runs?.map(run => run.text ?? "").join("") || track.languageCode || "字幕").slice(0, 200) });
+        label: (track.name?.simpleText || track.name?.runs?.map(run => run.text ?? "").join("") || track.languageCode || "").slice(0, 200) });
       if (current?.vss_id === track.vssId || (!selected && current?.languageCode === track.languageCode)) selected = id;
     }
     observe(performance.getEntriesByType("resource"));
@@ -131,7 +132,7 @@ async function readCatalogue(): Promise<{ key: string; tracks: PageSubtitleTrack
         for (const [index, track] of (payload.data?.subtitle?.subtitles ?? []).slice(0, 200).entries()) {
           const url = track.subtitle_url && bilibiliSubtitleUrl(track.subtitle_url);
           if (!url || !permitted(url, "captions")) continue;
-          next.push({ id: String(track.id_str || track.id || index), label: String(track.lan_doc || track.lan || "字幕").slice(0, 200),
+          next.push({ id: String(track.id_str || track.id || index), label: String(track.lan_doc || track.lan || "").slice(0, 200),
             language: String(track.lan || "auto").replace(/^ai-/u, "").slice(0, 32), url: new URL(url, location.href).href });
         }
         if (next.length) break;
@@ -140,7 +141,7 @@ async function readCatalogue(): Promise<{ key: string; tracks: PageSubtitleTrack
     const language = document.querySelector('.bpx-player-ctrl-subtitle-major .bpx-state-active[data-lan]')?.getAttribute('data-lan');
     if (language) selected = next.find(track => track.language === language.replace(/^ai-/u, ''))?.id;
   }
-  if (mediaKey() !== key) throw new Error("视频已切换。");
+  if (mediaKey() !== key) throw new Error(t("theVideoHasChanged"));
   catalogue = next; catalogueKey = key;
   return { key, tracks: next.map(({ url: _url, ...track }) => track), selected };
 }
@@ -149,7 +150,7 @@ async function load(id: string): Promise<unknown> {
   const key = mediaKey();
   if (catalogueKey !== key) await readCatalogue();
   const track = catalogue.find(item => item.id === id);
-  if (!track) throw new Error("字幕轨已变化，请重新选择。");
+  if (!track) throw new Error(t("theSubtitleTrackHasChangedSelectItAgain"));
   let url = new URL(track.url);
   if (youtube) {
     observe(performance.getEntriesByType("resource"));
@@ -165,7 +166,7 @@ async function load(id: string): Promise<unknown> {
     url.searchParams.set("fmt", "json3");
   }
   const payload = await readJson(url.href, "captions");
-  if (key !== mediaKey()) throw new Error("视频已切换。");
+  if (key !== mediaKey()) throw new Error(t("theVideoHasChanged"));
   return { key, cues: youtube ? youtubeCues(payload) : bilibiliCues(payload) };
 }
 
@@ -181,7 +182,7 @@ if (youtube || bilibili) {
       window.postMessage({ channel: VIDEO_BRIDGE_CHANNEL, direction: "response", id: request.id, data }, location.origin);
     }).catch(error => {
       window.postMessage({ channel: VIDEO_BRIDGE_CHANNEL, direction: "response", id: request.id,
-        error: error instanceof SyntaxError ? "播放器字幕格式暂不可用，请打开原生字幕后重试。" : String(error instanceof Error ? error.message : error).slice(0, 300) }, location.origin);
+        error: error instanceof SyntaxError ? t("subtitleFormatTemporarilyUnavailableEnableNativeSubtitlesAnd") : String(error instanceof Error ? error.message : error).slice(0, 300) }, location.origin);
     });
   });
 }

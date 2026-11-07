@@ -3,17 +3,17 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>PDF 翻译 · WuPage</title>
+    <title data-i18n="pdfTranslationWupage">PDF 翻译 · WuPage</title>
     <script type="module" src="/src/pdf/index.ts"></script>
   </head>
   <body>
     <div class="app-shell">
       <header class="topbar">
-        <a class="brand" href="pdf.html" aria-label="返回 PDF 翻译首页">
+        <a class="brand" href="pdf.html" aria-label="返回 PDF 翻译首页" data-i18n-aria-label="backToPdfTranslation">
           <span class="brand-mark" aria-hidden="true">W</span>
           <span>
             <strong>WuPage</strong>
-            <small>PDF 双语阅读</small>
+            <small data-i18n="bilingualPdfReader">PDF 双语阅读</small>
           </span>
         </a>
 
@@ -24,23 +24,23 @@
 
         <div class="toolbar-actions">
           <label class="compact-select">
-            <span class="visually-hidden">源语言</span>
-            <select id="sourceLang" aria-label="源语言"></select>
+            <span class="visually-hidden" data-i18n="sourceLanguage">源语言</span>
+            <select id="sourceLang" aria-label="源语言" data-i18n-aria-label="sourceLanguage"></select>
           </label>
           <span class="language-arrow" aria-hidden="true" data-wupage-icon="arrow-right"></span>
           <label class="compact-select">
-            <span class="visually-hidden">目标语言</span>
-            <select id="targetLang" aria-label="目标语言"></select>
+            <span class="visually-hidden" data-i18n="targetLanguage">目标语言</span>
+            <select id="targetLang" aria-label="目标语言" data-i18n-aria-label="targetLanguage"></select>
           </label>
           <label class="compact-select provider-select">
-            <span class="visually-hidden">翻译服务</span>
-            <select id="provider" aria-label="翻译服务"></select>
+            <span class="visually-hidden" data-i18n="translationService">翻译服务</span>
+            <select id="provider" aria-label="翻译服务" data-i18n-aria-label="translationService"></select>
           </label>
-          <button id="replaceDocument" type="button" class="ghost-button" hidden>打开新文档</button>
-          <button id="downloadDocument" type="button" class="ghost-button" hidden disabled>下载译文</button>
-          <button id="pdfFontAction" type="button" class="pdf-font-action" hidden aria-label="安装 PDF 导出完整字体包" title="安装 PDF 导出完整字体包"><span data-wupage-icon="wrench" aria-hidden="true"></span></button>
+          <button id="replaceDocument" type="button" class="ghost-button" hidden data-i18n="openAnotherDocument">打开新文档</button>
+          <button id="downloadDocument" type="button" class="ghost-button" hidden disabled data-i18n="downloadTranslation">下载译文</button>
+          <button id="pdfFontAction" type="button" class="pdf-font-action" hidden aria-label="安装 PDF 导出完整字体包" title="安装 PDF 导出完整字体包" data-i18n-aria-label="installFontsForPdfExport" data-i18n-title="installFontsForPdfExport"><span data-wupage-icon="wrench" aria-hidden="true"></span></button>
           <button id="translateDocument" type="button" class="primary-button" disabled>
-              <span>翻译附近页面</span>
+              <span data-i18n="translateNearbyPages">翻译附近页面</span>
           </button>
         </div>
       </header>
@@ -50,46 +50,46 @@
       <main>
         <section id="welcomeView" class="welcome-view">
           <div class="welcome-copy">
-            <span class="eyebrow">专注阅读，不打乱原稿</span>
-            <h1>把 PDF 变成<br />左右对照的双语文档</h1>
-            <p>原始排版完整保留在左侧，译文按页呈现在右侧。论文、报告和说明书都能自然对照阅读。</p>
-            <ul class="feature-list" aria-label="功能特点">
-              <li><span>01</span>原稿与译文逐页对齐</li>
-              <li><span>02</span>复用你的翻译服务和缓存</li>
-              <li><span>03</span>文档只在本机解析</li>
+            <span class="eyebrow" data-i18n="readWithTheOriginalLayout">专注阅读，不打乱原稿</span>
+            <h1><span data-i18n="readYourPdf">把 PDF 变成</span><br /><span data-i18n="inTwoLanguagesSideBySide">左右对照的双语文档</span></h1>
+            <p data-i18n="theOriginalLayoutStaysOnTheLeftWith">原始排版完整保留在左侧，译文按页呈现在右侧。论文、报告和说明书都能自然对照阅读。</p>
+            <ul class="feature-list" aria-label="功能特点" data-i18n-aria-label="features">
+              <li data-i18n="originalAndTranslationAlignedByPage"><span>01</span>原稿与译文逐页对齐</li>
+              <li data-i18n="useYourTranslationServiceAndCache"><span>02</span>复用你的翻译服务和缓存</li>
+              <li data-i18n="documentsAreParsedOnThisDevice"><span>03</span>文档只在本机解析</li>
             </ul>
           </div>
 
           <div class="open-card">
             <section id="fileAccessNotice" class="file-access-notice" aria-labelledby="fileAccessTitle" hidden>
-              <strong id="fileAccessTitle">允许访问本地 PDF</strong>
-              <p>在扩展详情中开启“允许访问文件网址”或“允许访问文件 URL”。如果浏览器关闭了此页，请回到原 PDF 标签页再次点击“翻译 PDF”；也可以直接在下方选择文件。</p>
+              <strong id="fileAccessTitle" data-i18n="allowAccessToLocalPdfs">允许访问本地 PDF</strong>
+              <p data-i18n="pdfFileAccessHelp">在扩展详情中开启“允许访问文件网址”或“允许访问文件 URL”。如果浏览器关闭了此页，请回到原 PDF 标签页再次点击“翻译 PDF”；也可以直接在下方选择文件。</p>
               <div class="file-access-actions">
-                <button id="openFileAccessSettings" type="button" class="ghost-button">打开扩展设置</button>
-                <button id="retryLocalPdf" type="button" class="ghost-button">重试打开</button>
+                <button id="openFileAccessSettings" type="button" class="ghost-button" data-i18n="openExtensionSettings">打开扩展设置</button>
+                <button id="retryLocalPdf" type="button" class="ghost-button" data-i18n="tryOpeningAgain">重试打开</button>
               </div>
             </section>
-            <div id="dropZone" class="drop-zone" tabindex="0" role="button" aria-label="选择 PDF 文件">
+            <div id="dropZone" class="drop-zone" tabindex="0" role="button" aria-label="选择 PDF 文件" data-i18n-aria-label="choosePdfFile">
               <div class="pdf-glyph" aria-hidden="true">
                 <span data-wupage-icon="document" aria-hidden="true"></span><span>PDF</span>
               </div>
-              <h2>打开一个 PDF</h2>
-              <p>拖放文件到这里，或从电脑中选择</p>
-              <button id="chooseFile" type="button" class="primary-button">选择 PDF 文件</button>
+              <h2 data-i18n="openAPdf">打开一个 PDF</h2>
+              <p data-i18n="dropAFileHereOrChooseOneFrom">拖放文件到这里，或从电脑中选择</p>
+              <button id="chooseFile" type="button" class="primary-button" data-i18n="choosePdfFile">选择 PDF 文件</button>
               <input id="fileInput" type="file" accept="application/pdf,.pdf" hidden />
-              <small>文件仅在当前浏览器中处理</small>
+              <small data-i18n="filesAreProcessedInThisBrowser">文件仅在当前浏览器中处理</small>
             </div>
 
-            <div class="divider"><span>或者使用 PDF 地址</span></div>
+            <div class="divider"><span data-i18n="orEnterAPdfAddress">或者使用 PDF 地址</span></div>
             <form id="urlForm" class="url-form">
-              <label for="pdfUrl" class="visually-hidden">PDF 在线地址或本地文件地址</label>
+              <label for="pdfUrl" class="visually-hidden" data-i18n="onlineOrLocalPdfAddress">PDF 在线地址或本地文件地址</label>
               <input id="pdfUrl" type="url" placeholder="https://example.com/document.pdf" autocomplete="off" />
-              <button type="submit" class="ghost-button">打开</button>
+              <button type="submit" class="ghost-button" data-i18n="open">打开</button>
             </form>
           </div>
         </section>
 
-        <section id="readerView" class="reader-view" hidden aria-label="PDF 双语阅读器">
+        <section id="readerView" class="reader-view" hidden aria-label="PDF 双语阅读器" data-i18n-aria-label="pdfReaderRegion">
           <div id="pages" class="pages"></div>
         </section>
       </main>
@@ -97,25 +97,25 @@
       <div id="loadingOverlay" class="loading-overlay" hidden>
         <div class="loading-card">
           <span class="spinner" aria-hidden="true"></span>
-          <strong id="loadingTitle">正在打开 PDF</strong>
-          <p id="loadingDetail">准备解析文档…</p>
+          <strong id="loadingTitle" data-i18n="openingPdf">正在打开 PDF</strong>
+          <p id="loadingDetail" data-i18n="preparingDocument">准备解析文档…</p>
         </div>
       </div>
 
       <dialog id="pdfFontDialog" class="pdf-font-dialog" aria-labelledby="pdfFontTitle" aria-describedby="pdfFontDescription">
-        <h2 id="pdfFontTitle">安装完整字体，提升导出效果</h2>
-        <p id="pdfFontDescription">安装后，译文可以搜索、复制，放大更清晰，并尽可能保留矢量图形。字体只需下载一次，之后可离线使用。</p>
-        <p>暂不安装也能导出图像版 PDF，外观与预览一致，但文字无法选中或搜索。</p>
+        <h2 id="pdfFontTitle" data-i18n="installFontsForHigherQualityExports">安装完整字体，提升导出效果</h2>
+        <p id="pdfFontDescription" data-i18n="theFullFontsMakeTranslationsSearchableSelectableAnd">安装后，译文可以搜索、复制，放大更清晰，并尽可能保留矢量图形。字体只需下载一次，之后可离线使用。</p>
+        <p data-i18n="youCanAlsoExportAnImageBasedPdf">暂不安装也能导出图像版 PDF，外观与预览一致，但文字无法选中或搜索。</p>
         <p id="pdfFontSize" class="pdf-font-size"></p>
-        <p class="pdf-font-size">下载失败时，可<a id="pdfFontDownload" target="_blank" rel="noopener noreferrer">手动下载字体文件</a>，再从文件安装。也可使用其他设备下载后复制到本机，无需在系统中安装字体。</p>
+        <p class="pdf-font-size"><span data-i18n="fontDownloadHelpStart">下载失败时，可</span><a id="pdfFontDownload" target="_blank" rel="noopener noreferrer" data-i18n="downloadTheFontFileManually">手动下载字体文件</a><span data-i18n="fontDownloadHelpEnd">，再从文件安装。也可使用其他设备下载后复制到本机，无需在系统中安装字体。</span></p>
         <input id="pdfFontFile" type="file" accept=".otf,font/otf,application/vnd.ms-opentype" hidden>
-        <progress id="pdfFontProgress" hidden aria-label="字体包下载进度"></progress>
+        <progress id="pdfFontProgress" hidden aria-label="字体包下载进度" data-i18n-aria-label="fontDownloadProgress"></progress>
         <p id="pdfFontStatus" class="pdf-font-status" role="status" aria-live="polite"></p>
         <div class="pdf-font-actions">
-          <button id="pdfFontClose" type="button" class="ghost-button">取消</button>
-          <button id="pdfFontBasic" type="button" class="ghost-button">直接导出</button>
-          <button id="pdfFontImport" type="button" class="ghost-button">从文件安装</button>
-          <button id="pdfFontInstall" type="button" class="primary-button">安装并导出</button>
+          <button id="pdfFontClose" type="button" class="ghost-button" data-i18n="cancel">取消</button>
+          <button id="pdfFontBasic" type="button" class="ghost-button" data-i18n="exportAsImages">直接导出</button>
+          <button id="pdfFontImport" type="button" class="ghost-button" data-i18n="installFromFile">从文件安装</button>
+          <button id="pdfFontInstall" type="button" class="primary-button" data-i18n="installAndExport">安装并导出</button>
         </div>
       </dialog>
       <div class="status-toast" id="statusToast" role="status" aria-live="polite" hidden></div>

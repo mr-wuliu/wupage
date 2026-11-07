@@ -1,3 +1,4 @@
+import { initializeInterfaceLanguage, localizeDocument, t, htmlMessage } from "../shared/i18n";
 import { sendRuntimeMessage, sendTabMessage } from "../shared/messaging";
 import { SOURCE_LANGUAGES, TARGET_LANGUAGES } from "../shared/languages";
 import { TRANSLATION_DISPLAY_MODES } from "../shared/display-modes";
@@ -22,6 +23,8 @@ import { applyPopupMenuLayout } from "../shared/popup-menu";
 import { paragraphClickHint } from "../shared/local-shortcuts";
 import { hasTouchInput, TOUCH_INPUT_QUERY } from "../shared/touch";
 
+await initializeInterfaceLanguage();
+localizeDocument(document);
 renderUiIcons();
 
 const targetLang = query<HTMLSelectElement>("#targetLang");
@@ -106,7 +109,7 @@ async function init(): Promise<void> {
   renderLanguageOptions(targetLang, settings.targetLang, TARGET_LANGUAGES);
   provider.innerHTML = settings.providers
     .filter((entry) => entry.enabled !== false)
-    .map((entry) => `<option value="${escapeHtml(entry.id)}" ${isDoubaoProviderUnavailable(entry) ? 'disabled title="此浏览器暂不支持豆包翻译"' : ""}>${escapeHtml(entry.label)}</option>`)
+    .map((entry) => `<option value="${escapeHtml(entry.id)}" ${isDoubaoProviderUnavailable(entry) ? `disabled title="${htmlMessage("doubaoTranslationIsUnavailableInThisBrowser")}"` : ""}>${escapeHtml(entry.label)}</option>`)
     .join("");
   provider.value = settings.activeProviderId;
   enhanceProviderSelect(provider, settings.providers);
@@ -127,7 +130,7 @@ async function init(): Promise<void> {
   moreFeaturesButton.addEventListener("click", () => {
     const expanded = document.querySelector(".popup")!.toggleAttribute("data-more-open");
     moreFeaturesButton.setAttribute("aria-expanded", String(expanded));
-    moreFeaturesButton.querySelector("span")!.textContent = expanded ? "收起更多" : "更多功能";
+    moreFeaturesButton.querySelector("span")!.textContent = expanded ? t("showLess") : t("moreFeatures");
   });
   const detectTouch = (event: PointerEvent) => {
     if (event.pointerType) lastPointerTouch = event.pointerType === "touch";
@@ -164,16 +167,16 @@ async function init(): Promise<void> {
     await loadTranslationState();
   } else if (!pageTranslationAvailable) {
     paragraphModeAvailable = false;
-    paragraphModeButton.title = "浏览器设置页和扩展内部页面不支持段落模式。";
-    pageToggleButton.title = "请切换到普通网页后再翻译。";
-    debugButton.title = "请切换到普通网页后再打开 Debug。";
+    paragraphModeButton.title = t("paragraphModeIsUnavailableOnBrowserSettingsAnd");
+    pageToggleButton.title = t("popupSwitchToWebPage");
+    debugButton.title = t("switchToARegularWebPageToOpen");
     setStatus(activeTab?.url
-      ? "此页面不支持翻译，请切换到网页或 PDF。"
-      : "无法读取当前页面地址。若为本地 PDF，请开启扩展的文件访问权限，或点击“打开 PDF”选择文件。");
+      ? t("switchToAWebPageOrPdfTo")
+      : t("couldNotReadTheCurrentPageAddressFor"));
   }
   if (activeTabIsPdf) {
     paragraphModeAvailable = false;
-    paragraphModeButton.title = "PDF 使用独立的双栏翻译页面。";
+    paragraphModeButton.title = t("pdfsOpenInASeparateSideBySide");
     updatePageToggleButton();
   }
   updatePageActionAvailability();
@@ -198,7 +201,7 @@ async function init(): Promise<void> {
     const previous = settings.imageTranslationEnabled === true;
     try {
       await updatePopupSettings({ imageTranslationEnabled: !previous });
-      setStatus(!previous ? "图片翻译已开启，点击图片旁的“译”按钮即可覆盖翻译。" : "图片翻译已关闭，已恢复原图。");
+      setStatus(!previous ? t("imageTranslationEnabledClickTrBesideAnImage") : t("imageTranslationDisabledOriginalImagesRestored"));
     } catch (error) {
       setStatus(error instanceof Error ? error.message : String(error));
     } finally {
@@ -267,7 +270,7 @@ function applyPopupSettings(incoming: ExtensionSettings): void {
       return option;
     }));
     if (!providers.some(entry => entry.id === settings.activeProviderId)) {
-      const unavailable = new Option("当前服务不可用，请选择其他服务", settings.activeProviderId);
+      const unavailable = new Option(t("currentServiceUnavailableChooseAnotherService"), settings.activeProviderId);
       unavailable.disabled = true;
       provider.prepend(unavailable);
     }
@@ -342,12 +345,12 @@ function syncLanguageValue(select: HTMLSelectElement): void {
 
 async function togglePageTranslation(): Promise<void> {
   if (!pageTranslationAvailable) {
-    setStatus("此页面不支持翻译，请切换到普通网页。");
+    setStatus(t("switchToARegularWebPageToTranslate"));
     return;
   }
   if (activeTabIsPdf) {
     setPageToggleBusy(true);
-    setStatus("正在打开 PDF 并开始翻译...");
+    setStatus(t("openingPdfAndStartingTranslation"));
     try {
       await openPdfTranslator();
     } catch (error) {
@@ -362,7 +365,7 @@ async function togglePageTranslation(): Promise<void> {
   pageTranslated = !previous;
   updatePageToggleButton();
   setPageToggleBusy(request.type === "TRANSLATE_PAGE", true);
-  setStatus(request.type === "TRANSLATE_PAGE" ? "正在翻译..." : "正在显示原文...");
+  setStatus(request.type === "TRANSLATE_PAGE" ? t("popupTranslating") : t("showingOriginal"));
   try {
     // Stop immediately even when the original settings save or page request is
     // still pending. Its late completion must not restart or repaint the action.
@@ -370,7 +373,7 @@ async function togglePageTranslation(): Promise<void> {
     if (version !== pageActionVersion) return;
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (version !== pageActionVersion) return;
-    if (!tab.id) throw new Error("没有活动标签页。");
+    if (!tab.id) throw new Error(t("noActiveTab"));
     const result = await sendTabMessage<{
       translated?: number;
       cached?: number;
@@ -386,20 +389,20 @@ async function togglePageTranslation(): Promise<void> {
     );
     if (version !== pageActionVersion) return;
     if (request.type === "CLEAR_TRANSLATION") {
-      setStatus(result.cleared ? "已显示原文。" : "没有可清除的译文。");
+      setStatus(result.cleared ? t("originalTextRestored") : t("noTranslationsToClear"));
     } else if (result.cancelled) {
-      setStatus("页面或翻译状态已变化，本次翻译已取消。");
+      setStatus(t("pageOrTranslationStateChangedTranslationCanceled"));
       await loadTranslationState();
     } else {
       const failed = result.failed ?? 0;
       const success = result.remaining
-        ? result.translated ? `已翻译当前区域 ${result.translated} 段，滚动页面将继续翻译。` : "当前区域暂无可翻译内容，滚动页面将继续翻译。"
-        : result.translated ? `已翻译 ${result.translated} 段，缓存命中 ${result.cached ?? 0} 段。` : "当前区域暂无可翻译内容，新内容加载后将自动翻译。";
+        ? result.translated ? t("paragraphsTranslatedInThisAreaScrollToContinue", result.translated) : t("noTextToTranslateInThisAreaScroll")
+        : result.translated ? t("paragraphsTranslatedCacheHits", result.translated, result.cached ?? 0) : t("noTranslatableTextInThisAreaNewContent");
       setStatus(
         failed > 0
-          ? `已翻译 ${result.translated ?? 0} 段，失败 ${failed} 段：${result.error ?? ""}`
-          : result.error ? `翻译未完成：${result.error}`
-            : result.pending ? "正在翻译当前区域，后续内容将自动继续翻译。" : success
+          ? t("paragraphsTranslatedFailed", result.translated ?? 0, failed, result.error ?? "")
+          : result.error ? t("translationIncomplete", result.error)
+            : result.pending ? t("translatingThisAreaNewContentWillBeTranslated") : success
       );
     }
   } catch (error) {
@@ -518,7 +521,7 @@ async function toggleAutoTranslation(): Promise<void> {
     updateAutoTranslationButton();
     const rules = settings.autoTranslation!;
     if (enabled && !rules.nonTargetLanguage && !rules.presetSites.length && !rules.customSites.some(site => site.enabled)) {
-      autoTranslationNotice = "自动翻译已开启，请在设置中启用站点或语言规则。";
+      autoTranslationNotice = t("automaticTranslationIsOnEnableASiteOr");
       setStatus(autoTranslationNotice);
     }
   } catch (error) {
@@ -534,7 +537,7 @@ async function toggleAutoTranslation(): Promise<void> {
 function updateAutoTranslationButton(): void {
   const rules = normalizeAutoTranslation(settings.autoTranslation);
   if (autoTranslationButton.getAttribute("aria-pressed") !== String(rules.enabled)) autoTranslationButton.setAttribute("aria-pressed", String(rules.enabled));
-  const title = rules.nonTargetLanguage ? "自动翻译非目标语言页面；可在设置中限定站点" : "按已配置的站点规则自动翻译";
+  const title = rules.nonTargetLanguage ? t("translatePagesInOtherLanguagesAutomaticallyLimitSites") : t("translateAutomaticallyUsingConfiguredSiteRules");
   if (autoTranslationButton.title !== title) autoTranslationButton.title = title;
   if (autoTranslationButton.hasAttribute("data-loading")) {
     void autoTranslationButton.offsetWidth;
@@ -555,7 +558,7 @@ function updateAutoTranslationSiteButton(): void {
   const icon = added ? "tick" : "plus";
   if (addAutoTranslationSiteButton.querySelector("svg")?.dataset.icon !== icon) addAutoTranslationSiteButton.innerHTML = uiIconMarkup(icon);
   if (addAutoTranslationSiteButton.getAttribute("aria-pressed") !== String(added)) addAutoTranslationSiteButton.setAttribute("aria-pressed", String(added));
-  const label = !pattern ? "请切换到普通网页后再添加网站" : added ? `将 ${pattern} 排除自动翻译` : `将 ${pattern} 加入自动翻译列表`;
+  const label = !pattern ? t("switchToAWebPageToAddA") : added ? t("excludeFromAutomaticTranslation", pattern) : t("addToAutomaticTranslation", pattern);
   if (addAutoTranslationSiteButton.title !== label) addAutoTranslationSiteButton.title = label;
   if (addAutoTranslationSiteButton.getAttribute("aria-label") !== label) addAutoTranslationSiteButton.setAttribute("aria-label", label);
 }
@@ -571,7 +574,7 @@ async function toggleCurrentAutoTranslationSite(): Promise<void> {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     activePageURL = tab?.url;
     await updatePopupSettings(latest => ({ autoTranslation: include ? addAutoTranslationWebsite(latest.autoTranslation, activePageURL) : excludeAutoTranslationWebsite(latest.autoTranslation, activePageURL) }));
-    autoTranslationNotice = include ? `已将 ${currentWebsitePattern(activePageURL)} 加入自动翻译列表。` : `已将 ${currentWebsitePattern(activePageURL)} 排除自动翻译。`;
+    autoTranslationNotice = include ? t("addedToAutomaticTranslation", currentWebsitePattern(activePageURL)) : t("excludedFromAutomaticTranslation", currentWebsitePattern(activePageURL));
   } catch (error) {
     autoTranslationNotice = error instanceof Error ? error.message : String(error);
   } finally {
@@ -607,9 +610,9 @@ async function toggleParagraphMode(): Promise<void> {
   if (paragraphModeError && status.textContent === paragraphModeError) setStatus("");
   paragraphModeError = undefined;
   try {
-    if (!paragraphModeAvailable) throw new Error("此页面不支持段落模式。");
+    if (!paragraphModeAvailable) throw new Error(t("paragraphModeIsUnavailableOnThisPage"));
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (!tab?.id) throw new Error("没有活动标签页。");
+    if (!tab?.id) throw new Error(t("noActiveTab"));
     if (touchControls || lastPointerTouch) {
       await sendTabMessage(tab.id, { type: "START_TOUCH_PARAGRAPH" });
       window.close();
@@ -647,7 +650,7 @@ function updateContextMenuTranslationButton(): void {
 
 async function toggleFloatingBall(): Promise<void> {
   setButtonBusy(floatingBallButton, true);
-  setStatus("正在切换悬浮球...");
+  setStatus(t("updatingFloatingButton"));
   const previous = floatingBallEnabled;
   let saved = false;
   try {
@@ -662,7 +665,7 @@ async function toggleFloatingBall(): Promise<void> {
       }).catch(() => undefined);
     }
     updateFloatingBallButton();
-    setStatus(floatingBallEnabled ? "悬浮球已开启。" : "悬浮球已关闭。");
+    setStatus(floatingBallEnabled ? t("floatingButtonEnabled") : t("floatingButtonDisabled"));
   } catch (error) {
     if (!saved) {
       floatingBallEnabled = previous;
@@ -676,18 +679,18 @@ async function toggleFloatingBall(): Promise<void> {
 
 async function openDebugPanel(): Promise<void> {
   if (!pageTranslationAvailable || activeTabIsPdf) {
-    setStatus("此页面无法打开 Debug，请切换到普通网页。");
+    setStatus(t("switchToARegularWebPageToUse"));
     return;
   }
   setButtonBusy(debugButton, true);
-  setStatus("正在打开 Debug...");
+  setStatus(t("openingDebug"));
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (!tab.id) throw new Error("没有活动标签页。");
+    if (!tab.id) throw new Error(t("noActiveTab"));
     await sendTabMessage<{ opened: boolean }>(tab.id, {
       type: "OPEN_TRANSLATION_DEBUG"
     });
-    setStatus("Debug 已打开。");
+    setStatus(t("debugOpened"));
   } catch (error) {
     setStatus(error instanceof Error ? error.message : String(error));
   } finally {
@@ -697,12 +700,12 @@ async function openDebugPanel(): Promise<void> {
 
 async function clearCache(): Promise<void> {
   setButtonBusy(clearCacheButton, true);
-  setStatus("正在清除缓存...");
+  setStatus(t("clearingCache"));
   try {
     const result = await sendRuntimeMessage<{ removed: number }>({
       type: "CLEAR_CACHE"
     });
-    setStatus(`已清除 ${result.removed} 条缓存。`);
+    setStatus(t("cacheEntriesCleared", result.removed));
   } catch (error) {
     setStatus(error instanceof Error ? error.message : String(error));
   } finally {
@@ -750,9 +753,9 @@ function updateParagraphModeButton(): void {
   const hint = paragraphClickHint(settings.localShortcuts, settings.shortcutEnabled?.["paragraph-click"] !== false);
   if (paragraphModeHint.textContent !== hint) paragraphModeHint.textContent = hint;
   const label = paragraphModeButton.querySelector("span")!;
-  const text = touchControls ? "点选段落" : "段落翻译";
+  const text = touchControls ? t("tapAParagraph") : t("paragraphTranslation");
   if (label.textContent !== text) label.textContent = text;
-  const touchHint = "点选一个正文段落，翻译后自动退出";
+  const touchHint = t("tapAParagraphToTranslateItAndExit");
   if (touchControls && paragraphModeButton.title !== touchHint) paragraphModeButton.title = touchHint;
   else if (!touchControls && paragraphModeButton.title === touchHint) paragraphModeButton.removeAttribute("title");
   const value = String(!touchControls && paragraphMode);
@@ -763,8 +766,8 @@ function updateParagraphModeButton(): void {
 
 function updatePageToggleButton(): void {
   const label = activeTabIsPdf
-    ? "翻译PDF"
-    : pageTranslated ? "显示全文" : "翻译全文";
+    ? t("translatePdf")
+    : pageTranslated ? t("showOriginalPage") : t("translatePage");
   if (pageToggleButton.textContent !== label) pageToggleButton.textContent = label;
 }
 

@@ -1,0 +1,5359 @@
+{
+  "extensionName": {
+    "message": "WuPage Translator"
+  },
+  "extensionDescription": {
+    "message": "Translate pages, PDFs, images and video subtitles with configurable translation services and LLM providers."
+  },
+  "interfaceLanguage": {
+    "message": "en"
+  },
+  "interfaceLanguageLabel": {
+    "message": "Interface language"
+  },
+  "followBrowserLanguage": {
+    "message": "Follow browser"
+  },
+  "interfaceLanguageHelp": {
+    "message": "Saving reloads Settings. Refresh open web pages and PDFs to use the new language."
+  },
+  "wupageTranslator": {
+    "message": "WuPage Translator"
+  },
+  "openSettings": {
+    "message": "Open settings"
+  },
+  "sourceLanguage": {
+    "message": "Source language"
+  },
+  "detectLanguage": {
+    "message": "Detect language"
+  },
+  "targetLanguage": {
+    "message": "Target language"
+  },
+  "chinese": {
+    "message": "Chinese"
+  },
+  "automaticTranslation": {
+    "message": "Automatic translation"
+  },
+  "translateAutomaticallyUsingSiteOrPageLanguageRules": {
+    "message": "Translate automatically using site or page language rules"
+  },
+  "auto": {
+    "message": "Auto"
+  },
+  "addThisSiteToAutomaticTranslation": {
+    "message": "Add this site to automatic translation"
+  },
+  "translationService": {
+    "message": "Translation service"
+  },
+  "displayMode": {
+    "message": "Display mode"
+  },
+  "menuActions": {
+    "message": "Menu actions"
+  },
+  "rightClickAPageToTranslateItOr": {
+    "message": "Right-click a page to translate it or show the original"
+  },
+  "contextMenu": {
+    "message": "Context menu"
+  },
+  "floatingButton": {
+    "message": "Floating button"
+  },
+  "showADictionaryOrTranslationShortcutWhenText": {
+    "message": "Show a dictionary or translation shortcut when text is selected"
+  },
+  "selectionTranslation": {
+    "message": "Selection translation"
+  },
+  "useTheButtonBesideAnImageToOverlay": {
+    "message": "Use the button beside an image to overlay its translation"
+  },
+  "imageTranslation": {
+    "message": "Image translation"
+  },
+  "installOcrModels": {
+    "message": "Install OCR models"
+  },
+  "ocrModelDownloadProgress": {
+    "message": "OCR model download progress"
+  },
+  "showSubtitleControlsOnAllSitesTurningThis": {
+    "message": "Show subtitle controls on all sites. Turning this off restores the original subtitles."
+  },
+  "videoSubtitles": {
+    "message": "Video subtitles"
+  },
+  "translatePage": {
+    "message": "Translate page"
+  },
+  "paragraphTranslation": {
+    "message": "Paragraph translation"
+  },
+  "openPdf": {
+    "message": "Open PDF"
+  },
+  "clearCache": {
+    "message": "Clear cache"
+  },
+  "moreFeatures": {
+    "message": "More features"
+  },
+  "onAnyPageHoldCtrlAndClickA": {
+    "message": "On any page, hold Ctrl and click a paragraph to translate it. Click again to restore the original."
+  },
+  "enableAllowAccessToFileUrlsInThe": {
+    "message": "Enable “Allow access to file URLs” in the extension details, then reopen WuPage from the PDF."
+  },
+  "openExtensionSettings": {
+    "message": "Open extension settings"
+  },
+  "website": {
+    "message": "Website"
+  },
+  "wupageSettings": {
+    "message": "WuPage settings"
+  },
+  "settingsNavigation": {
+    "message": "Settings navigation"
+  },
+  "general": {
+    "message": "General"
+  },
+  "translationExclusions": {
+    "message": "Translation exclusions"
+  },
+  "keyboardShortcuts": {
+    "message": "Keyboard shortcuts"
+  },
+  "appearance": {
+    "message": "Appearance"
+  },
+  "performance": {
+    "message": "Performance"
+  },
+  "usageStatistics": {
+    "message": "Usage statistics"
+  },
+  "backupAndRestore": {
+    "message": "Backup and restore"
+  },
+  "chooseTranslationLanguagesDisplayStylesAndCommonFeatures": {
+    "message": "Choose translation languages, display styles and common features."
+  },
+  "translationLanguages": {
+    "message": "Translation languages"
+  },
+  "translationDisplayMode": {
+    "message": "Translation display mode"
+  },
+  "enableLocalCache": {
+    "message": "Enable local cache"
+  },
+  "showFloatingButton": {
+    "message": "Show floating button"
+  },
+  "translateCodeComments": {
+    "message": "Translate code comments"
+  },
+  "includeEmbeddedContentInPageTranslation": {
+    "message": "Include embedded content in page translation"
+  },
+  "embeddedContentExclusions": {
+    "message": "Embedded content exclusions"
+  },
+  "enterOneUrlPatternPerLineUseFor": {
+    "message": "Enter one URL pattern per line. Use * for any characters, or “page pattern => embedded URL pattern” to exclude an embed only on matching pages."
+  },
+  "clickAShortcutFieldToRecordKeysPress": {
+    "message": "Click a shortcut field to record keys. Press Esc to cancel or Delete to clear. Choose Save to apply."
+  },
+  "translationShortcuts": {
+    "message": "Translation shortcuts"
+  },
+  "featureShortcuts": {
+    "message": "Feature shortcuts"
+  },
+  "chooseAModifierForParagraphClicksClickOther": {
+    "message": "Choose a modifier for paragraph clicks. Click other fields to record a shortcut. The floating button has separate shortcuts for translating and opening its menu."
+  },
+  "featureSpecificShortcuts": {
+    "message": "Feature-specific shortcuts"
+  },
+  "enableSelectionTranslation": {
+    "message": "Enable selection translation"
+  },
+  "defaultDictionary": {
+    "message": "Default dictionary"
+  },
+  "youdaoDictionary": {
+    "message": "Youdao Dictionary"
+  },
+  "bingDictionary": {
+    "message": "Bing Dictionary"
+  },
+  "selectionShortcutStyle": {
+    "message": "Selection shortcut style"
+  },
+  "dot": {
+    "message": "Dot"
+  },
+  "underline": {
+    "message": "Underline"
+  },
+  "singleChineseCharactersAndTermsOfUpTo": {
+    "message": "Single Chinese characters and terms of up to eight characters use the Youdao Chinese dictionary for pinyin and definitions. Alphabetic words use the selected dictionary."
+  },
+  "translatePagesAutomaticallyByLanguageOrSite": {
+    "message": "Translate pages automatically by language or site."
+  },
+  "enableAutomaticTranslation": {
+    "message": "Enable automatic translation"
+  },
+  "aboutAutomaticTranslation": {
+    "message": "About automatic translation"
+  },
+  "pagesMatchingAnyRuleUseTheCurrentLanguages": {
+    "message": "Pages matching any rule use the current languages, translation service and display mode, and count toward that service’s quota. Restoring the original pauses automatic translation for the current URL."
+  },
+  "pageLanguageIsDetectedLocallyUncertainResultsAre": {
+    "message": "Page language is detected locally. Uncertain results are skipped. Clear this option to translate only listed sites."
+  },
+  "automaticallyTranslatePagesInOtherLanguages": {
+    "message": "Automatically translate pages in other languages"
+  },
+  "sitesToTranslateAutomatically": {
+    "message": "Sites to translate automatically"
+  },
+  "automaticTranslationSiteList": {
+    "message": "Automatic translation site list"
+  },
+  "neitherSiteNorLanguageRulesApplyToThese": {
+    "message": "Neither site nor language rules apply to these domains"
+  },
+  "excludedSites": {
+    "message": "Excluded sites"
+  },
+  "sitesExcludedFromAutomaticTranslation": {
+    "message": "Sites excluded from automatic translation"
+  },
+  "exampleComIncludesSubdomainsExampleComMatchesOnly": {
+    "message": "example.com includes subdomains. *.example.com matches only subdomains. Use https://example.com/docs/* to limit the protocol and path."
+  },
+  "keepNavigationSidebarsOrOtherAreasInTheir": {
+    "message": "Keep navigation, sidebars or other areas in their original language on specific sites."
+  },
+  "translationExclusionRules": {
+    "message": "Translation exclusion rules"
+  },
+  "addRule": {
+    "message": "Add rule"
+  },
+  "enterADomainOrUrlPatternExampleCom": {
+    "message": "Enter a domain or URL pattern. example.com includes subdomains. Use https://example.com/docs/* to limit a rule to specific pages."
+  },
+  "enterOneCssSelectorPerLineSuchAs": {
+    "message": "Enter one CSS selector per line, such as .sidebar or [data-region=\"recommendations\"]. Matching elements and their descendants are skipped during page and paragraph translation, including content loaded later."
+  },
+  "chooseSaveBelowToApplyPagesBeingTranslated": {
+    "message": "Choose Save below to apply. Pages being translated will use the new rules."
+  },
+  "chooseLightAndDarkColorsAndCustomizeThe": {
+    "message": "Choose light and dark colors and customize the popup menu."
+  },
+  "appearanceSettings": {
+    "message": "Appearance settings"
+  },
+  "colorsAndAppearance": {
+    "message": "Colors and appearance"
+  },
+  "colorMode": {
+    "message": "Color mode"
+  },
+  "system": {
+    "message": "System"
+  },
+  "light": {
+    "message": "Light"
+  },
+  "dark": {
+    "message": "Dark"
+  },
+  "colorSchemes": {
+    "message": "Color schemes"
+  },
+  "schemeToEdit": {
+    "message": "Scheme to edit"
+  },
+  "lightScheme": {
+    "message": "Light scheme"
+  },
+  "darkScheme": {
+    "message": "Dark scheme"
+  },
+  "duplicateScheme": {
+    "message": "Duplicate scheme"
+  },
+  "colors": {
+    "message": "Colors"
+  },
+  "schemeName": {
+    "message": "Scheme name"
+  },
+  "resetColors": {
+    "message": "Reset colors"
+  },
+  "deleteScheme": {
+    "message": "Delete scheme"
+  },
+  "preview": {
+    "message": "Preview"
+  },
+  "lightPageTwoColorBilingual": {
+    "message": "Light page · Two-color bilingual"
+  },
+  "darkPageTwoColorBilingual": {
+    "message": "Dark page · Two-color bilingual"
+  },
+  "paragraphHighlight": {
+    "message": "Paragraph highlight"
+  },
+  "selectionShortcut": {
+    "message": "Selection shortcut"
+  },
+  "imageTranslationShortcut": {
+    "message": "Image translation shortcut"
+  },
+  "image": {
+    "message": "Image"
+  },
+  "translationComplete": {
+    "message": "Translation complete"
+  },
+  "requestFailedTryAgain": {
+    "message": "Request failed. Try again."
+  },
+  "hoverToPreviewTheFloatingButtonColor": {
+    "message": "Hover to preview the floating button color"
+  },
+  "previewTheCurrentSchemeHoverOverTrTo": {
+    "message": "Preview the current scheme. Hover over Tr to see the floating button’s hover color. Saving updates the interface, controls and existing two-color translations."
+  },
+  "popupMenu": {
+    "message": "Popup menu"
+  },
+  "restoreDefaultLayout": {
+    "message": "Restore default layout"
+  },
+  "arrangeTheFeaturesYouUseMost": {
+    "message": "Arrange the features you use most."
+  },
+  "myMenu": {
+    "message": "My menu"
+  },
+  "dragToReorderClickToRemove": {
+    "message": "Drag to reorder · Click to remove"
+  },
+  "originalColors": {
+    "message": "Original colors"
+  },
+  "addFeaturesFromTheList": {
+    "message": "Add features from the list"
+  },
+  "pinnedFooterLinks": {
+    "message": "Pinned footer links"
+  },
+  "dropBesideAButtonToShareItsRow": {
+    "message": "Drop beside a button to share its row, or between rows to use a full row. Alt and the arrow keys also reorder buttons. GitHub and Website stay at the bottom."
+  },
+  "availableFeatures": {
+    "message": "Available features"
+  },
+  "clickToAdd": {
+    "message": "Click to add"
+  },
+  "allFeaturesAreInYourMenu": {
+    "message": "All features are in your menu"
+  },
+  "clickAButtonYouWantToRemove": {
+    "message": "Click a button you want to remove."
+  },
+  "itWillAppearHereSoYouCanAdd": {
+    "message": "It will appear here so you can add it again."
+  },
+  "removingAShortcutKeepsItsCurrentSettingLanguages": {
+    "message": "Removing a shortcut keeps its current setting. Languages, translation service, display mode and settings are always available."
+  },
+  "currentService": {
+    "message": "Current service"
+  },
+  "addCustomProvider": {
+    "message": "Add custom provider"
+  },
+  "thisServiceIsDisabledYouCanStillEdit": {
+    "message": "This service is disabled. You can still edit, save and test its configuration. Enable it to show it in the translation service list."
+  },
+  "generalPerformance": {
+    "message": "General performance"
+  },
+  "defaultChunkSize": {
+    "message": "Default chunk size"
+  },
+  "maximumConcurrentRequests": {
+    "message": "Maximum concurrent requests"
+  },
+  "pdfTranslationScope": {
+    "message": "PDF translation scope"
+  },
+  "translationScope": {
+    "message": "Translation scope"
+  },
+  "nearbyPages": {
+    "message": "Nearby pages"
+  },
+  "entirePdf": {
+    "message": "Entire PDF"
+  },
+  "pagesBeforeAndAfterTheCurrentPage": {
+    "message": "Pages before and after the current page"
+  },
+  "viewTranslationUsageAndActivityStatisticsAreStored": {
+    "message": "View translation usage and activity. Statistics are stored only in this browser."
+  },
+  "enableUsageStatistics": {
+    "message": "Enable usage statistics"
+  },
+  "offByDefaultSaveToApply": {
+    "message": "Off by default. Save to apply."
+  },
+  "dateRange": {
+    "message": "Date range"
+  },
+  "last7Days": {
+    "message": "Last 7 days"
+  },
+  "last30Days": {
+    "message": "Last 30 days"
+  },
+  "last90Days": {
+    "message": "Last 90 days"
+  },
+  "refresh": {
+    "message": "Refresh"
+  },
+  "clearStatistics": {
+    "message": "Clear statistics"
+  },
+  "dailyUsage": {
+    "message": "Daily usage"
+  },
+  "chartMetric": {
+    "message": "Chart metric"
+  },
+  "tokenUsage": {
+    "message": "Token usage"
+  },
+  "translationRequests": {
+    "message": "Translation requests"
+  },
+  "translatedPages": {
+    "message": "Translated pages"
+  },
+  "viewDailyData": {
+    "message": "View daily data"
+  },
+  "dailyTranslationUsage": {
+    "message": "Daily translation usage"
+  },
+  "date": {
+    "message": "Date"
+  },
+  "pages": {
+    "message": "Pages"
+  },
+  "requests": {
+    "message": "Requests"
+  },
+  "reportedTokens": {
+    "message": "Reported tokens"
+  },
+  "requestFrequency": {
+    "message": "Request frequency"
+  },
+  "topModelsAndServices": {
+    "message": "Top models and services"
+  },
+  "modelsAndServicesByNumberOfTranslationRequests": {
+    "message": "Models and services by number of translation requests"
+  },
+  "modelService": {
+    "message": "Model / Service"
+  },
+  "successRate": {
+    "message": "Success rate"
+  },
+  "howStatisticsAreCountedAndRetained": {
+    "message": "How statistics are counted and retained"
+  },
+  "aPageSessionCountsOncePerDayWhen": {
+    "message": "A page session counts once per day when a translation succeeds, including cached results. Reloading, reopening or restarting page translation starts a new session. Embedded content shares the page session."
+  },
+  "requestsCountBatchesSentToAServiceIncluding": {
+    "message": "Requests count batches sent to a service, including failures and translation repairs. Internal HTTP retries and subrequests do not count separately. Cache-only results, service tests and dictionary lookups are excluded."
+  },
+  "tokensCountOnlyUsageReportedByAService": {
+    "message": "Tokens count only usage reported by a service. Free and local services typically report none. These figures do not represent a bill or monetary amount."
+  },
+  "backUpSavedSettingsOrRestoreThemIn": {
+    "message": "Back up saved settings or restore them in another browser."
+  },
+  "exportsOmitCredentialsByDefaultSelectIncludeCredentials": {
+    "message": "Exports omit credentials by default. Select “Include credentials” for a full, unencrypted backup and keep it somewhere secure."
+  },
+  "exportSettings": {
+    "message": "Export settings"
+  },
+  "importSettings": {
+    "message": "Import settings"
+  },
+  "selectATomlSettingsBackup": {
+    "message": "Select a TOML settings backup"
+  },
+  "save": {
+    "message": "Save"
+  },
+  "restoreThisSectionSDefaultsSaveToApply": {
+    "message": "Restore this section’s defaults. Save to apply."
+  },
+  "restoreDefaults": {
+    "message": "Restore defaults"
+  },
+  "resetAllSettings": {
+    "message": "Reset all settings"
+  },
+  "thisRestoresEverySettingToItsDefaultDeletes": {
+    "message": "This restores every setting to its default, deletes all saved credentials and custom services, and discards unsaved changes."
+  },
+  "considerExportingAFullBackupWithCredentialsFirst": {
+    "message": "Consider exporting a full backup with credentials first."
+  },
+  "thisActionCannotBeUndone": {
+    "message": "This action cannot be undone."
+  },
+  "cancel": {
+    "message": "Cancel"
+  },
+  "confirmFullReset": {
+    "message": "Confirm full reset"
+  },
+  "includeCredentialsUnencryptedFullBackup": {
+    "message": "Include credentials (unencrypted full backup)"
+  },
+  "confirm": {
+    "message": "Confirm"
+  },
+  "close": {
+    "message": "Close"
+  },
+  "displayName": {
+    "message": "Display name"
+  },
+  "forExampleCompanyTranslation": {
+    "message": "For example, Company Translation"
+  },
+  "providerType": {
+    "message": "Provider type"
+  },
+  "llmApiFormat": {
+    "message": "LLM API format"
+  },
+  "openaiCompatible": {
+    "message": "OpenAI compatible"
+  },
+  "anthropicCompatible": {
+    "message": "Anthropic compatible"
+  },
+  "add": {
+    "message": "Add"
+  },
+  "manageModels": {
+    "message": "Manage models"
+  },
+  "action": {
+    "message": "Action"
+  },
+  "addModel": {
+    "message": "Add model"
+  },
+  "editCurrentModel": {
+    "message": "Edit current model"
+  },
+  "modelName": {
+    "message": "Model name"
+  },
+  "enterTheModelNameSuppliedByYourProvider": {
+    "message": "Enter the model name supplied by your provider"
+  },
+  "theNewModelWillBeSelectedTheService": {
+    "message": "The new model will be selected. The service will keep its current address and credentials."
+  },
+  "saveAndUse": {
+    "message": "Save and use"
+  },
+  "pdfTranslationWupage": {
+    "message": "PDF translation · WuPage"
+  },
+  "backToPdfTranslation": {
+    "message": "Back to PDF translation"
+  },
+  "bilingualPdfReader": {
+    "message": "Bilingual PDF reader"
+  },
+  "openAnotherDocument": {
+    "message": "Open another document"
+  },
+  "downloadTranslation": {
+    "message": "Download translation"
+  },
+  "installFontsForPdfExport": {
+    "message": "Install fonts for PDF export"
+  },
+  "translateNearbyPages": {
+    "message": "Translate nearby pages"
+  },
+  "readWithTheOriginalLayout": {
+    "message": "Read with the original layout"
+  },
+  "readYourPdf": {
+    "message": "Read your PDF"
+  },
+  "inTwoLanguagesSideBySide": {
+    "message": "in two languages side by side"
+  },
+  "theOriginalLayoutStaysOnTheLeftWith": {
+    "message": "The original layout stays on the left, with each translated page on the right. Compare papers, reports and manuals as you read."
+  },
+  "features": {
+    "message": "Features"
+  },
+  "originalAndTranslationAlignedByPage": {
+    "message": "Original and translation aligned by page"
+  },
+  "useYourTranslationServiceAndCache": {
+    "message": "Use your translation service and cache"
+  },
+  "documentsAreParsedOnThisDevice": {
+    "message": "Documents are parsed on this device"
+  },
+  "allowAccessToLocalPdfs": {
+    "message": "Allow access to local PDFs"
+  },
+  "tryOpeningAgain": {
+    "message": "Try opening again"
+  },
+  "choosePdfFile": {
+    "message": "Choose PDF file"
+  },
+  "openAPdf": {
+    "message": "Open a PDF"
+  },
+  "dropAFileHereOrChooseOneFrom": {
+    "message": "Drop a file here or choose one from your computer"
+  },
+  "filesAreProcessedInThisBrowser": {
+    "message": "Files are processed in this browser"
+  },
+  "orEnterAPdfAddress": {
+    "message": "Or enter a PDF address"
+  },
+  "onlineOrLocalPdfAddress": {
+    "message": "Online or local PDF address"
+  },
+  "open": {
+    "message": "Open"
+  },
+  "openingPdf": {
+    "message": "Opening PDF"
+  },
+  "preparingDocument": {
+    "message": "Preparing document…"
+  },
+  "installFontsForHigherQualityExports": {
+    "message": "Install fonts for higher-quality exports"
+  },
+  "theFullFontsMakeTranslationsSearchableSelectableAnd": {
+    "message": "The full fonts make translations searchable, selectable and clearer when zooming, and preserve vector graphics where possible. Download them once to use them offline."
+  },
+  "youCanAlsoExportAnImageBasedPdf": {
+    "message": "You can also export an image-based PDF that matches the preview. Its text cannot be selected or searched."
+  },
+  "downloadTheFontFileManually": {
+    "message": "download the font file manually"
+  },
+  "fontDownloadProgress": {
+    "message": "Font download progress"
+  },
+  "exportAsImages": {
+    "message": "Export as images"
+  },
+  "installFromFile": {
+    "message": "Install from file"
+  },
+  "installAndExport": {
+    "message": "Install and export"
+  },
+  "dictionaryLookupTimedOutTryAgain": {
+    "message": "Dictionary lookup timed out. Try again."
+  },
+  "theDictionaryIsStillStartingTryAgain": {
+    "message": "The dictionary is still starting. Try again."
+  },
+  "tooManyDictionaryRequestsTryAgainLater": {
+    "message": "Too many dictionary requests. Try again later."
+  },
+  "dictionaryTemporarilyUnavailableTryAgainLaterOrSwitch": {
+    "message": "Dictionary temporarily unavailable ($ARG1$). Try again later or switch dictionaries.",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "theDictionaryResponseWasTooLargeTryAgain": {
+    "message": "The dictionary response was too large. Try again."
+  },
+  "theDictionaryReturnedAnEmptyResponse": {
+    "message": "The dictionary returned an empty response."
+  },
+  "chooseTheYoudaoOrBingDictionary": {
+    "message": "Choose the Youdao or Bing dictionary."
+  },
+  "selectAWordOrPhraseOfUpTo": {
+    "message": "Select a word or phrase of up to 100 characters."
+  },
+  "youdaoReturnedAnUnrecognizedResponseTryAgainLater": {
+    "message": "Youdao returned an unrecognized response. Try again later."
+  },
+  "theLookupTimedOutTryAgain": {
+    "message": "The $ARG1$ lookup timed out. Try again.",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "couldNotConnectToCheckYourConnectionOr": {
+    "message": "Could not connect to $ARG1$. Check your connection or switch dictionaries.",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "invalidPronunciationAudioAddress": {
+    "message": "Invalid pronunciation audio address."
+  },
+  "theDictionaryReturnedNoUsablePronunciationAudioTry": {
+    "message": "The dictionary returned no usable pronunciation audio. Try again later."
+  },
+  "thePronunciationRecordingIsEmptyTryAgain": {
+    "message": "The pronunciation recording is empty. Try again."
+  },
+  "pronunciationAudioTimedOutTryAgain": {
+    "message": "Pronunciation audio timed out. Try again."
+  },
+  "couldNotLoadPronunciationAudioCheckYourConnection": {
+    "message": "Could not load pronunciation audio. Check your connection and try again."
+  },
+  "couldNotPrepareTheDoubaoRequestCheckSite": {
+    "message": "Could not prepare the Doubao request. Check site access and reload the extension."
+  },
+  "unsupportedDoubaoRequestAddress": {
+    "message": "Unsupported Doubao request address."
+  },
+  "aProtectedMarkerExceedsDoubaoSLengthLimit": {
+    "message": "A protected marker exceeds Doubao’s length limit."
+  },
+  "theTextSegmentForDoubaoIsEmpty": {
+    "message": "The text segment for Doubao is empty."
+  },
+  "doubaoSTranslationDoesNotMatchTheSource": {
+    "message": "Doubao’s translation does not match the source segments."
+  },
+  "doubaoReturnedAnIncompleteTranslationTryAgain": {
+    "message": "Doubao returned an incomplete translation. Try again."
+  },
+  "signInToDoubaoInThisBrowserThen": {
+    "message": "Sign in to Doubao in this browser, then retry the translation or connection check."
+  },
+  "doubaoRateLimitReachedWaitBeforeRetryingManually": {
+    "message": "Doubao rate limit reached. Wait before retrying manually."
+  },
+  "doubaoRejectedTheRequestCheckTheDoubaoWebsite": {
+    "message": "Doubao rejected the request. Check the Doubao website, then try again."
+  },
+  "unsupportedDoubaoResponseFormatTryAgainLater": {
+    "message": "Unsupported Doubao response format. Try again later."
+  },
+  "couldNotConnectToDoubaoTryAgainLater": {
+    "message": "Could not connect to Doubao. Try again later."
+  },
+  "doubaoTranslationTimedOutTryAgainLater": {
+    "message": "Doubao translation timed out. Try again later."
+  },
+  "doubaoRequestCanceled": {
+    "message": "Doubao request canceled."
+  },
+  "theDoubaoTaskExceeded110SecondsRetryThe": {
+    "message": "The Doubao task exceeded 110 seconds. Retry the unfinished text."
+  },
+  "doubaoRateLimitReachedWaitBeforeRetryingThe": {
+    "message": "Doubao rate limit reached. Wait before retrying the translation or connection check."
+  },
+  "couldNotSaveTheDoubaoDeviceConfigurationCheck": {
+    "message": "Could not save the Doubao device configuration. Check extension storage permissions."
+  },
+  "doubaoRejectedTheRequestHttpCheckTheDoubao": {
+    "message": "Doubao rejected the request (HTTP $ARG1$). Check the Doubao website, then try again.",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "doubaoReturnedAnEmptyResponse": {
+    "message": "Doubao returned an empty response."
+  },
+  "theDoubaoResponseWasInterruptedTryAgainLater": {
+    "message": "The Doubao response was interrupted. Try again later."
+  },
+  "stoppedReadingAnOversizedDoubaoResponse": {
+    "message": "Stopped reading an oversized Doubao response."
+  },
+  "invalidDoubaoResponseEncoding": {
+    "message": "Invalid Doubao response encoding."
+  },
+  "unrecognizedDoubaoResponseCheckTheDoubaoWebsiteThen": {
+    "message": "Unrecognized Doubao response. Check the Doubao website, then run the connection check again."
+  },
+  "doubaoDidNotRespondInTimeTryAgain": {
+    "message": "Doubao did not respond in time. Try again later."
+  },
+  "doubaoRedirectedTheRequestTheAuthenticatedRequestWas": {
+    "message": "Doubao redirected the request. The authenticated request was stopped."
+  },
+  "invalidDoubaoInitializationResponse": {
+    "message": "Invalid Doubao initialization response."
+  },
+  "deviceInformationMissingFromTheDoubaoInitializationResponse": {
+    "message": "Device information missing from the Doubao initialization response."
+  },
+  "doubaoSArticleEndpointReturnedNoTranslationStream": {
+    "message": "Doubao’s article endpoint returned no translation stream."
+  },
+  "readyToTranslate": {
+    "message": "Ready to translate"
+  },
+  "doubaoExperimentalCurrentlyRequiresAChromiumBrowser": {
+    "message": "Doubao (experimental) currently requires a Chromium browser."
+  },
+  "doubaoDoesNotSupportThisTargetLanguageChoose": {
+    "message": "Doubao does not support this target language. Choose a language from the list."
+  },
+  "doubaoReturnedIncompleteParagraphsRetryTheUnfinishedText": {
+    "message": "Doubao returned incomplete paragraphs. Retry the unfinished text."
+  },
+  "checkingDoubaoTranslation": {
+    "message": "Checking Doubao translation…"
+  },
+  "theDoubaoCheckReturnedNoValidTranslation": {
+    "message": "The Doubao check returned no valid translation."
+  },
+  "aValidPageDocumentIsRequired": {
+    "message": "A valid page document is required."
+  },
+  "thePageDocumentHasChanged": {
+    "message": "The page document has changed."
+  },
+  "couldNotConnectToThisPageRefreshIt": {
+    "message": "Could not connect to this page. Refresh it and try again."
+  },
+  "unsupportedFrameSessionOperation": {
+    "message": "Unsupported frame session operation."
+  },
+  "theTranslationDocumentHasExpired": {
+    "message": "The translation document has expired."
+  },
+  "theTranslationSessionHasStopped": {
+    "message": "The translation session has stopped."
+  },
+  "waitingForTheDocumentToConnectOrFor": {
+    "message": "Waiting for the document to connect or for the browser to grant access"
+  },
+  "waitingForEmbeddedPageToBecomeVisible": {
+    "message": "Waiting for embedded page to become visible"
+  },
+  "waitingForDocumentConnection": {
+    "message": "Waiting for document connection"
+  },
+  "parentFrameExcluded": {
+    "message": "Parent frame excluded: $ARG1$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "frameResponseTimedOut": {
+    "message": "Frame response timed out"
+  },
+  "frameDidNotRespond": {
+    "message": "Frame did not respond"
+  },
+  "theConnectionToThisPageWasInterrupted": {
+    "message": "The connection to this page was interrupted."
+  },
+  "theConnectionToAnEmbeddedPageWasInterrupted": {
+    "message": "The connection to an embedded page was interrupted. See Debug for document details."
+  },
+  "rejectedTheGoogleTranslateRequestHttp": {
+    "message": "$ARG1$ rejected the Google Translate request (HTTP $ARG2$).",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      },
+      "arg2": {
+        "content": "$2"
+      }
+    }
+  },
+  "googleTranslateReturnedNoValidTranslationItsResponse": {
+    "message": "Google Translate returned no valid translation. Its response format may have changed."
+  },
+  "couldNotReachTranslateGoogleapisComOrTranslate": {
+    "message": "Could not reach translate.googleapis.com or translate.google.com. Check network or proxy rules for both translation endpoints."
+  },
+  "translateImageWithWupage": {
+    "message": "Translate image with WuPage"
+  },
+  "imageRecognitionReturnedIncompleteJson": {
+    "message": "Image recognition returned incomplete JSON."
+  },
+  "missingRegionsArrayOrMoreThan300Text": {
+    "message": "Missing regions array or more than 300 text regions."
+  },
+  "textRegionMustBeAnObject": {
+    "message": "Text region must be an object"
+  },
+  "missingSourceTextField": {
+    "message": "Missing source text field"
+  },
+  "emptyTranslationField": {
+    "message": "Empty translation field"
+  },
+  "translationTooLong": {
+    "message": "Translation too long"
+  },
+  "invalidFormat": {
+    "message": "Invalid format"
+  },
+  "textRegion": {
+    "message": "Text region $ARG1$: $ARG2$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      },
+      "arg2": {
+        "content": "$2"
+      }
+    }
+  },
+  "theBoxMustContainFourCoordinates": {
+    "message": "The box must contain four coordinates"
+  },
+  "coordinatesContainANonnumericValue": {
+    "message": "Coordinates contain a nonnumeric value"
+  },
+  "unknownBoxformatUseXywh": {
+    "message": "Unknown boxFormat. Use xywh"
+  },
+  "pixelCoordinatesRequireImageDimensions": {
+    "message": "Pixel coordinates require image dimensions"
+  },
+  "unknownCoordinatesystemUseNormalized1000": {
+    "message": "Unknown coordinateSystem. Use normalized_1000"
+  },
+  "boxWidthAndHeightMustBePositiveUse": {
+    "message": "Box width and height must be positive. Use dimensions instead of bottom-right coordinates"
+  },
+  "boxOutOfBoundsBoxCoordinatesystemBoxformat": {
+    "message": "Box out of bounds: box=[$ARG1$], coordinateSystem=$ARG2$, boxFormat=$ARG3$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      },
+      "arg2": {
+        "content": "$2"
+      },
+      "arg3": {
+        "content": "$3"
+      }
+    }
+  },
+  "textBoxLiesOutsideTheImage": {
+    "message": "Text box lies outside the image"
+  },
+  "enableImageTranslationFirst": {
+    "message": "Enable image translation first."
+  },
+  "useTheWrenchBesideImageTranslationToInstall": {
+    "message": "Use the wrench beside image translation to install the OCR models first."
+  },
+  "unsupportedImageFormatOrDimensionsTryASmaller": {
+    "message": "Unsupported image format or dimensions. Try a smaller still image."
+  },
+  "noTranslationServiceIsAvailable": {
+    "message": "No translation service is available."
+  },
+  "twoImagesAreAlreadyBeingTranslatedTryAgain": {
+    "message": "Two images are already being translated. Try again shortly."
+  },
+  "theOcrModelsWereRemovedOrReplacedReinstall": {
+    "message": "The OCR models were removed or replaced. Reinstall them and try again."
+  },
+  "couldNotReliablyRecognizeTextStylizedVerticalOr": {
+    "message": "Could not reliably recognize text. Stylized, vertical or low-contrast text may be missed."
+  },
+  "textWasDetectedButConfidenceWasLowOr": {
+    "message": "Text was detected, but confidence was low or only numbers and symbols were found."
+  },
+  "recognizedTextRegionsTheServiceReturnedTheOriginal": {
+    "message": "Recognized $ARG1$ text regions. The service returned the original text unchanged.",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "cannotReadThisImageAddress": {
+    "message": "Cannot read this image address."
+  },
+  "cannotReadImageCheckThatItIsLoaded": {
+    "message": "Cannot read image ($ARG1$). Check that it is loaded and accessible.",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "imageTooLargeChooseAnImageOfUp": {
+    "message": "Image too large. Choose an image of up to 12 MB."
+  },
+  "unsupportedImageFormatOrTheAddressReturnedA": {
+    "message": "Unsupported image format or the address returned a sign-in page."
+  },
+  "theImageIsEmpty": {
+    "message": "The image is empty."
+  },
+  "enableSelectionTranslationInSettingsFirst": {
+    "message": "Enable selection translation in settings first."
+  },
+  "enableTheDoubaoTranslationServiceFirst": {
+    "message": "Enable the Doubao translation service first."
+  },
+  "unsupportedPdfAddress": {
+    "message": "Unsupported PDF address."
+  },
+  "localTranslationCouldNotStartReloadTheExtension": {
+    "message": "Local translation could not start. Reload the extension."
+  },
+  "couldNotReliablyDetectTheSourceLanguageSelect": {
+    "message": "Could not reliably detect the source language. Select it in translation settings."
+  },
+  "ocrCouldNotStartReloadTheExtension": {
+    "message": "OCR could not start. Reload the extension."
+  },
+  "localEngineInitializationTimedOutReloadTheExtension": {
+    "message": "Local engine initialization timed out. Reload the extension."
+  },
+  "couldNotLoadTheLocalEngineReloadThe": {
+    "message": "Could not load the local engine. Reload the extension."
+  },
+  "baseUrlMustUseHttpOrHttps": {
+    "message": "Base URL must use HTTP or HTTPS."
+  },
+  "reloadTheUpdatedExtensionForOllamaCompatibilityOr": {
+    "message": "Reload the updated extension for Ollama compatibility, or configure OLLAMA_ORIGINS and restart Ollama."
+  },
+  "tooManyConcurrentOllamaConnectionsTryAgainLater": {
+    "message": "Too many concurrent Ollama connections. Try again later."
+  },
+  "restoreOriginal": {
+    "message": "Restore original"
+  },
+  "translateFullPage": {
+    "message": "Translate full page"
+  },
+  "ollamaCompatibilityIsEnabledCheckTheApiKey": {
+    "message": " Ollama compatibility is enabled. Check the API key, server permissions or reverse proxy."
+  },
+  "forOllamaEnableOllamaCompatibilityInTheService": {
+    "message": " For Ollama, enable Ollama compatibility in the service settings. If the issue persists, check server permissions or OLLAMA_ORIGINS."
+  },
+  "microsoftSFreeTranslationRequestFailedTryAgain": {
+    "message": "Microsoft’s free translation request failed ($ARG1$). Try again later or switch services.",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "enterYourVolcengineAccessKeyIdAndSecret": {
+    "message": "Enter your Volcengine Access Key ID and Secret Access Key."
+  },
+  "enterAnApiKeyOrSwitchToThe": {
+    "message": "Enter an API key or switch to the free service."
+  },
+  "enterAValidHttpsBaseUrl": {
+    "message": "Enter a valid HTTPS base URL."
+  },
+  "enterATokenhubTranslationModel": {
+    "message": "Enter a TokenHub translation model."
+  },
+  "tokenhubReturnedAnIncompleteTranslation": {
+    "message": "TokenHub returned an incomplete translation."
+  },
+  "aSegmentExceedsCharactersReduceTheChunkSize": {
+    "message": "A $ARG1$ segment exceeds $ARG2$ characters. Reduce the chunk size.",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      },
+      "arg2": {
+        "content": "$2"
+      }
+    }
+  },
+  "unknownError": {
+    "message": "Unknown error"
+  },
+  "volcengineApiRequestFailed": {
+    "message": "Volcengine API request failed: $ARG1$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "theApiReturnedAnIncompleteTranslation": {
+    "message": "The $ARG1$ API returned an incomplete translation.",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "theApiRequestFailedCheckCredentialsQuotaOr": {
+    "message": "The $ARG1$ API request failed ($ARG2$). Check credentials, quota or service mode.",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      },
+      "arg2": {
+        "content": "$2"
+      }
+    }
+  },
+  "enterARapidapiKeyOrSwitchToThe": {
+    "message": "Enter a RapidAPI key or switch to the free service."
+  },
+  "tencentTransmartIsTemporarilyUnavailableTryAgainLater": {
+    "message": "Tencent TranSmart is temporarily unavailable. Try again later or switch services."
+  },
+  "yandexSFreeServiceIsTemporarilyUnavailableTry": {
+    "message": "Yandex’s free service is temporarily unavailable ($ARG1$). Try again later or switch services.",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "volcengineSFreeServiceIsTemporarilyUnavailableTry": {
+    "message": "Volcengine’s free service is temporarily unavailable. Try again later or switch services."
+  },
+  "theRequestFailedTryAgainLaterOrSwitch": {
+    "message": "The $ARG1$ request failed ($ARG2$). Try again later or switch services.",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      },
+      "arg2": {
+        "content": "$2"
+      }
+    }
+  },
+  "mymemoryCouldNotDetectTheSourceLanguageSelect": {
+    "message": "MyMemory could not detect the source language. Select it manually and try again."
+  },
+  "mymemoryCouldNotReliablyDetectTheSourceLanguage": {
+    "message": "MyMemory could not reliably detect the source language. Select it manually and try again."
+  },
+  "mymemoryIsTemporarilyUnavailableCheckTheSourceLanguage": {
+    "message": "MyMemory is temporarily unavailable. Check the source language or switch services."
+  },
+  "mymemoryApiQuotaExceededCheckYourRapidapiSubscription": {
+    "message": "MyMemory API quota exceeded. Check your RapidAPI subscription or switch services."
+  },
+  "mymemoryFreeQuotaExceededTryAgainTomorrowOr": {
+    "message": "MyMemory free quota exceeded. Try again tomorrow or switch services."
+  },
+  "theProtectedTextExceedsMymemorySLimitSwitch": {
+    "message": "The protected text exceeds MyMemory’s limit. Switch translation services."
+  },
+  "enterAValidHttpsEndpoint": {
+    "message": "Enter a valid HTTPS endpoint."
+  },
+  "cannotLocateTheVideoFrameBringTheEntire": {
+    "message": "Cannot locate the video frame. Bring the entire video into view and try again."
+  },
+  "enableSubtitlesAndImageTranslationAndInstallThe": {
+    "message": "Enable subtitles and image translation and install the OCR models first."
+  },
+  "theVideoPageHasChangedReturnToThe": {
+    "message": "The video page has changed. Return to the original page and try again."
+  },
+  "tooManyFrameCapturesTryAgainLater": {
+    "message": "Too many frame captures. Try again later."
+  },
+  "theBrowserDeniedScreenAccessClickWupageIn": {
+    "message": "The browser denied screen access. Click WuPage in the toolbar, check site access and try again."
+  },
+  "theBrowserCouldNotReadTheVideoFrame": {
+    "message": "The browser could not read the video frame."
+  },
+  "videoSubtitlesAreOff": {
+    "message": "Video subtitles are off."
+  },
+  "subtitleRequestsMustComeFromAVideoPage": {
+    "message": "Subtitle requests must come from a video page."
+  },
+  "noActiveVideoPage": {
+    "message": "No active video page."
+  },
+  "videoSubtitlesAreOffEnableThemInThe": {
+    "message": "Video subtitles are off. Enable them in the extension popup."
+  },
+  "noPlayableVideoFoundOpenAVideoAnd": {
+    "message": "No playable video found. Open a video and try again."
+  },
+  "invalidSubtitleRequest": {
+    "message": "Invalid subtitle request."
+  },
+  "aSubtitleRequestIsAlreadyInProgress": {
+    "message": "A subtitle request is already in progress."
+  },
+  "waitForThePreviousSubtitleTranslationToFinish": {
+    "message": "Wait for the previous subtitle translation to finish."
+  },
+  "subtitleTaskCanceled": {
+    "message": "Subtitle task canceled."
+  },
+  "theVideoPageHasClosed": {
+    "message": "The video page has closed."
+  },
+  "wupageTranslation": {
+    "message": "WuPage translation"
+  },
+  "translationFeatures": {
+    "message": "Translation features"
+  },
+  "hideTheFloatingButtonTurnItOnAgain": {
+    "message": "Hide the floating button. Turn it on again in the extension popup."
+  },
+  "clickTheFloatingButtonToTranslateThePage": {
+    "message": "Click the floating button to translate the page"
+  },
+  "translateAgain": {
+    "message": "Translate again"
+  },
+  "doubaoSignInAndConnectionCheck": {
+    "message": "Doubao sign-in and connection check"
+  },
+  "showLess": {
+    "message": "Show less"
+  },
+  "currentServiceUnavailableChooseAnotherService": {
+    "message": "Current service unavailable. Choose another service."
+  },
+  "showOriginal": {
+    "message": "Show original"
+  },
+  "openSettingsToSignInToDoubaoAnd": {
+    "message": "Open settings to sign in to Doubao and check the connection"
+  },
+  "retryInS": {
+    "message": "Retry in $ARG1$ s",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "retryTranslation": {
+    "message": "Retry translation"
+  },
+  "paragraphsCompleted": {
+    "message": " ($ARG1$ paragraphs completed)",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "translatingThisAreaClickSrcToStopAnd": {
+    "message": "Translating this area$ARG1$. Click Src to stop and restore the original.",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "tryAgain": {
+    "message": "Try again."
+  },
+  "translatedFailed": {
+    "message": "Translated: $ARG1$. Failed: $ARG2$. $ARG3$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      },
+      "arg2": {
+        "content": "$2"
+      },
+      "arg3": {
+        "content": "$3"
+      }
+    }
+  },
+  "translationIncomplete": {
+    "message": "Translation incomplete: $ARG1$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "cacheHits": {
+    "message": " · Cache hits: $ARG1$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "paragraphsTranslatedScrollToContinue": {
+    "message": "Paragraphs translated: $ARG1$$ARG2$. Scroll to continue.",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      },
+      "arg2": {
+        "content": "$2"
+      }
+    }
+  },
+  "translationShownClickTheFloatingButtonToRestore": {
+    "message": "Translation shown. Click the floating button to restore the original."
+  },
+  "noTextToTranslateInThisAreaScroll": {
+    "message": "No text to translate in this area. Scroll to continue."
+  },
+  "waitAboutSecondsBeforeTryingAgain": {
+    "message": " Wait about $ARG1$ seconds before trying again.",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "tap": {
+    "message": "Tap"
+  },
+  "click": {
+    "message": "Click"
+  },
+  "longPress": {
+    "message": "Long-press"
+  },
+  "hover": {
+    "message": "Hover"
+  },
+  "toOpenMenuDragToMove": {
+    "message": "$ARG1$: $ARG2$ · $ARG3$ to open menu · Drag to move",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      },
+      "arg2": {
+        "content": "$2"
+      },
+      "arg3": {
+        "content": "$3"
+      }
+    }
+  },
+  "closeDebugPanel": {
+    "message": "Close Debug panel"
+  },
+  "loadingTasks": {
+    "message": "Loading tasks…"
+  },
+  "resizeWindow": {
+    "message": "Resize window"
+  },
+  "resizeDebugWindow": {
+    "message": "Resize Debug window"
+  },
+  "runningQueuedRecent": {
+    "message": "Running: $ARG1$ · Queued: $ARG2$ · Recent: $ARG3$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      },
+      "arg2": {
+        "content": "$2"
+      },
+      "arg3": {
+        "content": "$3"
+      }
+    }
+  },
+  "pageDocuments": {
+    "message": "Page documents: $ARG1$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "ready": {
+    "message": "Ready"
+  },
+  "connecting": {
+    "message": "Connecting"
+  },
+  "translating": {
+    "message": "Translating"
+  },
+  "waitingToScrollIntoView": {
+    "message": "Waiting to scroll into view"
+  },
+  "noTranslatableText": {
+    "message": "No translatable text"
+  },
+  "excluded": {
+    "message": "Excluded"
+  },
+  "unavailable": {
+    "message": "Unavailable"
+  },
+  "translationFailed": {
+    "message": "Translation failed"
+  },
+  "mainPage": {
+    "message": "Main page"
+  },
+  "embeddedPage": {
+    "message": "Embedded page"
+  },
+  "translateThisPdf": {
+    "message": "Translate this PDF"
+  },
+  "noTasks": {
+    "message": "No tasks"
+  },
+  "segmentsCharacters": {
+    "message": "Segments: $ARG1$ · Characters: $ARG2$ · $ARG3$ → $ARG4$ · $ARG5$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      },
+      "arg2": {
+        "content": "$2"
+      },
+      "arg3": {
+        "content": "$3"
+      },
+      "arg4": {
+        "content": "$4"
+      },
+      "arg5": {
+        "content": "$5"
+      }
+    }
+  },
+  "serviceOverride": {
+    "message": "Service override"
+  },
+  "generalSettings": {
+    "message": "General settings"
+  },
+  "performanceChunkSizeConcurrency": {
+    "message": "Performance: chunk size $ARG1$ · Concurrency $ARG2$ · $ARG3$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      },
+      "arg2": {
+        "content": "$2"
+      },
+      "arg3": {
+        "content": "$3"
+      }
+    }
+  },
+  "requestText": {
+    "message": "Request text"
+  },
+  "translationResults": {
+    "message": "Translation results"
+  },
+  "none": {
+    "message": "None"
+  },
+  "waitS": {
+    "message": "Wait $ARG1$ s",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "queued": {
+    "message": "Queued"
+  },
+  "waiting": {
+    "message": "Waiting"
+  },
+  "running": {
+    "message": "Running"
+  },
+  "done": {
+    "message": "Done"
+  },
+  "failed": {
+    "message": "Failed"
+  },
+  "switchToAWebPageToAddA": {
+    "message": "Switch to a web page to add a site"
+  },
+  "excludeFromAutomaticTranslation": {
+    "message": "Exclude $ARG1$ from automatic translation",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "addToAutomaticTranslation": {
+    "message": "Add $ARG1$ to automatic translation",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "tapAParagraph": {
+    "message": "Tap a paragraph"
+  },
+  "tapAParagraphToTranslateItAndExit": {
+    "message": "Tap a paragraph to translate it and exit selection mode"
+  },
+  "enableParagraphTranslation": {
+    "message": "Enable paragraph translation"
+  },
+  "thisDocumentUsesADedicatedViewer": {
+    "message": "This document uses a dedicated viewer"
+  },
+  "bringTheEntireVideoIntoViewAndTry": {
+    "message": "Bring the entire video into view and try again."
+  },
+  "cannotLocateTheEmbeddedVideoBringTheEntire": {
+    "message": "Cannot locate the embedded video. Bring the entire player into view and try again."
+  },
+  "cannotLocateTheEmbeddedVideoTryOnThe": {
+    "message": "Cannot locate the embedded video. Try on the original video page."
+  },
+  "theBrowserCannotRenderTheImageTranslation": {
+    "message": "The browser cannot render the image translation."
+  },
+  "translateImageTextAndOverlayTheOriginal": {
+    "message": "Translate image text and overlay the original"
+  },
+  "translateImage": {
+    "message": "Translate image"
+  },
+  "installOcrModelsAndEnableImageTranslationIn": {
+    "message": "Install OCR models and enable image translation in WuPage settings first."
+  },
+  "theImageHasChangedRightClickItAgain": {
+    "message": "The image has changed. Right-click it again."
+  },
+  "multipleIdenticalImagesFoundRightClickTheOne": {
+    "message": "Multiple identical images found. Right-click the one you want to translate again."
+  },
+  "imageNotFoundLetItLoadThenRight": {
+    "message": "Image not found. Let it load, then right-click to translate it again."
+  },
+  "thisImageIsInAnEditorOrAn": {
+    "message": "This image is in an editor or an area excluded from translation."
+  },
+  "theImageIsStillLoadingTryAgainShortly": {
+    "message": "The image is still loading. Try again shortly."
+  },
+  "imageTranslationFailedTryAgain": {
+    "message": "Image translation failed. Try again."
+  },
+  "recognizingAndTranslatingImageText": {
+    "message": "Recognizing and translating image text…"
+  },
+  "couldNotReliablyIdentifyTextToTranslate": {
+    "message": "Could not reliably identify text to translate."
+  },
+  "showOriginalImage": {
+    "message": "Show original image"
+  },
+  "showTranslatedImage": {
+    "message": "Show translated image"
+  },
+  "theBrowserCannotReadThisImage": {
+    "message": "The browser cannot read this image."
+  },
+  "cannotReadThisImageTryAnImageOn": {
+    "message": "Cannot read this image. Try an image on a regular web page."
+  },
+  "switchToARegularWebPageToTranslate": {
+    "message": "Switch to a regular web page to translate."
+  },
+  "thePageStructureOrTranslationMarkersChangedThe": {
+    "message": "The page structure or translation markers changed. The original text was preserved."
+  },
+  "hoverOverAParagraphOrSelectItsText": {
+    "message": "Hover over a paragraph or select its text before using the paragraph shortcut."
+  },
+  "theParagraphHasChangedSelectItAgain": {
+    "message": "The paragraph has changed. Select it again."
+  },
+  "noTranslatableParagraphHere": {
+    "message": "No translatable paragraph here."
+  },
+  "theSourceTextHasChangedSelectItAgain": {
+    "message": "The source text has changed. Select it again."
+  },
+  "theReplacementExceedsTheInputSCharacterLimit": {
+    "message": "The replacement exceeds the input’s character limit."
+  },
+  "couldNotRestoreTheSelectionSelectTheText": {
+    "message": "Could not restore the selection. Select the text again."
+  },
+  "thisEditorBlockedReplacementCopyTheTranslationManually": {
+    "message": "This editor blocked replacement. Copy the translation manually."
+  },
+  "thePageDeclinedTheReplacementCopyTheTranslation": {
+    "message": "The page declined the replacement. Copy the translation manually."
+  },
+  "thisEditorDoesNotSupportReplacementCopyThe": {
+    "message": "This editor does not support replacement. Copy the translation manually."
+  },
+  "editSource": {
+    "message": "Edit source"
+  },
+  "original": {
+    "message": "Original"
+  },
+  "dictionary": {
+    "message": "Dictionary"
+  },
+  "closeSelectionTranslation": {
+    "message": "Close selection translation"
+  },
+  "replaceSelection": {
+    "message": "Replace selection"
+  },
+  "translateSelection": {
+    "message": "Translate selection"
+  },
+  "lookUp": {
+    "message": "Look up"
+  },
+  "closeSelectionShortcut": {
+    "message": "Close selection shortcut"
+  },
+  "translate": {
+    "message": "Translate"
+  },
+  "chinesePinyinAndDefinitionsProvidedByYoudao": {
+    "message": "Chinese pinyin and definitions provided by Youdao"
+  },
+  "viewIn": {
+    "message": "View in $ARG1$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "lookingUp": {
+    "message": "Looking up…"
+  },
+  "retry": {
+    "message": "Retry"
+  },
+  "sourceTextCannotExceed5000Characters": {
+    "message": "Source text cannot exceed 5,000 characters."
+  },
+  "enterTextToLookUpOrTranslate": {
+    "message": "Enter text to look up or translate."
+  },
+  "chooseAnAvailableTranslationServiceInSettings": {
+    "message": "Choose an available translation service in settings."
+  },
+  "theServiceReturnedNoTranslationTryAgain": {
+    "message": "The service returned no translation. Try again."
+  },
+  "theExtensionBackgroundIsOutOfDateReload": {
+    "message": "The extension background is out of date. Reload the extension and refresh the page."
+  },
+  "theExtensionHasBeenUpdatedRefreshThePage": {
+    "message": "The extension has been updated. Refresh the page and try again."
+  },
+  "us": {
+    "message": "US"
+  },
+  "pinyin": {
+    "message": "Pinyin"
+  },
+  "pronunciation": {
+    "message": "Pronunciation"
+  },
+  "word": {
+    "message": "Word"
+  },
+  "playPronunciation": {
+    "message": "Play $ARG1$ pronunciation",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "noDefinitionsFoundViewTheDictionaryWebsite": {
+    "message": "No definitions found. View the dictionary website."
+  },
+  "noDefinitionsFoundSwitchDictionariesOrViewThe": {
+    "message": "No definitions found. Switch dictionaries or view the dictionary website."
+  },
+  "loadingPronunciation": {
+    "message": "Loading pronunciation…"
+  },
+  "paragraphModeIsOnHoldTheConfiguredModifier": {
+    "message": "Paragraph mode is on. Hold the configured modifier and click a paragraph to translate it."
+  },
+  "paragraphModeIsOff": {
+    "message": "Paragraph mode is off."
+  },
+  "translationStoppedOriginalTextRestored": {
+    "message": "Translation stopped. Original text restored."
+  },
+  "translatingThePageActivateAgainToShowThe": {
+    "message": "Translating the page. Activate again to show the original."
+  },
+  "checkTranslationServiceSettings": {
+    "message": "Check translation service settings."
+  },
+  "someParagraphsFailedToTranslate": {
+    "message": "Some paragraphs failed to translate: $ARG1$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "translatingThisAreaNewContentWillBeTranslated": {
+    "message": "Translating this area. New content will be translated automatically."
+  },
+  "scrollToContinue": {
+    "message": ". Scroll to continue"
+  },
+  "paragraphsTranslated": {
+    "message": "Paragraphs translated: $ARG1$$ARG2$.",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      },
+      "arg2": {
+        "content": "$2"
+      }
+    }
+  },
+  "noTextToTranslateHereTranslationWillContinue": {
+    "message": "No text to translate here. Translation will continue as you scroll or more content loads."
+  },
+  "tapTheFloatingButtonToTranslateLongPress": {
+    "message": "Tap the floating button to translate, long-press to open the menu, or drag to move."
+  },
+  "dismissFloatingButtonHint": {
+    "message": "Dismiss floating button hint"
+  },
+  "tapToTranslateAParagraph": {
+    "message": "Tap to translate a paragraph"
+  },
+  "tapAParagraphToTranslateItSelectionMode": {
+    "message": "Tap a paragraph to translate it. Selection mode closes when finished."
+  },
+  "cancelParagraphSelection": {
+    "message": "Cancel paragraph selection"
+  },
+  "dismissParagraphTranslationStatus": {
+    "message": "Dismiss paragraph translation status"
+  },
+  "processingSelectedParagraph": {
+    "message": "Processing selected paragraph…"
+  },
+  "doneTapThisParagraphAgainToSwitchBetween": {
+    "message": "Done. Tap this paragraph again to switch between the original and translation."
+  },
+  "paragraphTranslationFailedTryAgain": {
+    "message": "Paragraph translation failed. Try again."
+  },
+  "theVideoFrameIsNotReadyWaitUntil": {
+    "message": "The video frame is not ready. Wait until loading or seeking finishes."
+  },
+  "thisVideoIsProtectedItsFramesCannotBe": {
+    "message": "This video is protected. Its frames cannot be read."
+  },
+  "returnToTheVideoPageToTranslateA": {
+    "message": "Return to the video page to translate a frame."
+  },
+  "theVideoMovedStopScrollingOrResizingAnd": {
+    "message": "The video moved. Stop scrolling or resizing and try again."
+  },
+  "theVideoIsSeekingWaitForTheFrame": {
+    "message": "The video is seeking. Wait for the frame to load."
+  },
+  "recognizingAndTranslatingVideoFrame": {
+    "message": "Recognizing and translating video frame…"
+  },
+  "enableVideoSubtitlesFirst": {
+    "message": "Enable video subtitles first."
+  },
+  "useTheWrenchBesideImageTranslationInWupage": {
+    "message": "Use the wrench beside image translation in WuPage to install OCR models, then enable image translation."
+  },
+  "noTranslatableTextFoundInThisFrame": {
+    "message": "No translatable text found in this frame."
+  },
+  "frameTranslationFailedTryAgain": {
+    "message": "Frame translation failed. Try again."
+  },
+  "subtitlePositionDragOrUseArrowKeysTo": {
+    "message": "Subtitle position. Drag or use arrow keys to move. Hold Shift to move faster."
+  },
+  "leftSubtitleEdgeDragOrUseLeftAnd": {
+    "message": "Left subtitle edge. Drag or use Left and Right to adjust width."
+  },
+  "rightSubtitleEdgeDragOrUseLeftAnd": {
+    "message": "Right subtitle edge. Drag or use Left and Right to adjust width."
+  },
+  "adjustSubtitleLayout": {
+    "message": "Adjust subtitle layout"
+  },
+  "dragSubtitlesToMove": {
+    "message": "· Drag subtitles to move"
+  },
+  "width": {
+    "message": "Width"
+  },
+  "subtitleWidth": {
+    "message": "Subtitle width"
+  },
+  "fontSize": {
+    "message": "Font size"
+  },
+  "subtitleLayoutFontSize": {
+    "message": "Subtitle layout font size"
+  },
+  "dragTheSideHandlesToSetWidthHeight": {
+    "message": "Drag the side handles to set width. Height adjusts to the text. Choose Done to save this site’s layout, or Esc to cancel."
+  },
+  "dragSubtitlesToRepositionThemDragTheSide": {
+    "message": "Drag subtitles to reposition them. Drag the side handles to adjust width."
+  },
+  "layoutCouldNotBeSavedRetryOrCancel": {
+    "message": "Layout could not be saved. Retry or cancel."
+  },
+  "inPictureInPictureBilingualSubtitlesAreAvailable": {
+    "message": "In picture-in-picture, bilingual subtitles are available in the original player."
+  },
+  "readingPlayerSubtitles": {
+    "message": "Reading player subtitles…"
+  },
+  "chooseAnAvailableTranslationServiceFirst": {
+    "message": "Choose an available translation service first."
+  },
+  "theSubtitleListHasChanged": {
+    "message": "The subtitle list has changed."
+  },
+  "theSelectedSubtitleTrackWasRemoved": {
+    "message": "The selected subtitle track was removed."
+  },
+  "theSelectedSubtitleTrackReturnedNoContent": {
+    "message": "The selected subtitle track returned no content."
+  },
+  "couldNotReadTheSelectedTrackEnableIts": {
+    "message": "Could not read the selected track. Enable its language in the player or choose “Follow player” and retry."
+  },
+  "subtitles": {
+    "message": "Subtitles $ARG1$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "subtitlesTemporarilyUnavailableTryAgain": {
+    "message": "Subtitles temporarily unavailable. Try again."
+  },
+  "translationTemporarilyUnavailable": {
+    "message": "Translation temporarily unavailable: $ARG1$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "sourceSubtitlesAreNotReadyEnableThemIn": {
+    "message": "Source subtitles are not ready. Enable them in the player or choose another source language."
+  },
+  "enableSubtitlesInThePlayerSomeTracksRequire": {
+    "message": "Enable subtitles in the player. Some tracks require signing in."
+  },
+  "enableCcOrSubtitlesInThePlayerTranslation": {
+    "message": "Enable CC or subtitles in the player. Translation starts during playback."
+  },
+  "paused": {
+    "message": "Paused"
+  },
+  "wupageBilingual": {
+    "message": "WuPage bilingual"
+  },
+  "thisServiceRequiresAnApiKeyEnterIt": {
+    "message": "This service requires an API key. Enter it in WuPage settings or select a configured service."
+  },
+  "theExtensionWasUpdatedOrReloadedRefreshThe": {
+    "message": "The extension was updated or reloaded. Refresh the video page to continue."
+  },
+  "theExtensionDisconnectedChooseRetrySubtitlesIfYou": {
+    "message": "The extension disconnected. Choose “Retry subtitles”. If you just updated WuPage, refresh the video page."
+  },
+  "thePlayerHasClosed": {
+    "message": "The player has closed."
+  },
+  "settingsCouldNotBeSaved": {
+    "message": "Settings could not be saved: $ARG1$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "subtitleFilesMustBe2MibOrSmaller": {
+    "message": "Subtitle files must be 2 MiB or smaller."
+  },
+  "loadedSubtitleCues": {
+    "message": "Loaded $ARG1$ subtitle cues",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "clickTrOnThePlayerToEnableSubtitle": {
+    "message": "Click Tr on the player to enable subtitle translation."
+  },
+  "translation": {
+    "message": "Translation"
+  },
+  "useOverallFontSize": {
+    "message": "Use overall font size"
+  },
+  "font": {
+    "message": "$ARG1$ font",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "sansSerif": {
+    "message": "Sans serif"
+  },
+  "serif": {
+    "message": "Serif"
+  },
+  "monospace": {
+    "message": "Monospace"
+  },
+  "fontWeight": {
+    "message": "$ARG1$ font weight",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "regular": {
+    "message": "Regular"
+  },
+  "semibold": {
+    "message": "Semibold"
+  },
+  "bold": {
+    "message": "Bold"
+  },
+  "videoTranslation": {
+    "message": "Video translation"
+  },
+  "translateVideoSubtitles": {
+    "message": "Translate video subtitles"
+  },
+  "pauseAndTranslateFrame": {
+    "message": "Pause and translate frame"
+  },
+  "subtitleSettings": {
+    "message": "Subtitle settings"
+  },
+  "bilingualSubtitles": {
+    "message": "Bilingual subtitles"
+  },
+  "closeSubtitleSettings": {
+    "message": "Close subtitle settings"
+  },
+  "translateTo": {
+    "message": "Translate to"
+  },
+  "subtitleTargetLanguage": {
+    "message": "Subtitle target language"
+  },
+  "subtitleFontSize": {
+    "message": "Subtitle font size"
+  },
+  "small": {
+    "message": "Small"
+  },
+  "large": {
+    "message": "Large"
+  },
+  "subtitleTranslationService": {
+    "message": "Subtitle translation service"
+  },
+  "sourceSubtitles": {
+    "message": "Source subtitles"
+  },
+  "sourceSubtitleLanguage": {
+    "message": "Source subtitle language"
+  },
+  "followPlayer": {
+    "message": "Follow player"
+  },
+  "subtitleAppearance": {
+    "message": "Subtitle appearance"
+  },
+  "order": {
+    "message": "Order"
+  },
+  "originalAndTranslationOrder": {
+    "message": "Original and translation order"
+  },
+  "originalOnTop": {
+    "message": "Original on top"
+  },
+  "translationOnTop": {
+    "message": "Translation on top"
+  },
+  "longSubtitlesAdvanceWithPlaybackWithUpTo": {
+    "message": "Long subtitles advance with playback, with up to two lines per language. Font size adapts to the player."
+  },
+  "enableAutomaticallyOnThisSite": {
+    "message": "Enable automatically on this site"
+  },
+  "retrySubtitles": {
+    "message": "Retry subtitles"
+  },
+  "moreOptions": {
+    "message": "More options"
+  },
+  "subtitleBackground": {
+    "message": "Subtitle background"
+  },
+  "translucent": {
+    "message": "Translucent"
+  },
+  "transparent": {
+    "message": "Transparent"
+  },
+  "timeOffsetSeconds": {
+    "message": "Time offset (seconds)"
+  },
+  "subtitleTimeOffset": {
+    "message": "Subtitle time offset"
+  },
+  "importSrtVtt": {
+    "message": "Import SRT / VTT"
+  },
+  "onlySubtitleTextIsTranslatedNoAudioIs": {
+    "message": "Only subtitle text is translated. No audio is captured. Online translation uses your selected service’s quota."
+  },
+  "cancelFrameTranslation": {
+    "message": "Cancel frame translation"
+  },
+  "showOriginalFrame": {
+    "message": "Show original frame"
+  },
+  "showTranslatedFrame": {
+    "message": "Show translated frame"
+  },
+  "readingSubtitlesClickToStopTranslation": {
+    "message": "Reading subtitles. Click to stop translation."
+  },
+  "subtitlesNeedARetryClickToStopTranslation": {
+    "message": "Subtitles need a retry. Click to stop translation."
+  },
+  "waitingForSourceSubtitlesClickToStopTranslation": {
+    "message": "Waiting for source subtitles. Click to stop translation."
+  },
+  "translationOnly": {
+    "message": "Translation only"
+  },
+  "enabledClickToStopSubtitleTranslation": {
+    "message": "$ARG1$ enabled. Click to stop subtitle translation.",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "translatingSubtitlesClickToStop": {
+    "message": "Translating subtitles. Click to stop."
+  },
+  "translatedSubtitles": {
+    "message": "Translated subtitles"
+  },
+  "bingDictionaryIsUnavailableOrItsLayoutHas": {
+    "message": "Bing Dictionary is unavailable or its layout has changed. Switch dictionaries and retry."
+  },
+  "invalidPronunciationAudioData": {
+    "message": "Invalid pronunciation audio data."
+  },
+  "couldNotPlayPronunciationTryAgain": {
+    "message": "Could not play pronunciation. Try again."
+  },
+  "unknownDictionaryOperation": {
+    "message": "Unknown dictionary operation."
+  },
+  "autoDetectionUsesTheBrowserSLocalLanguage": {
+    "message": "Auto-detection uses the browser’s local language detection. Install the models you may need. When neither language is English, install both the source-to-English and English-to-target models. For short text, choose the source language manually if needed."
+  },
+  "translationGoesThroughEnglishAndRequiresBothModels": {
+    "message": "Translation goes through English and requires both models."
+  },
+  "requiredForThisDirection": {
+    "message": "Required for this direction: $ARG1$. $ARG2$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      },
+      "arg2": {
+        "content": "$2"
+      }
+    }
+  },
+  "sourceAndTargetLanguagesMatchNoTranslationNeeded": {
+    "message": "Source and target languages match. No translation needed."
+  },
+  "firefoxLocalModels": {
+    "message": "Firefox local models"
+  },
+  "languageModel": {
+    "message": "Language model"
+  },
+  "modelDownloadProgress": {
+    "message": "Model download progress"
+  },
+  "checkingLocalModels": {
+    "message": "Checking local models…"
+  },
+  "downloadModel": {
+    "message": "Download model"
+  },
+  "pauseDownload": {
+    "message": "Pause download"
+  },
+  "importOffline": {
+    "message": "Import offline"
+  },
+  "deleteModel": {
+    "message": "Delete model"
+  },
+  "offlineInstallationAndInterruptedDownloads": {
+    "message": "Offline installation and interrupted downloads"
+  },
+  "failedDownloadsRetryAutomaticallyCompletedFilesAndEach": {
+    "message": "Failed downloads retry automatically. Completed files and each 1 MB of progress are kept. Choose Download to resume. If the server does not support resuming, the current file starts over."
+  },
+  "youCanDownloadAllFilesBelowOnAnother": {
+    "message": "You can download all files below on another device, transfer them here and choose Import offline. Files are checked by size and checksum and can be imported in batches. Downloads come from Mozilla’s official CDN."
+  },
+  "experimentalSupportForEnglishSimplifiedChineseJapaneseGerman": {
+    "message": "Experimental support for English, Simplified Chinese, Japanese, German, French, Spanish and Russian. Complex text may translate less accurately than with online services. Missing models and unsupported languages are reported. You can select an online service manually."
+  },
+  "resumable": {
+    "message": "Resumable"
+  },
+  "notInstalled": {
+    "message": "Not installed"
+  },
+  "downloading": {
+    "message": "Downloading"
+  },
+  "downloadIncomplete": {
+    "message": "Download incomplete"
+  },
+  "modelReadyForOfflineTranslation": {
+    "message": "Model ready for offline translation."
+  },
+  "retained": {
+    "message": "Retained"
+  },
+  "pendingDownload": {
+    "message": "Pending download"
+  },
+  "downloadsContinueAfterYouCloseSettings": {
+    "message": "Downloads continue after you close settings."
+  },
+  "modelsAreDownloadedOnlyWhenYouChooseDownload": {
+    "message": "Models are downloaded only when you choose Download."
+  },
+  "modelInstalled": {
+    "message": "Model installed"
+  },
+  "resumeDownload": {
+    "message": "Resume download"
+  },
+  "verifiedAndImportedFilesOfflineTranslationIsAvailable": {
+    "message": "Verified and imported $ARG1$ files. Offline translation is available once all files are ready.",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "localTranslationStopped": {
+    "message": "Local translation stopped."
+  },
+  "localTranslationTimedOutTryASmallerSelection": {
+    "message": "Local translation timed out. Try a smaller selection."
+  },
+  "localTranslationFailed": {
+    "message": "Local translation failed."
+  },
+  "couldNotStartTheLocalEngineCheckWebassembly": {
+    "message": "Could not start the local engine. Check WebAssembly SIMD support or reload the extension."
+  },
+  "couldNotReadTheLocalTranslationMessageTry": {
+    "message": "Could not read the local translation message. Try again."
+  },
+  "couldNotReadTheLocalTranslationRuntimeReload": {
+    "message": "Could not read the local translation runtime. Reload the extension."
+  },
+  "localTranslationReturnedIncompleteResultsTryAgain": {
+    "message": "Local translation returned incomplete results. Try again."
+  },
+  "anotherWindowIsInstallingImportingOrDeletingA": {
+    "message": "Another window is installing, importing or deleting a model. Try again later."
+  },
+  "sizeMismatchForChooseAModelFileFrom": {
+    "message": "Size mismatch for $ARG1$. Choose a model file from the list.",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "integrityCheckFailedForDownloadTheFileAgain": {
+    "message": "Integrity check failed for $ARG1$. Download the file again.",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "noMatchingModelFilesFoundChooseTheListed": {
+    "message": "No matching model files found. Choose the listed .bin and .spm files."
+  },
+  "modelDownloadFailed": {
+    "message": "Model download failed ($ARG1$).",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "theServerResponseDoesNotMatchTheRequested": {
+    "message": "The server response does not match the requested resume position."
+  },
+  "modelDownloadSizeMismatch": {
+    "message": "Model download size mismatch."
+  },
+  "modelDownloadInterruptedDownloadedDataWasKeptFor": {
+    "message": "Model download interrupted. Downloaded data was kept for resuming."
+  },
+  "downloadOrImportTheModelInSettingsFirst": {
+    "message": "Download or import the “$ARG1$” model in settings first. Translation does not download models automatically.",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "localTranslationRequiresASeparateModelDownloadFor": {
+    "message": "Local translation requires a separate model download for each direction (typically 35–55 MB, as listed) and corresponding disk space. It uses your CPU and may increase power consumption and heat. Memory use can reach several hundred MB depending on your device and text. The engine uses one thread by default and releases memory after 60 idle seconds. Once models are installed, translation works offline without sending text to an online service."
+  },
+  "localLanguageModelNotFound": {
+    "message": "Local language model not found."
+  },
+  "theExperimentalLocalServiceSupportsEnglishSimplifiedChinese": {
+    "message": "The experimental local service supports English, Simplified Chinese, Japanese, German, French, Spanish and Russian. Choose a different language or service."
+  },
+  "aModelIsDownloadingPauseItBeforeSwitching": {
+    "message": "A model is downloading. Pause it before switching models."
+  },
+  "downloadedDataWasKeptRetryOrImportOffline": {
+    "message": "$ARG1$ Downloaded data was kept. Retry or import offline.",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "pauseTheDownloadAndWaitForTranslationTo": {
+    "message": "Pause the download and wait for translation to finish before deleting the model."
+  },
+  "downloadOrImportTheModelInSettingsIt": {
+    "message": "Download or import the “$ARG1$” model in settings. It will then be available offline.",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "unknownLocalModelOperation": {
+    "message": "Unknown local model operation."
+  },
+  "theBrowserCannotReadTheOcrImage": {
+    "message": "The browser cannot read the OCR image."
+  },
+  "theBrowserCannotPrepareTheOcrImage": {
+    "message": "The browser cannot prepare the OCR image."
+  },
+  "modelDownloadFailedTryAgain": {
+    "message": "Model download failed ($ARG1$). Try again.",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "modelSizeVerificationFailedTryAgain": {
+    "message": "Model size verification failed. Try again."
+  },
+  "modelIntegrityVerificationFailedTryAgain": {
+    "message": "Model integrity verification failed. Try again."
+  },
+  "ocrTaskCanceled": {
+    "message": "OCR task canceled."
+  },
+  "ocrProcessingTimedOutTryAgain": {
+    "message": "OCR processing timed out. Try again."
+  },
+  "ocrInitializationTimedOut": {
+    "message": "OCR initialization timed out."
+  },
+  "waitForOcrModelInstallationToFinishBefore": {
+    "message": "Wait for OCR model installation to finish before removing the models."
+  },
+  "waitForImageRecognitionToFinishBeforeRemoving": {
+    "message": "Wait for image recognition to finish before removing the OCR models."
+  },
+  "imageRecognitionIsAlreadyRunningTryAgainShortly": {
+    "message": "Image recognition is already running. Try again shortly."
+  },
+  "unknownOcrOperation": {
+    "message": "Unknown OCR operation."
+  },
+  "loadingAnUnknownModelIsNotAllowed": {
+    "message": "Loading an unknown model is not allowed."
+  },
+  "ocrHasNotBeenInitialized": {
+    "message": "OCR has not been initialized."
+  },
+  "builtInSchemes": {
+    "message": "Built-in schemes"
+  },
+  "customSchemes": {
+    "message": "Custom schemes"
+  },
+  "youCanSaveUpTo32CustomSchemes": {
+    "message": "You can save up to 32 custom schemes"
+  },
+  "duplicateAndEditTheCurrentScheme": {
+    "message": "Duplicate and edit the current scheme"
+  },
+  "hexColor": {
+    "message": "$ARG1$ hex color",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "opacity": {
+    "message": "Opacity"
+  },
+  "lowerValuesAreMoreTransparent100IsFully": {
+    "message": "Lower values are more transparent. 100% is fully opaque."
+  },
+  "floatingButtonOpacityPercentage": {
+    "message": "Floating button opacity percentage"
+  },
+  "copy": {
+    "message": "$ARG1$ (copy)",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "schemeCopiedYouCanEditItsColorsAnd": {
+    "message": "Scheme copied. You can edit its colors and name."
+  },
+  "defaultColorsRestoredSaveToApply": {
+    "message": "Default colors restored. Save to apply."
+  },
+  "schemeDeletedAndDefaultColorsSelectedSaveTo": {
+    "message": "Scheme deleted and default colors selected. Save to apply."
+  },
+  "enterAColorSchemeName": {
+    "message": "Enter a color scheme name."
+  },
+  "enterAnIntegerOpacityFrom0To100": {
+    "message": "Enter an integer opacity from 0 to 100."
+  },
+  "enterAFullHexColorSuchAs116466": {
+    "message": "Enter a full hex color, such as #116466."
+  },
+  "removeExclusionFor": {
+    "message": "Remove exclusion for $ARG1$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "noSitesYetUseTheAddButtonBelow": {
+    "message": "No sites yet. Use the add button below."
+  },
+  "enableSiteRule": {
+    "message": "Enable site rule $ARG1$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "exampleComOrHttpsExampleComDocs": {
+    "message": "example.com or https://example.com/docs/*"
+  },
+  "siteRule": {
+    "message": "Site rule $ARG1$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "customSite": {
+    "message": "Custom site"
+  },
+  "empty": {
+    "message": "Empty"
+  },
+  "deleteSite": {
+    "message": "Delete site $ARG1$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "addSite": {
+    "message": "Add site"
+  },
+  "thisSiteRuleAlreadyExists": {
+    "message": "This site rule already exists."
+  },
+  "lineEditOrRemoveThisRow": {
+    "message": "Line $ARG1$: $ARG2$ Edit or remove this row.",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      },
+      "arg2": {
+        "content": "$2"
+      }
+    }
+  },
+  "noExclusionRulesYet": {
+    "message": "No exclusion rules yet."
+  },
+  "collapseRule": {
+    "message": "Collapse rule"
+  },
+  "expandRule": {
+    "message": "Expand rule"
+  },
+  "enableExclusionRule": {
+    "message": "Enable exclusion rule $ARG1$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "enableRule": {
+    "message": "Enable rule"
+  },
+  "deleteRule": {
+    "message": "Delete rule"
+  },
+  "deleteExclusionRule": {
+    "message": "Delete exclusion rule $ARG1$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "rule": {
+    "message": "Rule $ARG1$$ARG2$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      },
+      "arg2": {
+        "content": "$2"
+      }
+    }
+  },
+  "name": {
+    "message": "Name"
+  },
+  "forExampleSidebarNavigation": {
+    "message": "For example, sidebar navigation"
+  },
+  "site": {
+    "message": "Site"
+  },
+  "excludedElements": {
+    "message": "Excluded elements"
+  },
+  "excludedElementsForRule": {
+    "message": "Excluded elements for rule $ARG1$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "newRule": {
+    "message": "New rule"
+  },
+  "siteNotEntered": {
+    "message": "Site not entered"
+  },
+  "ruleEnterAtLeastOneCssSelectorTo": {
+    "message": "Rule $ARG1$: enter at least one CSS selector to exclude.",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "ruleEnterUpTo100Selectors": {
+    "message": "Rule $ARG1$: enter up to 100 selectors.",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "ruleCssSelectorIsInvalidCheckItAnd": {
+    "message": "Rule $ARG1$: CSS selector $ARG2$ is invalid. Check it and try again.",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      },
+      "arg2": {
+        "content": "$2"
+      }
+    }
+  },
+  "beforeTranslatingImagesFromTheContextMenuInstall": {
+    "message": "Before translating images from the context menu, install the OCR models with the wrench button, enable image translation and save."
+  },
+  "couldNotConnectToTheImageSPage": {
+    "message": "Could not connect to the image’s page. Refresh the page and right-click the image again. Some embedded pages are unsupported."
+  },
+  "couldNotConnectToThePageRefreshIt": {
+    "message": "Could not connect to the page. Refresh it and choose Translate full page from the context menu again."
+  },
+  "doubaoTranslationIsUnavailableInThisBrowser": {
+    "message": "Doubao translation is unavailable in this browser"
+  },
+  "disabledEditable": {
+    "message": " (disabled, editable)"
+  },
+  "disable": {
+    "message": "Disable"
+  },
+  "enable": {
+    "message": "Enable"
+  },
+  "delete": {
+    "message": "Delete $ARG1$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "doubaoExperimental": {
+    "message": "Doubao (experimental)"
+  },
+  "signInToDoubaoInThisBrowserTo": {
+    "message": "Sign in to Doubao in this browser to translate without an API key. Choose Check again if the connection fails."
+  },
+  "translationSendsYourSourceTextToDoubaoThe": {
+    "message": "Translation sends your source text to Doubao. The connection check sends only a fixed short sample."
+  },
+  "openDoubaoAndSignIn": {
+    "message": "Open Doubao and sign in"
+  },
+  "checkAgain": {
+    "message": "Check again"
+  },
+  "ifYourSessionExpiresSignInAgainAnd": {
+    "message": "If your session expires, sign in again and retry the translation or connection check. Wait before retrying a rate-limited request. Your browser manages sign-in without copying cookies."
+  },
+  "azureRegionOptional": {
+    "message": "Azure region (optional)"
+  },
+  "translationModel": {
+    "message": "Translation model"
+  },
+  "folderIdIfRequiredByYourAccount": {
+    "message": "Folder ID (if required by your account)"
+  },
+  "region": {
+    "message": "Region"
+  },
+  "tencentTokenhubTranslationApi": {
+    "message": "Tencent TokenHub Translation API"
+  },
+  "volcengineMachineTranslationApi": {
+    "message": "Volcengine Machine Translation API"
+  },
+  "serviceMode": {
+    "message": "Service mode"
+  },
+  "freeServiceDefault": {
+    "message": "Free service (default)"
+  },
+  "apiServiceOwnCredentials": {
+    "message": "API service (own credentials)"
+  },
+  "yourProviderDeterminesQuotaAndPricingSwitchingBack": {
+    "message": "$ARG1$. Your provider determines quota and pricing. Switching back to the free service keeps your credentials.",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "globalOrAnAzureRegion": {
+    "message": "global or an Azure region"
+  },
+  "ollamaCompatibility": {
+    "message": "Ollama compatibility"
+  },
+  "enabledDefault": {
+    "message": "Enabled (default)"
+  },
+  "enabledByDefaultSupportsIpv4Ipv6CustomPorts": {
+    "message": "Enabled by default. Supports IPv4, IPv6, custom ports and full Chat Completions URLs."
+  },
+  "apiKeyOptional": {
+    "message": "API key (optional)"
+  },
+  "systemPrompt": {
+    "message": "System prompt"
+  },
+  "apiFormat": {
+    "message": "API format: $ARG1$.",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "usesDeepseekChatCompletionsWithThinkingDisabledBy": {
+    "message": "Uses DeepSeek Chat Completions with thinking disabled by default to reduce latency. You can override this in Advanced. Default API address: https://api.deepseek.com."
+  },
+  "usesZhipuGlmChatCompletionsDefaultApiAddress": {
+    "message": "Uses Zhipu GLM Chat Completions. Default API address: https://open.bigmodel.cn/api/paas/v4."
+  },
+  "requestMethod": {
+    "message": "Request method"
+  },
+  "responsePath": {
+    "message": "Response path"
+  },
+  "requestHeadersJson": {
+    "message": "Request headers (JSON)"
+  },
+  "requestBodyTemplate": {
+    "message": "Request body template"
+  },
+  "testService": {
+    "message": "Test service"
+  },
+  "model": {
+    "message": "Model"
+  },
+  "addOrEditModel": {
+    "message": "Add or edit model"
+  },
+  "enterAModelName": {
+    "message": "Enter a model name."
+  },
+  "savedModel": {
+    "message": "Saved model: $ARG1$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "localTranslationUsesAFixedChunkSizeOf": {
+    "message": "Local translation uses a fixed chunk size of 800 and one concurrent task."
+  },
+  "doubaoUsesAFixedChunkSizeOf1200": {
+    "message": "Doubao uses a fixed chunk size of 1200 and one concurrent task."
+  },
+  "useGeneralPerformanceSettings": {
+    "message": "Use general performance settings"
+  },
+  "chunkSize": {
+    "message": "Chunk size"
+  },
+  "serviceConcurrency": {
+    "message": "Service concurrency"
+  },
+  "serviceConcurrencyIsCappedByTheGlobalMaximum": {
+    "message": "Service concurrency is capped by the global maximum."
+  },
+  "disabledServiceSelectedYouCanEditItsConfiguration": {
+    "message": "Disabled service selected. You can edit its configuration."
+  },
+  "currentServiceChanged": {
+    "message": "Current service changed."
+  },
+  "enableAtLeastOneTranslationService": {
+    "message": "Enable at least one translation service."
+  },
+  "serviceEnabled": {
+    "message": "Service enabled."
+  },
+  "serviceDisabled": {
+    "message": "Service disabled."
+  },
+  "customServiceDeleted": {
+    "message": "Custom service deleted."
+  },
+  "customServiceAddedCompleteItsConfigurationAndSave": {
+    "message": "Custom service added. Complete its configuration and save."
+  },
+  "customHttp": {
+    "message": "Custom HTTP"
+  },
+  "customAnthropicLlm": {
+    "message": "Custom Anthropic LLM"
+  },
+  "customOpenaiLlm": {
+    "message": "Custom OpenAI LLM"
+  },
+  "saved": {
+    "message": "Saved."
+  },
+  "testing": {
+    "message": "Testing…"
+  },
+  "testPassed": {
+    "message": "Test passed: $ARG1$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "builtInServiceDefaultsRestoredCredentialsAndCustom": {
+    "message": "Built-in service defaults restored. Credentials and custom services were kept. Save to apply."
+  },
+  "sectionDefaultsRestoredSaveToApply": {
+    "message": "Section defaults restored. Save to apply."
+  },
+  "allSettingsReset": {
+    "message": "All settings reset."
+  },
+  "requestHeadersMustBeAJsonObject": {
+    "message": "Request headers must be a JSON object."
+  },
+  "requestHeaderValuesMustBeStrings": {
+    "message": "Request header values must be strings."
+  },
+  "currentTranslationServiceNotFound": {
+    "message": "Current translation service not found."
+  },
+  "pressKeys": {
+    "message": "Press keys…"
+  },
+  "unassigned": {
+    "message": "Unassigned"
+  },
+  "alreadyUsedByChooseADifferentCombination": {
+    "message": "Already used by “$ARG1$”. Choose a different combination.",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "featureShortcutChangedSaveToApply": {
+    "message": "Feature shortcut changed. Save to apply."
+  },
+  "openMenu": {
+    "message": "Open menu"
+  },
+  "shortcut": {
+    "message": "$ARG1$ shortcut",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "clickAndPressTheShortcutEscCancelsAnd": {
+    "message": "Click and press the shortcut. Esc cancels and Delete clears. Choose Use Esc to assign Esc."
+  },
+  "pressAShortcutEscCancelsAndDeleteClears": {
+    "message": "Press a shortcut. Esc cancels and Delete clears. Choose Use Esc to assign Esc."
+  },
+  "recordingCanceledPreviousShortcutKept": {
+    "message": "Recording canceled. Previous shortcut kept."
+  },
+  "useAFunctionKeyOrCombineCtrlAlt": {
+    "message": "Use a function key or combine Ctrl, Alt or Command with another key."
+  },
+  "clickParagraph": {
+    "message": "$ARG1$ + click paragraph",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "default": {
+    "message": "Default"
+  },
+  "restoreDefaultShortcutFor": {
+    "message": "Restore default shortcut for $ARG1$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "useEsc": {
+    "message": "Use Esc"
+  },
+  "remove": {
+    "message": "Remove $ARG1$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "clickToRemoveLinksStayAtTheBottom": {
+    "message": "Click to remove $ARG1$. Links stay at the bottom.",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "clickToRemoveDragOrPressAltAnd": {
+    "message": "Click to remove $ARG1$. Drag or press Alt and arrow keys to reorder.",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "addedSaveToApply": {
+    "message": "Added $ARG1$. Save to apply.",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "movedSaveToApply": {
+    "message": "Moved $ARG1$. Save to apply.",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "removedAddItAgainFromTheListSave": {
+    "message": "Removed $ARG1$. Add it again from the list. Save to apply.",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "dragCanceled": {
+    "message": "Drag canceled."
+  },
+  "repositionedSaveToApply": {
+    "message": "Repositioned $ARG1$. Save to apply.",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "dragNearAPositionToSnapIntoPlace": {
+    "message": "Drag near a position to snap into place, then release. Press Esc to cancel."
+  },
+  "defaultLayoutRestoredSaveToApply": {
+    "message": "Default layout restored. Save to apply."
+  },
+  "translationServiceConfiguration": {
+    "message": "Translation service configuration"
+  },
+  "advanced": {
+    "message": "Advanced"
+  },
+  "enableCustomRequestTemplate": {
+    "message": "Enable custom request template"
+  },
+  "appliesToThisServiceOnlyEmptyFieldsShow": {
+    "message": "Applies to this service only. Empty fields show its default text request template. Variables use the General tab settings. Turning this off restores default requests and keeps your edited template."
+  },
+  "loadDefaultTemplate": {
+    "message": "Load default template"
+  },
+  "customRequestTemplate": {
+    "message": "Custom request template"
+  },
+  "requestHeadersTemplateJson": {
+    "message": "Request headers template (JSON)"
+  },
+  "addOrOverrideDefaultHeadersNamesAreCase": {
+    "message": "Add or override default headers. Names are case-insensitive. Use strings for values or null to remove a header. Default authentication headers use the API key from General."
+  },
+  "requestBodyTemplateJson": {
+    "message": "Request body template (JSON)"
+  },
+  "objectsMergeRecursivelyWithTheDefaultBodyArrays": {
+    "message": "Objects merge recursively with the default body. Arrays and other values replace the original value. Use null to remove a field. Leave empty or use {} for defaults. Only non-streaming responses are supported."
+  },
+  "templateVariablesAndExamples": {
+    "message": "Template variables and examples"
+  },
+  "useModelApikeySourcelangTargetlangContextSystempromptAnd": {
+    "message": "Use {{model}}, {{apiKey}}, {{sourceLang}}, {{targetLang}}, {{context}}, {{systemPrompt}} and {{userPrompt}} in JSON strings. Quotes and line breaks are escaped automatically."
+  },
+  "anEntireTextsValueBecomesAnArrayOf": {
+    "message": "An entire \"{{texts}}\" value becomes an array of texts. \"{{json texts}}\" becomes a JSON-encoded text string. {{userPrompt}} contains the default languages, context and input. Variables replace values only."
+  },
+  "customRequestHeaders": {
+    "message": "Custom request headers"
+  },
+  "examplesOfDisablingThinkingChooseTheFormatYour": {
+    "message": "Examples of disabling thinking (choose the format your provider accepts)"
+  },
+  "replacingTheMessagesTemplateOpenaiCompatibleFormat": {
+    "message": "Replacing the messages template (OpenAI-compatible format)"
+  },
+  "whenEditingMessagesKeepTheInstructionToReturn": {
+    "message": "When editing messages, keep the instruction to return a JSON string array in the same order and of the same length as the input."
+  },
+  "restoreDefaultRequest": {
+    "message": "Restore default request"
+  },
+  "customizeTheFullHttpRequestHeadersAndBody": {
+    "message": "Customize the full HTTP request. Headers and body support {{sourceLang}}, {{targetLang}}, {{context}}, {{texts}} and {{json texts}}. Use unquoted {{json texts}} for a text array in the body."
+  },
+  "thisServiceUsesABuiltInProtocolAdd": {
+    "message": "This service uses a built-in protocol. Add an LLM service or use HTTP Template to customize the request."
+  },
+  "quotasAndLimits": {
+    "message": "Quotas and limits · $ARG1$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "updated": {
+    "message": "Updated $ARG1$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "freeAnonymousQuota": {
+    "message": "Free / anonymous quota"
+  },
+  "perRequest": {
+    "message": "Per request"
+  },
+  "requestRate": {
+    "message": "Request rate"
+  },
+  "providerConcurrency": {
+    "message": "Provider concurrency"
+  },
+  "officialSources": {
+    "message": "Official sources"
+  },
+  "seeTheConfiguredServiceProviderSOfficialDocumentation": {
+    "message": "See the configured service provider’s official documentation."
+  },
+  "seeTheProviderSLatestPublishedQuotasAnd": {
+    "message": "See the provider’s latest published quotas and limits."
+  },
+  "upToFourInternalRequestsPerTask": {
+    "message": ", up to four internal requests per task"
+  },
+  "sequentialProcessingWithinEachTask": {
+    "message": ", sequential processing within each task"
+  },
+  "currentSettingsChunkSizeCharactersConcurrency": {
+    "message": "Current settings: chunk size $ARG1$ characters, concurrency $ARG2$$ARG3$.",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      },
+      "arg2": {
+        "content": "$2"
+      },
+      "arg3": {
+        "content": "$3"
+      }
+    }
+  },
+  "resetting": {
+    "message": "Resetting…"
+  },
+  "resetFailed": {
+    "message": "Reset failed: $ARG1$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "exportSettingsBackup": {
+    "message": "Export settings backup"
+  },
+  "importAndReplaceSettings": {
+    "message": "Import and replace settings"
+  },
+  "servicesWupage": {
+    "message": "Services: $ARG1$ · WuPage $ARG2$ · $ARG3$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      },
+      "arg2": {
+        "content": "$2"
+      },
+      "arg3": {
+        "content": "$3"
+      }
+    }
+  },
+  "thisBackupIncludesCredentialsAndWillOverwriteThe": {
+    "message": "This backup includes credentials and will overwrite the ones stored here."
+  },
+  "thisBackupOmitsCredentialsImportingClearsExistingCredentials": {
+    "message": "This backup omits credentials. Importing clears existing credentials and restores other settings. Enter credentials again afterward."
+  },
+  "importingImmediatelyReplacesAllSettingsAndDiscardsUnsaved": {
+    "message": "$ARG1$ Importing immediately replaces all settings and discards unsaved edits. Import only trusted backups. Service addresses in the file determine where future requests and credentials are sent. Consider exporting your current settings first.",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "confirmExport": {
+    "message": "Confirm export"
+  },
+  "confirmReplacement": {
+    "message": "Confirm replacement"
+  },
+  "settingsBackupsMustBe5MibOrSmaller": {
+    "message": "Settings backups must be 5 MiB or smaller."
+  },
+  "saving": {
+    "message": "Saving…"
+  },
+  "creatingBackup": {
+    "message": "Creating backup…"
+  },
+  "fullBackupWithCredentialsCreatedFindItIn": {
+    "message": "Full backup with credentials created. Find it in your browser’s downloads. Keep the unencrypted file secure."
+  },
+  "settingsBackupCreatedWithoutCredentialsFindItIn": {
+    "message": "Settings backup created without credentials. Find it in your browser’s downloads."
+  },
+  "settingsImportedAndSaved": {
+    "message": "Settings imported and saved."
+  },
+  "settingsRestoredThisBackupOmittedCredentialsSoPrevious": {
+    "message": "Settings restored. This backup omitted credentials, so previous credentials were cleared. Enter them again."
+  },
+  "ocrModelsAreMissingOnThisDeviceInstall": {
+    "message": "OCR models are missing on this device. Install them to enable image translation."
+  },
+  "settingsBackupOperationFailedTryAgain": {
+    "message": "Settings backup operation failed. Try again."
+  },
+  "thisUnencryptedTomlBackupIncludesSavedSettingsCredentials": {
+    "message": "This unencrypted TOML backup includes saved settings, credentials, request headers and templates. Keep it secure and avoid sharing it publicly. Unsaved edits are excluded."
+  },
+  "thisBackupKeepsSavedServiceAddressesHeadersTemplates": {
+    "message": "This backup keeps saved service addresses, headers, templates, prompts and other settings. Credential fields and recognized authentication values are cleared. Check custom content for embedded secrets before sharing. Unsaved edits are excluded."
+  },
+  "shortcutsEnabledSaveToApply": {
+    "message": "Shortcuts enabled. Save to apply."
+  },
+  "shortcutsDisabledExistingKeyBindingsAreKeptSave": {
+    "message": "Shortcuts disabled. Existing key bindings are kept. Save to apply."
+  },
+  "pressAKeyCombination": {
+    "message": "Press a key combination…"
+  },
+  "assignAShortcutBeforeEnabling": {
+    "message": "Assign a shortcut before enabling"
+  },
+  "disableShortcutAndKeepItsBinding": {
+    "message": "Disable shortcut and keep its binding"
+  },
+  "enableShortcut": {
+    "message": "Enable shortcut"
+  },
+  "shortcutChangedSaveToApply": {
+    "message": "Shortcut changed. Save to apply."
+  },
+  "clickAndPressACombinationEscCancelsBackspace": {
+    "message": "Click and press a combination. Esc cancels. Backspace or Delete clears."
+  },
+  "pressANewCombinationEscCancelsBackspaceOr": {
+    "message": "Press a new combination. Esc cancels. Backspace or Delete clears."
+  },
+  "clickAShortcutFieldToRecordKeysThen": {
+    "message": "Click a shortcut field to record keys, then choose Save."
+  },
+  "combineCtrlAltOrCommandWithALetter": {
+    "message": "Combine Ctrl, Alt or Command with a letter, number or another key."
+  },
+  "start": {
+    "message": "start"
+  },
+  "stop": {
+    "message": "stop"
+  },
+  "saveToRecordingUsage": {
+    "message": "Save to $ARG1$ recording usage.",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "enabledUsageIsRecordedFromTheTimeTracking": {
+    "message": "Enabled. Usage is recorded from the time tracking was enabled."
+  },
+  "trackingIsOffEnableItAndSaveTo": {
+    "message": "Tracking is off. Enable it and save to start recording. Existing data can still be viewed or cleared."
+  },
+  "noUsageYet": {
+    "message": "No usage yet"
+  },
+  "mostUsedModelService": {
+    "message": "Most used model / service"
+  },
+  "noRecords": {
+    "message": "No records"
+  },
+  "reportedInputOutputTokens": {
+    "message": "Reported input / output tokens"
+  },
+  "noBreakdownAvailable": {
+    "message": "No breakdown available"
+  },
+  "noRequests": {
+    "message": "No requests"
+  },
+  "averageResponseTime": {
+    "message": "Average response time"
+  },
+  "textServedFromCache": {
+    "message": "Text served from cache"
+  },
+  "averagePerActiveMinutePeakPerMinuteFailed": {
+    "message": "Average per active minute: $ARG1$ · Peak per minute: $ARG2$ · Failed: $ARG3$. The chart totals requests by hour across the selected dates.",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      },
+      "arg2": {
+        "content": "$2"
+      },
+      "arg3": {
+        "content": "$3"
+      }
+    }
+  },
+  "numberOfRequests": {
+    "message": "Number of requests"
+  },
+  "partial": {
+    "message": " (partial)"
+  },
+  "unreported": {
+    "message": "Unreported"
+  },
+  "noUsageRecorded": {
+    "message": "No usage recorded"
+  },
+  "loadingStatistics": {
+    "message": "Loading statistics…"
+  },
+  "noRecordsYetEnableStatisticsAndTranslateSome": {
+    "message": "No records yet. Enable statistics and translate some text to see usage here."
+  },
+  "couldNotLoadData": {
+    "message": "Could not load data: $ARG1$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "clearAllUsageStatisticsThisCannotBeUndone": {
+    "message": "Clear all usage statistics? This cannot be undone. Your translation cache and settings will be kept."
+  },
+  "statisticsCleared": {
+    "message": "Statistics cleared."
+  },
+  "couldNotClearStatistics": {
+    "message": "Could not clear statistics: $ARG1$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "to": {
+    "message": "$ARG1$, $ARG2$ to $ARG3$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      },
+      "arg2": {
+        "content": "$2"
+      },
+      "arg3": {
+        "content": "$3"
+      }
+    }
+  },
+  "hoverOverAPointForItsValueOr": {
+    "message": "$ARG1$. Hover over a point for its value or see the daily table below.",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "reportedUsageOnly": {
+    "message": " (reported usage only)"
+  },
+  "theServiceDidNotPreserveTextFormattingRetry": {
+    "message": "The service did not preserve text formatting. Retry or switch services."
+  },
+  "editableTranslation": {
+    "message": "Editable translation"
+  },
+  "moveTranslationBlock": {
+    "message": "Move translation block"
+  },
+  "deleteTranslationBlock": {
+    "message": "Delete translation block"
+  },
+  "resizeTranslationBlock": {
+    "message": "Resize translation block"
+  },
+  "decreaseFontSize": {
+    "message": "Decrease font size"
+  },
+  "increaseFontSize": {
+    "message": "Increase font size"
+  },
+  "translationBlockTools": {
+    "message": "Translation block tools"
+  },
+  "noPdfPagesToExport": {
+    "message": "No PDF pages to export."
+  },
+  "couldNotEncodeThePreservedPdfContent": {
+    "message": "Could not encode the preserved PDF content."
+  },
+  "someTranslatedTextDoesNotFitAtA": {
+    "message": "Some translated text does not fit at a readable size. Resize its block or edit the text before downloading."
+  },
+  "theBrowserCouldNotCreateThePdfExport": {
+    "message": "The browser could not create the PDF export canvas."
+  },
+  "couldNotEncodeThePdfPageImage": {
+    "message": "Could not encode the PDF page image."
+  },
+  "fullFontPackMbOneTimeDownload": {
+    "message": "Full font pack · $ARG1$ MB · One-time download",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "removePdfExportFont": {
+    "message": "Remove PDF export font"
+  },
+  "installFullPdfExportFontMb": {
+    "message": "Install full PDF export font ($ARG1$ MB)",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "installing": {
+    "message": "Installing…"
+  },
+  "installFontPack": {
+    "message": "Install font pack"
+  },
+  "cancelInstallation": {
+    "message": "Cancel installation"
+  },
+  "cancelDownload": {
+    "message": "Cancel download"
+  },
+  "installPdfExportFont": {
+    "message": "Install PDF export font"
+  },
+  "couldNotReadTheFontCacheYouCan": {
+    "message": "Could not read the font cache. You can still export an image-based PDF."
+  },
+  "fontsAreProvidedByNotoOnlyFontData": {
+    "message": "Fonts are provided by Noto. Only font data is downloaded. Document content stays on your device."
+  },
+  "verifyingFontFile": {
+    "message": "Verifying font file…"
+  },
+  "downloadingFontPack0": {
+    "message": "Downloading font pack · 0%"
+  },
+  "downloadCompleteVerifying": {
+    "message": "Download complete. Verifying…"
+  },
+  "downloadingFontPack": {
+    "message": "Downloading font pack · $ARG1$%",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "fullFontInstalledYouCanExportSearchableSelectable": {
+    "message": "Full font installed. You can export searchable, selectable PDFs offline."
+  },
+  "removalFailed": {
+    "message": "Removal failed: $ARG1$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "fontPackSizeMismatchReinstallThePack": {
+    "message": "Font pack size mismatch. Reinstall the pack."
+  },
+  "fontIntegrityCheckFailedReinstallThePack": {
+    "message": "Font integrity check failed. Reinstall the pack."
+  },
+  "fontFileSizeMismatchChooseFromTheDownload": {
+    "message": "Font file size mismatch. Choose $ARG1$ from the download link. System-wide installation is optional.",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "fontDownloadFailedRetryOrExportAsImages": {
+    "message": "Font download failed ($ARG1$). Retry or export as images.",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "fontPackSizeMismatchTryAgain": {
+    "message": "Font pack size mismatch. Try again."
+  },
+  "fontDownloadIncompleteRetryOrExportAsImages": {
+    "message": "Font download incomplete. Retry or export as images."
+  },
+  "couldNotDownloadFontsFromCheckYourNetwork": {
+    "message": "Could not download fonts from $ARG1$. Check your network or proxy rules for this domain. You can also download the file manually and choose Install from file, or export as images.",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "chooseAPdfFile": {
+    "message": "Choose a PDF file."
+  },
+  "translationSettingsChangedChooseTranslateToStartAgain": {
+    "message": "Translation settings changed. Choose Translate to start again."
+  },
+  "invalidPdfAddress": {
+    "message": "Invalid PDF address."
+  },
+  "useAnHttpHttpsOrLocalFileUrl": {
+    "message": "Use an HTTP, HTTPS or local file URL for the PDF."
+  },
+  "allowAccessToFileUrlsAndTryAgain": {
+    "message": "Allow access to file URLs and try again, or select the PDF file directly."
+  },
+  "readingLocalPdf": {
+    "message": "Reading local PDF"
+  },
+  "downloadingPdf": {
+    "message": "Downloading PDF"
+  },
+  "readingLocalDocument": {
+    "message": "Reading local document…"
+  },
+  "readingOnlineDocument": {
+    "message": "Reading online document…"
+  },
+  "couldNotReadFileHttp": {
+    "message": "Could not read file (HTTP $ARG1$)",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "theAddressDidNotReturnAPdfFile": {
+    "message": "The address did not return a PDF file."
+  },
+  "localDocumentPdf": {
+    "message": "Local document.pdf"
+  },
+  "onlineDocumentPdf": {
+    "message": "Online document.pdf"
+  },
+  "readingThePdfFile": {
+    "message": "Reading the PDF file"
+  },
+  "readingDocumentStructure": {
+    "message": "Reading document structure…"
+  },
+  "pdfParsing": {
+    "message": "PDF parsing"
+  },
+  "parsingPageOf": {
+    "message": "Parsing page $ARG1$ of $ARG2$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      },
+      "arg2": {
+        "content": "$2"
+      }
+    }
+  },
+  "pdfTextExtraction": {
+    "message": "PDF text extraction"
+  },
+  "documentOpenChooseToStartTranslating": {
+    "message": "Document open. Choose “$ARG1$” to start translating.",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "noTranslatableTextFoundThisMayBeA": {
+    "message": "No translatable text found. This may be a scanned PDF."
+  },
+  "originalPage": {
+    "message": "Original page $ARG1$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "pdfPage": {
+    "message": "PDF page $ARG1$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "originalTextLayerForPage": {
+    "message": "Original text layer for page $ARG1$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "translatedPage": {
+    "message": "Translated page $ARG1$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "pdfTranslationPage": {
+    "message": "PDF translation page $ARG1$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "editableTranslationForPage": {
+    "message": "Editable translation for page $ARG1$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "thisPageHasNotBeenTranslatedStartTranslation": {
+    "message": "This page has not been translated. Start translation to translate nearby pages as you scroll."
+  },
+  "noTranslatableTextFoundOnThisPage": {
+    "message": "No translatable text found on this page"
+  },
+  "retryUnfinishedParagraphs": {
+    "message": "Retry unfinished paragraphs"
+  },
+  "retryUnfinishedParagraphsOnPage": {
+    "message": "Retry unfinished paragraphs on page $ARG1$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "translateEntirePdf": {
+    "message": "Translate entire PDF"
+  },
+  "translateThisPageAndContinueAsYouScroll": {
+    "message": "Translate this page and continue as you scroll. Adjust the scope in extension settings."
+  },
+  "translateThisPageAndPagesOnEachSide": {
+    "message": "Translate this page and $ARG1$ pages on each side, and continue as you scroll. Adjust the scope in extension settings.",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "entireDocument": {
+    "message": "Entire document"
+  },
+  "pagesOnEachSide": {
+    "message": "$ARG1$ pages on each side",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "couldNotStartTranslation": {
+    "message": "Could not start translation: $ARG1$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "translationPausedWaitingForPendingRequestsToFinish": {
+    "message": "Translation paused: $ARG1$. Waiting for $ARG2$ pending requests to finish. Then choose Translate to retry.",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      },
+      "arg2": {
+        "content": "$2"
+      }
+    }
+  },
+  "finishingTranslationBeforeDownload": {
+    "message": "Finishing translation before download"
+  },
+  "paragraphs": {
+    "message": "$ARG1$ $ARG2$: $ARG3$ / $ARG4$ paragraphs…",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      },
+      "arg2": {
+        "content": "$2"
+      },
+      "arg3": {
+        "content": "$3"
+      },
+      "arg4": {
+        "content": "$4"
+      }
+    }
+  },
+  "translationPausedCompletedParagraphsResolveTheIssueAnd": {
+    "message": "Translation paused: $ARG1$. Completed paragraphs: $ARG2$. Resolve the issue and choose Translate to retry.",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      },
+      "arg2": {
+        "content": "$2"
+      }
+    }
+  },
+  "translationFinishedSuccessfulParagraphsFailedAcrossPagesCompleted": {
+    "message": "Translation finished. Successful paragraphs: $ARG1$. Failed: $ARG2$ across $ARG3$ pages. Completed translations were kept. Retry the unfinished paragraphs.",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      },
+      "arg2": {
+        "content": "$2"
+      },
+      "arg3": {
+        "content": "$3"
+      }
+    }
+  },
+  "scrollToTranslateNearbyPagesAutomatically": {
+    "message": "Scroll to translate nearby pages automatically."
+  },
+  "translationCompleteParagraphsCacheHits": {
+    "message": "Translation complete. Paragraphs: $ARG1$. Cache hits: $ARG2$. $ARG3$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      },
+      "arg2": {
+        "content": "$2"
+      },
+      "arg3": {
+        "content": "$3"
+      }
+    }
+  },
+  "translatedParagraphs": {
+    "message": "Translated $ARG1$ / $ARG2$ paragraphs",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      },
+      "arg2": {
+        "content": "$2"
+      }
+    }
+  },
+  "completedTranslationsWereKept": {
+    "message": " Completed translations were kept."
+  },
+  "remainingParagraphsFailed": {
+    "message": "$ARG1$. Remaining paragraphs failed: $ARG2$$ARG3$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      },
+      "arg2": {
+        "content": "$2"
+      },
+      "arg3": {
+        "content": "$3"
+      }
+    }
+  },
+  "connectionInterruptedRetryingUnfinishedParagraphs": {
+    "message": "$ARG1$. Connection interrupted. Retrying unfinished paragraphs…",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "translatingThisPage": {
+    "message": "$ARG1$. Translating this page…",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "pageQueuedVisiblePagesAreTranslatedFirst": {
+    "message": "$ARG1$. Page queued. Visible pages are translated first.",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "translationReadyScrollToThisPageToView": {
+    "message": "Translation ready. Scroll to this page to view it."
+  },
+  "chooseExportFormat": {
+    "message": "Choose export format…"
+  },
+  "untranslatedPagesChooseDownloadTranslationAgainToRetry": {
+    "message": "Untranslated pages: $ARG1$. Choose Download translation again to retry.",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "generating": {
+    "message": "Generating…"
+  },
+  "generatingTranslatedPdfPageOf": {
+    "message": "Generating translated PDF: page $ARG1$ of $ARG2$…",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      },
+      "arg2": {
+        "content": "$2"
+      }
+    }
+  },
+  "translatedPdfReady": {
+    "message": "Translated PDF ready: $ARG1$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "downloadFailed": {
+    "message": "Download failed: $ARG1$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "pageTranslationFailed": {
+    "message": "Page translation failed: $ARG1$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "translationServiceDisconnectedOrTimedOutTryAgain": {
+    "message": "Translation service disconnected or timed out. Try again later."
+  },
+  "googleWebTranslateTimedOutThisFreeService": {
+    "message": "Google Web Translate timed out. This free service can be unstable on some networks. Retry or choose another service above."
+  },
+  "signInAndCheck": {
+    "message": "Sign in and check"
+  },
+  "couldNotOpenPdf": {
+    "message": "Could not open PDF: $ARG1$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "untitledDocumentPdf": {
+    "message": "Untitled document.pdf"
+  },
+  "pdfDownloadExceededSecondsCheckYourConnectionOr": {
+    "message": "PDF download exceeded $ARG1$ seconds. Check your connection or use a local file.",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "exceededSecondsTheTaskWasStopped": {
+    "message": "$ARG1$ exceeded $ARG2$ seconds. The task was stopped.",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      },
+      "arg2": {
+        "content": "$2"
+      }
+    }
+  },
+  "theServiceDidNotPreserveTheMathExpressions": {
+    "message": "The service did not preserve the math expressions. Retry or switch translation services."
+  },
+  "theServiceDidNotPreserveParagraphsSpanningColumns": {
+    "message": "The service did not preserve paragraphs spanning columns or pages. Retry or switch services."
+  },
+  "incompatiblePdfRenderingInterfaceCannotSafelyRemoveThe": {
+    "message": "Incompatible PDF rendering interface. Cannot safely remove the original text."
+  },
+  "theServiceReturnedAnIncompleteTranslationTryAgain": {
+    "message": "The service returned an incomplete translation. Try again."
+  },
+  "translationWasInterruptedRepeatedlyFurtherRequestsArePaused": {
+    "message": "Translation was interrupted repeatedly. Further requests are paused. Check the connection and retry. Completed translations were kept."
+  },
+  "paragraphModeIsUnavailableOnBrowserSettingsAnd": {
+    "message": "Paragraph mode is unavailable on browser settings and extension pages."
+  },
+  "switchToARegularWebPageToOpen": {
+    "message": "Switch to a regular web page to open Debug."
+  },
+  "switchToAWebPageOrPdfTo": {
+    "message": "Switch to a web page or PDF to translate."
+  },
+  "couldNotReadTheCurrentPageAddressFor": {
+    "message": "Could not read the current page address. For a local PDF, allow file access or choose Open PDF to select the file."
+  },
+  "pdfsOpenInASeparateSideBySide": {
+    "message": "PDFs open in a separate side-by-side translation view."
+  },
+  "imageTranslationEnabledClickTrBesideAnImage": {
+    "message": "Image translation enabled. Click Tr beside an image to overlay its translation."
+  },
+  "imageTranslationDisabledOriginalImagesRestored": {
+    "message": "Image translation disabled. Original images restored."
+  },
+  "openingPdfAndStartingTranslation": {
+    "message": "Opening PDF and starting translation…"
+  },
+  "showingOriginal": {
+    "message": "Showing original…"
+  },
+  "noActiveTab": {
+    "message": "No active tab."
+  },
+  "originalTextRestored": {
+    "message": "Original text restored."
+  },
+  "noTranslationsToClear": {
+    "message": "No translations to clear."
+  },
+  "pageOrTranslationStateChangedTranslationCanceled": {
+    "message": "Page or translation state changed. Translation canceled."
+  },
+  "paragraphsTranslatedInThisAreaScrollToContinue": {
+    "message": "Paragraphs translated in this area: $ARG1$. Scroll to continue.",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "paragraphsTranslatedCacheHits": {
+    "message": "Paragraphs translated: $ARG1$. Cache hits: $ARG2$.",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      },
+      "arg2": {
+        "content": "$2"
+      }
+    }
+  },
+  "noTranslatableTextInThisAreaNewContent": {
+    "message": "No translatable text in this area. New content will be translated as it loads."
+  },
+  "paragraphsTranslatedFailed": {
+    "message": "Paragraphs translated: $ARG1$. Failed: $ARG2$. $ARG3$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      },
+      "arg2": {
+        "content": "$2"
+      },
+      "arg3": {
+        "content": "$3"
+      }
+    }
+  },
+  "automaticTranslationIsOnEnableASiteOr": {
+    "message": "Automatic translation is on. Enable a site or language rule in settings."
+  },
+  "translatePagesInOtherLanguagesAutomaticallyLimitSites": {
+    "message": "Translate pages in other languages automatically. Limit sites in settings."
+  },
+  "translateAutomaticallyUsingConfiguredSiteRules": {
+    "message": "Translate automatically using configured site rules"
+  },
+  "addedToAutomaticTranslation": {
+    "message": "Added $ARG1$ to automatic translation.",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "excludedFromAutomaticTranslation": {
+    "message": "Excluded $ARG1$ from automatic translation.",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "paragraphModeIsUnavailableOnThisPage": {
+    "message": "Paragraph mode is unavailable on this page."
+  },
+  "updatingFloatingButton": {
+    "message": "Updating floating button…"
+  },
+  "floatingButtonEnabled": {
+    "message": "Floating button enabled."
+  },
+  "floatingButtonDisabled": {
+    "message": "Floating button disabled."
+  },
+  "switchToARegularWebPageToUse": {
+    "message": "Switch to a regular web page to use Debug."
+  },
+  "openingDebug": {
+    "message": "Opening Debug…"
+  },
+  "debugOpened": {
+    "message": "Debug opened."
+  },
+  "clearingCache": {
+    "message": "Clearing cache…"
+  },
+  "cacheEntriesCleared": {
+    "message": "Cache entries cleared: $ARG1$.",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "translatePdf": {
+    "message": "Translate PDF"
+  },
+  "showOriginalPage": {
+    "message": "Show original page"
+  },
+  "interface": {
+    "message": "Interface"
+  },
+  "settingsPopupFloatingMenuAndDebugPanel": {
+    "message": "Settings, popup, floating menu and Debug panel."
+  },
+  "backgroundTextAndHoverColorsForTheFloating": {
+    "message": "Background, text and hover colors for the floating button."
+  },
+  "translationAndParagraphs": {
+    "message": "Translation and paragraphs"
+  },
+  "twoColorTranslationsAdaptToThePageBackground": {
+    "message": "Two-color translations adapt to the page background for contrast. Original-color bilingual and translation-only modes use the source text color."
+  },
+  "selectionShortcutAndDictionaryCard": {
+    "message": "Selection shortcut and dictionary card."
+  },
+  "theTranslationButtonBesideAnImageOverlaidText": {
+    "message": "The translation button beside an image. Overlaid text uses colors from the image."
+  },
+  "pageBackground": {
+    "message": "Page background"
+  },
+  "panelBackground": {
+    "message": "Panel background"
+  },
+  "primaryText": {
+    "message": "Primary text"
+  },
+  "secondaryText": {
+    "message": "Secondary text"
+  },
+  "accent": {
+    "message": "Accent"
+  },
+  "border": {
+    "message": "Border"
+  },
+  "successMessage": {
+    "message": "Success message"
+  },
+  "errorMessage": {
+    "message": "Error message"
+  },
+  "background": {
+    "message": "Background"
+  },
+  "text": {
+    "message": "Text"
+  },
+  "hoverBackground": {
+    "message": "Hover background"
+  },
+  "translationOnLightPages": {
+    "message": "Translation on light pages"
+  },
+  "translationOnDarkPages": {
+    "message": "Translation on dark pages"
+  },
+  "cardBackground": {
+    "message": "Card background"
+  },
+  "cardText": {
+    "message": "Card text"
+  },
+  "cardAccent": {
+    "message": "Card accent"
+  },
+  "buttonBackground": {
+    "message": "Button background"
+  },
+  "buttonText": {
+    "message": "Button text"
+  },
+  "mistyTeal": {
+    "message": "Misty teal"
+  },
+  "warmPaper": {
+    "message": "Warm paper"
+  },
+  "nightTeal": {
+    "message": "Night teal"
+  },
+  "midnightBlue": {
+    "message": "Midnight blue"
+  },
+  "cherryBlossom": {
+    "message": "Cherry blossom"
+  },
+  "midnightRose": {
+    "message": "Midnight rose"
+  },
+  "skyBlue": {
+    "message": "Sky blue"
+  },
+  "deepSea": {
+    "message": "Deep sea"
+  },
+  "chalkWhite": {
+    "message": "Chalk white"
+  },
+  "inkBlack": {
+    "message": "Ink black"
+  },
+  "customColors": {
+    "message": "Custom colors"
+  },
+  "englishWikipedia": {
+    "message": "English Wikipedia"
+  },
+  "enterAValidSiteDomainOrUrl": {
+    "message": "Enter a valid site domain or URL."
+  },
+  "enterAValidSiteDomainOrHttpHttps": {
+    "message": "Enter a valid site domain or HTTP/HTTPS URL."
+  },
+  "enterAnHttpHttpsDomainOrPathWithout": {
+    "message": "Enter an HTTP/HTTPS domain or path without credentials, query parameters or fragments."
+  },
+  "invalidDomainUseExampleComForASubdomain": {
+    "message": "Invalid domain. Use *.example.com for a subdomain wildcard."
+  },
+  "switchToARegularWebPageToAdd": {
+    "message": "Switch to a regular web page to add a site."
+  },
+  "enableAutomaticTranslationFirst": {
+    "message": "Enable automatic translation first."
+  },
+  "switchToARegularWebPageToExclude": {
+    "message": "Switch to a regular web page to exclude a site."
+  },
+  "microsoftTranslator": {
+    "message": "Microsoft Translator"
+  },
+  "googleTranslate": {
+    "message": "Google Translate"
+  },
+  "tencentTranslate": {
+    "message": "Tencent Translate"
+  },
+  "yandexTranslate": {
+    "message": "Yandex Translate"
+  },
+  "volcengineTranslate": {
+    "message": "Volcengine Translate"
+  },
+  "firefoxLocalTranslationExperimental": {
+    "message": "Firefox local translation (experimental)"
+  },
+  "hideTheOriginalAndShowOnlyTheTranslation": {
+    "message": "Hide the original and show only the translation"
+  },
+  "showTheTranslationBelowTheOriginalInThe": {
+    "message": "Show the translation below the original in the same color"
+  },
+  "twoColorBilingual": {
+    "message": "Two-color bilingual"
+  },
+  "showTheTranslationBelowTheOriginalInA": {
+    "message": "Show the translation below the original in a different color"
+  },
+  "doubaoExperimentalCurrentlyRequiresAChromiumBrowserChoose": {
+    "message": "Doubao (experimental) currently requires a Chromium browser. Choose another service."
+  },
+  "doubaoExperimentalSignInToDoubaoInThis": {
+    "message": "Doubao (experimental): sign in to Doubao in this browser to translate. Source text is sent to Doubao. If the connection fails, check it in settings."
+  },
+  "notCheckedYetSignInToDoubaoIn": {
+    "message": "Not checked yet. Sign in to Doubao in this browser to translate, or choose Check again to test the connection."
+  },
+  "checkingDoubaoConnection": {
+    "message": "Checking Doubao connection…"
+  },
+  "theLastTranslationOrCheckSucceededReadyTo": {
+    "message": "The last translation or check succeeded. Ready to translate."
+  },
+  "signInToDoubaoThenRetryTheTranslation": {
+    "message": "Sign in to Doubao, then retry the translation or check the connection."
+  },
+  "doubaoRateLimitReachedWaitBeforeRetrying": {
+    "message": "Doubao rate limit reached. Wait before retrying."
+  },
+  "doubaoTemporarilyRejectedTheRequestCheckItsWebsite": {
+    "message": "Doubao temporarily rejected the request. Check its website, then retry the translation or connection check."
+  },
+  "doubaoSiteAccessIsMissingCheckTheExtension": {
+    "message": "Doubao site access is missing. Check the extension permissions in your browser."
+  },
+  "cannotReachDoubaoCheckYourConnectionThenRetry": {
+    "message": "Cannot reach Doubao. Check your connection, then retry the translation or connection check."
+  },
+  "doubaoTimedOutRetryTheTranslationOrConnection": {
+    "message": "Doubao timed out. Retry the translation or connection check later."
+  },
+  "doubaoSResponseFormatChangedThisVersionCannot": {
+    "message": "Doubao’s response format changed. This version cannot translate it."
+  },
+  "doubaoReturnedAnIncompleteTranslationRetryTheUnfinished": {
+    "message": "Doubao returned an incomplete translation. Retry the unfinished text."
+  },
+  "doubaoTranslationIsUnavailableInThisBrowserUse": {
+    "message": "Doubao translation is unavailable in this browser. Use Chrome or Edge."
+  },
+  "retryInAboutSeconds": {
+    "message": " Retry in about $ARG1$ seconds.",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "lastChecked": {
+    "message": " Last checked: $ARG1$.",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "xSidebarNavigation": {
+    "message": "X sidebar navigation"
+  },
+  "embeddedPageTranslationIsOff": {
+    "message": "Embedded page translation is off"
+  },
+  "exclusionRule": {
+    "message": "Exclusion rule: $ARG1$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "traditionalChinese": {
+    "message": "Traditional Chinese"
+  },
+  "downloadOrImportLanguageModelsInSettingsBefore": {
+    "message": "Download or import language models in settings before first use."
+  },
+  "localModelsDoNotSupportThisLanguagePair": {
+    "message": "Local models do not support this language pair"
+  },
+  "downloadingLanguageModel": {
+    "message": "Downloading language model · $ARG1$%",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "retryInSettings": {
+    "message": "Retry in settings"
+  },
+  "languageModelReady": {
+    "message": "Language model ready"
+  },
+  "sourceAndTargetLanguagesMatch": {
+    "message": "Source and target languages match"
+  },
+  "installedLanguageModels": {
+    "message": "Installed language models: $ARG1$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "installTheRequiredLanguageModelsFirst": {
+    "message": "Install the required language models first"
+  },
+  "checkingLocalLanguageModels": {
+    "message": "Checking local language models…"
+  },
+  "checkLanguageModelStatusInSettings": {
+    "message": "Check language model status in settings"
+  },
+  "paragraphClick": {
+    "message": "Paragraph click"
+  },
+  "submitSelectedText": {
+    "message": "Submit selected text"
+  },
+  "closeCardCollapseMenu": {
+    "message": "Close card / collapse menu"
+  },
+  "translateWithFloatingButton": {
+    "message": "Translate with floating button"
+  },
+  "openFloatingMenu": {
+    "message": "Open floating menu"
+  },
+  "space": {
+    "message": "Space"
+  },
+  "downArrow": {
+    "message": "Down arrow"
+  },
+  "upArrow": {
+    "message": "Up arrow"
+  },
+  "leftArrow": {
+    "message": "Left arrow"
+  },
+  "rightArrow": {
+    "message": "Right arrow"
+  },
+  "setAParagraphClickShortcutInSettingsKeyboard": {
+    "message": "Set a paragraph click shortcut in Settings → Keyboard shortcuts."
+  },
+  "theParagraphClickShortcutIsOffEnableIt": {
+    "message": "The paragraph click shortcut is off. Enable it in Settings → Keyboard shortcuts."
+  },
+  "onAnyPageHoldAndClickAParagraph": {
+    "message": "On any page, hold $ARG1$ and click a paragraph to translate it. Click again to restore the original.",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "noConnectionToThisPageYetIfYou": {
+    "message": "No connection to this page yet. If you just updated or reloaded the extension, refresh the page and try again."
+  },
+  "imageTranslationHelpAndModelStatus": {
+    "message": "Image translation help and model status"
+  },
+  "removeOcrModelsAndDisableImageTranslation": {
+    "message": "Remove OCR models and disable image translation"
+  },
+  "installingOcrModels": {
+    "message": "Installing OCR models"
+  },
+  "installOcrModelsAbout205Mb": {
+    "message": "Install OCR models (about 20.5 MB)"
+  },
+  "ocrModelsInstalledImageTranslationAvailable": {
+    "message": "OCR models installed · Image translation available"
+  },
+  "downloadCompleteCheckingModels": {
+    "message": "Download complete. Checking models…"
+  },
+  "downloadingOcrModels": {
+    "message": "Downloading OCR models · $ARG1$%",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "installationFailedClickTheWrenchToRetry": {
+    "message": "Installation failed: $ARG1$. Click the wrench to retry.",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "ocrModelsNotInstalledClickTheWrenchTo": {
+    "message": "OCR models not installed · Click the wrench to install"
+  },
+  "couldNotReadModelStatus": {
+    "message": "Could not read model status: $ARG1$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "retryOcrModelStatusCheck": {
+    "message": "Retry OCR model status check"
+  },
+  "removingOcrModels": {
+    "message": "Removing OCR models…"
+  },
+  "startingInstallation": {
+    "message": "Starting installation…"
+  },
+  "imageTranslationRequiresAnAdditionalDownloadOfAbout": {
+    "message": "Image translation requires an additional download of about 20.5 MB of OCR models stored in this browser. Recognition runs locally when you translate an image or video frame. Extracted text goes to the current translation service."
+  },
+  "pageExceededThe120SecondTranslationLimitChoose": {
+    "message": "Page $ARG1$ exceeded the 120-second translation limit. Choose Translate to retry the canceled request.",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "translationDisconnectedChooseTranslateToRetry": {
+    "message": "Translation disconnected. Choose Translate to retry. $ARG1$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "featureToggles": {
+    "message": "Feature toggles"
+  },
+  "translationActions": {
+    "message": "Translation actions"
+  },
+  "tools": {
+    "message": "Tools"
+  },
+  "links": {
+    "message": "Links"
+  },
+  "noneSelected": {
+    "message": "None selected"
+  },
+  "chooseTranslationService": {
+    "message": "Choose translation service"
+  },
+  "notPublishedByTheProvider": {
+    "message": "Not published by the provider."
+  },
+  "microsoftBrowserTranslationAnonymous": {
+    "message": "Microsoft browser translation · Anonymous"
+  },
+  "microsoftEdgeHelp": {
+    "message": "Microsoft Edge help"
+  },
+  "googleWebTranslateAnonymous": {
+    "message": "Google Web Translate · Anonymous"
+  },
+  "tencentTransmartAnonymous": {
+    "message": "Tencent TranSmart · Anonymous"
+  },
+  "yandexWebTranslationAnonymous": {
+    "message": "Yandex web translation · Anonymous"
+  },
+  "volcengineBrowserTranslationAnonymous": {
+    "message": "Volcengine browser translation · Anonymous"
+  },
+  "f0FreeTier2MillionCharactersPerMonth": {
+    "message": "F0 free tier: 2 million characters per month. Requires an Azure account and key. Other tiers are billed by subscription."
+  },
+  "upTo50000CharactersAnd1000": {
+    "message": "Up to 50,000 characters and 1,000 text items. Characters are counted across all target languages."
+  },
+  "f02MillionCharactersPerHourEvenlyDistributed": {
+    "message": "F0: 2 million characters per hour, evenly distributed. Other tiers depend on account quota."
+  },
+  "noFixedConcurrencyCapCharacterRateAndSubscription": {
+    "message": "No fixed concurrency cap. Character rate and subscription quota apply."
+  },
+  "microsoftFreeTier": {
+    "message": "Microsoft free tier"
+  },
+  "azureRequestRateAndConcurrencyLimits": {
+    "message": "Azure request, rate and concurrency limits"
+  },
+  "nmtTheFirst500000CharactersPerMonth": {
+    "message": "NMT: the first 500,000 characters per month are free as a USD 10 credit. Requires a Cloud account and API key."
+  },
+  "basicUpTo100KbAnd128Text": {
+    "message": "Basic: up to 100 KB and 128 text items per request. The recommended request size is about 5,000 characters."
+  },
+  "defaultPerProject6MillionCharactersPerMinute": {
+    "message": "Default per project: 6 million characters per minute and 300,000 v2 requests per minute. Actual account quotas apply."
+  },
+  "noCommonConcurrencyCapIsPublished": {
+    "message": "No common concurrency cap is published."
+  },
+  "googleCloudPricingAndFreeQuota": {
+    "message": "Google Cloud pricing and free quota"
+  },
+  "googleCloudQuotasAndRequestLimits": {
+    "message": "Google Cloud quotas and request limits"
+  },
+  "v2TextItemLimit": {
+    "message": "v2 text item limit"
+  },
+  "customEndpoint": {
+    "message": "Custom endpoint"
+  },
+  "dependsOnTheConfiguredServicePlanAndAccount": {
+    "message": "Depends on the configured service plan and account quota."
+  },
+  "dependsOnTheProviderSPerRequestLimits": {
+    "message": "Depends on the provider’s per-request limits or model specifications."
+  },
+  "dependsOnTheProviderSAccountRateLimits": {
+    "message": "Depends on the provider’s account rate limits."
+  },
+  "dependsOnTheProviderSAccountConcurrencyLimits": {
+    "message": "Depends on the provider’s account concurrency limits."
+  },
+  "dependsOnTheQuotaAvailableFromDoubao": {
+    "message": "Depends on the quota available from Doubao."
+  },
+  "doubao": {
+    "message": "Doubao"
+  },
+  "noAnonymousApiQuotaIsPublished": {
+    "message": "No anonymous API quota is published."
+  },
+  "microsoftTranslatorCustomApiAddress": {
+    "message": "Microsoft Translator · Custom API address"
+  },
+  "tencentTranslateCustomApiAddress": {
+    "message": "Tencent Translate · Custom API address"
+  },
+  "noModelSpecified": {
+    "message": "No model specified"
+  },
+  "tencentTokenhub": {
+    "message": "Tencent TokenHub · $ARG1$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "eligibleNewUsersCanClaimATrialAllowance": {
+    "message": "Eligible new users can claim a trial allowance of 1 million tokens valid for one year."
+  },
+  "dependsOnTheSelectedModelSContextAnd": {
+    "message": "Depends on the selected model’s context and output limits."
+  },
+  "tpmTokensPerMinuteAndQpmRequestsPer": {
+    "message": "TPM (tokens per minute) and QPM (requests per minute) depend on model and account limits."
+  },
+  "dependsOnTheAccountAndSelectedModelS": {
+    "message": "Depends on the account and selected model’s rate limits."
+  },
+  "trialOfferEnds20261231CheckThe": {
+    "message": "Trial offer ends 2026-12-31. Check the console for eligibility and available quota."
+  },
+  "tokenhubNewUserTrial": {
+    "message": "TokenHub new user trial"
+  },
+  "tokenhubOnlineInferenceAndRateLimits": {
+    "message": "TokenHub online inference and rate limits"
+  },
+  "billedPerCharacterRequiresAnAccountAndKey": {
+    "message": "Billed per character. Requires an account and key. Trial quota depends on the account."
+  },
+  "upTo10000CharactersTotalPerRequest": {
+    "message": "Up to 10,000 characters total per request."
+  },
+  "default20RequestsPerSecondPerApiMethod": {
+    "message": "Default: 20 requests per second per API method, and 1 million characters per hour across translation and detection. Account quotas may vary."
+  },
+  "noFixedConcurrencyLimitIsPublished": {
+    "message": "No fixed concurrency limit is published."
+  },
+  "yandexCloudQuotas": {
+    "message": "Yandex Cloud quotas"
+  },
+  "yandexTranslateRequestLimits": {
+    "message": "Yandex Translate request limits"
+  },
+  "yandexCloudPricing": {
+    "message": "Yandex Cloud pricing"
+  },
+  "theFirst2MillionCharactersOfTextTranslation": {
+    "message": "The first 2 million characters of text translation per month are free. Activate the API and configure account credentials."
+  },
+  "upTo16TextItemsAnd5000": {
+    "message": "Up to 16 text items and 5,000 total characters per request."
+  },
+  "dependsOnTheAccountQpsQuotaRequestsPer": {
+    "message": "Depends on the account QPS quota (requests per second)."
+  },
+  "volcengineMachineTranslationPricing": {
+    "message": "Volcengine machine translation pricing"
+  },
+  "volcengineTextTranslationApiLimits": {
+    "message": "Volcengine text translation API limits"
+  },
+  "quotaDependsOnTheRapidapiSubscription": {
+    "message": "Quota depends on the RapidAPI subscription."
+  },
+  "upTo500Utf8BytesPerRequest": {
+    "message": "Up to 500 UTF-8 bytes per request, subject to the subscription plan."
+  },
+  "dependsOnRapidapiSubscriptionAndAccountRateLimits": {
+    "message": "Depends on RapidAPI subscription and account rate limits."
+  },
+  "dependsOnTheRapidapiSubscription": {
+    "message": "Depends on the RapidAPI subscription."
+  },
+  "mymemoryRapidapiSubscription": {
+    "message": "MyMemory RapidAPI subscription"
+  },
+  "mymemoryApiSpecification": {
+    "message": "MyMemory API specification"
+  },
+  "mymemoryAnonymous": {
+    "message": "MyMemory · Anonymous"
+  },
+  "label5000CharactersPerDay": {
+    "message": "5,000 characters per day."
+  },
+  "mymemoryAnonymousQuota": {
+    "message": "MyMemory anonymous quota"
+  },
+  "mymemoryPerRequestLimit": {
+    "message": "MyMemory per-request limit"
+  },
+  "deepseekCustomApiAddress": {
+    "message": "DeepSeek · Custom API address"
+  },
+  "deepseekFlash2500ConcurrentRequestsPerAccount": {
+    "message": "deepseek-flash: 2,500 concurrent requests per account."
+  },
+  "deepseekV4Pro500ConcurrentRequestsPerAccount": {
+    "message": "deepseek-v4-pro: 500 concurrent requests per account."
+  },
+  "billedByTokensRequiresAnApiKeyPromotional": {
+    "message": "Billed by tokens. Requires an API key. Promotional credits depend on the account."
+  },
+  "rateLimitsDependOnTheAccountAndModel": {
+    "message": "Rate limits depend on the account and model. Exceeding them returns HTTP 429."
+  },
+  "deepseekOfficialConcurrencyLimits": {
+    "message": "DeepSeek official concurrency limits"
+  },
+  "deepseekOfficialApiDocumentation": {
+    "message": "DeepSeek official API documentation"
+  },
+  "zhipuGlmCustomApiAddress": {
+    "message": "Zhipu GLM · Custom API address"
+  },
+  "zhipuGlmApi": {
+    "message": "Zhipu GLM API · $ARG1$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "thisModelIsFreeAndRequiresAnAccount": {
+    "message": "This model is free and requires an account and API key."
+  },
+  "pricingAndCreditsDependOnTheModelAnd": {
+    "message": "Pricing and credits depend on the model and account."
+  },
+  "label128kContextAndUpTo16kOutputTokens": {
+    "message": "128K context and up to 16K output tokens."
+  },
+  "dependsOnTheAccountSConcurrencyQuotaFor": {
+    "message": "Depends on the account’s concurrency quota for this model."
+  },
+  "zhipuOfficialModelListIncludingFreeModels": {
+    "message": "Zhipu official model list (including free models)"
+  },
+  "zhipuOfficialRateLimits": {
+    "message": "Zhipu official rate limits"
+  },
+  "localTranslationUsesNoOnlineApiQuotaDownload": {
+    "message": "Local translation uses no online API quota. Download or import models before use."
+  },
+  "limitedByTheLanguageModelAndDeviceMemory": {
+    "message": "Limited by the language model and device memory."
+  },
+  "notApplicableToLocalTranslation": {
+    "message": "Not applicable to local translation."
+  },
+  "mozillaLocalTranslationOverview": {
+    "message": "Mozilla local translation overview"
+  },
+  "officialOpenaiApi": {
+    "message": "Official OpenAI API · $ARG1$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "billedByModelRequiresAnApiKeyPromotional": {
+    "message": "Billed by model. Requires an API key. Promotional credits depend on the account."
+  },
+  "subjectToTheCurrentModelSContextAnd": {
+    "message": "Subject to the current model’s context and output limits."
+  },
+  "subjectToModelAndAccountTierLimitsIncluding": {
+    "message": "Subject to model and account tier limits, including RPM (requests per minute) and TPM (tokens per minute)."
+  },
+  "seeTheAccountSLimitsPage": {
+    "message": "See the account’s Limits page."
+  },
+  "openaiRateLimitsAndAccountTiers": {
+    "message": "OpenAI rate limits and account tiers"
+  },
+  "officialAnthropicApi": {
+    "message": "Official Anthropic API · $ARG1$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "billedByModelRequiresAnApiKeyTrial": {
+    "message": "Billed by model. Requires an API key. Trial credits depend on the account."
+  },
+  "subjectToModelContextOutputAndPerRequest": {
+    "message": "Subject to model context, output and per-request size limits."
+  },
+  "subjectToModelAndAccountTierLimitsOn": {
+    "message": "Subject to model and account tier limits on RPM, input tokens per minute and output tokens per minute."
+  },
+  "anthropicRateLimitsAndAccountTiers": {
+    "message": "Anthropic rate limits and account tiers"
+  },
+  "anthropicApiOverview": {
+    "message": "Anthropic API overview"
+  },
+  "customHttpService": {
+    "message": "Custom HTTP service"
+  },
+  "customCompatibleLlmService": {
+    "message": "Custom compatible LLM service"
+  },
+  "requestHeadersTemplate": {
+    "message": "Request headers template"
+  },
+  "requestBodyParametersTemplate": {
+    "message": "Request body parameters template"
+  },
+  "mustBeValidJsonCheckQuotesCommasAnd": {
+    "message": "$ARG1$ must be valid JSON. Check quotes, commas and brackets.",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "mustBeAJsonObject": {
+    "message": "$ARG1$ must be a JSON object.",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "containsAnUnknownVariable": {
+    "message": "$ARG1$ contains an unknown variable: $ARG2$.",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      },
+      "arg2": {
+        "content": "$2"
+      }
+    }
+  },
+  "requestHeaderValuesMustBeStringsOrNull": {
+    "message": "Request header values must be strings or null."
+  },
+  "invalidHeaderNameOrContentCheckForLine": {
+    "message": "Invalid header name or content. Check for line breaks and other special characters."
+  },
+  "onlyNonStreamingResponsesAreSupportedSetStream": {
+    "message": "Only non-streaming responses are supported. Set stream to false or remove it with null."
+  },
+  "lineColumn": {
+    "message": " (line $ARG1$, column $ARG2$)",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      },
+      "arg2": {
+        "content": "$2"
+      }
+    }
+  },
+  "couldNotReadBackupChooseAValidToml": {
+    "message": "Could not read backup. Choose a valid TOML file$ARG1$.",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "thisIsNotAWupageSettingsBackup": {
+    "message": "This is not a WuPage settings backup."
+  },
+  "unsupportedBackupFormatVersionUseAVersionOf": {
+    "message": "Unsupported backup format version. Use a version of WuPage that supports this format."
+  },
+  "backupInformation": {
+    "message": "Backup information"
+  },
+  "backupStructureIsTooComplex": {
+    "message": "Backup structure is too complex."
+  },
+  "backupContainsAnUnsafeProperty": {
+    "message": "Backup contains an unsafe property."
+  },
+  "translationServiceIdsInTheBackupAreEmpty": {
+    "message": "Translation service IDs in the backup are empty or duplicated."
+  },
+  "theActiveTranslationServiceInTheBackupIs": {
+    "message": "The active translation service in the backup is missing or disabled."
+  },
+  "invalidOrUnsupportedBackupField": {
+    "message": "Invalid or unsupported backup field: $ARG1$.",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "translatePageRestoreOriginal": {
+    "message": "Translate page / restore original"
+  },
+  "toggleParagraphMode": {
+    "message": "Toggle paragraph mode"
+  },
+  "cycleTranslationDisplayMode": {
+    "message": "Cycle translation display mode"
+  },
+  "translateRestoreCurrentParagraphInParagraphMode": {
+    "message": "Translate / restore current paragraph in paragraph mode"
+  },
+  "submitEditedSourceInSelectionCard": {
+    "message": "Submit edited source in selection card"
+  },
+  "closeSelectionCardCollapseFloatingMenu": {
+    "message": "Close selection card / collapse floating menu"
+  },
+  "translateWithFloatingButtonOpenMenu": {
+    "message": "Translate with floating button / open menu"
+  },
+  "enterSpace": {
+    "message": "Enter / Space"
+  },
+  "thisCombinationMayConflictWithAltgrInput": {
+    "message": "This combination may conflict with AltGr input."
+  },
+  "thisCombinationMayConflictWithABrowserOr": {
+    "message": "This combination may conflict with a browser or editing shortcut."
+  },
+  "invalidSubtitleTrackData": {
+    "message": "Invalid subtitle track data."
+  },
+  "subtitleTrackDataTooLarge": {
+    "message": "Subtitle track data too large."
+  },
+  "unsupportedSubtitleTrackFormat": {
+    "message": "Unsupported subtitle track format."
+  },
+  "subtitleReadCanceled": {
+    "message": "Subtitle read canceled."
+  },
+  "readingPlayerSubtitlesTimedOutEnableNativeSubtitles": {
+    "message": "Reading player subtitles timed out. Enable native subtitles and try again."
+  },
+  "invalidPlayerSubtitleData": {
+    "message": "Invalid player subtitle data."
+  },
+  "incompleteTranslationTryAgain": {
+    "message": "Incomplete translation. Try again."
+  },
+  "theSubtitleAddressDoesNotBelongToThis": {
+    "message": "The subtitle address does not belong to this player."
+  },
+  "thePlayerDidNotReturnSubtitlesEnableNative": {
+    "message": "The player did not return subtitles. Enable native subtitles and retry."
+  },
+  "thePlayerReturnedNoSubtitleContent": {
+    "message": "The player returned no subtitle content."
+  },
+  "subtitleDataTooLarge": {
+    "message": "Subtitle data too large."
+  },
+  "theseSubtitlesRequirePlayerAuthorizationEnableNativeSubtitles": {
+    "message": "These subtitles require player authorization. Enable native subtitles first."
+  },
+  "theVideoHasChanged": {
+    "message": "The video has changed."
+  },
+  "theSubtitleTrackHasChangedSelectItAgain": {
+    "message": "The subtitle track has changed. Select it again."
+  },
+  "subtitleFormatTemporarilyUnavailableEnableNativeSubtitlesAnd": {
+    "message": "Subtitle format temporarily unavailable. Enable native subtitles and try again."
+  },
+  "bilibili": {
+    "message": "Bilibili"
+  },
+  "subtitleDataExceedsTheSupportedLimit": {
+    "message": "Subtitle data exceeds the supported limit."
+  },
+  "invalidSubtitleTimeFormat": {
+    "message": "Invalid subtitle time format."
+  },
+  "subtitleEndTimeMustBeLaterThanStart": {
+    "message": "Subtitle end time must be later than start time."
+  },
+  "aSubtitleCueIsTooLongSplitIt": {
+    "message": "A subtitle cue is too long. Split it and import again."
+  },
+  "moreThan20000SubtitleCuesSplitThe": {
+    "message": "More than 20,000 subtitle cues. Split the file."
+  },
+  "noUsableSubtitlesFoundChooseAUtf8": {
+    "message": "No usable subtitles found. Choose a UTF-8 SRT or VTT file."
+  },
+  "theServiceReturnedIncompleteSubtitlesTryAgain": {
+    "message": "The service returned incomplete subtitles. Try again."
+  },
+  "mediumFontSize": {
+    "message": "Medium"
+  },
+  "generalTab": {
+    "message": "General"
+  },
+  "disabledOption": {
+    "message": "Disabled"
+  },
+  "ukAccent": {
+    "message": "UK"
+  },
+  "dropHere": {
+    "message": "Drop here"
+  },
+  "fontDownloadHelpStart": {
+    "message": "If the download fails, "
+  },
+  "fontDownloadHelpEnd": {
+    "message": " and install it from a file. You can transfer the file from another device. System-wide font installation is optional."
+  },
+  "apiKeyRequired": {
+    "message": "API key is required."
+  },
+  "modelRequired": {
+    "message": "Model is required."
+  },
+  "baseUrlRequired": {
+    "message": "Base URL is required."
+  },
+  "endpointRequired": {
+    "message": "Endpoint is required."
+  },
+  "urlRequired": {
+    "message": "URL is required."
+  },
+  "responsePathRequired": {
+    "message": "Response path is required."
+  },
+  "responsePathArray": {
+    "message": "Response path must resolve to an array of strings."
+  },
+  "responseCountMismatch": {
+    "message": "Translation count does not match source text count."
+  },
+  "responseItemsMissing": {
+    "message": "Translation response contains missing or empty items."
+  },
+  "providerNotFound": {
+    "message": "Provider not found."
+  },
+  "unknownProvider": {
+    "message": "Provider not found: $ARG1$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "providerDisabled": {
+    "message": "Provider is disabled: $ARG1$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "serviceUnreachable": {
+    "message": "Cannot connect to the translation service. Check your connection and provider endpoint, then retry."
+  },
+  "requestTimeout": {
+    "message": "Translation request timed out after $ARG1$ seconds.",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "serviceResponseInterrupted": {
+    "message": "The translation response was interrupted. Check your connection and retry."
+  },
+  "responseTooLarge": {
+    "message": "Translation response is too large. Check the provider endpoint or model."
+  },
+  "serverReturnedHtml": {
+    "message": "The server returned an HTML page. Check the provider Base URL or endpoint."
+  },
+  "providerReturnedHtml": {
+    "message": "$ARG1$ returned an HTML page instead of JSON. Check the provider Base URL or endpoint.",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "providerInvalidJson": {
+    "message": "$ARG1$ response was not valid JSON. Check the provider Base URL or endpoint.",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "llmEmptyResponse": {
+    "message": "LLM response did not include content."
+  },
+  "llmNoText": {
+    "message": "LLM response did not include text content."
+  },
+  "llmReturnedHtml": {
+    "message": "LLM response contained an HTML page instead of translations. Check the provider Base URL."
+  },
+  "llmInvalidJson": {
+    "message": "LLM response was not valid JSON."
+  },
+  "llmEmptyTranslation": {
+    "message": "LLM response contains an empty translation."
+  },
+  "llmStringArray": {
+    "message": "LLM response must be a JSON array of strings."
+  },
+  "llmCountMismatch": {
+    "message": "LLM response count does not match source text count (expected $ARG1$, received $ARG2$).",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      },
+      "arg2": {
+        "content": "$2"
+      }
+    }
+  },
+  "providerDidNotPreserveEntities": {
+    "message": "Translation response did not preserve literal entities."
+  },
+  "providerItemsMissing": {
+    "message": "Translation response did not include the expected nonempty text items."
+  },
+  "httpRequestFailed": {
+    "message": "HTTP template request failed: $ARG1$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "serviceGoogleCloudNoText": {
+    "message": "Google Cloud Translation response did not include translated text."
+  },
+  "serviceGoogleCloudCountMismatch": {
+    "message": "Google Cloud Translation response count does not match source text count."
+  },
+  "serviceGoogleCloudRequestFailed": {
+    "message": "Google Cloud Translation request failed: $ARG1$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "serviceMicrosoftNoText": {
+    "message": "Microsoft Translator response did not include translated text."
+  },
+  "serviceMicrosoftCountMismatch": {
+    "message": "Microsoft Translator response count does not match source text count."
+  },
+  "serviceMicrosoftRequestFailed": {
+    "message": "Microsoft Translator request failed: $ARG1$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "serviceMicrosoftWebNoText": {
+    "message": "Microsoft Web Translate response did not include translated text."
+  },
+  "serviceMicrosoftWebCountMismatch": {
+    "message": "Microsoft Web Translate response count does not match source text count."
+  },
+  "serviceGoogleWebNoText": {
+    "message": "Google Web Translate response did not include translated text."
+  },
+  "googleSegmentsMissing": {
+    "message": "Google Web Translate response did not include translated segments."
+  },
+  "llmRequestFailed": {
+    "message": "LLM request failed: $ARG1$ $ARG2$. $ARG3$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      },
+      "arg2": {
+        "content": "$2"
+      },
+      "arg3": {
+        "content": "$3"
+      }
+    }
+  },
+  "imageTranslationHelp": {
+    "message": "Use the button beside an image to overlay its translation"
+  },
+  "confirmResetAllSettings": {
+    "message": "Reset all settings?"
+  },
+  "pdfFileAccessHelp": {
+    "message": "Enable “Allow access to file URLs” in the extension details. If the browser closes this page, return to the PDF tab and choose “Translate PDF” again, or select the file below."
+  },
+  "pdfReaderRegion": {
+    "message": "Bilingual PDF reader"
+  },
+  "doubaoSignInRequired": {
+    "message": "Sign in to Doubao in this browser, then retry the translation or connection check."
+  },
+  "floatingIdleHint": {
+    "message": "Click the floating button to translate the page."
+  },
+  "translationInProgress": {
+    "message": "Translating…"
+  },
+  "requestFailure": {
+    "message": "Request failed. Try again."
+  },
+  "currentDisplayMode": {
+    "message": "Display mode: $ARG1$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "namedFontSize": {
+    "message": "$ARG1$ font size",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "singleSubtitleBadge": {
+    "message": "Tr"
+  },
+  "modelReady": {
+    "message": "Ready"
+  },
+  "modelDownloading": {
+    "message": "Downloading"
+  },
+  "downloadModelWithSize": {
+    "message": "Download model ($ARG1$)",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "numberedSchemeCopy": {
+    "message": "$ARG1$ (copy $ARG2$)",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      },
+      "arg2": {
+        "content": "$2"
+      }
+    }
+  },
+  "removeSiteButton": {
+    "message": "Delete site"
+  },
+  "ruleError": {
+    "message": "Rule $ARG1$: $ARG2$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      },
+      "arg2": {
+        "content": "$2"
+      }
+    }
+  },
+  "currentServiceName": {
+    "message": "Current service: $ARG1$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "confirmDeleteProvider": {
+    "message": "Delete “$ARG1$”?",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "addMenuItem": {
+    "message": "Add $ARG1$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "documentPageCount": {
+    "message": "Pages: $ARG1$ · $ARG2$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      },
+      "arg2": {
+        "content": "$2"
+      }
+    }
+  },
+  "documentPageRange": {
+    "message": "Pages $ARG1$–$ARG2$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      },
+      "arg2": {
+        "content": "$2"
+      }
+    }
+  },
+  "pdfTranslating": {
+    "message": "Translating"
+  },
+  "popupSwitchToWebPage": {
+    "message": "Switch to a regular web page to translate."
+  },
+  "popupTranslating": {
+    "message": "Translating…"
+  },
+  "paragraphHighlightColor": {
+    "message": "Paragraph highlight"
+  },
+  "replaceDisplayMode": {
+    "message": "Translation only"
+  },
+  "doubaoChooseSupportedLanguage": {
+    "message": "Doubao does not support this target language. Choose another from the list."
+  },
+  "doubaoSupportedLanguages": {
+    "message": "Doubao does not support this target language. Choose Chinese, English, Japanese, Korean, French, German, Spanish or Russian."
+  },
+  "doubaoUnsupportedLanguage": {
+    "message": "Doubao does not support this target language. Choose a supported language."
+  },
+  "modelDownloadErrorDetail": {
+    "message": "Model download failed: $ARG1$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "modelRetry": {
+    "message": "Try again"
+  },
+  "selectedServiceLabel": {
+    "message": "Translation service: $ARG1$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "myMemoryAnonymousRequestLimit": {
+    "message": "Up to 500 UTF-8 bytes per request."
+  },
+  "modelConcurrencyLimit": {
+    "message": "Depends on the account and selected model’s concurrency limits."
+  },
+  "accountModelRateLimit": {
+    "message": "Rate limits depend on the account and model."
+  },
+  "paragraphClickShortcut": {
+    "message": "Click paragraph"
+  },
+  "subtitleTrackFallback": {
+    "message": "Subtitles"
+  },
+  "accentPronunciationType": {
+    "message": "$ARG1$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "durationSeconds": {
+    "message": "$ARG1$ s",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "englishBadge": {
+    "message": "EN"
+  },
+  "chineseBadge": {
+    "message": "ZH"
+  },
+  "translateBadge": {
+    "message": "Tr"
+  },
+  "originalBadge": {
+    "message": "Src"
+  },
+  "bilingualSubtitleBadge": {
+    "message": "Bi"
+  },
+  "backupFileTitle": {
+    "message": "WuPage settings backup"
+  },
+  "backupFileIncludesCredentials": {
+    "message": "Contains credentials. This file is unencrypted. Keep it secure."
+  },
+  "backupFileOmitsCredentials": {
+    "message": "Credentials and recognized authentication values were cleared. Check custom content before sharing."
+  },
+  "backupFilePdfScope": {
+    "message": "settings.pdfTranslationPageRadius = \"all\" means the entire PDF."
+  }
+}

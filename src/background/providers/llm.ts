@@ -1,3 +1,4 @@
+import { t } from "../../shared/i18n";
 import type { AnthropicCompatibleConfig, DeepSeekConfig, OpenAICompatibleConfig, TranslateBatchRequest, TranslatorProvider, ValidationResult, ZhipuGlmConfig } from "../../shared/types";
 import { renderTemplate } from "../template";
 import { chatCompletionsEndpoint, usesOllamaCompatibility } from "../ollama-compatibility";
@@ -18,8 +19,8 @@ export class OpenAICompatibleProvider implements TranslatorProvider {
   constructor(protected readonly config: OpenAICompatibleConfig | DeepSeekConfig | ZhipuGlmConfig) {}
 
   validateConfig(): ValidationResult {
-    if (!this.config.baseURL.trim()) return { ok: false, message: "Base URL is required." };
-    if (!this.config.model.trim()) return { ok: false, message: "Model is required." };
+    if (!this.config.baseURL.trim()) return { ok: false, message: t("baseUrlRequired") };
+    if (!this.config.model.trim()) return { ok: false, message: t("modelRequired") };
     try {
       validateRequestTemplate(this.config.requestTemplate);
     } catch (error) {
@@ -54,13 +55,13 @@ export class OpenAICompatibleProvider implements TranslatorProvider {
     const response = await fetchWithTemperatureFallback(endpoint, init, this.config);
     if (!response.ok) {
       const hint = response.status !== 403 ? "" : ollama
-        ? " Ollama 兼容已开启，请检查 API Key、服务端权限或反向代理配置。"
-        : " 如果使用 Ollama，请在服务设置中开启“Ollama 兼容”；仍失败时检查服务端权限或 OLLAMA_ORIGINS。";
-      throw httpResponseError(response, `LLM request failed: ${response.status} ${response.statusText}. ${await readErrorBody(response)}${hint}`);
+        ? t("ollamaCompatibilityIsEnabledCheckTheApiKey")
+        : t("forOllamaEnableOllamaCompatibilityInTheService");
+      throw httpResponseError(response, t("llmRequestFailed", response.status, response.statusText, await readErrorBody(response)) + hint);
     }
     const payload = await readJsonResponse<OpenAIChatResponse>(response, "LLM provider", onUsage);
     const content = payload.choices?.[0]?.message?.content;
-    if (!content) throw new TranslationResponseError("LLM response did not include content.");
+    if (!content) throw new TranslationResponseError(t("llmEmptyResponse"));
 
     return parseTranslationArray(content, request.texts.length);
   }
@@ -79,8 +80,8 @@ export class AnthropicCompatibleProvider implements TranslatorProvider {
   constructor(private readonly config: AnthropicCompatibleConfig) {}
 
   validateConfig(): ValidationResult {
-    if (!this.config.baseURL.trim()) return { ok: false, message: "Base URL is required." };
-    if (!this.config.model.trim()) return { ok: false, message: "Model is required." };
+    if (!this.config.baseURL.trim()) return { ok: false, message: t("baseUrlRequired") };
+    if (!this.config.model.trim()) return { ok: false, message: t("modelRequired") };
     try {
       validateRequestTemplate(this.config.requestTemplate);
     } catch (error) {
@@ -111,7 +112,7 @@ export class AnthropicCompatibleProvider implements TranslatorProvider {
     });
     if (!response.ok) {
       throw httpResponseError(response,
-        `LLM request failed: ${response.status} ${response.statusText}. ${await readErrorBody(response)}`
+        t("llmRequestFailed", response.status, response.statusText, await readErrorBody(response))
       );
     }
     const payload = await readJsonResponse<AnthropicMessagesResponse>(response, "LLM provider", onUsage);
@@ -119,7 +120,7 @@ export class AnthropicCompatibleProvider implements TranslatorProvider {
       ?.filter((entry) => entry.type === "text" && typeof entry.text === "string")
       .map((entry) => entry.text)
       .join("");
-    if (!content) throw new TranslationResponseError("LLM response did not include content.");
+    if (!content) throw new TranslationResponseError(t("llmEmptyResponse"));
     return parseTranslationArray(content, request.texts.length);
   }
 }
@@ -138,18 +139,18 @@ export class DeepSeekProvider extends OpenAICompatibleProvider {
   override validateConfig(): ValidationResult {
     const validation = super.validateConfig();
     if (!validation.ok) return validation;
-    if (!this.config.apiKey.trim()) return { ok: false, message: "API key is required." };
+    if (!this.config.apiKey.trim()) return { ok: false, message: t("apiKeyRequired") };
     return { ok: true };
   }
 
 }
 
 function parseTranslationArray(content: string, expectedLength: number): string[] {
-  if (typeof content !== "string") throw new TranslationResponseError("LLM response did not include text content.");
+  if (typeof content !== "string") throw new TranslationResponseError(t("llmNoText"));
   const trimmed = stripCodeFence(content.trim());
   if (looksLikeHtmlDocument(trimmed)) {
     throw new ProviderError(
-      "LLM response contained an HTML page instead of translations. Check the provider Base URL.", "protocol-changed"
+      t("llmReturnedHtml"), "protocol-changed"
     );
   }
   let parsed: unknown;
@@ -159,19 +160,19 @@ function parseTranslationArray(content: string, expectedLength: number): string[
     // Keep plain-text single-item compatibility, but never display truncated
     // JSON or an unfinished Markdown fence as a successful translation.
     if (expectedLength === 1 && trimmed && !/^(?:[\[\{"]|```)/u.test(trimmed)) return [trimmed];
-    throw new TranslationResponseError("LLM response was not valid JSON.");
+    throw new TranslationResponseError(t("llmInvalidJson"));
   }
   if ((typeof parsed === "string" && !parsed.trim())
     || (Array.isArray(parsed) && parsed.some((item) => typeof item === "string" && !item.trim()))) {
-    throw new TranslationResponseError("LLM response contains an empty translation.");
+    throw new TranslationResponseError(t("llmEmptyTranslation"));
   }
   if (expectedLength === 1 && typeof parsed === "string") return [parsed];
   if (!Array.isArray(parsed) || !parsed.every((item) => typeof item === "string")) {
-    throw new TranslationResponseError("LLM response must be a JSON array of strings.");
+    throw new TranslationResponseError(t("llmStringArray"));
   }
   if (parsed.length !== expectedLength) {
     throw new TranslationResponseError(
-      `LLM response count does not match source text count (expected ${expectedLength}, received ${parsed.length}).`
+      t("llmCountMismatch", expectedLength, parsed.length)
     );
   }
   return parsed;

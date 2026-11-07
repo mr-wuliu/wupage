@@ -1,3 +1,4 @@
+import { t, htmlMessage } from "./i18n";
 import { ensureProviderIconStyles, providerIconMarkup } from "./provider-icons";
 import type { ProviderConfig } from "./types";
 import { uiIconMarkup } from "./ui-icons";
@@ -18,7 +19,7 @@ export function enhanceProviderSelect(select: HTMLSelectElement, providers: Prov
   select.hidden = true;
   const root = document.createElement("div");
   root.className = "wupage-provider-picker";
-  setHtmlContent(root, `<button type="button" class="wupage-provider-trigger" aria-label="翻译服务" aria-haspopup="listbox" aria-expanded="false"></button><div class="wupage-provider-list" role="listbox" aria-label="翻译服务" popover="manual" hidden></div>`);
+  setHtmlContent(root, `<button type="button" class="wupage-provider-trigger" aria-label="${htmlMessage("translationService")}" aria-haspopup="listbox" aria-expanded="false"></button><div class="wupage-provider-list" role="listbox" aria-label="${htmlMessage("translationService")}" popover="manual" hidden></div>`);
   select.after(root);
   const trigger = root.querySelector<HTMLButtonElement>("button")!;
   const list = root.querySelector<HTMLDivElement>("[role='listbox']")!;
@@ -39,12 +40,12 @@ export function enhanceProviderSelect(select: HTMLSelectElement, providers: Prov
     const types = JSON.parse(select.dataset.providerTypes!) as Record<string, ProviderConfig["type"]>;
     const markup = (option: HTMLOptionElement): string => providerIconMarkup(types[option.value] ? { type: types[option.value] } : undefined);
     const selected = select.selectedOptions[0];
-    trigger.setAttribute("aria-label", `翻译服务：${selected?.textContent ?? "未选择"}`);
-    trigger.title = selected?.textContent ?? "选择翻译服务";
+    trigger.setAttribute("aria-label", t("selectedServiceLabel", selected?.textContent ?? t("noneSelected")));
+    trigger.title = selected?.textContent ?? t("chooseTranslationService");
     setHtmlContent(trigger, selected ? markup(selected) : providerIconMarkup(undefined));
     const label = document.createElement("span");
     label.className = "wupage-provider-name";
-    label.textContent = selected?.textContent ?? "选择翻译服务";
+    label.textContent = selected?.textContent ?? t("chooseTranslationService");
     trigger.append(label);
     trigger.append(htmlFragment(`<span class="wupage-provider-arrow" aria-hidden="true">${uiIconMarkup("arrow-down-03")}</span>`, trigger.ownerDocument));
     trigger.disabled = select.disabled;

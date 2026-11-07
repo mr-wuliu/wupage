@@ -1,3 +1,4 @@
+import { t } from "../shared/i18n";
 import { getLocalModel, LOCAL_MODEL_CACHE, LOCAL_MODELS, modelBytes, type LocalModelState, type ModelFile } from "./models";
 
 const PART_BYTES = 1024 * 1024;
@@ -7,7 +8,7 @@ const partKey = (file: ModelFile, part: number) => `${fileKey(file)}/part/${part
 
 export async function withModelWriteLock<T>(task: () => Promise<T>): Promise<T> {
   return navigator.locks.request(LOCK, { ifAvailable: true }, (lock) => {
-    if (!lock) throw new Error("另一窗口正在下载、导入或删除模型，请稍后重试。");
+    if (!lock) throw new Error(t("anotherWindowIsInstallingImportingOrDeletingA"));
     return task();
   });
 }
@@ -48,9 +49,9 @@ export async function localModelStates(): Promise<LocalModelState[]> {
 }
 
 export async function verifyModelBytes(file: ModelFile, bytes: ArrayBuffer): Promise<void> {
-  if (bytes.byteLength !== file.bytes) throw new Error(`${file.name} 大小不匹配，请使用列表中的模型文件。`);
+  if (bytes.byteLength !== file.bytes) throw new Error(t("sizeMismatchForChooseAModelFileFrom", file.name));
   const digest = Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)), (byte) => byte.toString(16).padStart(2, "0")).join("");
-  if (digest !== file.sha256) throw new Error(`${file.name} 完整性校验失败，请重新下载该文件。`);
+  if (digest !== file.sha256) throw new Error(t("integrityCheckFailedForDownloadTheFileAgain", file.name));
 }
 
 async function deleteParts(cache: Cache, file: ModelFile): Promise<void> {
@@ -75,11 +76,11 @@ export async function importModelFiles(id: string, files: File[]): Promise<numbe
       const expected = model.files.find((entry) => entry.name === file.name)
         ?? model.files.find((entry) => entry.bytes === file.size);
       if (!expected) continue;
-      if (file.size !== expected.bytes) throw new Error(`${file.name} 大小不匹配，请使用列表中的模型文件。`);
+      if (file.size !== expected.bytes) throw new Error(t("sizeMismatchForChooseAModelFileFrom", file.name));
       await storeFile(cache, expected, await file.arrayBuffer());
       imported++;
     }
-    if (!imported) throw new Error("未找到匹配的模型文件，请选择下方列表中对应的 .bin 和 .spm 文件。");
+    if (!imported) throw new Error(t("noMatchingModelFilesFoundChooseTheListed"));
     return imported;
   });
 }
@@ -122,10 +123,10 @@ async function downloadFile(cache: Cache, file: ModelFile, signal: AbortSignal, 
       resetTimeout();
       const response = await fetch(file.url, { credentials: "omit", cache: "no-store", signal: controller.signal,
         headers: offset ? { Range: `bytes=${offset}-` } : {} });
-      if (!response.ok || !response.body) throw new Error(`模型下载失败（${response.status}）。`);
+      if (!response.ok || !response.body) throw new Error(t("modelDownloadFailed", response.status));
       if (response.status === 206) {
         const range = /^bytes (\d+)-(\d+)\/(\d+)$/.exec(response.headers.get("content-range") ?? "");
-        if (!range || Number(range[1]) !== offset || Number(range[3]) !== file.bytes) throw new Error("模型续传响应不匹配。");
+        if (!range || Number(range[1]) !== offset || Number(range[3]) !== file.bytes) throw new Error(t("theServerResponseDoesNotMatchTheRequested"));
       } else { offset = saved = 0; }
       reader = response.body.getReader();
       while (true) {
@@ -133,7 +134,7 @@ async function downloadFile(cache: Cache, file: ModelFile, signal: AbortSignal, 
         const { done, value } = await reader.read();
         if (done) break;
         signal.throwIfAborted();
-        if (offset + value.length > file.bytes) throw new Error("模型下载大小不匹配。");
+        if (offset + value.length > file.bytes) throw new Error(t("modelDownloadSizeMismatch"));
         bytes.set(value, offset);
         offset += value.length;
         progress(offset);
@@ -147,7 +148,7 @@ async function downloadFile(cache: Cache, file: ModelFile, signal: AbortSignal, 
       }
     }
     signal.throwIfAborted();
-    if (offset !== file.bytes) throw new Error("模型下载中断，已保留可续传的数据。");
+    if (offset !== file.bytes) throw new Error(t("modelDownloadInterruptedDownloadedDataWasKeptFor"));
     try { await storeFile(cache, file, bytes.buffer); }
     catch (error) { await deleteParts(cache, file); throw error; }
   } finally {
@@ -176,7 +177,7 @@ export async function readLocalModel(id: string): Promise<Record<string, ArrayBu
   const buffers: Record<string, ArrayBuffer> = {};
   for (const file of model.files) {
     const response = await completeFile(cache, file);
-    if (!response) throw new Error(`请先在设置中下载或导入「${model.label}」模型。翻译不会自动下载模型。`);
+    if (!response) throw new Error(t("downloadOrImportTheModelInSettingsFirst", model.label));
     const buffer = await response.arrayBuffer();
     try { await verifyModelBytes(file, buffer); }
     catch (error) { await cache.delete(fileKey(file)); throw error; }

@@ -1,3 +1,4 @@
+import { t, htmlMessage } from "../shared/i18n";
 import { uiIconMarkup } from "../shared/ui-icons";
 import { setHtmlContent } from "../shared/html";
 import type {
@@ -117,17 +118,18 @@ export function initFloatingBall(): void {
 
   const hitbox = document.createElement("div");
   hitbox.id = FLOATING_HITBOX_ID;
+  hitbox.lang = t("interfaceLanguage");
   const button = document.createElement("button");
   button.id = FLOATING_ID;
   button.type = "button";
-  button.title = floatingBallTitle("翻译全文");
-  button.setAttribute("aria-label", "翻译全文");
+  button.title = floatingBallTitle(t("translatePage"));
+  button.setAttribute("aria-label", t("translatePage"));
   button.setAttribute("aria-controls", "wupage-floating-menu");
   button.setAttribute("aria-expanded", "false");
   button.setAttribute("aria-haspopup", "dialog");
   const label = document.createElement("span");
   label.className = "wupage-floating-label";
-  label.textContent = "译";
+  label.textContent = t("translateBadge");
   button.append(label);
   button.addEventListener("selectstart", event => event.preventDefault());
   button.addEventListener("click", (event) => {
@@ -367,96 +369,97 @@ function createMenu(): void {
   if (document.getElementById("wupage-floating-menu")) return;
   const menu = document.createElement("div");
   menu.id = "wupage-floating-menu";
+  menu.lang = t("interfaceLanguage");
   menu.hidden = true;
   menu.setAttribute("role", "dialog");
-  menu.setAttribute("aria-label", "WuPage 翻译");
+  menu.setAttribute("aria-label", t("wupageTranslation"));
   setHtmlContent(menu, `
     <div class="wupage-menu-top">
     <div class="wupage-menu-header">
       <strong>WuPage</strong>
-      <button type="button" data-action="settings" aria-label="打开设置" title="打开设置">
+      <button type="button" data-action="settings" aria-label="${htmlMessage("openSettings")}" title="${htmlMessage("openSettings")}">
         ${uiIconMarkup("settings")}
       </button>
     </div>
     <div class="wupage-menu-section">
       <div class="wupage-language-pair">
         <label class="wupage-language-select">
-          <span class="wupage-visually-hidden">源语言</span>
+          <span class="wupage-visually-hidden">${htmlMessage("sourceLanguage")}</span>
           <select data-role="source-lang">
             ${SOURCE_LANGUAGES.map((language) =>
               `<option value="${language.code}">${language.label}</option>`
             ).join("")}
           </select>
-          <span class="wupage-language-value" data-role="source-lang-value" aria-hidden="true">自动检测</span>
+          <span class="wupage-language-value" data-role="source-lang-value" aria-hidden="true">${htmlMessage("detectLanguage")}</span>
           <span class="wupage-language-chevron" aria-hidden="true">${uiIconMarkup("arrow-down-03")}</span>
         </label>
         <span class="wupage-language-direction" aria-hidden="true">${uiIconMarkup("arrow-right")}</span>
         <label class="wupage-language-select">
-          <span class="wupage-visually-hidden">目标语言</span>
+          <span class="wupage-visually-hidden">${htmlMessage("targetLanguage")}</span>
           <select data-role="target-lang">
             ${TARGET_LANGUAGES.map((language) =>
               `<option value="${language.code}">${language.label}</option>`
             ).join("")}
           </select>
-          <span class="wupage-language-value" data-role="target-lang-value" aria-hidden="true">中文</span>
+          <span class="wupage-language-value" data-role="target-lang-value" aria-hidden="true">${htmlMessage("chinese")}</span>
           <span class="wupage-language-chevron" aria-hidden="true">${uiIconMarkup("arrow-down-03")}</span>
         </label>
         <div class="wupage-language-automatic">
-          <button type="button" data-action="auto-translation" class="wupage-feature-button wupage-language-auto" aria-label="自动翻译" aria-pressed="false" title="按站点或页面语言规则自动翻译">自动</button>
-          <button type="button" data-action="add-auto-site" class="wupage-language-add-site" hidden disabled aria-label="将当前网站加入自动翻译列表" title="将当前网站加入自动翻译列表">${uiIconMarkup("plus")}</button>
+          <button type="button" data-action="auto-translation" class="wupage-feature-button wupage-language-auto" aria-label="${htmlMessage("automaticTranslation")}" aria-pressed="false" title="${htmlMessage("translateAutomaticallyUsingSiteOrPageLanguageRules")}">${htmlMessage("auto")}</button>
+          <button type="button" data-action="add-auto-site" class="wupage-language-add-site" hidden disabled aria-label="${htmlMessage("addThisSiteToAutomaticTranslation")}" title="${htmlMessage("addThisSiteToAutomaticTranslation")}">${uiIconMarkup("plus")}</button>
         </div>
       </div>
     </div>
     <label class="wupage-menu-field">
-      <span class="wupage-field-label">翻译服务</span>
+      <span class="wupage-field-label">${htmlMessage("translationService")}</span>
       <span class="wupage-provider-select">
-        <select data-role="provider" aria-label="翻译服务" hidden></select>
+        <select data-role="provider" aria-label="${htmlMessage("translationService")}" hidden></select>
       </span>
     </label>
     </div>
     <label class="wupage-menu-field" data-touch-extra>
-      <span class="wupage-field-label" id="wupage-display-mode-label">翻译模式</span>
+      <span class="wupage-field-label" id="wupage-display-mode-label">${htmlMessage("displayMode")}</span>
       <select data-role="display-mode" aria-labelledby="wupage-display-mode-label">
         ${TRANSLATION_DISPLAY_MODES.map((mode) =>
           `<option value="${mode.value}">${mode.label}</option>`
         ).join("")}
       </select>
     </label>
-    <div class="wupage-feature-buttons" role="group" aria-label="翻译功能">
-      <button type="button" data-action="context-menu-translation" data-touch-extra class="wupage-feature-button" aria-pressed="false" title="右键点击网页，通过菜单翻译全文或恢复原文">
-        <span>右键翻译</span>
+    <div class="wupage-feature-buttons" role="group" aria-label="${htmlMessage("translationFeatures")}">
+      <button type="button" data-action="context-menu-translation" data-touch-extra class="wupage-feature-button" aria-pressed="false" title="${htmlMessage("rightClickAPageToTranslateItOr")}">
+        <span>${htmlMessage("contextMenu")}</span>
         <span class="wupage-feature-indicator" aria-hidden="true"></span>
       </button>
-      <button type="button" data-action="close" data-touch-extra class="wupage-feature-button" aria-pressed="true" title="隐藏悬浮球，可在扩展弹窗中重新开启">
-        <span>悬浮球</span>
+      <button type="button" data-action="close" data-touch-extra class="wupage-feature-button" aria-pressed="true" title="${htmlMessage("hideTheFloatingButtonTurnItOnAgain")}">
+        <span>${htmlMessage("floatingButton")}</span>
         <span class="wupage-feature-indicator" aria-hidden="true"></span>
       </button>
-      <button type="button" data-action="selection-translation" class="wupage-feature-button" title="选中文字后显示查词或翻译入口">
-        <span>划词翻译</span><span class="wupage-feature-indicator" aria-hidden="true"></span>
+      <button type="button" data-action="selection-translation" class="wupage-feature-button" title="${htmlMessage("showADictionaryOrTranslationShortcutWhenText")}">
+        <span>${htmlMessage("selectionTranslation")}</span><span class="wupage-feature-indicator" aria-hidden="true"></span>
       </button>
       <div class="image-feature" data-loading aria-busy="true">
         <div class="image-feature-row">
-          <button type="button" data-action="image-translation" class="wupage-feature-button" disabled title="开启后，点击图片旁的按钮翻译并覆盖原文" aria-describedby="wupage-ocr-description wupage-ocr-status"><span>图片翻译</span><span class="wupage-feature-indicator" aria-hidden="true"></span></button>
+          <button type="button" data-action="image-translation" class="wupage-feature-button" disabled title="${htmlMessage("useTheButtonBesideAnImageToOverlay")}" aria-describedby="wupage-ocr-description wupage-ocr-status"><span>${htmlMessage("imageTranslation")}</span><span class="wupage-feature-indicator" aria-hidden="true"></span></button>
           <div class="ocr-help-slot"></div>
-          <button type="button" class="ocr-model-action" data-role="ocr-action" aria-label="安装 OCR 模型" disabled></button>
+          <button type="button" class="ocr-model-action" data-role="ocr-action" aria-label="${htmlMessage("installOcrModels")}" disabled></button>
         </div>
         <p id="wupage-ocr-description" class="ocr-description"></p>
-        <progress data-role="ocr-progress" class="ocr-model-progress" aria-label="OCR 模型下载进度" hidden></progress>
+        <progress data-role="ocr-progress" class="ocr-model-progress" aria-label="${htmlMessage("ocrModelDownloadProgress")}" hidden></progress>
         <p id="wupage-ocr-status" class="ocr-model-status" role="status"></p>
       </div>
     </div>
     <div class="wupage-translation-actions">
-      <button type="button" data-action="page-toggle">翻译全文</button>
+      <button type="button" data-action="page-toggle">${htmlMessage("translatePage")}</button>
       <button type="button" data-action="paragraph-mode" class="wupage-feature-button" aria-pressed="false" aria-describedby="wupage-paragraph-mode-hint">
-        <span>段落翻译</span><span class="wupage-feature-indicator" aria-hidden="true"></span>
+        <span>${htmlMessage("paragraphTranslation")}</span><span class="wupage-feature-indicator" aria-hidden="true"></span>
       </button>
     </div>
-    <p id="wupage-paragraph-mode-hint" class="wupage-menu-hint" hidden>所有网页生效；按住 Ctrl 点击段落翻译，再次点击恢复原文。</p>
-    <button type="button" data-action="more" class="wupage-more-button" aria-expanded="false" hidden><span>更多功能</span>${uiIconMarkup("arrow-down-03")}</button>
+    <p id="wupage-paragraph-mode-hint" class="wupage-menu-hint" hidden>${htmlMessage("onAnyPageHoldCtrlAndClickA")}</p>
+    <button type="button" data-action="more" class="wupage-more-button" aria-expanded="false" hidden><span>${htmlMessage("moreFeatures")}</span>${uiIconMarkup("arrow-down-03")}</button>
     <div class="wupage-translation-feedback">
-      <p data-role="translation-status" role="status" aria-live="polite" aria-atomic="true">点击悬浮球即可翻译全文</p>
-      <button type="button" data-action="retranslate" hidden>重新翻译</button>
-      <button type="button" data-action="doubao-settings" hidden>豆包登录与检测</button>
+      <p data-role="translation-status" role="status" aria-live="polite" aria-atomic="true">${htmlMessage("clickTheFloatingButtonToTranslateThePage")}</p>
+      <button type="button" data-action="retranslate" hidden>${htmlMessage("translateAgain")}</button>
+      <button type="button" data-action="doubao-settings" hidden>${htmlMessage("doubaoSignInAndConnectionCheck")}</button>
     </div>
   `);
   const pointerMedia = window.matchMedia?.(TOUCH_INPUT_QUERY);
@@ -496,7 +499,7 @@ function createMenu(): void {
     if (action === "more") {
       const expanded = menu.toggleAttribute("data-more-open");
       target.setAttribute("aria-expanded", String(expanded));
-      target.querySelector("span")!.textContent = expanded ? "收起更多" : "更多功能";
+      target.querySelector("span")!.textContent = expanded ? t("showLess") : t("moreFeatures");
       const ball = document.getElementById(FLOATING_ID);
       if (ball) positionMenu(menu, ball);
       return;
@@ -722,7 +725,7 @@ function applyMenuSettings(menu: HTMLElement, settings: ExtensionSettings): void
       providerSelect.dataset.options = signature;
     }
     if (!providers.some((provider) => provider.id === settings.activeProviderId)) {
-      const unavailable = new Option("当前服务不可用，请选择其他服务", settings.activeProviderId);
+      const unavailable = new Option(t("currentServiceUnavailableChooseAnotherService"), settings.activeProviderId);
       unavailable.disabled = true;
       providerSelect.prepend(unavailable);
       delete providerSelect.dataset.options;
@@ -959,7 +962,7 @@ export function refreshTranslationState(): void {
   const translationEnabled = state.active || translated;
   refreshPageContextState(translationEnabled);
   // Incremental batches change progress, but the action remains restoring the original.
-  const actionLabel = busy || translationEnabled ? "显示原文" : "翻译全文";
+  const actionLabel = busy || translationEnabled ? t("showOriginal") : t("translatePage");
   const ball = document.getElementById(FLOATING_ID);
   ball?.classList.toggle("wupage-is-loading", busy || translating);
   ball?.setAttribute("aria-busy", String(busy));
@@ -967,7 +970,7 @@ export function refreshTranslationState(): void {
   ball?.setAttribute("aria-label", actionLabel);
   if (ball) ball.title = floatingBallTitle(actionLabel);
   const label = ball?.querySelector(".wupage-floating-label");
-  const ballLabel = busy || translationEnabled ? "原" : "译";
+  const ballLabel = busy || translationEnabled ? t("originalBadge") : t("translateBadge");
   if (label && label.textContent !== ballLabel) label.textContent = ballLabel;
 
   const menu = document.getElementById("wupage-floating-menu");
@@ -978,7 +981,7 @@ export function refreshTranslationState(): void {
   const recovery = menu.querySelector<HTMLButtonElement>("[data-action='doubao-settings']");
   if (recovery) {
     recovery.hidden = menu.dataset.doubaoProvider !== "true";
-    recovery.textContent = errorCode === "login-required" ? "去设置登录豆包并检测" : "豆包登录与检测";
+    recovery.textContent = errorCode === "login-required" ? t("openSettingsToSignInToDoubaoAnd") : t("doubaoSignInAndConnectionCheck");
   }
   const pageToggle = menu.querySelector<HTMLButtonElement>("[data-action='page-toggle']");
   if (pageToggle) {
@@ -989,7 +992,7 @@ export function refreshTranslationState(): void {
   if (retry) {
     retry.hidden = !translationEnabled && state.failed === 0 && !state.error && !menuError;
     retry.disabled = busy || retrySeconds > 0;
-    const retryLabel = retrySeconds > 0 ? `等待 ${retrySeconds} 秒后重试` : state.failed > 0 || state.error || menuError ? "重试翻译" : "重新翻译";
+    const retryLabel = retrySeconds > 0 ? t("retryInS", retrySeconds) : state.failed > 0 || state.error || menuError ? t("retryTranslation") : t("translateAgain");
     if (retry.textContent !== retryLabel) retry.textContent = retryLabel;
   }
   const status = menu.querySelector<HTMLElement>("[data-role='translation-status']");
@@ -997,17 +1000,17 @@ export function refreshTranslationState(): void {
     status.dataset.tone = menuError || state.error || state.failed > 0 ? "error" : "normal";
     let message = menuError
       ?? (busy
-        ? `正在翻译当前区域${state.translated ? `，已完成 ${state.translated} 段` : ""}，点击「原」可停止并恢复原文。`
+        ? t("translatingThisAreaClickSrcToStopAnd", state.translated ? t("paragraphsCompleted", state.translated) : "")
         : state.failed > 0
-          ? `已翻译 ${state.translated} 段，失败 ${state.failed} 段。${state.error ?? "请重试。"}`
-          : state.error ? `翻译未完成：${state.error}` : state.translated > 0
-            ? `已翻译 ${state.translated} 段${state.cached ? ` · 缓存命中 ${state.cached} 段` : ""}。滚动页面继续翻译。`
+          ? t("translatedFailed", state.translated, state.failed, state.error ?? t("tryAgain"))
+          : state.error ? t("translationIncomplete", state.error) : state.translated > 0
+            ? t("paragraphsTranslatedScrollToContinue", state.translated, state.cached ? t("cacheHits", state.cached) : "")
             : translated
-              ? "已显示译文，点击悬浮球可恢复原文。"
+              ? t("translationShownClickTheFloatingButtonToRestore")
               : state.active
-                ? "当前区域暂无可翻译内容，滚动页面将继续翻译。"
-                : "点击悬浮球即可翻译全文。");
-    if (retrySeconds > 0) message += ` 请等待约 ${retrySeconds} 秒后再试。`;
+                ? t("noTextToTranslateInThisAreaScroll")
+                : t("floatingIdleHint"));
+    if (retrySeconds > 0) message += t("waitAboutSecondsBeforeTryingAgain", retrySeconds);
     if (status.textContent !== message) status.textContent = message;
   }
   if (!menu.hidden && retrySeconds > 0) retryStatusTimer = setTimeout(refreshTranslationState, Math.min(retryAt - Date.now() + 10, 1000));
@@ -1016,7 +1019,7 @@ export function refreshTranslationState(): void {
 
 function floatingBallTitle(action: string): string {
   const touch = touchInteraction || window.matchMedia?.("(hover: none) and (pointer: coarse)").matches;
-  return `${touch ? "轻点" : "单击"}${action} · ${touch ? "长按" : "悬停"}打开菜单 · 拖动调整位置`;
+  return t("toOpenMenuDragToMove", touch ? t("tap") : t("click"), action, touch ? t("longPress") : t("hover"));
 }
 
 function showMenuError(error: unknown): void {
@@ -1052,14 +1055,15 @@ export async function openDebugPanel(): Promise<void> {
 
   const panel = document.createElement("section");
   panel.id = DEBUG_PANEL_ID;
+  panel.lang = t("interfaceLanguage");
   setHtmlContent(panel, `
     <header>
       <strong>Debug</strong>
-      <button type="button" data-action="close-debug" title="关闭" aria-label="关闭 Debug 面板">${uiIconMarkup("cross")}</button>
+      <button type="button" data-action="close-debug" title="${htmlMessage("close")}" aria-label="${htmlMessage("closeDebugPanel")}">${uiIconMarkup("cross")}</button>
     </header>
-    <div class="wupage-debug-summary">正在读取任务...</div>
+    <div class="wupage-debug-summary">${htmlMessage("loadingTasks")}</div>
     <div class="wupage-debug-list"></div>
-    <div class="wupage-debug-resize" title="调整窗口大小" aria-label="调整 Debug 窗口大小"></div>
+    <div class="wupage-debug-resize" title="${htmlMessage("resizeWindow")}" aria-label="${htmlMessage("resizeDebugWindow")}"></div>
   `);
   const header = panel.querySelector("header");
   const resizeHandle = panel.querySelector<HTMLElement>(".wupage-debug-resize");
@@ -1192,22 +1196,22 @@ async function refreshDebugPanel(panel: HTMLElement): Promise<void> {
     const snapshot = await sendRuntimeRequest<TranslationDebugSnapshot>({
       type: "GET_TRANSLATION_DEBUG"
     } satisfies RuntimeRequest);
-    summary.textContent = `执行中 ${snapshot.activeCount} · 排队 ${snapshot.queuedCount} · 最近 ${snapshot.tasks.length}`;
+    summary.textContent = t("runningQueuedRecent", snapshot.activeCount, snapshot.queuedCount, snapshot.tasks.length);
     list.replaceChildren(...snapshot.tasks.slice(0, 30).map(renderDebugTask));
     if (snapshot.frames?.length) {
       const frames = document.createElement("details");
       frames.className = "wupage-debug-task";
       const title = document.createElement("summary");
-      title.textContent = `页面文档 ${snapshot.frames.length}`;
+      title.textContent = t("pageDocuments", snapshot.frames.length);
       frames.append(title);
-      const labels = { ready: "就绪", loading: "接入中", translating: "翻译中", "waiting-viewport": "等待滚动或显示",
-        empty: "没有可翻译正文", excluded: "已排除", unavailable: "无法访问", failed: "翻译失败" };
+      const labels = { ready: t("ready"), loading: t("connecting"), translating: t("translating"), "waiting-viewport": t("waitingToScrollIntoView"),
+        empty: t("noTranslatableText"), excluded: t("excluded"), unavailable: t("unavailable"), failed: t("translationFailed") };
       for (const frame of snapshot.frames) {
         const row = document.createElement("p");
-        row.textContent = `${frame.frameId === 0 ? "主页面" : "嵌入页面"} · ${labels[frame.status]} · ${frame.url.slice(0, 240)}${frame.reason ? ` · ${frame.reason}` : ""}`;
+        row.textContent = `${frame.frameId === 0 ? t("mainPage") : t("embeddedPage")} · ${labels[frame.status]} · ${frame.url.slice(0, 240)}${frame.reason ? ` · ${frame.reason}` : ""}`;
         if (frame.frameId !== 0 && /^https?:/u.test(frame.url) && isLikelyPdfUrl(frame.url)) {
           const open = document.createElement("button");
-          open.type = "button"; open.textContent = "翻译此 PDF";
+          open.type = "button"; open.textContent = t("translateThisPdf");
           open.addEventListener("click", () => { void sendRuntimeRequest({ type: "OPEN_EMBEDDED_PDF", url: frame.url }).catch(() => {}); });
           row.append(" ", open);
         }
@@ -1218,7 +1222,7 @@ async function refreshDebugPanel(panel: HTMLElement): Promise<void> {
     if (!snapshot.tasks.length) {
       const empty = document.createElement("div");
       empty.className = "wupage-debug-empty";
-      empty.textContent = "暂无任务";
+      empty.textContent = t("noTasks");
       list.append(empty);
     }
   } catch (error) {
@@ -1250,7 +1254,7 @@ function renderDebugTask(task: TranslationDebugTask): HTMLElement {
   const meta = document.createElement("div");
   meta.className = "wupage-debug-task-meta";
   meta.textContent =
-    `${task.textCount} 段 · ${task.charCount} 字符 · ${task.sourceLang ?? "auto"} -> ${task.targetLang ?? "-"} · ${formatTaskTime(task)}`;
+    t("segmentsCharacters", task.textCount, task.charCount, task.sourceLang ?? "auto", task.targetLang ?? "-", formatTaskTime(task));
 
   item.append(title, meta);
   item.append(renderDebugDetails(task));
@@ -1262,12 +1266,12 @@ function renderDebugDetails(task: TranslationDebugTask): HTMLElement {
   details.className = "wupage-debug-task-detail";
   if (task.chunkSize || task.concurrency) {
     const performance = document.createElement("p");
-    performance.textContent = `性能：分块 ${task.chunkSize ?? "-"} · 并发 ${task.concurrency ?? "-"} · ${task.performanceMode === "custom" ? "服务商覆盖" : "继承通用"}`;
+    performance.textContent = t("performanceChunkSizeConcurrency", task.chunkSize ?? "-", task.concurrency ?? "-", task.performanceMode === "custom" ? t("serviceOverride") : t("generalSettings"));
     details.append(performance);
   }
-  details.append(renderDebugTextBlock("请求文本", task.sourceTexts));
+  details.append(renderDebugTextBlock(t("requestText"), task.sourceTexts));
   if (task.translatedTexts?.length) {
-    details.append(renderDebugTextBlock("翻译结果", task.translatedTexts));
+    details.append(renderDebugTextBlock(t("translationResults"), task.translatedTexts));
   }
   if (task.error) {
     const error = document.createElement("div");
@@ -1287,7 +1291,7 @@ function renderDebugTextBlock(label: string, values: string[] | undefined): HTML
 
   if (!values?.length) {
     const empty = document.createElement("p");
-    empty.textContent = "无";
+    empty.textContent = t("none");
     block.append(empty);
     return block;
   }
@@ -1302,14 +1306,14 @@ function renderDebugTextBlock(label: string, values: string[] | undefined): HTML
 
 function formatTaskStatus(task: TranslationDebugTask): string {
   if (task.status === "waiting" && task.waitUntil) {
-    return `等待 ${Math.max(0, Math.ceil((task.waitUntil - Date.now()) / 1000))}s`;
+    return t("waitS", Math.max(0, Math.ceil((task.waitUntil - Date.now()) / 1000)));
   }
   const labels: Record<TranslationDebugTask["status"], string> = {
-    queued: "排队",
-    waiting: "等待",
-    running: "执行中",
-    succeeded: "完成",
-    failed: "失败"
+    queued: t("queued"),
+    waiting: t("waiting"),
+    running: t("running"),
+    succeeded: t("done"),
+    failed: t("failed")
   };
   return labels[task.status];
 }
@@ -1415,7 +1419,7 @@ function updateAutoTranslationSiteButton(menu: HTMLElement, value: ExtensionSett
   add.disabled = !pattern || automatic.getAttribute("aria-busy") === "true" || add.getAttribute("aria-busy") === "true";
   setHtmlContent(add, uiIconMarkup(added ? "tick" : "plus"));
   add.setAttribute("aria-pressed", String(added));
-  const label = !pattern ? "请切换到普通网页后再添加网站" : added ? `将 ${pattern} 排除自动翻译` : `将 ${pattern} 加入自动翻译列表`;
+  const label = !pattern ? t("switchToAWebPageToAddA") : added ? t("excludeFromAutomaticTranslation", pattern) : t("addToAutomaticTranslation", pattern);
   add.title = label;
   add.setAttribute("aria-label", label);
 }
@@ -1486,9 +1490,9 @@ function syncParagraphModeButton(menu: HTMLElement): void {
   if (button) {
     const pressed = String(!touch && paragraphMode);
     if (button.getAttribute("aria-pressed") !== pressed) button.setAttribute("aria-pressed", pressed);
-    const label = button.querySelector("span")!, text = touch ? "点选段落" : "段落翻译";
+    const label = button.querySelector("span")!, text = touch ? t("tapAParagraph") : t("paragraphTranslation");
     if (label.textContent !== text) label.textContent = text;
-    const title = touch ? "点选一个正文段落，翻译后自动退出" : "开启段落翻译模式";
+    const title = touch ? t("tapAParagraphToTranslateItAndExit") : t("enableParagraphTranslation");
     if (button.title !== title) button.title = title;
   }
   const hint = menu.querySelector<HTMLElement>(".wupage-menu-hint");

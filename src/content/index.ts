@@ -1,3 +1,4 @@
+import { initializeInterfaceLanguage, t } from "../shared/i18n";
 import type { ExtensionSettings, RuntimeRequest, RuntimeResponse } from "../shared/types";
 import { hasPageTranslations, refreshTranslationColors } from "./dom";
 import {
@@ -32,14 +33,15 @@ import { startTouchParagraph } from "./touch-paragraph";
 
 let pageActionVersion = 0;
 const supported = supportsHtmlContent();
+const languageReady = supported ? initializeInterfaceLanguage() : undefined;
 
 addRuntimeMessageListener((request: RuntimeRequest, _sender, sendResponse) => {
   if (request.type.startsWith("FRAME_")) return;
-  if (!supported) {
-    sendResponse({ ok: false, error: "此页面不支持翻译，请切换到普通网页。" });
-    return;
+  if (!languageReady) {
+    void initializeInterfaceLanguage().then(() => sendResponse({ ok: false, error: t("switchToARegularWebPageToTranslate") }));
+    return true;
   }
-  handleMessage(request)
+  languageReady.then(() => handleMessage(request))
     .then((data): RuntimeResponse => ({ ok: true, data }))
     .catch((error: unknown): RuntimeResponse => ({
       ok: false,
@@ -50,7 +52,7 @@ addRuntimeMessageListener((request: RuntimeRequest, _sender, sendResponse) => {
   return true;
 });
 
-if (supported) initializeContent();
+if (languageReady) void languageReady.then(initializeContent);
 
 function initializeContent(): void {
   initializeFeature("styles", injectContentStyles);

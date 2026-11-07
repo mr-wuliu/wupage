@@ -1,3 +1,4 @@
+import { t } from "../shared/i18n";
 import { componentShadowRoot, composedParent } from "./dom-roots";
 
 const OWNED = "#wupage-selection-tools,#wupage-floating-hitbox,#wupage-floating-menu,#wupage-debug-panel,#wupage-image-tools,#wupage-touch-paragraph,#wupage-touch-hint";
@@ -104,14 +105,14 @@ export function selectionSourceUnchanged(source: SelectionSource): boolean {
 
 /** Prefer a browser edit so native undo and framework input handlers see the same operation as typing. */
 export function replaceSelectionSource(source: SelectionSource, translation: string): void {
-  const changed = () => new Error("原文已变化，请重新选择后翻译。");
+  const changed = () => new Error(t("theSourceTextHasChangedSelectItAgain"));
   if (!selectionSourceUnchanged(source)) throw changed();
   const element = source.kind === "control" ? source.element : source.editor!;
   let text = (source.text.match(/^\s*/u)?.[0] ?? "") + translation + (source.text.match(/\s*$/u)?.[0] ?? "");
   if (element instanceof HTMLInputElement) text = text.replace(/[\r\n]+/g, " ");
   if (source.kind === "control") {
     if (source.element.maxLength >= 0 && source.value.length - (source.end - source.start) + text.length > source.element.maxLength) {
-      throw new Error("替换后的文字超出输入框长度限制。");
+      throw new Error(t("theReplacementExceedsTheInputSCharacterLimit"));
     }
   }
   element.focus({ preventScroll: true });
@@ -119,12 +120,12 @@ export function replaceSelectionSource(source: SelectionSource, translation: str
   if (source.kind === "control") source.element.setSelectionRange(source.start, source.end);
   else {
     const selection = window.getSelection();
-    if (!selection) throw new Error("无法恢复选区，请重新选择后翻译。");
+    if (!selection) throw new Error(t("couldNotRestoreTheSelectionSelectTheText"));
     selection.removeAllRanges(); selection.addRange(source.range.cloneRange());
   }
   // Let the page reject an edit, and recheck after its handlers run.
   if (!element.dispatchEvent(new InputEvent("beforeinput", { bubbles: true, composed: true, cancelable: true,
-    inputType: "insertReplacementText", data: text }))) throw new Error("此编辑器阻止了替换，请手动复制译文。");
+    inputType: "insertReplacementText", data: text }))) throw new Error(t("thisEditorBlockedReplacementCopyTheTranslationManually"));
   if (!selectionSourceUnchanged(source)) throw changed();
   if (activeElement() !== element || source.kind === "control"
     && (source.element.selectionStart !== source.start || source.element.selectionEnd !== source.end)) throw changed();
@@ -144,12 +145,12 @@ export function replaceSelectionSource(source: SelectionSource, translation: str
   } finally { element.removeEventListener("input", onInput, true); }
   const modified = source.kind === "control" ? source.element.value !== source.value : source.editor!.innerHTML !== source.markup;
   if (!modified && text !== source.text) {
-    if (executed || notified) throw new Error("网页未接受替换，请手动复制译文。");
+    if (executed || notified) throw new Error(t("thePageDeclinedTheReplacementCopyTheTranslation"));
     if (!selectionSourceUnchanged(source)) throw changed();
     if (source.kind === "control") source.element.setRangeText(text, source.start, source.end, "end");
     else {
       // Arbitrary DOM writes bypass rich editors' state and undo history.
-      throw new Error("此编辑器暂不支持替换，请手动复制译文。");
+      throw new Error(t("thisEditorDoesNotSupportReplacementCopyThe"));
     }
   }
   if (!notified) element.dispatchEvent(new InputEvent("input", { bubbles: true, composed: true, inputType: "insertReplacementText", data: text }));

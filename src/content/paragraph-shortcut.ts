@@ -1,3 +1,4 @@
+import { t } from "../shared/i18n";
 import { findTranslatableParagraph } from "./dom";
 import { translateParagraph } from "./paragraph-translation";
 import { discoverShadowRoots, queryTranslationElements } from "./dom-roots";
@@ -48,6 +49,6 @@ export async function translateShortcutParagraphs(): Promise<void> {
     const paragraph = resolveParagraph(hovered) ?? resolveParagraph(focused);
     if (paragraph) targets.add(paragraph);
   }
-  if (!targets.size) throw new Error("请将鼠标移到正文段落，或选中段落文字后再使用段落翻译快捷键。");
+  if (!targets.size) throw new Error(t("hoverOverAParagraphOrSelectItsText"));
   await Promise.all([...targets].map(target => translateParagraph(target)));
 }

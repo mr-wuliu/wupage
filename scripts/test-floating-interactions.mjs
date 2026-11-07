@@ -49,7 +49,7 @@ let context;
 try {
   context = await chromium.launchPersistentContext(path.join(output, `profile-${Date.now()}`), {
     ...(process.env.PDF_TEST_BROWSER ? { executablePath: process.env.PDF_TEST_BROWSER } : { channel: 'chromium' }),
-    headless: true, ignoreDefaultArgs: ['--disable-extensions'], args: ['--enable-unsafe-extension-debugging'],
+    headless: true, ignoreDefaultArgs: ['--disable-extensions'], args: ['--lang=zh-CN', '--enable-unsafe-extension-debugging'],
     viewport: { width: 1200, height: 850 }
   });
   const browserSession = await context.browser().newBrowserCDPSession();

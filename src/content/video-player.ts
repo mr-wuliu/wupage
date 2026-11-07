@@ -1,3 +1,4 @@
+import { t } from "../shared/i18n";
 import { VideoView } from "./video-view";
 import { VideoRequests } from "./video-requests";
 import { PlayerFrameTranslation } from "./video-frame";
@@ -94,7 +95,7 @@ export class PlayerSubtitleController {
     this.on(video, "seeked", () => { this.suppressUntil = Date.now() + 100; this.clearCaption(); });
     this.on(video, "emptied", () => this.changedVideo());
     this.on(video, "loadedmetadata", () => this.changedVideo());
-    this.on(video, "enterpictureinpicture", () => { this.clearCaption(); this.view.tell("画中画中可在原播放器查看双语字幕。"); });
+    this.on(video, "enterpictureinpicture", () => { this.clearCaption(); this.view.tell(t("inPictureInPictureBilingualSubtitlesAreAvailable")); });
     this.on(document, "fullscreenchange", () => { this.position(); this.showControls(); this.tick(); });
     this.on(window, "resize", () => { this.controlsScanned = false; this.position(); });
     this.on(container, "click", event => {
@@ -152,14 +153,14 @@ export class PlayerSubtitleController {
     const epoch = ++this.epoch;
     const controller = new AbortController(); this.controller = controller;
     this.key = mediaKey(); this.catalogue = undefined; this.loadedPageTrack = ""; this.nativeAttempts = 0;
-    this.view.setState(true, "loading", "正在读取播放器字幕…"); this.showControls();
+    this.view.setState(true, "loading", t("readingPlayerSubtitles")); this.showControls();
     try {
       const settings = await this.settingsSnapshot.read();
       if (!this.valid(epoch)) return;
       this.applySettings(settings);
       if (!this.preferences.enabled) { this.stop(); return; }
       const provider = settings.providers.find(entry => entry.id === settings.activeProviderId);
-      if (!provider || provider.enabled === false) throw new Error("请先选择可用的翻译服务。");
+      if (!provider || provider.enabled === false) throw new Error(t("chooseAnAvailableTranslationServiceFirst"));
       this.clock = setInterval(() => this.tick(), 120);
       if (this.imported && this.source === "file") this.useTimeline(() => this.imported?.cues ?? [], settings.sourceLang);
       else {
@@ -245,7 +246,7 @@ export class PlayerSubtitleController {
       const catalogue = await pageSubtitleCatalogue(this.controller?.signal);
       if (!this.valid(epoch)) return;
       if (catalogue?.key !== this.key || !catalogue.tracks.length) {
-        if (this.source.startsWith("page:")) throw new Error("字幕目录已变化。");
+        if (this.source.startsWith("page:")) throw new Error(t("theSubtitleListHasChanged"));
         return;
       }
       this.catalogue = catalogue; this.populateTracks();
@@ -255,17 +256,17 @@ export class PlayerSubtitleController {
         || catalogue.tracks.find(track => sameVideoLanguage(track.language, "en") && !track.automatic)
         || catalogue.tracks.find(track => sameVideoLanguage(track.language, "en")) || catalogue.tracks[0];
       if (!selected) {
-        if (this.source.startsWith("page:")) throw new Error("所选字幕已移除。");
+        if (this.source.startsWith("page:")) throw new Error(t("theSelectedSubtitleTrackWasRemoved"));
         return;
       }
       if (this.loadedPageTrack === selected.id) return;
       const payload = await loadPageSubtitles(selected.id, this.controller?.signal);
       if (!this.valid(epoch)) return;
-      if (payload.key !== this.key || !payload.cues.length) throw new Error("所选字幕没有返回内容。");
+      if (payload.key !== this.key || !payload.cues.length) throw new Error(t("theSelectedSubtitleTrackReturnedNoContent"));
       this.loadedPageTrack = selected.id; this.useTimeline(() => payload.cues, selected.language); this.phase = "active"; this.tick();
     } catch {
       if (this.valid(epoch) && this.source.startsWith("page:")) {
-        this.sourceError = "未能读取所选原字幕。请在网站播放器开启对应语言，或选择「跟随播放器」后重试。";
+        this.sourceError = t("couldNotReadTheSelectedTrackEnableIts");
         this.clearCaption(); throw new Error(this.sourceError);
       }
       // The rendered source continues translating when full tracks need site authorization.
@@ -274,7 +275,7 @@ export class PlayerSubtitleController {
 
   private populateTracks(): void {
     this.view.tracks([
-      ...this.nativeTracks().map((track, index) => ({ id: `native:${index}`, label: track.label || track.language || `字幕 ${index + 1}` })),
+      ...this.nativeTracks().map((track, index) => ({ id: `native:${index}`, label: track.label || track.language || t("subtitles", index + 1) })),
       ...(this.catalogue?.tracks.map(track => ({ id: `page:${track.id}`, label: track.label })) ?? []),
       ...(this.imported ? [{ id: "file", label: this.imported.name }] : [])
     ], this.source);
@@ -314,7 +315,7 @@ export class PlayerSubtitleController {
         && Date.now() - this.lastCatalogue > (this.platform.id === "youtube" ? 3500 : 20_000)) void this.readPageTrack(this.epoch);
       this.paint();
     } catch (error) {
-      this.phase = "error"; this.state(error instanceof Error ? error.message : "字幕暂不可用，请重试。");
+      this.phase = "error"; this.state(error instanceof Error ? error.message : t("subtitlesTemporarilyUnavailableTryAgain"));
     }
   }
 
@@ -329,16 +330,16 @@ export class PlayerSubtitleController {
     const shown = this.view.render(value.source, value.translation, this.preferences, progress);
     this.hideNative(!!shown.translation || !!shown.source);
     this.renderNativeFullscreen(shown.source, shown.translation);
-    if (error) { this.phase = "error"; this.state(`翻译暂不可用：${error}`); }
+    if (error) { this.phase = "error"; this.state(t("translationTemporarilyUnavailable", error)); }
     else if (!value.source && Date.now() - this.started > 2500 && !this.loadedPageTrack && (!this.timeline || !this.timelineHasCues)) {
-      const message = this.timeline ? "原字幕尚未就绪，请先在播放器开启字幕，或选择其他原字幕语言。"
-        : this.platform?.id === "bilibili" ? "请先在播放器开启字幕。部分字幕需要登录后才能使用。" : "请先开启播放器的 CC / 字幕，播放后会自动翻译。";
+      const message = this.timeline ? t("sourceSubtitlesAreNotReadyEnableThemIn")
+        : this.platform?.id === "bilibili" ? t("enableSubtitlesInThePlayerSomeTracksRequire") : t("enableCcOrSubtitlesInThePlayerTranslation");
       if (this.phase !== "waiting") this.view.tell(message);
       this.phase = "waiting"; this.state(message);
     } else if (this.phase !== "loading") {
       this.phase = "active";
       const target = TARGET_LANGUAGES.find(language => language.code === this.settings?.targetLang)?.label ?? this.settings?.targetLang;
-      this.state(`${this.platform?.label ?? "视频字幕"} · ${target} · ${this.video.paused ? "已暂停" : "翻译中"}`);
+      this.state(`${this.platform?.label ?? t("videoSubtitles")} · ${target} · ${this.video.paused ? t("paused") : t("translating")}`);
     }
   }
 
@@ -347,7 +348,7 @@ export class PlayerSubtitleController {
       if (this.nativeFullscreenTrack) this.nativeFullscreenTrack.mode = "disabled";
       return;
     }
-    if (!this.nativeFullscreenTrack) this.nativeFullscreenTrack = this.video.addTextTrack("subtitles", "WuPage 双语", this.settings?.targetLang);
+    if (!this.nativeFullscreenTrack) this.nativeFullscreenTrack = this.video.addTextTrack("subtitles", t("wupageBilingual"), this.settings?.targetLang);
     const track = this.nativeFullscreenTrack;
     const original = this.preferences.showOriginal && source !== translation ? source : "";
     const text = translation ? (this.preferences.originalPosition === "below" ? [translation, original] : [original, translation]).filter(Boolean).join("\n") : source;
@@ -380,10 +381,10 @@ export class PlayerSubtitleController {
 
   private clearCaption(): void { this.view.render("", "", this.preferences); this.hideNative(false); this.renderNativeFullscreen("", ""); }
   private state(message: string): void {
-    if (message.includes("API key is required")) message = "当前服务需要 API 密钥。请在 WuPage 设置中填写，或选择已配置的翻译服务。";
-    else if (message.includes("Extension context invalidated")) message = "扩展已更新或重新加载，请刷新视频页后继续。";
+    if (message.includes(t("apiKeyRequired")) || message.includes("API key is required")) message = t("thisServiceRequiresAnApiKeyEnterIt");
+    else if (message.includes("Extension context invalidated")) message = t("theExtensionWasUpdatedOrReloadedRefreshThe");
     else if (/message (?:channel|port) closed|Receiving end does not exist|No response from extension runtime/u.test(message)) {
-      message = "扩展连接已中断，请点击「重试读取」；如果刚更新过扩展，请刷新视频页。";
+      message = t("theExtensionDisconnectedChooseRetrySubtitlesIfYou");
     }
     this.view.setState(this.enabled, this.phase, message);
     if (this.phase === "error" && this.reportedError !== message) { this.reportedError = message; this.view.setPanel(true); }
@@ -423,7 +424,7 @@ export class PlayerSubtitleController {
   private save(patch: Partial<ExtensionSettings>, preferences?: Partial<VideoTranslationSettings>, layout?: VideoSubtitleLayout): Promise<void> {
     const pending = this.saveQueue.then(async () => {
       const latest = await this.settingsSnapshot.read();
-      if (this.disposed) throw new Error("播放器已关闭。");
+      if (this.disposed) throw new Error(t("thePlayerHasClosed"));
       const videoSettings = normalizeVideoTranslation(latest.videoTranslation);
       const settings = { ...latest, ...patch,
         ...(preferences || layout ? { videoTranslation: { ...videoSettings, ...preferences, ...(layout ? {
@@ -436,18 +437,18 @@ export class PlayerSubtitleController {
       await sendRuntimeRequest({ type: "SAVE_SETTINGS", settings, previousSettings: latest });
       if (!this.disposed && revision === this.settingsRevision) { this.settingsSnapshot.receive(settings); this.receiveSettings(settings); }
     });
-    this.saveQueue = pending.catch(error => { if (!this.disposed) this.view.tell(`设置未保存：${error instanceof Error ? error.message : String(error)}`); });
+    this.saveQueue = pending.catch(error => { if (!this.disposed) this.view.tell(t("settingsCouldNotBeSaved", error instanceof Error ? error.message : String(error))); });
     return pending;
   }
 
   private async importFile(file: File): Promise<void> {
     const key = mediaKey();
     try {
-      if (file.size > MAX_SUBTITLE_FILE_BYTES) throw new Error("字幕文件不能超过 2 MiB。");
+      if (file.size > MAX_SUBTITLE_FILE_BYTES) throw new Error(t("subtitleFilesMustBe2MibOrSmaller"));
       const cues = parseSubtitles(await file.text());
       if (this.disposed || key !== mediaKey()) return;
       this.imported = { name: file.name, cues }; this.source = "file"; this.populateTracks();
-      this.view.setPanel(false); this.view.tell(`已载入 ${cues.length} 条字幕`); await this.start();
+      this.view.setPanel(false); this.view.tell(t("loadedSubtitleCues", cues.length)); await this.start();
     } catch (error) { this.view.tell(error instanceof Error ? error.message : String(error)); }
   }
 
@@ -489,7 +490,7 @@ export class PlayerSubtitleController {
 
   stop(): void {
     this.resumeOnReplacement = false; this.enabled = false; this.epoch++; this.clearSession(); this.phase = "idle";
-    this.state("点击播放器上的「译」即可开启字幕翻译。"); this.showControls();
+    this.state(t("clickTrOnThePlayerToEnableSubtitle")); this.showControls();
   }
 
   private clearSession(restoreNative = true): void {

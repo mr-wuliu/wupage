@@ -1,3 +1,4 @@
+import { t } from "../shared/i18n";
 import { applyPopupMenuLayout, DEFAULT_POPUP_MENU, isPopupMenuLink, normalizePopupMenu, POPUP_MENU_GROUPS, POPUP_MENU_ITEMS,
   type PopupMenuItem, type PopupMenuLayout } from "../shared/popup-menu";
 import { uiIconMarkup } from "../shared/ui-icons";
@@ -25,18 +26,19 @@ export function setupPopupMenuControls(root: HTMLElement): { render: (value: unk
     section.append(heading, items); list.append(section);
     for (const item of POPUP_MENU_ITEMS.filter(item => item.group === group.id)) {
       const button = document.createElement("button"); button.type = "button";
+      button.dataset.dropLabel = t("dropHere");
       button.dataset.popupMenuItem = item.id; button.textContent = item.label;
       const removeIcon = document.createElement("span"); removeIcon.className = "menu-preview-remove";
       removeIcon.setAttribute("aria-hidden", "true"); removeIcon.innerHTML = uiIconMarkup("cross"); button.append(removeIcon);
-      button.setAttribute("aria-label", `移除${item.label}`);
-      button.title = isPopupMenuLink(item.id) ? `点击移除${item.label}；链接固定在底部` : `点击移除${item.label}；拖动或按 Alt + 方向键排序`;
+      button.setAttribute("aria-label", t("remove", item.label));
+      button.title = isPopupMenuLink(item.id) ? t("clickToRemoveLinksStayAtTheBottom", item.label) : t("clickToRemoveDragOrPressAltAnd", item.label);
       button.setAttribute("aria-describedby", "popupMenuKeyboardHint");
       if (item.group === "features" || item.id === "paragraphMode") button.className = "menu-preview-feature";
       if (item.id === "pageToggle") button.className = "menu-preview-primary";
       if (item.group === "links") button.className = "menu-preview-link";
       buttons.set(item.id, button); (isPopupMenuLink(item.id) ? footer : grid).append(button);
       const add = document.createElement("button"); add.type = "button"; add.dataset.menuAdd = item.id;
-      add.className = "menu-library-button"; add.setAttribute("aria-label", `添加${item.label}`);
+      add.className = "menu-library-button"; add.setAttribute("aria-label", t("addMenuItem", item.label));
       const plus = document.createElement("span"); plus.className = "menu-library-add-icon";
       plus.innerHTML = uiIconMarkup("plus"); plus.setAttribute("aria-hidden", "true");
       add.append(document.createTextNode(item.label), plus); items.append(add); available.set(item.id, add);
@@ -49,7 +51,7 @@ export function setupPopupMenuControls(root: HTMLElement): { render: (value: unk
         }
         draft = normalizePopupMenu(draft);
         paint(); button.focus({ preventScroll: true });
-        status.textContent = `已添加${item.label}，保存后生效。`;
+        status.textContent = t("addedSaveToApply", item.label);
       });
       button.addEventListener("click", event => {
         if (suppressClick) { event.preventDefault(); return; }
@@ -65,14 +67,14 @@ export function setupPopupMenuControls(root: HTMLElement): { render: (value: unk
           : from + (["ArrowLeft", "ArrowUp"].includes(event.key) ? -1 : 1);
         if (to < 0 || to >= ids.length || from === to) return;
         move(item.id, ids[to]); button.focus({ preventScroll: true });
-        status.textContent = `已移动${item.label}，保存后生效。`;
+        status.textContent = t("movedSaveToApply", item.label);
       });
     }
   }
 
   function remove(id: PopupMenuItem): void {
     draft = normalizePopupMenu({ ...draft, hidden: [...draft.hidden, id] }); paint(); available.get(id)!.focus({ preventScroll: true });
-    status.textContent = `已移除${label(id)}，可从右侧重新添加。保存后生效。`;
+    status.textContent = t("removedAddItAgainFromTheListSave", label(id));
   }
 
   function paint(): void {
@@ -159,7 +161,7 @@ export function setupPopupMenuControls(root: HTMLElement): { render: (value: unk
     if (cancel) { draft = normalizePopupMenu({ ...draft, rows: state.originalRows }); paint(); }
     suppressClick = true; setTimeout(() => { suppressClick = false; }, 0);
     buttons.get(state.id)!.focus({ preventScroll: true });
-    status.textContent = cancel ? "已取消拖动。" : `已调整${label(state.id)}的位置，保存后生效。`;
+    status.textContent = cancel ? t("dragCanceled") : t("repositionedSaveToApply", label(state.id));
   }
 
   grid.addEventListener("pointerdown", event => {
@@ -182,7 +184,7 @@ export function setupPopupMenuControls(root: HTMLElement): { render: (value: unk
       const ghost = document.createElement("div"); ghost.className = `menu-drag-ghost ${button.className}`;
       ghost.textContent = label(drag.id); ghost.setAttribute("aria-hidden", "true"); ghost.style.width = `${rect.width}px`; ghost.style.height = `${rect.height}px`;
       root.append(ghost); drag.ghost = ghost; button.setAttribute("data-menu-dragging", ""); preview.setAttribute("data-menu-sorting", "");
-      status.textContent = "拖近目标位置即可吸附，松开鼠标放置。按 Esc 取消。";
+      status.textContent = t("dragNearAPositionToSnapIntoPlace");
       scrollWhileDragging();
     }
     snap();
@@ -203,7 +205,7 @@ export function setupPopupMenuControls(root: HTMLElement): { render: (value: unk
   window.addEventListener("blur", () => finish(true));
   window.addEventListener("pagehide", () => finish(true));
   root.querySelector("#resetPopupMenu")!.addEventListener("click", () => {
-    finish(true); draft = normalizePopupMenu(DEFAULT_POPUP_MENU); paint(); showActionStatus(status, "已恢复默认布局，保存后生效。");
+    finish(true); draft = normalizePopupMenu(DEFAULT_POPUP_MENU); paint(); showActionStatus(status, t("defaultLayoutRestoredSaveToApply"));
   });
   return {
     render(value) { finish(true); draft = normalizePopupMenu(value); status.textContent = ""; paint(); },

@@ -1,3 +1,4 @@
+import { t } from "../shared/i18n";
 import { DEFAULT_LOCAL_SHORTCUTS, LOCAL_BINDINGS, canonicalLocalShortcut, formatLocalShortcut, localShortcutFromEvent,
   localShortcutVariants, normalizeLocalShortcuts, type LocalBinding, type LocalShortcutSettings } from "../shared/local-shortcuts";
 import { LOCAL_SHORTCUTS, TRANSLATION_SHORTCUTS, shortcutWarning, type LocalShortcut, type ShortcutSettings } from "../shared/shortcuts";
@@ -29,7 +30,7 @@ export function setupLocalShortcutSettings(root: HTMLElement, callbacks: Callbac
       field.input.disabled = !ready;
       if (field.input instanceof HTMLInputElement) {
         field.input.value = recording === name ? "" : formatLocalShortcut(values[name], mac);
-        field.input.placeholder = recording === name ? "请按下按键…" : "未设置";
+        field.input.placeholder = recording === name ? t("pressKeys") : t("unassigned");
         field.input.dataset.recording = String(recording === name);
         field.input.parentElement!.style.setProperty("--shortcut-width", `${Math.max(10, field.input.value.length + 1)}ch`);
       } else field.input.value = values[name];
@@ -44,7 +45,7 @@ export function setupLocalShortcutSettings(root: HTMLElement, callbacks: Callbac
     const duplicate = name === "paragraph-click" ? undefined : conflict(value, name)
       ?? TRANSLATION_SHORTCUTS.find(item => overlap(global[item.name], value))?.label;
     if (duplicate) {
-      field.error.textContent = `已用于「${duplicate}」，请换一个组合。`;
+      field.error.textContent = t("alreadyUsedByChooseADifferentCombination", duplicate);
       field.input.setAttribute("aria-invalid", "true"); callbacks.status.textContent = field.error.textContent; return false;
     }
     const previous = values[name]; values[name] = value; recording = undefined;
@@ -52,7 +53,7 @@ export function setupLocalShortcutSettings(root: HTMLElement, callbacks: Callbac
     if (empty(toggle)) callbacks.setEnabled(toggle, false);
     else if (!previous && value) callbacks.setEnabled(toggle, true);
     field.input.removeAttribute("aria-invalid");
-    refresh(ready); callbacks.changed(); callbacks.status.textContent = "局部快捷键已修改，点击「保存」后生效。";
+    refresh(ready); callbacks.changed(); callbacks.status.textContent = t("featureShortcutChangedSaveToApply");
     return true;
   }
   for (const item of LOCAL_SHORTCUTS) {
@@ -64,16 +65,16 @@ export function setupLocalShortcutSettings(root: HTMLElement, callbacks: Callbac
       const field = document.createElement("div"); field.className = "shortcut-field";
       if (item.name === "floating-controls") {
         const caption = document.createElement("label"); caption.htmlFor = `shortcut-local-${binding.name}`;
-        caption.textContent = binding.name === "floating-activate" ? "翻译" : "进入菜单"; field.append(caption);
+        caption.textContent = binding.name === "floating-activate" ? t("translate") : t("openMenu"); field.append(caption);
       }
       const input = document.createElement(binding.name === "paragraph-click" ? "select" : "input");
       input.id = `shortcut-local-${binding.name}`; input.dataset.localCommand = binding.name;
-      input.setAttribute("aria-label", `${binding.label}快捷键`);
+      input.setAttribute("aria-label", t("shortcut", binding.label));
       input.setAttribute("aria-describedby", `shortcut-error-${binding.name} shortcutRecorderHelp`);
       if (input instanceof HTMLInputElement) {
         input.type = "text"; input.readOnly = true; input.autocomplete = "off"; input.spellcheck = false;
-        input.title = "点击后按下快捷键；Esc 取消，Delete 清空；也可点击「使用 Esc」绑定 Esc";
-        input.addEventListener("focus", () => { recording = binding.name; refresh(ready); callbacks.status.textContent = "按下快捷键，Esc 取消，Delete 清空。绑定 Esc 可点击旁边的「使用 Esc」。"; }, { signal: callbacks.signal });
+        input.title = t("clickAndPressTheShortcutEscCancelsAnd");
+        input.addEventListener("focus", () => { recording = binding.name; refresh(ready); callbacks.status.textContent = t("pressAShortcutEscCancelsAndDeleteClears"); }, { signal: callbacks.signal });
         input.addEventListener("blur", event => { if (event.relatedTarget === fields.get(binding.name)?.escape) return; if (recording === binding.name) { recording = undefined; refresh(ready); } }, { signal: callbacks.signal });
         input.addEventListener("keydown", event => {
           if (event.isComposing || event.keyCode === 229 || event.getModifierState("AltGraph")) return;
@@ -82,11 +83,11 @@ export function setupLocalShortcutSettings(root: HTMLElement, callbacks: Callbac
           if (event.repeat || ["Control", "Alt", "Shift", "Meta", "OS"].includes(event.key)) return;
           const plain = !event.ctrlKey && !event.altKey && !event.shiftKey && !event.metaKey;
           if (plain && event.key === "Escape") {
-            recording = undefined; input.removeAttribute("aria-invalid"); refresh(ready); input.blur(); callbacks.status.textContent = "已取消录入，原绑定保持不变。"; return;
+            recording = undefined; input.removeAttribute("aria-invalid"); refresh(ready); input.blur(); callbacks.status.textContent = t("recordingCanceledPreviousShortcutKept"); return;
           }
           const value = plain && ["Delete", "Backspace"].includes(event.key) ? "" : localShortcutFromEvent(event);
           if (value === undefined) {
-            fieldError.textContent = "请使用功能键，或 Ctrl、Alt、Command 加字母等组合键。";
+            fieldError.textContent = t("useAFunctionKeyOrCombineCtrlAlt");
             input.setAttribute("aria-invalid", "true"); return;
           }
           if (apply(binding.name, value)) input.blur();
@@ -94,17 +95,17 @@ export function setupLocalShortcutSettings(root: HTMLElement, callbacks: Callbac
       } else {
         const modifiers = ["Ctrl", "Alt", "Shift", "Meta"];
         const choices = ["", ...Array.from({ length: 15 }, (_, index) => modifiers.filter((_, bit) => (index + 1) & (1 << bit)).join("+"))];
-        for (const value of choices) { const option = document.createElement("option"); option.value = value; option.textContent = value ? `${formatLocalShortcut(value, mac)} + 点击段落` : "未设置"; input.append(option); }
+        for (const value of choices) { const option = document.createElement("option"); option.value = value; option.textContent = value ? t("clickParagraph", formatLocalShortcut(value, mac)) : t("unassigned"); input.append(option); }
         input.addEventListener("change", () => { const value = canonicalLocalShortcut(input.value, true); if (value !== undefined) apply(binding.name, value); }, { signal: callbacks.signal });
       }
       const fieldError = document.createElement("span"); fieldError.id = `shortcut-error-${binding.name}`; fieldError.className = "shortcut-error"; fieldError.setAttribute("role", "status");
       field.append(input, fieldError); group.append(field);
-      const reset = document.createElement("button"); reset.type = "button"; reset.className = "shortcut-small-button"; reset.textContent = "默认";
+      const reset = document.createElement("button"); reset.type = "button"; reset.className = "shortcut-small-button"; reset.textContent = t("default");
       reset.dataset.settingsFeedback = "";
-      reset.setAttribute("aria-label", `恢复${binding.label}默认快捷键`); group.append(reset); actions.append(group);
+      reset.setAttribute("aria-label", t("restoreDefaultShortcutFor", binding.label)); group.append(reset); actions.append(group);
       const entry: { input: typeof input; error: HTMLElement; reset: HTMLButtonElement; escape?: HTMLButtonElement } = { input, error: fieldError, reset };
       if (input instanceof HTMLInputElement) {
-        const escape = document.createElement("button"); escape.type = "button"; escape.textContent = "使用 Esc"; escape.className = "shortcut-small-button"; escape.hidden = true;
+        const escape = document.createElement("button"); escape.type = "button"; escape.textContent = t("useEsc"); escape.className = "shortcut-small-button"; escape.hidden = true;
         escape.dataset.localEscape = binding.name;
         // Keep the recorder active while clicking this explicit special-key binding.
         escape.addEventListener("pointerdown", event => event.preventDefault(), { signal: callbacks.signal });

@@ -1,3 +1,4 @@
+import { initializeInterfaceLanguage, t } from "../shared/i18n";
 import type { RuntimeRequest, RuntimeResponse } from "../shared/types";
 import type { FrameDocumentIdentity, FrameSessionSnapshot } from "../shared/frame-session";
 import { createDocumentKey, frameExclusion } from "../shared/frame-session";
@@ -22,7 +23,7 @@ if (window !== window.top && supportsHtmlContent() && !scope.__wupageFrameBootst
   let identify: () => FrameDocumentIdentity = () => ({ documentKey });
   let current: FrameSessionSnapshot | undefined;
   let frameId: number | undefined;
-  let worker: Promise<ReturnType<typeof import("./frame-content").activateFrameContent>> | undefined;
+  let worker: ReturnType<typeof import("./frame-content").activateFrameContent> | undefined;
   let candidateObserver: MutationObserver | undefined;
   let candidateTimer: ReturnType<typeof setTimeout> | undefined;
   let lastSample = "";
@@ -31,7 +32,7 @@ if (window !== window.top && supportsHtmlContent() && !scope.__wupageFrameBootst
   const ready = Promise.all([domReady, visibility.ready]);
   const activate = () => worker ??= ready.then(async () => {
     const module = await import(/* @vite-ignore */ chrome.runtime.getURL("frame-content.js"));
-    const runtime = module.activateFrameContent(documentKey, current?.settings);
+    const runtime = await module.activateFrameContent(documentKey, current?.settings);
     identify = runtime.identify;
     runtime.paragraph(paragraphMode && !!current && allowed(current));
     return runtime;
@@ -95,7 +96,10 @@ if (window !== window.top && supportsHtmlContent() && !scope.__wupageFrameBootst
     current = request.snapshot;
     if (!worker) configureElementExclusions(current.settings.elementExclusions);
     configureCandidates();
-    if (!supported()) { respond({ ok: false, error: "此文档使用专用查看器" }); return; }
+    if (!supported()) {
+      void initializeInterfaceLanguage().then(() => respond({ ok: false, error: t("thisDocumentUsesADedicatedViewer") }));
+      return true;
+    }
     if (!worker && (!request.allowed || (!request.snapshot.active && !paragraphMode))) {
       respond({ ok: true, data: { active: false, translated: 0, cached: 0, failed: 0, remaining: 0, pending: 0 } }); return;
     }

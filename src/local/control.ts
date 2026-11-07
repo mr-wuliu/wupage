@@ -1,43 +1,44 @@
+import { t, htmlMessage } from "../shared/i18n";
 import { sendRuntimeMessage } from "../shared/messaging";
 import { importModelFiles } from "./model-store";
-import { getLocalModel, getLocalRoute, LOCAL_MODELS, LOCAL_RESOURCE_NOTICE, modelBytes, normalizeLocalLanguage, type LocalModelStatus } from "./models";
+import { getLocalModel, getLocalRoute, LOCAL_MODELS, modelBytes, normalizeLocalLanguage, type LocalModelStatus } from "./models";
 import "./control.css";
 
 const size = (bytes: number) => `${(bytes / 1_000_000).toFixed(1)} MB`;
 
 export function setupLocalModelControl(container: HTMLElement, source: string, target: string): () => void {
-  let route = "自动检测使用浏览器的本地语言识别。请预先准备可能用到的语言模型；源语言和目标语言都不是英语时，需要「源语言 → 英语」和「英语 → 目标语言」两个模型。短文本识别不准时，可手动选择源语言。";
+  let route = t("autoDetectionUsesTheBrowserSLocalLanguage");
   let selectedId = LOCAL_MODELS.find((model) => model.to === normalizeLocalLanguage(target))?.id ?? "en-zh-Hans";
   try {
     if (source !== "auto") {
       const models = getLocalRoute(source, target);
-      route = models.length ? `当前方向需要：${models.map((model) => model.label).join(" + ")}。${models.length > 1 ? "经英语中转，两个模型都需准备。" : ""}` : "源语言和目标语言相同，无需翻译。";
+      route = models.length ? t("requiredForThisDirection", models.map((model) => model.label).join(" + "), models.length > 1 ? t("translationGoesThroughEnglishAndRequiresBothModels") : "") : t("sourceAndTargetLanguagesMatchNoTranslationNeeded");
       selectedId = models[0]?.id ?? selectedId;
     }
   } catch (error) { route = error instanceof Error ? error.message : String(error); }
   container.innerHTML = `
-    <section class="local-model-control" aria-label="Firefox 本地模型">
+    <section class="local-model-control" aria-label="${htmlMessage("firefoxLocalModels")}">
       <p class="local-resource-notice"></p>
       <p class="local-route"></p>
-      <label>语言模型 <select data-local="model"></select></label>
-      <progress data-local="progress" value="0" max="1" hidden aria-label="模型下载进度"></progress>
-      <p data-local="status" role="status" aria-live="polite">正在检查本地模型…</p>
+      <label>${htmlMessage("languageModel")} <select data-local="model"></select></label>
+      <progress data-local="progress" value="0" max="1" hidden aria-label="${htmlMessage("modelDownloadProgress")}"></progress>
+      <p data-local="status" role="status" aria-live="polite">${htmlMessage("checkingLocalModels")}</p>
       <div class="local-model-actions">
-        <button type="button" data-local="download" disabled>下载模型</button>
-        <button type="button" data-local="cancel" hidden>暂停下载</button>
-        <button type="button" data-local="import">离线导入</button>
-        <button type="button" data-local="remove" disabled>删除模型</button>
+        <button type="button" data-local="download" disabled>${htmlMessage("downloadModel")}</button>
+        <button type="button" data-local="cancel" hidden>${htmlMessage("pauseDownload")}</button>
+        <button type="button" data-local="import">${htmlMessage("importOffline")}</button>
+        <button type="button" data-local="remove" disabled>${htmlMessage("deleteModel")}</button>
       </div>
       <input type="file" data-local="files" multiple accept=".bin,.spm" hidden />
-      <details><summary>网络不畅或离线安装</summary>
-        <p>下载会自动重试，暂停或中断后保留已完成的文件和每 1 MB 的进度。点击下载可继续；服务器不支持续传时会重新下载当前文件。</p>
-        <p>也可在网络较好的设备上保存下列全部文件，复制到本机后点击「离线导入」。文件会按大小和校验值验证，可分次导入。下载来源为 Mozilla 官方 CDN。</p>
+      <details><summary>${htmlMessage("offlineInstallationAndInterruptedDownloads")}</summary>
+        <p>${htmlMessage("failedDownloadsRetryAutomaticallyCompletedFilesAndEach")}</p>
+        <p>${htmlMessage("youCanDownloadAllFilesBelowOnAnother")}</p>
         <ul data-local="links"></ul>
       </details>
-      <p class="local-model-note">实验功能：支持英语、简体中文、日语、德语、法语、西班牙语和俄语。复杂文本的质量可能低于在线服务。模型缺失或语言不支持时会提示处理方式，切换在线服务需手动选择。</p>
+      <p class="local-model-note">${htmlMessage("experimentalSupportForEnglishSimplifiedChineseJapaneseGerman")}</p>
     </section>`;
   const query = <T extends HTMLElement>(key: string) => container.querySelector<T>(`[data-local='${key}']`)!;
-  container.querySelector<HTMLElement>(".local-resource-notice")!.textContent = LOCAL_RESOURCE_NOTICE;
+  container.querySelector<HTMLElement>(".local-resource-notice")!.textContent = t("localTranslationRequiresASeparateModelDownloadFor");
   container.querySelector<HTMLElement>(".local-route")!.textContent = route;
   const select = query<HTMLSelectElement>("model");
   const progress = query<HTMLProgressElement>("progress");
@@ -60,7 +61,7 @@ export function setupLocalModelControl(container: HTMLElement, source: string, t
     const model = getLocalModel(select.value);
     const state = current?.models.find((entry) => entry.id === model.id);
     const downloading = current?.downloading === model.id;
-    const labels = { ready: "已就绪", partial: "可继续下载", missing: "未安装", downloading: "下载中", error: "下载未完成" };
+    const labels = { ready: t("modelReady"), partial: t("resumable"), missing: t("notInstalled"), downloading: t("downloading"), error: t("downloadIncomplete") };
     for (const option of select.options) {
       const entry = getLocalModel(option.value);
       const value = current?.models.find((item) => item.id === option.value);
@@ -69,10 +70,10 @@ export function setupLocalModelControl(container: HTMLElement, source: string, t
     progress.hidden = !state || state.state === "ready" || state.downloaded === 0;
     progress.max = state?.total ?? 1;
     progress.value = state?.downloaded ?? 0;
-    status.textContent = notice || (state?.state === "ready" ? "模型已就绪，可离线翻译。" : state?.error
-      ?? (state ? `${downloading ? "正在下载" : state.downloaded ? "已保留" : "待下载"}：${size(state.downloaded)} / ${size(state.total)}。${downloading ? "可以关闭设置页，下载会继续。" : "模型准备完成前不会自动联网下载。"}` : "正在检查本地模型…"));
+    status.textContent = notice || (state?.state === "ready" ? t("modelReadyForOfflineTranslation") : state?.error
+      ?? (state ? `${downloading ? t("modelDownloading") : state.downloaded ? t("retained") : t("pendingDownload")}：${size(state.downloaded)} / ${size(state.total)}。${downloading ? t("downloadsContinueAfterYouCloseSettings") : t("modelsAreDownloadedOnlyWhenYouChooseDownload")}` : t("checkingLocalModels")));
     download.disabled = busy || !state || !!current?.downloading || state.state === "ready";
-    download.textContent = state?.state === "ready" ? "模型已安装" : state?.downloaded ? "继续下载" : `下载模型（${size(modelBytes(model))}）`;
+    download.textContent = state?.state === "ready" ? t("modelInstalled") : state?.downloaded ? t("resumeDownload") : t("downloadModelWithSize", size(modelBytes(model)));
     cancel.hidden = !downloading;
     cancel.disabled = busy;
     remove.disabled = busy || !state?.downloaded || !!current?.downloading;
@@ -113,7 +114,7 @@ export function setupLocalModelControl(container: HTMLElement, source: string, t
     if (!files.length) return;
     void act(async () => {
       const imported = await importModelFiles(id, files);
-      notice = `已验证并导入 ${imported} 个文件。全部文件就绪后即可离线翻译。`;
+      notice = t("verifiedAndImportedFilesOfflineTranslationIsAvailable", imported);
     });
   });
   select.addEventListener("change", () => { notice = ""; render(); });

@@ -78,7 +78,7 @@ export async function openExtensionBrowser(root, output, firefox = false) {
   const { chromium } = await import(path.isAbsolute(moduleName) ? pathToFileURL(moduleName).href : moduleName);
   const browser = await chromium.launchPersistentContext(path.join(output, `profile-${Date.now()}`), {
     ...browserTarget().chromiumOptions,
-    headless: true, viewport: { width: 1400, height: 1000 }, ignoreDefaultArgs: ['--disable-extensions'], args: ['--enable-unsafe-extension-debugging']
+    headless: true, viewport: { width: 1400, height: 1000 }, ignoreDefaultArgs: ['--disable-extensions'], args: ['--lang=zh-CN', '--enable-unsafe-extension-debugging']
   });
   try {
     const session = await browser.browser().newBrowserCDPSession();

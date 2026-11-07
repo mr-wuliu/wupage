@@ -1,3 +1,4 @@
+import { t } from "../shared/i18n";
 import { ProviderError } from "../shared/errors";
 import type { TranslateBatchResponse } from "../shared/types";
 
@@ -173,7 +174,7 @@ export class PdfTranslationQueue {
       for (const [position, index] of job.indexes.entries()) {
         try {
           const value = result.translations[position];
-          if (!value?.trim()) throw new Error("翻译服务返回的译文不完整，请重试。");
+          if (!value?.trim()) throw new Error(t("theServiceReturnedAnIncompleteTranslationTryAgain"));
           job.page.values[index] = this.options.restore(job.page, index, value);
         } catch (error) {
           // A malformed item cannot discard the other usable items in a batch.
@@ -189,7 +190,7 @@ export class PdfTranslationQueue {
       if (transient) { this.consecutiveFailures++; this.failedWaitMs += Date.now() - startedAt; }
       if (transient && this.consecutiveFailures >= 3 && this.failedWaitMs >= 60_000) {
         job.state = "failed"; job.error = error;
-        this.pauseError = new ProviderError("翻译服务多次中断，已暂停后续请求。请检查连接后重试；已完成译文已保留。", "service-unavailable");
+        this.pauseError = new ProviderError(t("translationWasInterruptedRepeatedlyFurtherRequestsArePaused"), "service-unavailable");
         return;
       }
       if (transient && job.attempt === 0) {

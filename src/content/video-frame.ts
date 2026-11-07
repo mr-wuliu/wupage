@@ -1,3 +1,4 @@
+import { t } from "../shared/i18n";
 import type { ExtensionSettings, TranslateImageResponse } from "../shared/types";
 import { normalizeVideoTranslation } from "../shared/video";
 import { mediaKey } from "../video/platforms";
@@ -45,17 +46,17 @@ export class PlayerFrameTranslation {
     }
     this.reset();
     this.video.pause();
-    if (this.video.seeking) { this.view.setFrameState("idle", "视频正在跳转，请等待画面加载完成后重试。"); return; }
+    if (this.video.seeking) { this.view.setFrameState("idle", t("theVideoIsSeekingWaitForTheFrame")); return; }
     this.time = this.video.currentTime; this.source = this.video.currentSrc; this.key = mediaKey();
     const generation = this.generation;
     const controller = new AbortController(); this.controller = controller;
     const current = () => !this.disposed && generation === this.generation && this.sameFrame();
-    this.view.setFrameState("loading", "正在识别并翻译视频画面…");
+    this.view.setFrameState("loading", t("recognizingAndTranslatingVideoFrame"));
     try {
       const settings = await this.readSettings();
       if (!current()) return;
-      if (!normalizeVideoTranslation(settings.videoTranslation).enabled) throw new Error("请先开启视频字幕功能。");
-      if (!settings.imageTranslationEnabled) throw new Error("请在 WuPage 图片翻译旁的扳手中安装 OCR 模型，并开启图片翻译。");
+      if (!normalizeVideoTranslation(settings.videoTranslation).enabled) throw new Error(t("enableVideoSubtitlesFirst"));
+      if (!settings.imageTranslationEnabled) throw new Error(t("useTheWrenchBesideImageTranslationInWupage"));
       const frame = await capturePausedVideo(this.video, controller.signal, hidden => {
         if (generation === this.generation) this.view.setFrameCapturing(hidden);
       });
@@ -64,7 +65,7 @@ export class PlayerFrameTranslation {
         dataUrl: frame.dataUrl, width: frame.width, height: frame.height });
       if (!current()) return;
       if (!result.regions.length) {
-        this.view.setFrameState("idle", result.warning ?? "未识别到需要翻译的画面文字。"); return;
+        this.view.setFrameState("idle", result.warning ?? t("noTranslatableTextFoundInThisFrame")); return;
       }
       const canvas = document.createElement("canvas"); canvas.width = frame.width; canvas.height = frame.height;
       canvas.setAttribute("role", "img"); canvas.setAttribute("aria-label", result.regions.map(region => region.translation).join("\n"));
@@ -73,7 +74,7 @@ export class PlayerFrameTranslation {
       this.canvas = canvas; this.showing = true; this.view.showFrame(canvas);
       this.view.setFrameState("active", result.warning);
     } catch (error) {
-      if (current() && !controller.signal.aborted) this.view.setFrameState("idle", error instanceof Error ? error.message : "画面翻译失败，请重试。");
+      if (current() && !controller.signal.aborted) this.view.setFrameState("idle", error instanceof Error ? error.message : t("frameTranslationFailedTryAgain"));
     } finally {
       if (generation === this.generation) {
         this.controller = undefined; this.view.setFrameCapturing(false);

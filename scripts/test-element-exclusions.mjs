@@ -37,7 +37,7 @@ try {
   const { chromium } = await import(path.isAbsolute(moduleName) ? pathToFileURL(moduleName).href : moduleName);
   context = await chromium.launchPersistentContext(path.join(output, `profile-${Date.now()}`), {
     ...target.chromiumOptions, headless: true, viewport: { width: 1400, height: 1000 },
-    ignoreDefaultArgs: ['--disable-extensions'], args: ['--enable-unsafe-extension-debugging']
+    ignoreDefaultArgs: ['--disable-extensions'], args: ['--lang=zh-CN', '--enable-unsafe-extension-debugging']
   });
   await context.route(/^https:\/\/(?:x\.com|example\.com)\//, route => route.fulfill({ contentType: 'text/html', body: pageHtml(new URL(route.request().url())) }));
   const session = await context.browser().newBrowserCDPSession();

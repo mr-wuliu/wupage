@@ -1,3 +1,4 @@
+import { t } from "../shared/i18n";
 import { ProviderError } from "../shared/errors";
 
 export interface DoubaoSegment {
@@ -14,7 +15,7 @@ function validateLimit(value: number): void {
 }
 
 function tooLong(): ProviderError {
-  return new ProviderError("豆包待译内容中的单个保护标记超过长度限制。", "input-too-long");
+  return new ProviderError(t("aProtectedMarkerExceedsDoubaoSLengthLimit"), "input-too-long");
 }
 
 function needsTranslation(text: string): boolean {
@@ -83,7 +84,7 @@ export function groupDoubaoSegments(
   for (const [index, segment] of segments.entries()) {
     if (!segment.translate) continue;
     if (!segment.text.trim()) {
-      throw new ProviderError("豆包待译片段为空。", "incomplete");
+      throw new ProviderError(t("theTextSegmentForDoubaoIsEmpty"), "incomplete");
     }
     if (segment.text.length > maxChars) throw tooLong();
     if (group.length && (size + segment.text.length > maxChars || group.length === maxItems)) {
@@ -107,7 +108,7 @@ export function reassembleDoubaoSegments(
   const output = Array<string>(sourceCount).fill("");
   for (const [index, segment] of segments.entries()) {
     if (!Number.isInteger(segment.sourceIndex) || segment.sourceIndex < 0 || segment.sourceIndex >= sourceCount) {
-      throw new ProviderError("豆包译文与原文的对应关系无效。", "protocol-changed");
+      throw new ProviderError(t("doubaoSTranslationDoesNotMatchTheSource"), "protocol-changed");
     }
     if (!segment.translate) {
       output[segment.sourceIndex] += segment.text;
@@ -115,7 +116,7 @@ export function reassembleDoubaoSegments(
     }
     const translated = translations.get(index);
     if (typeof translated !== "string" || !translated.trim()) {
-      throw new ProviderError("豆包返回的译文不完整，请重试。", "incomplete");
+      throw new ProviderError(t("doubaoReturnedAnIncompleteTranslationTryAgain"), "incomplete");
     }
     // Source boundary whitespace is already represented by local fragments.
     output[segment.sourceIndex] += translated.trim();

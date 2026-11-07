@@ -1,3 +1,4 @@
+import { t } from "../shared/i18n";
 import { findTranslatableParagraph } from "./dom";
 import { queryTranslationElements } from "./dom-roots";
 import { translateParagraph } from "./paragraph-translation";
@@ -36,13 +37,13 @@ export class TouchParagraphController {
       p{flex:1;min-width:0;margin:0;overflow-wrap:anywhere}button{flex:none;display:grid;place-items:center;width:44px;height:44px;border:0;border-radius:8px;background:var(--wp-soft,#eef2f1);color:inherit;touch-action:manipulation;user-select:none;-webkit-user-select:none}button:focus-visible{outline:2px solid var(--wp-accent,#116466)}svg{width:18px;height:18px}
     `;
     const bar = document.createElement("section");
-    bar.setAttribute("aria-label", "点选段落翻译");
+    bar.setAttribute("aria-label", t("tapToTranslateAParagraph"));
     this.message = document.createElement("p");
     this.message.setAttribute("role", "status");
-    this.message.textContent = "点选要翻译的段落，完成后自动退出。";
+    this.message.textContent = t("tapAParagraphToTranslateItSelectionMode");
     const cancel = document.createElement("button");
     cancel.type = "button";
-    cancel.setAttribute("aria-label", "取消点选段落");
+    cancel.setAttribute("aria-label", t("cancelParagraphSelection"));
     setHtmlContent(cancel, uiIconMarkup("cross"));
     cancel.addEventListener("click", () => this.close());
     bar.append(this.message, cancel); root.append(style, bar); document.documentElement.append(host);
@@ -124,15 +125,15 @@ export class TouchParagraphController {
     // Only this paragraph can be consumed, including while its request is pending.
     this.active = false;
     const version = this.version;
-    this.host!.shadowRoot!.querySelector("button")!.setAttribute("aria-label", "关闭段落翻译状态");
-    this.message!.textContent = "正在处理所选段落…";
+    this.host!.shadowRoot!.querySelector("button")!.setAttribute("aria-label", t("dismissParagraphTranslationStatus"));
+    this.message!.textContent = t("processingSelectedParagraph");
     void translateParagraph(paragraph).then(() => {
       if (version !== this.version) return;
-      this.message!.textContent = "已完成，再次点选此段可切换原文与译文。";
+      this.message!.textContent = t("doneTapThisParagraphAgainToSwitchBetween");
       this.timer = window.setTimeout(this.close, 2200);
     }).catch(error => {
       if (version !== this.version) return;
-      this.message!.textContent = error instanceof Error ? error.message : "段落翻译失败，请重试。";
+      this.message!.textContent = error instanceof Error ? error.message : t("paragraphTranslationFailedTryAgain");
     });
   };
 }

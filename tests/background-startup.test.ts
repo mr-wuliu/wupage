@@ -69,7 +69,7 @@ describe("background startup compatibility", () => {
     expect(stored[SETTINGS_KEY]).toMatchObject({ activeProviderId: settings.activeProviderId });
     expect((stored[SETTINGS_KEY] as ExtensionSettings).providers.find(provider => provider.id === "openai-compatible")!.enabled).toBe(false);
     expect(await send({ type: "TRANSLATE_BATCH", providerId: "openai-compatible", texts: ["Hello"], targetLang: "zh-CN" }))
-      .toMatchObject({ ok: false, error: "Provider is disabled: openai-compatible" });
+      .toMatchObject({ ok: false, error: "翻译服务已停用：openai-compatible" });
     expect(fetchMock).toHaveBeenCalledOnce();
   });
 

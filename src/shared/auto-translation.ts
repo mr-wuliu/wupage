@@ -1,10 +1,11 @@
+import { t } from "./i18n";
 import type { AutoTranslationSettings, AutoTranslationSite } from "./types";
 import { randomId } from "./random-id";
 
 export const AUTO_TRANSLATION_PRESETS = [
   { domain: "github.com", label: "GitHub" },
   { domain: "stackoverflow.com", label: "Stack Overflow" },
-  { domain: "en.wikipedia.org", label: "英文维基百科" },
+  { domain: "en.wikipedia.org", get label() { return t("englishWikipedia"); } },
   { domain: "reddit.com", label: "Reddit" },
   { domain: "medium.com", label: "Medium" },
   { domain: "news.ycombinator.com", label: "Hacker News" }
@@ -12,20 +13,20 @@ export const AUTO_TRANSLATION_PRESETS = [
 
 export function normalizeSitePattern(value: string): string {
   const input = value.trim();
-  if (!input || input.length > 2048) throw new Error("请填写有效的站点域名或网址。");
+  if (!input || input.length > 2048) throw new Error(t("enterAValidSiteDomainOrUrl"));
   const explicitProtocol = /^[a-z][a-z\d+.-]*:\/\//i.test(input);
   let parsed: URL;
   try { parsed = new URL(explicitProtocol ? input : `https://${input}`); }
-  catch { throw new Error("请填写有效的站点域名或 HTTP/HTTPS 网址。"); }
+  catch { throw new Error(t("enterAValidSiteDomainOrHttpHttps")); }
   if (!["http:", "https:"].includes(parsed.protocol) || parsed.username || parsed.password || parsed.search || parsed.hash) {
-    throw new Error("请填写 HTTP/HTTPS 域名或路径，不包含账号、查询参数或 # 片段。");
+    throw new Error(t("enterAnHttpHttpsDomainOrPathWithout"));
   }
   const wildcard = parsed.hostname.startsWith("*.");
   const hostname = (wildcard ? parsed.hostname.slice(2) : parsed.hostname).replace(/\.$/, "");
   const ip = /^(?:\d+\.){3}\d+$|^\[[a-f\d:]+\]$/i.test(hostname);
   if ((!ip && hostname.split(".").some(part => !/^[a-z\d](?:[a-z\d-]*[a-z\d])?$/i.test(part)))
     || !hostname || (wildcard && (ip || hostname === "localhost"))) {
-    throw new Error("域名格式不正确；子域名通配请使用 *.example.com。");
+    throw new Error(t("invalidDomainUseExampleComForASubdomain"));
   }
   const port = parsed.port || explicitPort(input);
   const host = `${wildcard ? "*." : ""}${hostname}${port ? `:${port}` : ""}`;
@@ -146,9 +147,9 @@ export function hasAutoTranslationWebsite(value: unknown, address: string | unde
 
 export function addAutoTranslationWebsite(value: unknown, address: string | undefined): AutoTranslationSettings {
   const pattern = currentWebsitePattern(address);
-  if (!pattern) throw new Error("请切换到普通网页后再添加网站。");
+  if (!pattern) throw new Error(t("switchToARegularWebPageToAdd"));
   let settings = normalizeAutoTranslation(value);
-  if (!settings.enabled) throw new Error("请先开启自动翻译。");
+  if (!settings.enabled) throw new Error(t("enableAutomaticTranslationFirst"));
   if (settings.excludedSites?.includes(pattern)) {
     const excluded = settings.excludedSites.filter(site => site !== pattern);
     const { excludedSites: _excluded, ...retained } = settings;
@@ -171,9 +172,9 @@ export function addAutoTranslationWebsite(value: unknown, address: string | unde
 
 export function excludeAutoTranslationWebsite(value: unknown, address: string | undefined): AutoTranslationSettings {
   const pattern = currentWebsitePattern(address);
-  if (!pattern) throw new Error("请切换到普通网页后再排除网站。");
+  if (!pattern) throw new Error(t("switchToARegularWebPageToExclude"));
   const settings = normalizeAutoTranslation(value);
-  if (!settings.enabled) throw new Error("请先开启自动翻译。");
+  if (!settings.enabled) throw new Error(t("enableAutomaticTranslationFirst"));
   return { ...settings, excludedSites: [...new Set([...(settings.excludedSites ?? []), pattern])] };
 }
 

@@ -65,7 +65,7 @@ describe.each(providers)("$label translation recovery", (provider) => {
     const fetchMock = vi.fn(async () => responseFor(provider, "<!doctype html><html><body>Wrong endpoint</body></html>"));
     vi.stubGlobal("fetch", fetchMock);
     await expect(translateWithSettings(settingsFor(provider), { texts: ["First.", "Second."], targetLang: "zh-CN" }))
-      .rejects.toThrow("HTML page");
+      .rejects.toThrow("HTML 网页");
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 

@@ -1,20 +1,21 @@
+import { t } from "./i18n";
 export const POPUP_MENU_GROUPS = [
-  { id: "features", label: "功能开关" }, { id: "translation", label: "翻译操作" },
-  { id: "tools", label: "工具" }, { id: "links", label: "链接" }
+  { id: "features", get label() { return t("featureToggles"); } }, { id: "translation", get label() { return t("translationActions"); } },
+  { id: "tools", get label() { return t("tools"); } }, { id: "links", get label() { return t("links"); } }
 ] as const;
 export const POPUP_MENU_ITEMS = [
-  { id: "contextMenuTranslation", label: "右键翻译", group: "features" },
-  { id: "floatingBall", label: "悬浮球", group: "features" },
-  { id: "selectionTranslation", label: "划词翻译", group: "features" },
-  { id: "imageTranslation", label: "图片翻译", group: "features" },
-  { id: "videoTranslation", label: "视频字幕", group: "features" },
-  { id: "pageToggle", label: "翻译全文", group: "translation" },
-  { id: "paragraphMode", label: "段落翻译", group: "translation" },
-  { id: "openPdfWorkspace", label: "打开 PDF", group: "tools" },
+  { id: "contextMenuTranslation", get label() { return t("contextMenu"); }, group: "features" },
+  { id: "floatingBall", get label() { return t("floatingButton"); }, group: "features" },
+  { id: "selectionTranslation", get label() { return t("selectionTranslation"); }, group: "features" },
+  { id: "imageTranslation", get label() { return t("imageTranslation"); }, group: "features" },
+  { id: "videoTranslation", get label() { return t("videoSubtitles"); }, group: "features" },
+  { id: "pageToggle", get label() { return t("translatePage"); }, group: "translation" },
+  { id: "paragraphMode", get label() { return t("paragraphTranslation"); }, group: "translation" },
+  { id: "openPdfWorkspace", get label() { return t("openPdf"); }, group: "tools" },
   { id: "debug", label: "Debug", group: "tools" },
-  { id: "clearCache", label: "清除缓存", group: "tools" },
+  { id: "clearCache", get label() { return t("clearCache"); }, group: "tools" },
   { id: "openGithub", label: "GitHub", group: "links" },
-  { id: "openWebsite", label: "官网", group: "links" }
+  { id: "openWebsite", get label() { return t("website"); }, group: "links" }
 ] as const;
 export type PopupMenuItem = typeof POPUP_MENU_ITEMS[number]["id"];
 export const POPUP_MENU_LINKS: readonly PopupMenuItem[] = ["openGithub", "openWebsite"];

@@ -1,3 +1,4 @@
+import { t } from "../shared/i18n";
 import { SETTINGS_KEY } from "../shared/defaults";
 import { DICTIONARY_LABELS, MAX_SELECTION_TEXT_LENGTH, dictionaryProviderForQuery, dictionarySourceUrl, isChineseDictionaryQuery, isSingleDictionaryWord, normalizeSelectionText, normalizeSelectionTranslation,
   type DictionaryEntry, type DictionaryProvider, type SelectionTranslationSettings } from "../shared/dictionary";
@@ -50,6 +51,7 @@ export class SelectionTranslationController {
   constructor(settings: SelectionTranslationSettings) {
     this.settings = settings;
     this.host = document.createElement("div");
+    this.host.lang = t("interfaceLanguage");
     this.host.id = HOST_ID;
     this.host.style.cssText = "all:initial!important;display:block!important;position:fixed!important;inset:0!important;pointer-events:none!important;z-index:2147483646!important;";
     this.root = this.host.attachShadow({ mode: "open" });
@@ -62,16 +64,16 @@ export class SelectionTranslationController {
     this.card.hidden = true;
     this.card.tabIndex = -1;
     this.card.setAttribute("role", "dialog");
-    this.card.setAttribute("aria-label", "划词翻译");
-    this.card.lang = "zh-CN";
+    this.card.setAttribute("aria-label", t("selectionTranslation"));
+    this.card.lang = this.host.lang;
     const header = document.createElement("header");
     this.word = document.createElement("textarea");
     this.word.className = "word";
     this.word.lang = "en";
     this.word.rows = 1;
     this.word.spellcheck = false;
-    this.word.title = "编辑原文";
-    this.word.setAttribute("aria-label", "原文");
+    this.word.title = t("editSource");
+    this.word.setAttribute("aria-label", t("original"));
     this.word.setAttribute("aria-describedby", "wupage-selection-source-error");
     this.word.addEventListener("input", () => {
       this.version++;
@@ -98,7 +100,7 @@ export class SelectionTranslationController {
     this.word.addEventListener("keyup", event => event.stopPropagation());
     this.word.addEventListener("keypress", event => event.stopPropagation());
     this.providerSelect = document.createElement("select");
-    this.providerSelect.setAttribute("aria-label", "查词词典");
+    this.providerSelect.setAttribute("aria-label", t("dictionary"));
     for (const provider of ["youdao", "bing"] as const) {
       const option = document.createElement("option");
       option.value = provider; option.textContent = DICTIONARY_LABELS[provider];
@@ -110,7 +112,7 @@ export class SelectionTranslationController {
     this.translationService.hidden = true;
     const close = document.createElement("button");
     close.type = "button"; close.className = "close"; setHtmlContent(close, uiIconMarkup("cross"));
-    close.setAttribute("aria-label", "关闭划词翻译");
+    close.setAttribute("aria-label", t("closeSelectionTranslation"));
     close.addEventListener("click", () => this.close());
     header.append(this.word, this.providerSelect, this.translationService, close);
     this.sourceActions = document.createElement("div");
@@ -140,7 +142,7 @@ export class SelectionTranslationController {
     this.replaceButton = document.createElement("button");
     this.replaceButton.type = "button";
     this.replaceButton.className = "replace-selection";
-    this.replaceButton.textContent = "替换所选";
+    this.replaceButton.textContent = t("replaceSelection");
     this.replaceButton.addEventListener("click", () => this.replaceSelection());
     this.replacementStatus = document.createElement("span");
     this.replacementStatus.setAttribute("role", "status");
@@ -271,10 +273,10 @@ export class SelectionTranslationController {
       const view = visibleViewport(), width = Math.max(0, Math.min(360, view.width - 24));
       this.triggers.style.cssText = `left:${view.left + (view.width - width) / 2}px;top:${Math.max(view.top + 12, view.bottom - 76)}px;width:${width}px`;
       const button = this.trigger("trigger-touch");
-      button.textContent = this.usesTranslation(query) ? "翻译所选" : "查词";
+      button.textContent = this.usesTranslation(query) ? t("translateSelection") : t("lookUp");
       const preview = document.createElement("span"); preview.className = "selection-preview"; preview.textContent = query;
       const dismiss = document.createElement("button"); dismiss.type = "button"; dismiss.className = "dismiss-trigger";
-      dismiss.setAttribute("aria-label", "关闭划词入口"); setHtmlContent(dismiss, uiIconMarkup("cross"));
+      dismiss.setAttribute("aria-label", t("closeSelectionShortcut")); setHtmlContent(dismiss, uiIconMarkup("cross"));
       dismiss.addEventListener("click", () => this.close());
       this.triggers.append(preview, button, dismiss);
     } else if (this.settings.style === "dot" || selection.kind === "control") {
@@ -309,7 +311,7 @@ export class SelectionTranslationController {
   private trigger(className: string): HTMLButtonElement {
     const button = document.createElement("button");
     button.type = "button"; button.className = className;
-    const action = this.usesTranslation(this.query) ? "翻译" : "查词";
+    const action = this.usesTranslation(this.query) ? t("translate") : t("lookUp");
     button.title = action; button.setAttribute("aria-label", `${action}“${this.query.slice(0, 100)}”`);
     button.addEventListener("click", () => {
       // A field can change focus/selection before the debounced entry point catches up.
@@ -336,13 +338,13 @@ export class SelectionTranslationController {
     const chinese = isChineseDictionaryQuery(this.query);
     provider = dictionaryProviderForQuery(provider, this.query);
     this.providerSelect.querySelector<HTMLOptionElement>('option[value="bing"]')!.disabled = chinese;
-    this.providerSelect.title = chinese ? "中文拼音和释义由有道词典提供" : "";
+    this.providerSelect.title = chinese ? t("chinesePinyinAndDefinitionsProvidedByYoudao") : "";
     this.providerSelect.value = provider;
     this.word.value = this.query;
     this.word.lang = chinese ? "zh-CN" : "";
     this.source.href = dictionarySourceUrl(provider, this.query);
-    this.source.textContent = `在${DICTIONARY_LABELS[provider]}中查看`;
-    this.body.textContent = translating ? "正在翻译…" : "正在查询…";
+    this.source.textContent = t("viewIn", DICTIONARY_LABELS[provider]);
+    this.body.textContent = translating ? t("translationInProgress") : t("lookingUp");
     this.body.setAttribute("aria-busy", "true");
     this.resizeSourceEditor();
     if (!this.positionCard()) { this.close(); return; }
@@ -361,7 +363,7 @@ export class SelectionTranslationController {
       message.className = "notice";
       message.textContent = this.errorMessage(error);
       const retry = document.createElement("button");
-      retry.type = "button"; retry.textContent = "重试"; retry.className = "retry";
+      retry.type = "button"; retry.textContent = t("retry"); retry.className = "retry";
       retry.addEventListener("click", () => { void this.lookup(provider, { forceTranslation: translating }); });
       this.body.append(message, retry);
     } finally {
@@ -370,7 +372,7 @@ export class SelectionTranslationController {
   }
 
   private updateSourceAction(): void {
-    const action = this.usesTranslation(this.word.value.trim()) ? "翻译" : "查词";
+    const action = this.usesTranslation(this.word.value.trim()) ? t("translate") : t("lookUp");
     this.submitSource.textContent = action;
     this.submitSource.title = this.shortcutEnabled["selection-submit"] ? `${action}（${formatLocalShortcut(this.localShortcuts["selection-submit"])}）` : action;
   }
@@ -381,7 +383,7 @@ export class SelectionTranslationController {
     if (!query) {
       this.sourceActions.hidden = false;
       this.sourceError.textContent = Array.from(this.word.value.trim()).length > MAX_SELECTION_TEXT_LENGTH
-        ? "原文不能超过 5,000 个字符。" : "请输入要查询或翻译的文字。";
+        ? t("sourceTextCannotExceed5000Characters") : t("enterTextToLookUpOrTranslate");
       this.word.setAttribute("aria-invalid", "true");
       this.updateSourceAction();
       this.positionCard();
@@ -413,7 +415,7 @@ export class SelectionTranslationController {
     this.card.dataset.mode = enabled ? "translation" : "dictionary";
     this.providerSelect.hidden = enabled;
     this.translationService.hidden = !enabled;
-    this.translationService.textContent = "翻译";
+    this.translationService.textContent = t("translate");
     this.translationService.title = "";
     this.footer.hidden = enabled;
     this.resizeSourceEditor();
@@ -422,11 +424,11 @@ export class SelectionTranslationController {
   private async translateSelection(version: number): Promise<void> {
     if (!this.canRender(version)) return;
     this.setTranslationMode(true);
-    this.body.textContent = "正在翻译…";
+    this.body.textContent = t("translationInProgress");
     const settings = await sendRuntimeRequest<ExtensionSettings>({ type: "GET_SETTINGS" });
     if (!this.canRender(version)) return;
     const provider = settings.providers.find(item => item.id === settings.activeProviderId && item.enabled !== false);
-    if (!provider) throw new Error("请先在设置中选择可用的翻译服务。");
+    if (!provider) throw new Error(t("chooseAnAvailableTranslationServiceInSettings"));
     this.translationService.textContent = provider.label;
     this.translationService.title = `${provider.label} → ${settings.targetLang}`;
     const result = await sendRuntimeRequest<TranslateBatchResponse>({
@@ -435,7 +437,7 @@ export class SelectionTranslationController {
     });
     if (!this.canRender(version)) return;
     const translated = result.translations?.[0];
-    if (typeof translated !== "string" || !translated.trim()) throw new Error("翻译服务未返回译文，请重试。");
+    if (typeof translated !== "string" || !translated.trim()) throw new Error(t("theServiceReturnedNoTranslationTryAgain"));
     const text = document.createElement("p");
     text.className = "selection-translation";
     text.lang = settings.targetLang;
@@ -460,7 +462,7 @@ export class SelectionTranslationController {
     if (this.resultActions.hidden || !this.selection) return;
     const stale = this.replacementInvalidated || !selectionSourceUnchanged(this.selection);
     this.replaceButton.disabled = stale;
-    this.replacementStatus.textContent = stale ? "原文已变化，请重新选择后翻译。" : "";
+    this.replacementStatus.textContent = stale ? t("theSourceTextHasChangedSelectItAgain") : "";
     this.positionCard();
   }
 
@@ -477,9 +479,9 @@ export class SelectionTranslationController {
   }
 
   private errorMessage(error: unknown): string {
-    const message = error instanceof Error ? error.message : "请求失败，请重试。";
-    if (message.startsWith("Unhandled message:")) return "扩展后台尚未更新，请重新加载扩展并刷新当前页面。";
-    if (message.includes("Extension context invalidated")) return "扩展已更新，请刷新当前页面后重试。";
+    const message = error instanceof Error ? error.message : t("requestFailure");
+    if (message.startsWith("Unhandled message:")) return t("theExtensionBackgroundIsOutOfDateReload");
+    if (message.includes("Extension context invalidated")) return t("theExtensionHasBeenUpdatedRefreshThePage");
     return message;
   }
 
@@ -491,7 +493,7 @@ export class SelectionTranslationController {
     phonetics.className = "phonetics";
     for (const pronunciation of entry.pronunciations) {
       const line = document.createElement("div");
-      const accent = pronunciation.accent === "uk" ? "英" : pronunciation.accent === "us" ? "美" : pronunciation.accent === "pinyin" ? "拼音" : "读音";
+      const accent = pronunciation.accent === "uk" ? t("ukAccent") : pronunciation.accent === "us" ? t("us") : pronunciation.accent === "pinyin" ? t("pinyin") : t("pronunciation");
       const label = document.createElement("span");
       label.textContent = `${accent} ${pronunciation.phonetic ? pronunciation.accent === "uk" || pronunciation.accent === "us" ? `/${pronunciation.phonetic}/` : pronunciation.phonetic : ""}`;
       if (pronunciation.accent === "pinyin") label.lang = "zh-Latn-pinyin";
@@ -499,7 +501,8 @@ export class SelectionTranslationController {
       if (pronunciation.audioUrl) {
         const button = document.createElement("button");
         button.type = "button"; button.className = "speak"; setHtmlContent(button, uiIconMarkup("volume"));
-        button.setAttribute("aria-label", `播放${accent === "拼音" ? "中文" : accent === "读音" ? "单词" : `${accent}式`}发音`);
+        const voice = pronunciation.accent === "pinyin" ? t("chinese") : pronunciation.accent === "default" ? t("word") : t("accentPronunciationType", accent);
+        button.setAttribute("aria-label", t("playPronunciation", voice));
         button.addEventListener("click", () => { void this.play(entry.provider, pronunciation.audioUrl!, button, version); });
         line.append(button);
       }
@@ -525,7 +528,7 @@ export class SelectionTranslationController {
     if (meanings.childElementCount) this.body.append(meanings);
     else {
       const empty = document.createElement("p"); empty.className = "notice";
-      empty.textContent = isChineseDictionaryQuery(this.query) ? "未找到词典释义，可查看原站。" : "未找到词典释义，可切换词典或查看原站。";
+      empty.textContent = isChineseDictionaryQuery(this.query) ? t("noDefinitionsFoundViewTheDictionaryWebsite") : t("noDefinitionsFoundSwitchDictionariesOrViewThe");
       this.body.append(empty);
     }
   }
@@ -534,7 +537,7 @@ export class SelectionTranslationController {
     const audioVersion = ++this.audioVersion;
     this.audioRequested = true;
     button.disabled = true;
-    this.audioStatus.textContent = "正在加载发音…";
+    this.audioStatus.textContent = t("loadingPronunciation");
     try {
       await sendRuntimeRequest({ type: "PLAY_DICTIONARY_AUDIO", provider, url });
       if (version === this.version && audioVersion === this.audioVersion) this.audioStatus.textContent = "";

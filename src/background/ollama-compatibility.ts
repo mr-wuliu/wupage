@@ -1,3 +1,4 @@
+import { t } from "../shared/i18n";
 import type { OpenAICompatibleConfig } from "../shared/types";
 
 // Reserve a session-rule range for requests currently owned by this module.
@@ -10,7 +11,7 @@ let mutations: Promise<void> = Promise.resolve();
 export function chatCompletionsEndpoint(baseURL: string, ollama = false): string {
   const url = new URL(baseURL.trim());
   if (url.protocol !== "http:" && url.protocol !== "https:") {
-    throw new Error("Base URL 仅支持 HTTP 或 HTTPS。");
+    throw new Error(t("baseUrlMustUseHttpOrHttps"));
   }
   const path = url.pathname.replace(/\/+$/, "");
   if (!path.endsWith("/chat/completions")) {
@@ -48,7 +49,7 @@ export async function initializeOllamaCompatibility(): Promise<void> {
 
 async function acquireRule(endpoint: string): Promise<void> {
   if (typeof chrome === "undefined" || !chrome.runtime?.id || !chrome.declarativeNetRequest) {
-    throw new Error("Ollama 兼容需要重新加载新版扩展。也可在 Ollama 中配置 OLLAMA_ORIGINS 后重启服务。");
+    throw new Error(t("reloadTheUpdatedExtensionForOllamaCompatibilityOr"));
   }
   await initializeOllamaCompatibility();
   await serialize(async () => {
@@ -61,7 +62,7 @@ async function acquireRule(endpoint: string): Promise<void> {
     const used = new Set([...activeRules.values()].map((rule) => rule.id));
     let id = FIRST_RULE_ID;
     while (used.has(id)) id++;
-    if (id > LAST_RULE_ID) throw new Error("Ollama 并发连接过多，请稍后重试。");
+    if (id > LAST_RULE_ID) throw new Error(t("tooManyConcurrentOllamaConnectionsTryAgainLater"));
     const rule: chrome.declarativeNetRequest.Rule = {
       id,
       priority: 1,

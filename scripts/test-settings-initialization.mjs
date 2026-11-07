@@ -12,7 +12,7 @@ const output = path.join(root,'.npm-cache/settings-initialization');
 await fs.mkdir(output, {recursive:true});
 const context = await chromium.launchPersistentContext(path.join(output, `profile-${Date.now()}`), {
   ...(process.env.PDF_TEST_BROWSER?{executablePath:process.env.PDF_TEST_BROWSER}:{channel:'chromium'}),
-  headless:true, ignoreDefaultArgs:['--disable-extensions'], args:['--enable-unsafe-extension-debugging'],
+  headless:true, ignoreDefaultArgs:['--disable-extensions'], args:['--lang=zh-CN', '--enable-unsafe-extension-debugging'],
   viewport:{width:800,height:900}
 });
 const reports=[];

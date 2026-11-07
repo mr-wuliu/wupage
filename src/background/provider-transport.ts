@@ -1,3 +1,4 @@
+import { t } from "../shared/i18n";
 import { anySignal } from "../shared/abort";
 import type { ProviderConfig } from "../shared/types";
 import { usesOllamaCompatibility, withOllamaCompatibility } from "./ollama-compatibility";
@@ -69,10 +70,10 @@ export async function fetchWithTimeout(
     return await fetch(url, { ...init, signal });
   } catch (error) {
     if (signal.reason instanceof DOMException && signal.reason.name === "TimeoutError") {
-      throw new ProviderError(`Translation request timed out after ${Math.round(timeoutMs / 1000)} seconds.`, "service-unavailable");
+      throw new ProviderError(t("requestTimeout", Math.round(timeoutMs / 1000)), "service-unavailable");
     }
     if (!signal.aborted && error instanceof TypeError) {
-      throw new ProviderError("Cannot connect to the translation service. Check your connection and provider endpoint, then retry.", "service-unavailable");
+      throw new ProviderError(t("serviceUnreachable"), "service-unavailable");
     }
     throw error;
   }
@@ -114,7 +115,7 @@ export async function readErrorBody(response: Response): Promise<string> {
   const text = await readResponseText(response).catch(() => "");
   if (!text) return "";
   if (looksLikeHtmlDocument(text)) {
-    return "The server returned an HTML page. Check the provider Base URL or endpoint.";
+    return t("serverReturnedHtml");
   }
   try {
     const parsed = JSON.parse(text) as unknown;
@@ -130,7 +131,7 @@ export async function readJsonResponse<T>(response: Response, providerLabel: str
   if (/\btext\/html\b/i.test(contentType)) {
     void response.body?.cancel().catch(() => undefined);
     throw new ProviderError(
-      `${providerLabel} returned an HTML page instead of JSON. Check the provider Base URL or endpoint.`, "protocol-changed"
+      t("providerReturnedHtml", providerLabel), "protocol-changed"
     );
   }
 
@@ -144,12 +145,12 @@ export async function readJsonResponse<T>(response: Response, providerLabel: str
     if (error instanceof ProviderError) throw error;
     if (error instanceof Error && error.name === "AbortError") throw error;
     if (error instanceof Error && (error.name === "TimeoutError" || error instanceof TypeError)) {
-      const failure = new ProviderError("The translation response was interrupted. Check your connection and retry.", "service-unavailable");
+      const failure = new ProviderError(t("serviceResponseInterrupted"), "service-unavailable");
       failure.name = error.name;
       throw failure;
     }
     throw new ProviderError(
-      `${providerLabel} response was not valid JSON. Check the provider Base URL or endpoint.`, "protocol-changed"
+      t("providerInvalidJson", providerLabel), "protocol-changed"
     );
   }
 }
@@ -166,7 +167,7 @@ async function readResponseText(response: Response): Promise<string> {
       if (done) return text + decoder.decode();
       bytes += value.byteLength;
       if (bytes > MAX_TRANSLATION_RESPONSE_BYTES) {
-        throw new ProviderError("Translation response is too large. Check the provider endpoint or model.", "service-rejected");
+        throw new ProviderError(t("responseTooLarge"), "service-rejected");
       }
       text += decoder.decode(value, { stream: true });
     }

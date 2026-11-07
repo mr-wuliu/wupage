@@ -115,7 +115,7 @@ try {
   context = await chromium.launchPersistentContext(profile, {
     ...(process.env.PDF_TEST_BROWSER ? { executablePath: process.env.PDF_TEST_BROWSER } : { channel: "chromium" }),
     headless: true, ignoreDefaultArgs: ["--disable-extensions"],
-    args: [`--load-extension=${path.join(root, "dist")}`],
+    args: ['--lang=zh-CN', `--load-extension=${path.join(root, "dist")}`],
     viewport: { width: 2000, height: 1400 }, deviceScaleFactor, acceptDownloads: true
   });
   const worker = context.serviceWorkers()[0] || await context.waitForEvent("serviceworker");

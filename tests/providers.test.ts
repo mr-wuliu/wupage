@@ -64,7 +64,7 @@ describe("MicrosoftWebTranslateProvider", () => {
     "rejects incomplete responses instead of returning or caching them: %j", async (payload) => {
       vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify(payload))));
       await expect(provider.translateBatch({ texts: ["Hello"], targetLang: "zh-CN" }))
-        .rejects.toThrow(/response count|translated text/);
+        .rejects.toThrow(/译文数量与原文数量不符|未返回译文/);
     }
   );
 
@@ -321,7 +321,7 @@ describe("DeepSeekProvider", () => {
     await expect(provider.translateBatch({
       texts: ["hello"],
       targetLang: "zh-CN"
-    })).rejects.toThrow("API key is required");
+    })).rejects.toThrow("请填写 API Key");
     expect(fetchMock).not.toHaveBeenCalled();
   });
 });
@@ -419,7 +419,7 @@ describe("ZhipuGlmProvider", () => {
       texts: ["A paragraph with two parts."],
       sourceLang: "en",
       targetLang: "zh-CN"
-    })).rejects.toThrow("response count does not match");
+    })).rejects.toThrow("译文数量不符");
   });
 
   it("rejects an HTML endpoint response with a useful configuration error", async () => {
@@ -443,7 +443,7 @@ describe("ZhipuGlmProvider", () => {
       texts: ["hello"],
       sourceLang: "en",
       targetLang: "zh-CN"
-    })).rejects.toThrow("returned an HTML page instead of JSON");
+    })).rejects.toThrow("返回了 HTML 网页");
     expect(json).not.toHaveBeenCalled();
   });
 
@@ -468,7 +468,7 @@ describe("ZhipuGlmProvider", () => {
       texts: ["hello"],
       sourceLang: "en",
       targetLang: "zh-CN"
-    })).rejects.toThrow("contained an HTML page instead of translations");
+    })).rejects.toThrow("模型返回了 HTML 网页");
   });
 
   it("does not include a raw HTML error page in an LLM request error", async () => {
@@ -493,7 +493,7 @@ describe("ZhipuGlmProvider", () => {
       texts: ["hello"],
       sourceLang: "en",
       targetLang: "zh-CN"
-    })).rejects.toThrow("The server returned an HTML page");
+    })).rejects.toThrow("服务器返回了 HTML 网页");
   });
 });
 

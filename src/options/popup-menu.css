@@ -32,7 +32,7 @@
 #popupMenuEditor button:focus-visible { outline: 2px solid var(--wp-accent); outline-offset: 3px; }
 .menu-layout-preview [data-popup-menu-wide] { grid-column: 1 / -1; }
 .menu-layout-preview [data-menu-dragging] { color: transparent; background: color-mix(in srgb, var(--wp-accent) 8%, var(--wp-surface)); border: 2px dashed var(--wp-accent); box-shadow: 0 0 0 4px color-mix(in srgb, var(--wp-accent) 12%, transparent); }
-.menu-layout-preview [data-menu-dragging]::before { content: '放在这里'; color: var(--wp-accent); position: absolute; font-size: 12px; font-weight: 500; }
+.menu-layout-preview [data-menu-dragging]::before { content: attr(data-drop-label); color: var(--wp-accent); position: absolute; font-size: 12px; font-weight: 500; }
 .menu-drag-ghost { position: fixed; top: 0; left: 0; z-index: 1000; pointer-events: none; box-shadow: 0 10px 28px #17202630; opacity: .95; cursor: grabbing; will-change: transform; transition: width .12s ease; }
 .menu-layout-hint { margin: 16px 4px 0; font-size: 11px; line-height: 1.8; }
 .menu-layout-groups { display: grid; gap: 24px; }

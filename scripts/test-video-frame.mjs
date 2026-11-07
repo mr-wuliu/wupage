@@ -65,7 +65,7 @@ const origin = 'http://127.0.0.1:' + server.address().port;
 let context;
 try {
   context = await chromium.launchPersistentContext(path.join(output, 'profile-' + Date.now()), {
-    ...target.chromiumOptions, headless: true, ignoreDefaultArgs: ['--disable-extensions'], args: ['--enable-unsafe-extension-debugging'], viewport: { width: 1200, height: 900 }
+    ...target.chromiumOptions, headless: true, ignoreDefaultArgs: ['--disable-extensions'], args: ['--lang=zh-CN', '--enable-unsafe-extension-debugging'], viewport: { width: 1200, height: 900 }
   });
   const session = await context.browser().newBrowserCDPSession();
   await session.send('Extensions.loadUnpacked', { path: path.join(root, process.env.VIDEO_TEST_EXTENSION_DIR || 'dist') }); await session.detach();

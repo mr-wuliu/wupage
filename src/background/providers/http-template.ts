@@ -1,3 +1,4 @@
+import { t } from "../../shared/i18n";
 import type { HttpTemplateConfig, TranslateBatchRequest, TranslatorProvider, ValidationResult } from "../../shared/types";
 import { readPath, renderTemplate } from "../template";
 import { fetchWithTimeout, API_TRANSLATION_TIMEOUT_MS, httpResponseError, readJsonResponse } from "../provider-transport";
@@ -14,9 +15,9 @@ export class HttpTemplateProvider implements TranslatorProvider {
   constructor(private readonly config: HttpTemplateConfig) {}
 
   validateConfig(): ValidationResult {
-    if (!this.config.url.trim()) return { ok: false, message: "URL is required." };
+    if (!this.config.url.trim()) return { ok: false, message: t("urlRequired") };
     if (!this.config.responsePath.trim()) {
-      return { ok: false, message: "Response path is required." };
+      return { ok: false, message: t("responsePathRequired") };
     }
     return { ok: true };
   }
@@ -46,14 +47,14 @@ export class HttpTemplateProvider implements TranslatorProvider {
           : undefined
     }, API_TRANSLATION_TIMEOUT_MS);
 
-    if (!response.ok) throw httpResponseError(response, `HTTP template request failed: ${response.status}`);
+    if (!response.ok) throw httpResponseError(response, t("httpRequestFailed", response.status));
     const payload = await readJsonResponse<unknown>(response, "HTTP template provider", onUsage);
     const translations = readPath(payload, this.config.responsePath);
     if (!Array.isArray(translations) || !translations.every((item) => typeof item === "string")) {
-      throw new Error("Response path must resolve to an array of strings.");
+      throw new Error(t("responsePathArray"));
     }
     if (translations.length !== request.texts.length) {
-      throw new Error("Translation count does not match source text count.");
+      throw new Error(t("responseCountMismatch"));
     }
     return translations;
   }

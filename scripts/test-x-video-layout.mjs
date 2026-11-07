@@ -58,7 +58,7 @@ let context, page, identity;
 try {
   context = await chromium.launchPersistentContext(path.join(output, 'profile-' + Date.now()), {
     ...target.chromiumOptions, headless: true, ignoreDefaultArgs: ['--disable-extensions'],
-    args: ['--enable-unsafe-extension-debugging'], viewport: { width: 1240, height: 900 }
+    args: ['--lang=zh-CN', '--enable-unsafe-extension-debugging'], viewport: { width: 1240, height: 900 }
   });
   await context.route('https://x.com/**', route => route.fulfill({ contentType: 'text/html', body: fixture }));
   const session = await context.browser().newBrowserCDPSession();

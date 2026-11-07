@@ -1,3 +1,4 @@
+import { t } from "../shared/i18n";
 import { anySignal } from "../shared/abort";
 import type { RuntimeRequest } from "../shared/types";
 import { getSettings } from "../shared/settings";
@@ -13,13 +14,13 @@ export function initVideoSettings(): void {
   chrome.storage?.onChanged?.addListener((changes, area) => {
     const settings = changes[SETTINGS_KEY]?.newValue as ExtensionSettings | undefined;
     if (area !== "local" || !settings || normalizeVideoTranslation(settings.videoTranslation).enabled) return;
-    for (const controller of requests.values()) controller.abort(new DOMException("视频字幕已关闭。", "AbortError"));
+    for (const controller of requests.values()) controller.abort(new DOMException(t("videoSubtitlesAreOff"), "AbortError"));
     frames.clear();
   });
 }
 const validId = (value: unknown): value is string => typeof value === "string" && /^[\w-]{1,100}$/u.test(value);
 function owner(sender: chrome.runtime.MessageSender): string {
-  if (!Number.isInteger(sender.tab?.id) || !Number.isInteger(sender.frameId)) throw new Error("字幕请求需要来自视频页面。");
+  if (!Number.isInteger(sender.tab?.id) || !Number.isInteger(sender.frameId)) throw new Error(t("subtitleRequestsMustComeFromAVideoPage"));
   return `${sender.tab!.id}:${sender.frameId}`;
 }
 
@@ -32,8 +33,8 @@ export function registerVideoFrame(request: Extract<RuntimeRequest, { type: "VID
 }
 
 export async function openVideoInTab(tabId: number | undefined): Promise<unknown> {
-  if (!Number.isInteger(tabId)) throw new Error("没有活动视频页面。");
-  if (!normalizeVideoTranslation((await getSettings()).videoTranslation).enabled) throw new Error("视频字幕已关闭，请先在扩展弹窗中开启。");
+  if (!Number.isInteger(tabId)) throw new Error(t("noActiveVideoPage"));
+  if (!normalizeVideoTranslation((await getSettings()).videoTranslation).enabled) throw new Error(t("videoSubtitlesAreOffEnableThemInThe"));
   const candidates = [...frames.values()].filter(frame => frame.tab === tabId && Date.now() - frame.seen < 15_000)
     .sort((a, b) => videoPriority(b.area, b.playing) - videoPriority(a.area, a.playing));
   const ids = [...new Set([...candidates.map(frame => frame.frame), 0])];
@@ -43,7 +44,7 @@ export async function openVideoInTab(tabId: number | undefined): Promise<unknown
       if (response?.ok && response.data?.opened) return response.data;
     } catch { /* An embedded frame may have navigated since discovery. */ }
   }
-  throw new Error("当前页面没有找到可播放的视频，请先打开视频后重试。");
+  throw new Error(t("noPlayableVideoFoundOpenAVideoAnd"));
 }
 
 export async function translateVideo(request: Extract<RuntimeRequest, { type: "TRANSLATE_VIDEO_SUBTITLES" }>, sender: chrome.runtime.MessageSender): Promise<unknown> {
@@ -51,14 +52,14 @@ export async function translateVideo(request: Extract<RuntimeRequest, { type: "T
   if (!validId(request.sessionId) || !validId(request.requestId) || !Array.isArray(request.texts) || !request.texts.length || request.texts.length > 8
     || request.texts.some(text => typeof text !== "string" || !text.trim() || text.length > 4000)
     || request.texts.reduce((size, text) => size + text.length, 0) > 8000
-    || typeof request.targetLang !== "string" || request.targetLang.length > 32) throw new Error("字幕请求格式无效。");
+    || typeof request.targetLang !== "string" || request.targetLang.length > 32) throw new Error(t("invalidSubtitleRequest"));
   const key = `${prefix}:${request.sessionId}:${request.requestId}`;
-  if (requests.has(key)) throw new Error("字幕请求正在处理。");
-  if ([...requests.keys()].filter(id => id.startsWith(`${prefix}:`)).length >= 4) throw new Error("请等待上一条字幕翻译结束。");
+  if (requests.has(key)) throw new Error(t("aSubtitleRequestIsAlreadyInProgress"));
+  if ([...requests.keys()].filter(id => id.startsWith(`${prefix}:`)).length >= 4) throw new Error(t("waitForThePreviousSubtitleTranslationToFinish"));
   const controller = new AbortController(); requests.set(key, controller);
   try {
     const settings = await getSettings();
-    if (!normalizeVideoTranslation(settings.videoTranslation).enabled) throw new Error("视频字幕已关闭。");
+    if (!normalizeVideoTranslation(settings.videoTranslation).enabled) throw new Error(t("videoSubtitlesAreOff"));
     const signal = anySignal([controller.signal, AbortSignal.timeout(15_000)]);
     signal.throwIfAborted();
     return await translateWithSettings(settings, { texts: request.texts, sourceLang: request.sourceLang, targetLang: request.targetLang, providerId: request.providerId },
@@ -70,11 +71,11 @@ export function cancelVideo(request: Extract<RuntimeRequest, { type: "CANCEL_VID
   if (!validId(request.sessionId) || (request.requestId !== undefined && !validId(request.requestId))) return;
   const prefix = `${owner(sender)}:${request.sessionId}:`;
   for (const [key, controller] of requests) if (key.startsWith(prefix) && (!request.requestId || key === `${prefix}${request.requestId}`)) {
-    controller.abort(new DOMException("字幕任务已取消。", "AbortError"));
+    controller.abort(new DOMException(t("subtitleTaskCanceled"), "AbortError"));
   }
 }
 
 export function clearVideoTab(tabId: number): void {
   for (const [key, frame] of frames) if (frame.tab === tabId) frames.delete(key);
-  for (const [key, controller] of requests) if (key.startsWith(`${tabId}:`)) controller.abort(new DOMException("视频页面已关闭。", "AbortError"));
+  for (const [key, controller] of requests) if (key.startsWith(`${tabId}:`)) controller.abort(new DOMException(t("theVideoPageHasClosed"), "AbortError"));
 }

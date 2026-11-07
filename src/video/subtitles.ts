@@ -1,3 +1,4 @@
+import { t } from "../shared/i18n";
 import { subtitleSentences } from "./subtitle-sentences";
 
 export interface SubtitleCue {
@@ -20,7 +21,7 @@ export function subtitleText(value: string): string {
 
 function timestamp(value: string): number {
   const match = /^(?:(\d+):)?(\d{2}):(\d{2})[.,](\d{3})$/u.exec(value);
-  if (!match || Number(match[2]) >= 60 || Number(match[3]) >= 60) throw new Error("字幕时间格式无效。");
+  if (!match || Number(match[2]) >= 60 || Number(match[3]) >= 60) throw new Error(t("invalidSubtitleTimeFormat"));
   return Number(match[1] ?? 0) * 3600 + Number(match[2]) * 60 + Number(match[3]) + Number(match[4]) / 1000;
 }
 
@@ -33,16 +34,16 @@ export function parseSubtitles(source: string): SubtitleCue[] {
     const index = lines.findIndex(line => line.includes("-->"));
     if (index < 0) continue;
     const match = /^(\S+)\s+-->\s+(\S+)(?:\s.*)?$/u.exec(lines[index].trim());
-    if (!match) throw new Error("字幕时间格式无效。");
+    if (!match) throw new Error(t("invalidSubtitleTimeFormat"));
     const start = timestamp(match[1]);
     const end = timestamp(match[2]);
     const text = subtitleText(lines.slice(index + 1).join("\n"));
-    if (end <= start) throw new Error("字幕结束时间必须晚于开始时间。");
-    if (text.length > 4000) throw new Error("单条字幕过长，请拆分后重新导入。");
+    if (end <= start) throw new Error(t("subtitleEndTimeMustBeLaterThanStart"));
+    if (text.length > 4000) throw new Error(t("aSubtitleCueIsTooLongSplitIt"));
     if (text) cues.push({ start, end, text });
-    if (cues.length > MAX_CUES) throw new Error("字幕条数超过 20,000 条，请拆分文件。");
+    if (cues.length > MAX_CUES) throw new Error(t("moreThan20000SubtitleCuesSplitThe"));
   }
-  if (!cues.length) throw new Error("没有找到可用字幕，请选择 UTF-8 编码的 SRT 或 VTT 文件。");
+  if (!cues.length) throw new Error(t("noUsableSubtitlesFoundChooseAUtf8"));
   return cues.sort((a, b) => a.start - b.start);
 }
 
@@ -117,7 +118,7 @@ export class SubtitleTranslator {
       const result = await this.translate(texts, controller.signal);
       if (this.disposed || controller.signal.aborted) return;
       if (result.length !== texts.length || result.some(text => typeof text !== "string" || !text.trim())) {
-        throw new Error("翻译服务返回的字幕不完整，请重试。");
+        throw new Error(t("theServiceReturnedIncompleteSubtitlesTryAgain"));
       }
       texts.forEach((text, index) => { this.cache.delete(text); this.cache.set(text, result[index]); });
       while (this.cache.size > 256) this.cache.delete(this.cache.keys().next().value!);

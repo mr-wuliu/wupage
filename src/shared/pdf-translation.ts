@@ -1,3 +1,4 @@
+import { t } from "./i18n";
 import { ProviderError, restoreRuntimeError } from "./errors";
 import type { RuntimeResponse, TranslateBatchRequest, TranslateBatchResponse } from "./types";
 
@@ -10,7 +11,7 @@ export type PdfTranslationMessage =
   | { type: "result"; response: RuntimeResponse };
 
 export function pdfTranslationTimeout(pageNumber: number): ProviderError {
-  return new ProviderError(`第 ${pageNumber} 页翻译超过 120 秒，已取消该页请求，可点击翻译按钮重试。`, "timeout");
+  return new ProviderError(t("pageExceededThe120SecondTranslationLimitChoose", pageNumber), "timeout");
 }
 
 /** Disconnecting owns the entire page task, including queued work and retries. */
@@ -36,7 +37,7 @@ export function requestPdfTranslation(
     const onDisconnect = () => {
       // Reading lastError also acknowledges Chrome's disconnected-port error.
       const detail = chrome.runtime.lastError?.message;
-      finish(undefined, new ProviderError(`翻译连接已中断，请点击翻译按钮重试。${detail ? ` ${detail}` : ""}`, "service-unavailable"));
+      finish(undefined, new ProviderError(t("translationDisconnectedChooseTranslateToRetry", detail ? ` ${detail}` : ""), "service-unavailable"));
     };
     const onMessage = (message: PdfTranslationMessage) => {
       if (message.type !== "result") return;

@@ -62,7 +62,7 @@ let context;
 try {
   context = await chromium.launchPersistentContext(path.join(output, `profile-${Date.now()}`), {
     ...target.chromiumOptions, headless: true, viewport: { width: 1280, height: 900 },
-    ignoreDefaultArgs: ['--disable-extensions'], args: ['--enable-unsafe-extension-debugging']
+    ignoreDefaultArgs: ['--disable-extensions'], args: ['--lang=zh-CN', '--enable-unsafe-extension-debugging']
   });
   await context.route('https://**/*', route => {
     const site = sites.find(site => new URL(site.url).hostname === new URL(route.request().url()).hostname);

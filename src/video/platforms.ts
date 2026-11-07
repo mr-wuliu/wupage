@@ -1,3 +1,4 @@
+import { t } from "../shared/i18n";
 export interface VideoPlatform {
   id: string;
   label: string;
@@ -14,7 +15,7 @@ export const YOUTUBE_PLAYER_SELECTOR = "#movie_player,.html5-video-player,#playe
 export const VIDEO_PLATFORMS: VideoPlatform[] = [
   { id: "youtube", label: "YouTube", hosts: ["youtube.com", "youtube-nocookie.com"], player: YOUTUBE_PLAYER_SELECTOR,
     captions: ".ytp-caption-window-container", lines: ".caption-visual-line", toggle: ".ytp-subtitles-button", bridge: true },
-  { id: "bilibili", label: "哔哩哔哩", hosts: ["bilibili.com"], player: ".bpx-player-container,.bilibili-player-video-wrap",
+  { id: "bilibili", get label() { return t("bilibili"); }, hosts: ["bilibili.com"], player: ".bpx-player-container,.bilibili-player-video-wrap",
     captions: ".bili-subtitle-x-subtitle-panel-major-group,.bpx-player-subtitle-panel,.bilibili-player-video-subtitle",
     toggle: ".bpx-player-ctrl-subtitle", bridge: true },
   { id: "netflix", label: "Netflix", hosts: ["netflix.com"], player: ".watch-video,.watch-video--player-view,.VideoContainer",

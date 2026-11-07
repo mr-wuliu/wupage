@@ -1,3 +1,4 @@
+import { t } from "../shared/i18n";
 import { DEFAULT_SHORTCUTS, DEFAULT_SHORTCUT_ENABLED, formatShortcut, normalizeShortcutEnabled, normalizeShortcuts, shortcutFromEvent, shortcutWarning,
   TRANSLATION_SHORTCUTS, type ShortcutEnabledSettings, type ShortcutSettings, type TranslationShortcut } from "../shared/shortcuts";
 import { setupLocalShortcutSettings } from "./local-shortcuts";
@@ -27,14 +28,14 @@ export function setupShortcutSettings(root: HTMLElement): {
     const button = document.createElement("button");
     button.type = "button"; button.className = "shortcut-switch";
     button.dataset.shortcutToggle = name;
-    button.setAttribute("role", "switch"); button.setAttribute("aria-label", `${label}快捷键`);
+    button.setAttribute("role", "switch"); button.setAttribute("aria-label", t("shortcut", label));
     switches.set(name, { button, row });
     button.addEventListener("click", () => {
       if (!ready || (name in values ? !values[name as TranslationShortcut] : localControls?.isEmpty(name as import("../shared/shortcuts").LocalShortcut))) return;
       enabled[name] = !enabled[name];
       recording = undefined;
       refresh();
-      status.textContent = enabled[name] ? "快捷键已开启，点击「保存」后生效。" : "快捷键已关闭，保留原按键；点击「保存」后生效。";
+      status.textContent = enabled[name] ? t("shortcutsEnabledSaveToApply") : t("shortcutsDisabledExistingKeyBindingsAreKeptSave");
     }, { signal: events.signal });
     return button;
   }
@@ -43,7 +44,7 @@ export function setupShortcutSettings(root: HTMLElement): {
     localControls?.refresh(ready);
     for (const [name, row] of rows) {
       row.input.value = recording === name ? "" : formatShortcut(values[name], mac);
-      row.input.placeholder = recording === name ? "请按下组合键…" : "未设置";
+      row.input.placeholder = recording === name ? t("pressAKeyCombination") : t("unassigned");
       const characters = Array.from(row.input.value || row.input.placeholder)
         .reduce((width, character) => width + (character.charCodeAt(0) > 255 ? 2 : 1), 0);
       row.input.parentElement!.style.setProperty("--shortcut-width", `${Math.max(10, characters)}ch`);
@@ -56,7 +57,7 @@ export function setupShortcutSettings(root: HTMLElement): {
       const empty = name in values ? !values[name as TranslationShortcut] : Boolean(localControls?.isEmpty(name as import("../shared/shortcuts").LocalShortcut));
       button.disabled = !ready || empty;
       button.setAttribute("aria-checked", String(enabled[name]));
-      button.title = empty ? "请先设置快捷键，再启用" : enabled[name] ? "关闭快捷键，保留当前按键" : "开启快捷键";
+      button.title = empty ? t("assignAShortcutBeforeEnabling") : enabled[name] ? t("disableShortcutAndKeepItsBinding") : t("enableShortcut");
       row.dataset.enabled = String(enabled[name]);
     }
   }
@@ -65,7 +66,7 @@ export function setupShortcutSettings(root: HTMLElement): {
     const row = rows.get(name)!;
     const duplicate = value ? TRANSLATION_SHORTCUTS.find(shortcut => shortcut.name !== name && values[shortcut.name] === value) : undefined;
     const duplicateLabel = duplicate?.label ?? localControls?.conflict(value);
-    const error = duplicateLabel ? `已用于「${duplicateLabel}」，请换一个组合。` : "";
+    const error = duplicateLabel ? t("alreadyUsedByChooseADifferentCombination", duplicateLabel) : "";
     row.error.textContent = error || "";
     if (error) { row.input.setAttribute("aria-invalid", "true"); status.textContent = error; return false; }
     row.input.removeAttribute("aria-invalid");
@@ -73,7 +74,7 @@ export function setupShortcutSettings(root: HTMLElement): {
     else if (!values[name]) enabled[name] = true;
     values[name] = value;
     recording = undefined;
-    status.textContent = "快捷键已修改，点击底部「保存」后生效。";
+    status.textContent = t("shortcutChangedSaveToApply");
     refresh();
     return true;
   }
@@ -89,25 +90,25 @@ export function setupShortcutSettings(root: HTMLElement): {
     input.id = label.htmlFor; input.type = "text"; input.readOnly = true; input.disabled = true;
     input.autocomplete = "off"; input.spellcheck = false; input.dataset.command = shortcut.name;
     input.setAttribute("aria-describedby", `shortcut-error-${shortcut.name} shortcutRecorderHelp`);
-    input.title = "点击后按下组合键；Esc 取消，Backspace 或 Delete 清空";
+    input.title = t("clickAndPressACombinationEscCancelsBackspace");
     const error = document.createElement("span"); error.id = `shortcut-error-${shortcut.name}`;
     error.className = "shortcut-error"; error.setAttribute("role", "status");
     field.append(input, error);
-    const reset = document.createElement("button"); reset.type = "button"; reset.textContent = "默认"; reset.className = "shortcut-small-button";
+    const reset = document.createElement("button"); reset.type = "button"; reset.textContent = t("default"); reset.className = "shortcut-small-button";
     reset.dataset.settingsFeedback = "";
-    reset.setAttribute("aria-label", `恢复${shortcut.label}默认快捷键`);
+    reset.setAttribute("aria-label", t("restoreDefaultShortcutFor", shortcut.label));
     actions.append(field, reset, createSwitch(shortcut.name, shortcut.label, row)); row.append(title, actions); bindings.append(row);
     rows.set(shortcut.name, { input, error, reset });
 
     input.addEventListener("focus", () => {
       recording = shortcut.name;
-      status.textContent = "按下新的组合键，Esc 取消，Backspace 或 Delete 清空。";
+      status.textContent = t("pressANewCombinationEscCancelsBackspaceOr");
       refresh();
     }, { signal: events.signal });
     input.addEventListener("blur", () => {
       if (recording !== shortcut.name) return;
       recording = undefined; refresh();
-      status.textContent = "点击按键框录入，修改后点击底部「保存」。";
+      status.textContent = t("clickAShortcutFieldToRecordKeysThen");
     }, { signal: events.signal });
     input.addEventListener("keydown", event => {
       if (event.isComposing || event.keyCode === 229 || event.getModifierState("AltGraph")) return;
@@ -117,12 +118,12 @@ export function setupShortcutSettings(root: HTMLElement): {
       if (["Control", "Shift", "Alt", "Meta", "OS"].includes(event.key)) return;
       if (event.key === "Escape") {
         recording = undefined; error.textContent = ""; input.removeAttribute("aria-invalid");
-        refresh(); input.blur(); status.textContent = "已取消录入，原绑定保持不变。"; return;
+        refresh(); input.blur(); status.textContent = t("recordingCanceledPreviousShortcutKept"); return;
       }
       const clearing = ["Backspace", "Delete"].includes(event.key) && !event.ctrlKey && !event.altKey && !event.shiftKey && !event.metaKey;
       const value = clearing ? "" : shortcutFromEvent(event);
       if (value === undefined) {
-        error.textContent = "请使用 Ctrl、Alt 或 Command 加字母、数字等按键的组合。";
+        error.textContent = t("combineCtrlAltOrCommandWithALetter");
         input.setAttribute("aria-invalid", "true"); status.textContent = error.textContent; return;
       }
       if (apply(shortcut.name, value)) input.blur();

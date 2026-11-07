@@ -1,3 +1,4 @@
+import { t } from "../shared/i18n";
 import { readFormulaText, renderFormulaText, type PdfFormulaImage } from "./math-rendering";
 import { uiIconMarkup, type UiIconName } from "../shared/ui-icons";
 
@@ -42,7 +43,7 @@ export function createEditableTranslationBlock(
   text.contentEditable = "true";
   text.spellcheck = false;
   text.setAttribute("role", "textbox");
-  text.setAttribute("aria-label", "可编辑译文");
+  text.setAttribute("aria-label", t("editableTranslation"));
   text.setAttribute("aria-multiline", "true");
   text.style.color = options.color;
   text.style.fontFamily = options.fontFamily;
@@ -60,20 +61,20 @@ export function createEditableTranslationBlock(
   else text.textContent = options.text;
   text.addEventListener("input", () => options.onTextChange?.(readFormulaText(text)));
 
-  const moveHandle = createControl("translation-block-move", "移动译文块", "cursor-move");
+  const moveHandle = createControl("translation-block-move", t("moveTranslationBlock"), "cursor-move");
   bindPointerGesture(moveHandle, block, layer, "move");
 
-  const deleteButton = createControl("translation-block-delete", "删除译文块", "trash");
+  const deleteButton = createControl("translation-block-delete", t("deleteTranslationBlock"), "trash");
   deleteButton.addEventListener("click", () => {
     options.onDelete?.();
     block.remove();
   });
 
-  const resizeHandle = createControl("translation-block-resize", "调整译文块大小");
+  const resizeHandle = createControl("translation-block-resize", t("resizeTranslationBlock"));
   bindPointerGesture(resizeHandle, block, layer, "resize");
 
-  const decreaseButton = createControl("translation-block-font-decrease", "减小字号", "minus");
-  const increaseButton = createControl("translation-block-font-increase", "增大字号", "plus");
+  const decreaseButton = createControl("translation-block-font-decrease", t("decreaseFontSize"), "minus");
+  const increaseButton = createControl("translation-block-font-increase", t("increaseFontSize"), "plus");
   for (const [button, direction] of [[decreaseButton, -1], [increaseButton, 1]] as const) {
     button.addEventListener("click", () => {
       const size = numericStyle(text.style.fontSize);
@@ -86,7 +87,7 @@ export function createEditableTranslationBlock(
   const toolbar = document.createElement("div");
   toolbar.className = "translation-block-toolbar";
   toolbar.setAttribute("role", "toolbar");
-  toolbar.setAttribute("aria-label", "译文块工具");
+  toolbar.setAttribute("aria-label", t("translationBlockTools"));
   toolbar.append(moveHandle, decreaseButton, increaseButton, deleteButton);
   block.append(text, toolbar, resizeHandle);
   return block;

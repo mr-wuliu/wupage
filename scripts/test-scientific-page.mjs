@@ -74,7 +74,7 @@ try {
     const { chromium } = await import(path.isAbsolute(moduleName) ? pathToFileURL(moduleName).href : moduleName);
     browser = await chromium.launchPersistentContext(path.join(output, `profile-${Date.now()}`), {
       ...target.chromiumOptions,
-      headless: true, viewport: { width: 1400, height: 1000 }, ignoreDefaultArgs: ['--disable-extensions'], args: ['--enable-unsafe-extension-debugging']
+      headless: true, viewport: { width: 1400, height: 1000 }, ignoreDefaultArgs: ['--disable-extensions'], args: ['--lang=zh-CN', '--enable-unsafe-extension-debugging']
     });
     const session = await browser.browser().newBrowserCDPSession();
     await session.send('Extensions.loadUnpacked', { path: path.join(root, 'dist') }); await session.detach();

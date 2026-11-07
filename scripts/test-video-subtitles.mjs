@@ -42,7 +42,7 @@ let context;
 try {
   context = await chromium.launchPersistentContext(path.join(output, 'profile-' + Date.now()), {
     ...(process.env.PDF_TEST_BROWSER ? { executablePath: process.env.PDF_TEST_BROWSER } : target.chromiumOptions),
-    headless: true, ignoreDefaultArgs: ['--disable-extensions'], args: ['--enable-unsafe-extension-debugging'], viewport: { width: 1240, height: 800 }
+    headless: true, ignoreDefaultArgs: ['--disable-extensions'], args: ['--lang=zh-CN', '--enable-unsafe-extension-debugging'], viewport: { width: 1240, height: 800 }
   });
   const session = await context.browser().newBrowserCDPSession();
   await session.send('Extensions.loadUnpacked', { path: path.join(root, process.env.VIDEO_TEST_EXTENSION_DIR || 'dist') }); await session.detach();

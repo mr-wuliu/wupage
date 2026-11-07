@@ -1,3 +1,4 @@
+import { t } from "../shared/i18n";
 import { paintFormulaText } from "./math-rendering";
 import type { PdfTextBlock } from "./model";
 import type { PdfExportScene, PdfExportText } from "./vector-export";
@@ -16,7 +17,7 @@ export async function buildRasterPdf(
   sourceBytes?: Uint8Array,
   fontBytes?: Uint8Array
 ): Promise<Uint8Array> {
-  if (!pages.length) throw new Error("没有可导出的 PDF 页面。");
+  if (!pages.length) throw new Error(t("noPdfPagesToExport"));
   if (fontBytes && pages.some((page) => page.scene)) {
     const { buildSearchablePdf } = await import("./vector-export");
     return buildSearchablePdf(pages, title, sourceBytes, fontBytes);
@@ -50,7 +51,7 @@ export async function collectPdfExportScene(original: HTMLCanvasElement, layer: 
   const measure = document.createElement("canvas").getContext("2d");
   const image = async (canvas: HTMLCanvasElement, x: number, y: number, w: number, h: number): Promise<void> => {
     if (w <= 0 || h <= 0) return;
-    const blob = await new Promise<Blob>((resolve, reject) => canvas.toBlob((value) => value ? resolve(value) : reject(new Error("无法编码 PDF 保留内容。")), "image/png"));
+    const blob = await new Promise<Blob>((resolve, reject) => canvas.toBlob((value) => value ? resolve(value) : reject(new Error(t("couldNotEncodeThePreservedPdfContent"))), "image/png"));
     scene.images.push({ bytes: new Uint8Array(await blob.arrayBuffer()), x, y, width: w, height: h });
   };
   for (const block of blocks.filter((block) => !block.translatable)) for (const line of block.lines) {
@@ -73,7 +74,7 @@ export async function collectPdfExportScene(original: HTMLCanvasElement, layer: 
   for (const block of layer.querySelectorAll<HTMLElement>(".translation-block")) {
     const element = block.querySelector<HTMLElement>(".translation-block-text");
     if (!element) continue;
-    if (block.dataset.layoutOverflow) throw new Error("有译文超出可读排版范围，请调整译文块大小或文字后再下载。");
+    if (block.dataset.layoutOverflow) throw new Error(t("someTranslatedTextDoesNotFitAtA"));
     const style = getComputedStyle(element), bounds = element.getBoundingClientRect();
     const fontSize = Number.parseFloat(element.style.fontSize);
     if (measure) measure.font = `${style.fontWeight} ${fontSize}px ${style.fontFamily}`;
@@ -117,7 +118,7 @@ export function composeTranslatedPageCanvas(
   canvas.width = baseCanvas.width;
   canvas.height = baseCanvas.height;
   const context = canvas.getContext("2d", { alpha: false });
-  if (!context) throw new Error("浏览器无法创建 PDF 导出画布。");
+  if (!context) throw new Error(t("theBrowserCouldNotCreateThePdfExport"));
   context.drawImage(baseCanvas, 0, 0);
   paintTranslationLayer(context, translationLayer);
   return canvas;
@@ -204,7 +205,7 @@ export async function canvasToJpegBytes(
   const blob = await new Promise<Blob>((resolve, reject) => {
     canvas.toBlob((value) => {
       if (value) resolve(value);
-      else reject(new Error("无法编码 PDF 页面图像。"));
+      else reject(new Error(t("couldNotEncodeThePdfPageImage")));
     }, "image/jpeg", quality);
   });
   return new Uint8Array(await blob.arrayBuffer());

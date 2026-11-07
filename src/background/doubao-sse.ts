@@ -1,3 +1,4 @@
+import { t } from "../shared/i18n";
 import { ProviderError } from "../shared/errors";
 
 const MAX_TEXT_LENGTH = 1_000_000;
@@ -8,20 +9,20 @@ export function doubaoServiceError(code: unknown): ProviderError {
     case "710012000":
     case "710012001":
     case "710022013":
-      return new ProviderError("请先在同一浏览器登录豆包，然后重试翻译或重新检测。", "login-required");
+      return new ProviderError(t("signInToDoubaoInThisBrowserThen"), "login-required");
     case "710012007":
     case "676010003":
-      return new ProviderError("豆包请求受限，请稍后手动重试。", "rate-limited", 60_000);
+      return new ProviderError(t("doubaoRateLimitReachedWaitBeforeRetryingManually"), "rate-limited", 60_000);
     case "710022002":
     case "710022004":
-      return new ProviderError("豆包拒绝了请求，请在豆包网站检查后重试翻译或重新检测。", "service-rejected");
+      return new ProviderError(t("doubaoRejectedTheRequestCheckTheDoubaoWebsite"), "service-rejected");
     default:
       return protocolError();
   }
 }
 
 function protocolError(): ProviderError {
-  return new ProviderError("豆包返回的数据格式不受支持，请稍后重试。", "protocol-changed");
+  return new ProviderError(t("unsupportedDoubaoResponseFormatTryAgainLater"), "protocol-changed");
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

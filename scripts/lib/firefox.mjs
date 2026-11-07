@@ -14,6 +14,7 @@ export async function startFirefox(output, extension, preferences = {}) {
   const port = reservation.address().port;
   await new Promise(resolve => reservation.close(resolve));
   const prefs = {
+    'intl.locale.requested': 'zh-CN',
     'marionette.port': port,
     'browser.shell.checkDefaultBrowser': false,
     'browser.startup.homepage_override.mstone': 'ignore',

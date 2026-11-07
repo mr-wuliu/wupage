@@ -1,29 +1,30 @@
+import { t } from "./i18n";
 import type { ExtensionSettings } from "./types";
 import type { sendRuntimeMessage } from "./messaging";
 import { getLocalRoute, type LocalModelStatus } from "../local/models";
 
 export function localProviderNotice(settings: ExtensionSettings): string | undefined {
   if (settings.providers.find((provider) => provider.id === settings.activeProviderId)?.type !== "firefox-local") return undefined;
-  return "首次使用请在设置中下载或导入语言模型。";
+  return t("downloadOrImportLanguageModelsInSettingsBefore");
 }
 
 export function localModelNotice(settings: ExtensionSettings, status: LocalModelStatus): { text: string; state: string } {
   let ids: string[] | undefined;
   if (settings.sourceLang !== "auto") {
     try { ids = getLocalRoute(settings.sourceLang, settings.targetLang).map(model => model.id); }
-    catch { return { text: "当前语言方向不受本地模型支持", state: "missing" }; }
+    catch { return { text: t("localModelsDoNotSupportThisLanguagePair"), state: "missing" }; }
   }
   const models = ids ? ids.map(id => status.models.find(model => model.id === id)) : status.models;
   const downloading = models.find(model => model?.state === "downloading");
-  if (downloading) return { text: `语言模型下载中 · ${Math.min(100, Math.floor(downloading.downloaded / Math.max(1, downloading.total) * 100))}%`, state: "downloading" };
+  if (downloading) return { text: t("downloadingLanguageModel", Math.min(100, Math.floor(downloading.downloaded / Math.max(1, downloading.total) * 100))), state: "downloading" };
   const error = models.find(model => model?.state === "error");
-  if (error) return { text: `模型下载失败：${error.error || "请在设置中重试"}`, state: "error" };
-  if (ids && models.every(model => model?.state === "ready")) return { text: ids.length ? "当前语言模型已就绪" : "源语言与目标语言相同", state: "ready" };
+  if (error) return { text: t("modelDownloadErrorDetail", error.error || t("retryInSettings")), state: "error" };
+  if (ids && models.every(model => model?.state === "ready")) return { text: ids.length ? t("languageModelReady") : t("sourceAndTargetLanguagesMatch"), state: "ready" };
   if (!ids) {
     const ready = models.filter(model => model?.state === "ready");
-    if (ready.length) return { text: `已安装 ${ready.length} 个语言模型`, state: "ready" };
+    if (ready.length) return { text: t("installedLanguageModels", ready.length), state: "ready" };
   }
-  return { text: "需先安装所需语言模型", state: "missing" };
+  return { text: t("installTheRequiredLanguageModelsFirst"), state: "missing" };
 }
 
 const renders = new WeakMap<HTMLElement, { timer?: ReturnType<typeof setTimeout> }>();
@@ -37,9 +38,9 @@ export function renderLocalModelNotice(element: HTMLElement, settings: Extension
   element.classList.toggle("wupage-local-notice", local);
   if (!local) { delete element.dataset.state; return; }
   const text = document.createElement("span");
-  text.textContent = "正在检查本地语言模型…";
+  text.textContent = t("checkingLocalLanguageModels");
   const button = document.createElement("button");
-  button.type = "button"; button.textContent = "管理模型";
+  button.type = "button"; button.textContent = t("manageModels");
   button.addEventListener("click", manage);
   element.replaceChildren(text, button);
   const refresh = async () => {
@@ -51,7 +52,7 @@ export function renderLocalModelNotice(element: HTMLElement, settings: Extension
       text.textContent = notice.text; element.dataset.state = notice.state;
       if (status.downloading && shouldPoll()) render.timer = setTimeout(() => void refresh(), 1500);
     } catch {
-      if (renders.get(element) === render) { text.textContent = "请在设置中查看语言模型状态"; element.dataset.state = "unknown"; }
+      if (renders.get(element) === render) { text.textContent = t("checkLanguageModelStatusInSettings"); element.dataset.state = "unknown"; }
     }
   };
   void refresh();

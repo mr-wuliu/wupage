@@ -1,3 +1,4 @@
+import { initializeInterfaceLanguage, t, watchInterfaceLanguage } from "../shared/i18n";
 import { getSettings, saveSettings } from "../shared/settings";
 import { DEFAULT_SETTINGS } from "../shared/defaults";
 import { mergeSettingsChanges } from "../shared/settings-changes";
@@ -9,7 +10,7 @@ import { loadImageData, translateImageWithSettings } from "./image-translation";
 import { clearTranslationCache, getTranslationDebugSnapshot, translateWithSettings } from "./translation";
 import { requestOcr } from "./ocr";
 import { installedRevision } from "../ocr/model-store";
-import { initImageContextMenu } from "./image-context-menu";
+import { initImageContextMenu, refreshImageContextMenu } from "./image-context-menu";
 import { initPageContextMenu, refreshPageContextMenu } from "./page-context-menu";
 import { initializeOllamaCompatibility } from "./ollama-compatibility";
 import { requestLocal } from "./local";
@@ -26,8 +27,10 @@ import { saveParagraphMode } from "./paragraph-mode";
 import { captureVideoFrame } from "./video-frame";
 import { installPdfTranslation } from "./pdf-translation";
 
-installPdfTranslation(async (request, sender, signal) =>
-  translateWithSettings(await getSettings(), request, { signal, statisticsPageKey: statisticsPageKey(sender) }));
+installPdfTranslation(async (request, sender, signal) => {
+  await initializeInterfaceLanguage();
+  return translateWithSettings(await getSettings(), request, { signal, statisticsPageKey: statisticsPageKey(sender) });
+});
 
 chrome.runtime.onMessage.addListener((request: RuntimeRequest, sender, sendResponse) => {
   if ("target" in request) return;
@@ -59,8 +62,14 @@ try {
 } catch (error: unknown) {
   console.warn("WuPage page menu:", error);
 }
+watchInterfaceLanguage(() => {
+  try { refreshImageContextMenu(); }
+  catch (error) { console.warn("WuPage image menu:", error); }
+  void refreshPageContextMenu().catch(error => console.warn("WuPage page menu:", error));
+});
 
 async function handleMessage(request: RuntimeRequest, sender: chrome.runtime.MessageSender): Promise<unknown> {
+  await initializeInterfaceLanguage();
   if (isFrameRequest(request)) return frameSessions.handle(request, sender);
   switch (request.type) {
     case "GET_PARAGRAPH_MODE":
@@ -83,7 +92,7 @@ async function handleMessage(request: RuntimeRequest, sender: chrome.runtime.Mes
     case "LOOKUP_DICTIONARY":
     case "PLAY_DICTIONARY_AUDIO": {
       const settings = normalizeSelectionTranslation((await getSettings()).selectionTranslation);
-      if (!settings.enabled) throw new Error("请先在设置中开启划词翻译。");
+      if (!settings.enabled) throw new Error(t("enableSelectionTranslationInSettingsFirst"));
       if (request.type === "LOOKUP_DICTIONARY") return lookupDictionary(request.provider, request.query);
       return playDictionaryAudio(request.provider, request.url, `${sender.tab?.id ?? "extension"}:${sender.frameId ?? 0}`);
     }
@@ -94,7 +103,7 @@ async function handleMessage(request: RuntimeRequest, sender: chrome.runtime.Mes
     case "CHECK_DOUBAO": {
       const settings = await getSettings();
       if (!settings.providers.some((entry) => entry.type === "doubao-web" && entry.enabled !== false)) {
-        throw new Error("请先启用豆包翻译服务。");
+        throw new Error(t("enableTheDoubaoTranslationServiceFirst"));
       }
       return checkDoubao();
     }
@@ -111,7 +120,7 @@ async function handleMessage(request: RuntimeRequest, sender: chrome.runtime.Mes
       return null;
     case "OPEN_EMBEDDED_PDF": {
       const source = new URL(request.url);
-      if (!["http:", "https:"].includes(source.protocol)) throw new Error("此 PDF 地址不支持打开。");
+      if (!["http:", "https:"].includes(source.protocol)) throw new Error(t("unsupportedPdfAddress"));
       const target = new URL(chrome.runtime.getURL("pdf.html"));
       target.searchParams.set("url", source.href); target.searchParams.set("translate", "1");
       await chrome.tabs.create({ url: target.href }); return { opened: true };
@@ -136,7 +145,7 @@ async function handleMessage(request: RuntimeRequest, sender: chrome.runtime.Mes
     case "IMPORT_SETTINGS":
       return importSettingsBackup(request.backup);
     case "RESET_SETTINGS":
-      return saveSettings(structuredClone(DEFAULT_SETTINGS));
+      return saveSettings(structuredClone(DEFAULT_SETTINGS), "browser");
     case "SAVE_SETTINGS":
       // Checking a new opt-in is required. An unavailable optional cache must
       // not prevent changing languages or services while OCR is already on.
@@ -144,9 +153,9 @@ async function handleMessage(request: RuntimeRequest, sender: chrome.runtime.Mes
         const next = request.previousSettings
           ? mergeSettingsChanges(latest, request.settings, request.previousSettings) : request.settings;
         if (next.imageTranslationEnabled && !latest.imageTranslationEnabled
-          && !await installedRevision()) throw new Error("请先点击图片翻译旁的扳手安装 OCR 模型。");
+          && !await installedRevision()) throw new Error(t("useTheWrenchBesideImageTranslationToInstall"));
         return next;
-      });
+      }, request.interfaceLanguage);
       return null;
     case "GET_OCR_STATUS":
       return requestOcr("status");
@@ -163,7 +172,7 @@ async function handleMessage(request: RuntimeRequest, sender: chrome.runtime.Mes
     }
     case "LOAD_IMAGE": {
       const settings = await getSettings();
-      if (!settings.imageTranslationEnabled) throw new Error("请先开启图片翻译。");
+      if (!settings.imageTranslationEnabled) throw new Error(t("enableImageTranslationFirst"));
       return loadImageData(request.url);
     }
     case "TRANSLATE_IMAGE":
@@ -182,7 +191,7 @@ async function handleMessage(request: RuntimeRequest, sender: chrome.runtime.Mes
       const providerConfig = settings.providers.find(
         (provider) => provider.id === (request.providerId ?? settings.activeProviderId)
       );
-      if (!providerConfig) throw new Error("Provider not found.");
+      if (!providerConfig) throw new Error(t("providerNotFound"));
       // An explicit settings test can validate a service before it is enabled.
       const provider = createProvider(providerConfig);
       const validation = provider.validateConfig();

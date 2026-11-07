@@ -1,3 +1,4 @@
+import { initializeInterfaceLanguage, t } from "../shared/i18n";
 import { SETTINGS_KEY } from "../shared/defaults";
 import { getSettings } from "../shared/settings";
 import type { ExtensionSettings, RuntimeRequest, RuntimeResponse } from "../shared/types";
@@ -20,12 +21,15 @@ export function initPageContextMenu(): void {
     chrome.contextMenus.remove(id, () => { void chrome.runtime.lastError; resolve(); });
   }))).then(() => {}).catch(reportError);
   const sync = (): Promise<void> => {
-    updates = updates.catch(reportError).then(() => upsertMenu({
-      title: translated ? "恢复原文" : "全文翻译",
-      // 'page' also covers ordinary text in frames. Adding 'frame', 'link' or
-      // 'selection' can overlap the image entry and recreate Chrome's submenu.
-      contexts: ["page"], documentUrlPatterns: ["http://*/*", "https://*/*"], visible: enabled
-    }));
+    updates = updates.catch(reportError).then(async () => {
+      await initializeInterfaceLanguage();
+      return upsertMenu({
+        title: translated ? t("restoreOriginal") : t("translateFullPage"),
+        // 'page' also covers ordinary text in frames. Adding 'frame', 'link' or
+        // 'selection' can overlap the image entry and recreate Chrome's submenu.
+        contexts: ["page"], documentUrlPatterns: ["http://*/*", "https://*/*"], visible: enabled
+      });
+    });
     return updates;
   };
   refreshActivePage = async () => {
@@ -66,8 +70,8 @@ export function initPageContextMenu(): void {
   }).catch(reportError);
 }
 
-export async function refreshPageContextMenu(sender: chrome.runtime.MessageSender): Promise<void> {
-  if (sender.tab?.id === undefined || sender.frameId !== 0) return;
+export async function refreshPageContextMenu(sender?: chrome.runtime.MessageSender): Promise<void> {
+  if (sender && (sender.tab?.id === undefined || sender.frameId !== 0)) return;
   // Query the active page rather than trusting the sender: another tab may
   // have become active while a background page finished translating.
   await refreshActivePage();

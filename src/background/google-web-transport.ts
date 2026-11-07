@@ -1,3 +1,4 @@
+import { t } from "../shared/i18n";
 import { ProviderError } from "../shared/errors";
 import { fetchWithTimeout, httpResponseError, readJsonResponse } from "./provider-transport";
 
@@ -27,7 +28,7 @@ export async function fetchGoogleWebTranslation(text: string, source: string, ta
       if (!connectionFailure(error)) throw error;
       continue;
     }
-    if (!response.ok) throw httpResponseError(response, `谷歌翻译请求被 ${new URL(origin).hostname} 拒绝（HTTP ${response.status}）。`);
+    if (!response.ok) throw httpResponseError(response, t("rejectedTheGoogleTranslateRequestHttp", new URL(origin).hostname, response.status));
     let payload: unknown;
     try { payload = await readJsonResponse<unknown>(response, "Google Web Translate"); }
     catch (error) {
@@ -40,12 +41,12 @@ export async function fetchGoogleWebTranslation(text: string, source: string, ta
     signal?.throwIfAborted();
     if (!Array.isArray(payload) || !Array.isArray(payload[0])
       || !payload[0].some(segment => Array.isArray(segment) && typeof segment[0] === "string" && segment[0].trim())) {
-      throw new ProviderError("谷歌翻译未返回有效译文，接口格式可能发生变化。", "protocol-changed");
+      throw new ProviderError(t("googleTranslateReturnedNoValidTranslationItsResponse"), "protocol-changed");
     }
     // Shared across provider instances, but never persisted across browser runs.
     // The short lifetime allows proxy/network changes to recover automatically.
     preferred = { origin, expires: Date.now() + ROUTE_TTL_MS };
     return payload;
   }
-  throw new ProviderError("无法连接谷歌翻译，已尝试 translate.googleapis.com 和 translate.google.com。请检查这两个域名的网络或代理规则；能打开 Google 网页不代表翻译接口可用。", "service-unavailable");
+  throw new ProviderError(t("couldNotReachTranslateGoogleapisComOrTranslate"), "service-unavailable");
 }

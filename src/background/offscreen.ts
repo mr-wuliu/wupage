@@ -1,3 +1,4 @@
+import { t } from "../shared/i18n";
 let opening: Promise<void> | undefined;
 
 if (import.meta.env.MODE === "firefox") {
@@ -20,9 +21,9 @@ export async function ensureOffscreenDocument(): Promise<void> {
       frame.hidden = true;
       frame.src = chrome.runtime.getURL("ocr-offscreen.html");
       await new Promise<void>((resolve, reject) => {
-        const timer = setTimeout(() => { frame.remove(); reject(new Error("本地引擎初始化超时，请重新加载扩展。")); }, 30_000);
+        const timer = setTimeout(() => { frame.remove(); reject(new Error(t("localEngineInitializationTimedOutReloadTheExtension"))); }, 30_000);
         frame.onload = () => { clearTimeout(timer); resolve(); };
-        frame.onerror = () => { clearTimeout(timer); frame.remove(); reject(new Error("本地引擎加载失败，请重新加载扩展。")); };
+        frame.onerror = () => { clearTimeout(timer); frame.remove(); reject(new Error(t("couldNotLoadTheLocalEngineReloadThe"))); };
         document.body.append(frame);
       });
       return;

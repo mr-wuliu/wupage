@@ -1,3 +1,4 @@
+import { t } from "./i18n";
 import { normalizeSettings } from "./settings";
 import { BUILT_IN_PROVIDER_IDS, DEFAULT_SETTINGS } from "./defaults";
 import { COLOR_FIELDS } from "./appearance";
@@ -40,9 +41,9 @@ export function serializeSettingsBackup(backup: SettingsBackup): string {
   // TOML has no null. Keep the internal null meaning explicit on disk.
   const document = { ...backup, settings: { ...backup.settings,
     pdfTranslationPageRadius: backup.settings.pdfTranslationPageRadius ?? "all" } };
-  const text = "# WuPage 设置备份\n"
-    + (backup.includesKeys ? "# 包含密钥，文件未加密，请妥善保管。\n" : "# 已清空密钥及可识别的认证值，其余配置保留。分享前请检查自定义内容。\n")
-    + '# settings.pdfTranslationPageRadius = "all" 表示整份 PDF。\n\n'
+  const text = `# ${t("backupFileTitle")}\n`
+    + `# ${t(backup.includesKeys ? "backupFileIncludesCredentials" : "backupFileOmitsCredentials")}\n`
+    + `# ${t("backupFilePdfScope")}\n\n`
     + formatMultilineStrings(stringifyToml(document));
   checkSize(text);
   return text;
@@ -53,17 +54,17 @@ export function parseSettingsBackup(text: string): SettingsBackup {
   let value: unknown;
   try { value = parseToml(text.replace(/^\uFEFF/u, ""), { unsafeKeyBehaviour: "throw", maxDepth: 24 }); }
   catch (error) {
-    const position = error instanceof TomlError ? `（第 ${error.line} 行，第 ${error.column} 列）` : "";
+    const position = error instanceof TomlError ? t("lineColumn", error.line, error.column) : "";
     // Parser messages contain source excerpts, which may contain credentials.
-    throw new Error(`无法读取备份，请选择有效的 TOML 文件${position}。`);
+    throw new Error(t("couldNotReadBackupChooseAValidToml", position));
   }
   checkTree(value);
-  if (!isRecord(value) || value.kind !== SETTINGS_BACKUP_KIND) throw new Error("这不是 WuPage 设置备份文件。");
-  if (value.version !== 1) throw new Error("不支持此备份格式版本，请使用支持该格式的 WuPage。");
+  if (!isRecord(value) || value.kind !== SETTINGS_BACKUP_KIND) throw new Error(t("thisIsNotAWupageSettingsBackup"));
+  if (value.version !== 1) throw new Error(t("unsupportedBackupFormatVersionUseAVersionOf"));
   if (typeof value.includesKeys !== "boolean") invalid("includesKeys");
   if (typeof value.createdAt !== "string" || !/^\d{4}-\d{2}-\d{2}T/u.test(value.createdAt)
     || !Number.isFinite(Date.parse(value.createdAt)) || typeof value.extensionVersion !== "string"
-    || !/^\d+\.\d+\.\d+(?:[.\-+][\w.\-]+)?$/u.test(value.extensionVersion)) invalid("备份信息");
+    || !/^\d+\.\d+\.\d+(?:[.\-+][\w.\-]+)?$/u.test(value.extensionVersion)) invalid(t("backupInformation"));
   if (!isRecord(value.settings)) invalid("settings");
   const settings = readSettings({ ...value.settings,
     pdfTranslationPageRadius: value.settings.pdfTranslationPageRadius === "all" ? null : value.settings.pdfTranslationPageRadius }, true);
@@ -96,15 +97,15 @@ export function settingsBackupFilename(backup: SettingsBackup): string {
 function checkSize(text: string): void {
   if (typeof text !== "string" || text.length > SETTINGS_BACKUP_MAX_BYTES
     || new TextEncoder().encode(text).byteLength > SETTINGS_BACKUP_MAX_BYTES) {
-    throw new Error("设置备份不能超过 5 MiB。");
+    throw new Error(t("settingsBackupsMustBe5MibOrSmaller"));
   }
 }
 
 function checkTree(value: unknown, depth = 0): void {
-  if (depth > 24) throw new Error("备份结构过于复杂。");
+  if (depth > 24) throw new Error(t("backupStructureIsTooComplex"));
   if (!value || typeof value !== "object") return;
   for (const [key, child] of Object.entries(value)) {
-    if (["__proto__", "prototype", "constructor"].includes(key)) throw new Error("备份包含不安全的属性。");
+    if (["__proto__", "prototype", "constructor"].includes(key)) throw new Error(t("backupContainsAnUnsafeProperty"));
     checkTree(child, depth + 1);
   }
 }
@@ -197,13 +198,13 @@ function readSettings(value: unknown, strict: boolean): ExtensionSettings {
   const parsed = object(settingsShape)(value, "settings", strict) as ExtensionSettings;
   const ids = new Set<string>();
   for (const entry of parsed.providers) {
-    if (!entry.id.trim() || ids.has(entry.id)) throw new Error("备份中的翻译服务 ID 为空或重复。");
+    if (!entry.id.trim() || ids.has(entry.id)) throw new Error(t("translationServiceIdsInTheBackupAreEmpty"));
     if (BUILT_IN_PROVIDER_IDS.has(entry.id)
       && DEFAULT_SETTINGS.providers.find(p => p.id === entry.id)?.type !== entry.type) invalid("settings.providers.type");
     ids.add(entry.id);
   }
   if (!parsed.providers.some(p => p.id === parsed.activeProviderId && p.enabled !== false)) {
-    throw new Error("备份中的当前翻译服务不存在或已停用。");
+    throw new Error(t("theActiveTranslationServiceInTheBackupIs"));
   }
   const normalized = normalizeSettings(parsed);
   // Reject malformed rules and shortcuts rather than silently replacing them
@@ -226,4 +227,4 @@ function sameValue(a: unknown, b: unknown): boolean {
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
-function invalid(path: string): never { throw new Error(`备份字段无效或不受支持：${path}。`); }
+function invalid(path: string): never { throw new Error(t("invalidOrUnsupportedBackupField", path)); }

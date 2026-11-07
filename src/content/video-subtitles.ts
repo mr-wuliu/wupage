@@ -5,9 +5,15 @@ import { normalizeVideoTranslation, videoPriority } from "../shared/video";
 import { SETTINGS_KEY } from "../shared/defaults";
 import { createSettingsSnapshot } from "../shared/settings-snapshot";
 import type { ExtensionSettings } from "../shared/types";
+import { initializeInterfaceLanguage } from "../shared/i18n";
 
 let current: VideoSubtitleManager | undefined;
 let feature: { ready: Promise<void> } | undefined;
+
+export async function initEmbeddedVideoSubtitles(): Promise<void> {
+  await initializeInterfaceLanguage();
+  initVideoSubtitles();
+}
 
 export function initVideoSubtitles(): void {
   if (feature || typeof location === "undefined" || typeof document === "undefined" || !/^https?:$/u.test(location.protocol) || !document.documentElement) return;

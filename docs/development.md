@@ -37,12 +37,15 @@ flowchart LR
 | `src/video/` | 字幕解析、播放器适配与页面桥接；网页内的播放器会话位于 `src/content/` |
 | `src/ocr/`、`src/local/`、`src/dictionary/` | OCR、本地翻译和词典的专用运行逻辑 |
 | `src/shared/` | 消息类型、默认配置、设置规范化及共享界面工具 |
+| `public/_locales/` | 英文和简体中文的界面文案，由浏览器按界面语言选择 |
 | `public/`、`vendor/` | 随包分发的静态资源、运行库和来源许可 |
 | `build/`、`vite.config.ts` | Manifest 转换、构建入口与运行库准备 |
 | `tests/`、`scripts/` | 单元与 DOM 测试、浏览器验证及开发工具 |
 | `docs/` | 开发指南、专题分析与示例资料 |
 
 主要入口是 `src/background/index.ts`、`src/content/index.ts`，以及根目录的 `popup.html`、`options.html`、`pdf.html`。消息协议在 `src/shared/types.ts`，默认配置与旧设置兼容分别由 `defaults.ts`、`settings.ts` 管理。
+
+新增界面文案时，在 `en/messages.json` 和 `zh_CN/messages.json` 中使用相同的消息键和占位符。静态页面用 `data-i18n` 标记可见文字，用 `data-i18n-aria-label` 等标记属性。动态控件调用 `src/shared/i18n.ts` 的 `t`，拼接 HTML 时使用会转义参数的 `htmlMessage`。翻译目标、网页原文和用户自定义名称独立于界面语言。
 
 视频字幕布局编辑位于 `src/content/video-layout.ts`，由 `VideoView` 挂载；`src/shared/video.ts` 定义按主机名保存的 `siteLayouts`。水平中心、底边和宽度使用视频区域百分比，字号使用像素；窗口缩放只约束当前显示位置，不改写已保存布局。编辑使用独立的稳定预览，只有点击完成才经原有设置队列写入，不重启翻译。设置备份支持可选布局字段并兼容旧备份。使用 `tests/video-layout.test.ts`、`tests/video-subtitles-ui.test.ts`、`tests/settings-backup.test.ts` 和 `npm run test:video` 验证交互、保存和真实播放器布局。
 

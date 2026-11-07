@@ -1,3 +1,4 @@
+import { t } from "./i18n";
 import type { ExtensionSettings, TranslationDisplayMode } from "./types";
 
 export interface DocumentTranslationState {
@@ -101,13 +102,13 @@ function matchesGlob(url: string, pattern: string): boolean {
 export function frameExclusion(settings: ExtensionSettings, topUrl: string, frameUrl: string, frameId: number): string | undefined {
   if (frameId === 0) return;
   const config = normalizeFrameTranslation(settings.frameTranslation);
-  if (!config.enabled) return "已关闭嵌入页面翻译";
+  if (!config.enabled) return t("embeddedPageTranslationIsOff");
   const rule = config.excludeMatches.find(entry => {
     const parts = entry.split(/\s*=>\s*/u);
     return parts.length === 1 ? matchesGlob(frameUrl, parts[0])
       : parts.length === 2 && matchesGlob(topUrl, parts[0]) && matchesGlob(frameUrl, parts[1]);
   });
-  return rule ? `排除规则：${rule}` : undefined;
+  return rule ? t("exclusionRule", rule) : undefined;
 }
 
 /** Everything affecting translated source/results; presentation changes reuse results. */

@@ -30,8 +30,8 @@ export function initEmbeddedVideoSubtitles(): void {
     if (stopped || loading) return;
     observer.disconnect();
     if (!queryVideoRoots(document, root => observer.observe(root, { childList: true, subtree: true })).length) return;
-    loading = import(/* @vite-ignore */ chrome.runtime.getURL("video-content.js")).then(module => {
-      module.initVideoSubtitles();
+    loading = import(/* @vite-ignore */ chrome.runtime.getURL("video-content.js")).then(async module => {
+      await module.initEmbeddedVideoSubtitles();
       chrome.runtime.onMessage.addListener((request, _sender, respond) => {
         if (request.type !== "OPEN_VIDEO_SUBTITLES") return;
         void module.openVideoSubtitles().then((data: { opened: boolean }) => respond({ ok: true, data }),

@@ -1,19 +1,20 @@
+import { t } from "./i18n";
 import { normalizeLocalShortcuts } from "./local-shortcuts";
 
 export const TRANSLATION_SHORTCUTS = [
-  { name: "toggle-page-translation", label: "翻译全文 / 恢复原文" },
-  { name: "translate-selection", label: "段落翻译" },
-  { name: "toggle-paragraph-mode", label: "开启 / 关闭段落模式" },
-  { name: "cycle-display-mode", label: "切换译文显示模式" }
+  { name: "toggle-page-translation", get label() { return t("translatePageRestoreOriginal"); } },
+  { name: "translate-selection", get label() { return t("paragraphTranslation"); } },
+  { name: "toggle-paragraph-mode", get label() { return t("toggleParagraphMode"); } },
+  { name: "cycle-display-mode", get label() { return t("cycleTranslationDisplayMode"); } }
 ] as const;
 
 export type TranslationShortcut = typeof TRANSLATION_SHORTCUTS[number]["name"];
 
 export const LOCAL_SHORTCUTS = [
-  { name: "paragraph-click", label: "段落模式中翻译 / 恢复当前段落", keys: ["Ctrl", "点击段落"] },
-  { name: "selection-submit", label: "提交划词卡片中编辑的原文", keys: ["Ctrl", "Enter"] },
-  { name: "dismiss-overlays", label: "关闭划词卡片 / 收起悬浮菜单", keys: ["Esc"] },
-  { name: "floating-controls", label: "悬浮球翻译 / 进入菜单", keys: ["Enter / 空格", "↓"] }
+  { name: "paragraph-click", get label() { return t("translateRestoreCurrentParagraphInParagraphMode"); }, get keys() { return ["Ctrl", t("paragraphClickShortcut")] as const; } },
+  { name: "selection-submit", get label() { return t("submitEditedSourceInSelectionCard"); }, keys: ["Ctrl", "Enter"] },
+  { name: "dismiss-overlays", get label() { return t("closeSelectionCardCollapseFloatingMenu"); }, keys: ["Esc"] },
+  { name: "floating-controls", get label() { return t("translateWithFloatingButtonOpenMenu"); }, get keys() { return [t("enterSpace"), "↓"] as const; } }
 ] as const;
 export type LocalShortcut = typeof LOCAL_SHORTCUTS[number]["name"];
 export type ShortcutEnabledSettings = Record<TranslationShortcut | LocalShortcut, boolean>;
@@ -58,7 +59,7 @@ export function shortcutWarning(value: string): string | undefined {
   if (!value) return;
   const shortcut = canonicalShortcut(value);
   if (!shortcut) return;
-  if (shortcut.includes("Ctrl+") && shortcut.includes("Alt+")) return "这个组合可能与 AltGr 输入冲突。";
+  if (shortcut.includes("Ctrl+") && shortcut.includes("Alt+")) return t("thisCombinationMayConflictWithAltgrInput");
   const parts = shortcut.split("+");
   const key = parts.at(-1)!;
   const platformModifier = parts.includes("Ctrl") || parts.includes("Meta");
@@ -68,7 +69,7 @@ export function shortcutWarning(value: string): string | undefined {
     || ["Tab", "Enter", "PageUp", "PageDown"].includes(key));
   const altBrowser = shortcut === "Alt+F4" || /^Alt\+(?:D|E|F|Home|ArrowLeft|ArrowRight)$/.test(shortcut)
     || /^Alt\+Shift\+[ABCINPRTWXZ]$/.test(shortcut);
-  if (browserOrEditing || altBrowser) return "这个组合可能与浏览器或编辑快捷键冲突。";
+  if (browserOrEditing || altBrowser) return t("thisCombinationMayConflictWithABrowserOr");
 }
 
 export function normalizeShortcuts(value: unknown): ShortcutSettings {

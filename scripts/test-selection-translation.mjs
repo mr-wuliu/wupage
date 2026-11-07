@@ -69,7 +69,7 @@ try {
   context = await chromium.launchPersistentContext(path.join(output, `profile-${Date.now()}`), {
     ...(process.env.PDF_TEST_BROWSER && target.kind !== 'edge' ? { executablePath: process.env.PDF_TEST_BROWSER } : target.chromiumOptions),
     headless: true, ignoreDefaultArgs: ['--disable-extensions'],
-    args: ['--enable-unsafe-extension-debugging', '--mute-audio'], viewport: { width: 1100, height: 800 }
+    args: ['--lang=zh-CN', '--enable-unsafe-extension-debugging', '--mute-audio'], viewport: { width: 1100, height: 800 }
   });
   const session = await context.browser().newBrowserCDPSession();
   await session.send('Extensions.loadUnpacked', { path: path.join(root, 'dist') }); await session.detach();

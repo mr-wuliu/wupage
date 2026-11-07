@@ -1,3 +1,4 @@
+import { t } from "./i18n";
 import type { ExtensionSettings } from "./types";
 import { DEFAULT_SELECTION_TRANSLATION } from "./dictionary";
 import { DEFAULT_APPEARANCE } from "./appearance";
@@ -31,19 +32,19 @@ export const DEFAULT_SETTINGS: ExtensionSettings = {
     {
       type: "microsoft-web-translate",
       id: "microsoft-web-translate",
-      label: "Microsoft 翻译",
+      get label() { return t("microsoftTranslator"); },
       enabled: true
     },
     {
       type: "google-web-translate",
       id: "google-web-translate",
-      label: "Google 翻译",
+      get label() { return t("googleTranslate"); },
       enabled: true
     },
     {
       type: "doubao-web",
       id: "doubao-web",
-      label: "豆包（实验性）",
+      get label() { return t("doubaoExperimental"); },
       enabled: true,
       performanceMode: "custom",
       chunkSize: 1200,
@@ -52,19 +53,19 @@ export const DEFAULT_SETTINGS: ExtensionSettings = {
     {
       type: "tencent-transmart",
       id: "tencent-transmart",
-      label: "腾讯翻译",
+      get label() { return t("tencentTranslate"); },
       enabled: true
     },
     {
       type: "yandex-web-translate",
       id: "yandex-web-translate",
-      label: "Yandex 翻译",
+      get label() { return t("yandexTranslate"); },
       enabled: true
     },
     {
       type: "volcengine-web-translate",
       id: "volcengine-web-translate",
-      label: "火山翻译",
+      get label() { return t("volcengineTranslate"); },
       enabled: true
     },
     {
@@ -136,7 +137,7 @@ export const DEFAULT_SETTINGS: ExtensionSettings = {
     {
       type: "firefox-local",
       id: "firefox-local",
-      label: "Firefox 本地翻译（实验）",
+      get label() { return t("firefoxLocalTranslationExperimental"); },
       enabled: true,
       performanceMode: "custom",
       chunkSize: 800,

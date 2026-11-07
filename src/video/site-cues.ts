@@ -1,9 +1,10 @@
+import { t } from "../shared/i18n";
 import { subtitleText, type SubtitleCue } from "./subtitles";
 
 function record(value: unknown): value is Record<string, unknown> { return !!value && typeof value === "object" && !Array.isArray(value); }
 
 export function validSubtitleCues(value: unknown): SubtitleCue[] {
-  if (!Array.isArray(value) || value.length > 20_000) throw new Error("字幕数据超出可处理范围。");
+  if (!Array.isArray(value) || value.length > 20_000) throw new Error(t("subtitleDataExceedsTheSupportedLimit"));
   const cues: SubtitleCue[] = [];
   for (const item of value) {
     if (!record(item) || typeof item.start !== "number" || typeof item.end !== "number" || typeof item.text !== "string"
@@ -50,5 +51,5 @@ export function parseCatalogue(value: unknown): PageSubtitleCatalogue | undefine
   const tracks = value.tracks.filter((track): track is unknown & PageSubtitleTrack => record(track)
     && typeof track.id === "string" && track.id.length <= 128 && typeof track.label === "string" && track.label.length <= 200
     && typeof track.language === "string" && track.language.length <= 32);
-  return { key: value.key, tracks, ...(typeof value.selected === "string" ? { selected: value.selected } : {}) };
+  return { key: value.key, tracks: tracks.map(track => track.label ? track : { ...track, label: t("subtitleTrackFallback") }), ...(typeof value.selected === "string" ? { selected: value.selected } : {}) };
 }

@@ -1,3 +1,4 @@
+import { t } from "../shared/i18n";
 import { uiIconMarkup } from "../shared/ui-icons";
 import { setHtmlContent } from "../shared/html";
 
@@ -18,8 +19,8 @@ export async function showTouchHint(ball: HTMLElement): Promise<void> {
     style.textContent = "div{display:flex;align-items:center;gap:8px;padding:8px 8px 8px 14px;border:1px solid var(--wp-border,#c9d1cf);border-radius:12px;background:var(--wp-surface,#fff);color:var(--wp-foreground,#172026);box-shadow:0 4px 20px #0002;font:13px/1.6 system-ui,sans-serif}p{flex:1;margin:0}button{display:grid;place-items:center;flex:none;width:44px;height:44px;border:0;border-radius:8px;background:var(--wp-soft,#eef2f1);color:inherit;touch-action:manipulation}svg{width:16px;height:16px}";
     const container = document.createElement("div");
     const text = document.createElement("p"); text.setAttribute("role", "status");
-    text.textContent = "轻点悬浮球翻译全文，长按打开菜单，拖动调整位置。";
-    const close = document.createElement("button"); close.type = "button"; close.setAttribute("aria-label", "关闭悬浮球操作提示");
+    text.textContent = t("tapTheFloatingButtonToTranslateLongPress");
+    const close = document.createElement("button"); close.type = "button"; close.setAttribute("aria-label", t("dismissFloatingButtonHint"));
     setHtmlContent(close, uiIconMarkup("cross"));
     let timer: ReturnType<typeof setTimeout>;
     const dismiss = () => { clearTimeout(timer); host.remove(); window.removeEventListener("pagehide", dismiss); };

@@ -1,0 +1,5359 @@
+{
+  "extensionName": {
+    "message": "WuPage 网页翻译"
+  },
+  "extensionDescription": {
+    "message": "使用可配置的翻译服务和大语言模型翻译网页、PDF、图片和视频字幕。"
+  },
+  "interfaceLanguage": {
+    "message": "zh-CN"
+  },
+  "interfaceLanguageLabel": {
+    "message": "界面语言"
+  },
+  "followBrowserLanguage": {
+    "message": "跟随浏览器"
+  },
+  "interfaceLanguageHelp": {
+    "message": "保存后重新打开设置。已打开的网页和 PDF 会在刷新后使用新语言。"
+  },
+  "wupageTranslator": {
+    "message": "WuPage Translator"
+  },
+  "openSettings": {
+    "message": "打开设置"
+  },
+  "sourceLanguage": {
+    "message": "源语言"
+  },
+  "detectLanguage": {
+    "message": "自动检测"
+  },
+  "targetLanguage": {
+    "message": "目标语言"
+  },
+  "chinese": {
+    "message": "中文"
+  },
+  "automaticTranslation": {
+    "message": "自动翻译"
+  },
+  "translateAutomaticallyUsingSiteOrPageLanguageRules": {
+    "message": "按站点或页面语言规则自动翻译"
+  },
+  "auto": {
+    "message": "自动"
+  },
+  "addThisSiteToAutomaticTranslation": {
+    "message": "将当前网站加入自动翻译列表"
+  },
+  "translationService": {
+    "message": "翻译服务"
+  },
+  "displayMode": {
+    "message": "翻译模式"
+  },
+  "menuActions": {
+    "message": "菜单功能"
+  },
+  "rightClickAPageToTranslateItOr": {
+    "message": "右键点击网页，通过菜单翻译全文或恢复原文"
+  },
+  "contextMenu": {
+    "message": "右键翻译"
+  },
+  "floatingButton": {
+    "message": "悬浮球"
+  },
+  "showADictionaryOrTranslationShortcutWhenText": {
+    "message": "选中文字后显示查词或翻译入口"
+  },
+  "selectionTranslation": {
+    "message": "划词翻译"
+  },
+  "useTheButtonBesideAnImageToOverlay": {
+    "message": "开启后，点击图片旁的按钮翻译并覆盖原文"
+  },
+  "imageTranslation": {
+    "message": "图片翻译"
+  },
+  "installOcrModels": {
+    "message": "安装 OCR 模型"
+  },
+  "ocrModelDownloadProgress": {
+    "message": "OCR 模型下载进度"
+  },
+  "showSubtitleControlsOnAllSitesTurningThis": {
+    "message": "在所有网页显示字幕翻译入口；关闭后停止字幕翻译并恢复原字幕"
+  },
+  "videoSubtitles": {
+    "message": "视频字幕"
+  },
+  "translatePage": {
+    "message": "翻译全文"
+  },
+  "paragraphTranslation": {
+    "message": "段落翻译"
+  },
+  "openPdf": {
+    "message": "打开 PDF"
+  },
+  "clearCache": {
+    "message": "清除缓存"
+  },
+  "moreFeatures": {
+    "message": "更多功能"
+  },
+  "onAnyPageHoldCtrlAndClickA": {
+    "message": "所有网页生效；按住 Ctrl 点击段落翻译，再次点击恢复原文。"
+  },
+  "enableAllowAccessToFileUrlsInThe": {
+    "message": "在扩展详情中开启「允许访问文件网址」或「允许访问文件 URL」，然后回到 PDF 重新打开 WuPage。"
+  },
+  "openExtensionSettings": {
+    "message": "打开扩展设置"
+  },
+  "website": {
+    "message": "官网"
+  },
+  "wupageSettings": {
+    "message": "WuPage 设置"
+  },
+  "settingsNavigation": {
+    "message": "设置目录"
+  },
+  "general": {
+    "message": "通用"
+  },
+  "translationExclusions": {
+    "message": "翻译排除"
+  },
+  "keyboardShortcuts": {
+    "message": "快捷键"
+  },
+  "appearance": {
+    "message": "外观"
+  },
+  "performance": {
+    "message": "性能设置"
+  },
+  "usageStatistics": {
+    "message": "使用统计"
+  },
+  "backupAndRestore": {
+    "message": "备份与恢复"
+  },
+  "chooseTranslationLanguagesDisplayStylesAndCommonFeatures": {
+    "message": "设置翻译语言、译文样式和常用功能。"
+  },
+  "translationLanguages": {
+    "message": "翻译语言"
+  },
+  "translationDisplayMode": {
+    "message": "译文显示模式"
+  },
+  "enableLocalCache": {
+    "message": "启用本地缓存"
+  },
+  "showFloatingButton": {
+    "message": "显示悬浮球"
+  },
+  "translateCodeComments": {
+    "message": "翻译代码注释"
+  },
+  "includeEmbeddedContentInPageTranslation": {
+    "message": "全文翻译包含嵌入内容"
+  },
+  "embeddedContentExclusions": {
+    "message": "嵌入内容排除规则"
+  },
+  "enterOneUrlPatternPerLineUseFor": {
+    "message": "每行一个网址规则，* 匹配任意字符。也可写「所在网页规则 => 嵌入网址规则」，仅排除指定网页中的嵌入内容。"
+  },
+  "clickAShortcutFieldToRecordKeysPress": {
+    "message": "点击按键框录入；Esc 取消，Delete 清空。修改后点击「保存」。"
+  },
+  "translationShortcuts": {
+    "message": "翻译快捷键"
+  },
+  "featureShortcuts": {
+    "message": "局部操作"
+  },
+  "chooseAModifierForParagraphClicksClickOther": {
+    "message": "段落点击可选择修饰键；其余点击按键框录入。悬浮球翻译与进入菜单可分别设置，仅在对应功能中生效。"
+  },
+  "featureSpecificShortcuts": {
+    "message": "局部快捷操作"
+  },
+  "enableSelectionTranslation": {
+    "message": "启用划词翻译"
+  },
+  "defaultDictionary": {
+    "message": "默认词典"
+  },
+  "youdaoDictionary": {
+    "message": "有道词典"
+  },
+  "bingDictionary": {
+    "message": "Bing 词典"
+  },
+  "selectionShortcutStyle": {
+    "message": "划词入口样式"
+  },
+  "dot": {
+    "message": "小圆点"
+  },
+  "underline": {
+    "message": "下划线"
+  },
+  "singleChineseCharactersAndTermsOfUpTo": {
+    "message": "中文单字和不超过 8 个汉字的词语使用有道汉语词典，显示拼音和释义；字母单词使用上方选择的词典。"
+  },
+  "translatePagesAutomaticallyByLanguageOrSite": {
+    "message": "按页面语言或站点规则自动开启翻译。"
+  },
+  "enableAutomaticTranslation": {
+    "message": "启用自动翻译"
+  },
+  "aboutAutomaticTranslation": {
+    "message": "自动翻译说明"
+  },
+  "pagesMatchingAnyRuleUseTheCurrentLanguages": {
+    "message": "启用后，满足以下任意一项规则的网页会使用当前语言、翻译服务和显示模式自动翻译，并消耗对应服务的额度。手动恢复原文后，当前地址不会再次自动开启。"
+  },
+  "pageLanguageIsDetectedLocallyUncertainResultsAre": {
+    "message": "在本机识别页面语言，无法可靠识别时跳过；取消勾选后仅按站点列表翻译。"
+  },
+  "automaticallyTranslatePagesInOtherLanguages": {
+    "message": "页面语言不是目标语言时自动翻译"
+  },
+  "sitesToTranslateAutomatically": {
+    "message": "自动翻译站点"
+  },
+  "automaticTranslationSiteList": {
+    "message": "自动翻译站点列表"
+  },
+  "neitherSiteNorLanguageRulesApplyToThese": {
+    "message": "这些域名不触发站点规则或非目标语言自动翻译"
+  },
+  "excludedSites": {
+    "message": "已排除的网站"
+  },
+  "sitesExcludedFromAutomaticTranslation": {
+    "message": "已排除的自动翻译网站"
+  },
+  "exampleComIncludesSubdomainsExampleComMatchesOnly": {
+    "message": "example.com 包含子域名，*.example.com 仅匹配子域名，https://example.com/docs/* 可限定协议和路径。"
+  },
+  "keepNavigationSidebarsOrOtherAreasInTheir": {
+    "message": "让指定网站的导航、侧栏或其他区域保留原文。"
+  },
+  "translationExclusionRules": {
+    "message": "翻译排除规则"
+  },
+  "addRule": {
+    "message": "添加规则"
+  },
+  "enterADomainOrUrlPatternExampleCom": {
+    "message": "网站可填写域名或网址路径。example.com 包含子域名，https://example.com/docs/* 可限定页面范围。"
+  },
+  "enterOneCssSelectorPerLineSuchAs": {
+    "message": "排除元素使用 CSS 选择器，每行一个，例如 .sidebar 或 [data-region=\"recommendations\"]。匹配元素及其子元素会跳过网页和段落翻译；动态加载的内容同样生效。"
+  },
+  "chooseSaveBelowToApplyPagesBeingTranslated": {
+    "message": "修改后点击页面底部「保存」。正在翻译的页面会按新规则重新处理。"
+  },
+  "chooseLightAndDarkColorsAndCustomizeThe": {
+    "message": "选择明暗配色，调整弹窗中的常用功能。"
+  },
+  "appearanceSettings": {
+    "message": "外观设置"
+  },
+  "colorsAndAppearance": {
+    "message": "配色与外观"
+  },
+  "colorMode": {
+    "message": "界面模式"
+  },
+  "system": {
+    "message": "跟随系统"
+  },
+  "light": {
+    "message": "浅色"
+  },
+  "dark": {
+    "message": "深色"
+  },
+  "colorSchemes": {
+    "message": "配色方案"
+  },
+  "schemeToEdit": {
+    "message": "编辑配色类型"
+  },
+  "lightScheme": {
+    "message": "浅色配色"
+  },
+  "darkScheme": {
+    "message": "深色配色"
+  },
+  "duplicateScheme": {
+    "message": "复制方案"
+  },
+  "colors": {
+    "message": "颜色"
+  },
+  "schemeName": {
+    "message": "方案名称"
+  },
+  "resetColors": {
+    "message": "重置颜色"
+  },
+  "deleteScheme": {
+    "message": "删除方案"
+  },
+  "preview": {
+    "message": "效果预览"
+  },
+  "lightPageTwoColorBilingual": {
+    "message": "浅色网页 · 双色对照"
+  },
+  "darkPageTwoColorBilingual": {
+    "message": "深色网页 · 双色对照"
+  },
+  "paragraphHighlight": {
+    "message": "段落翻译高亮"
+  },
+  "selectionShortcut": {
+    "message": "划词入口"
+  },
+  "imageTranslationShortcut": {
+    "message": "图片翻译入口"
+  },
+  "image": {
+    "message": "译图"
+  },
+  "translationComplete": {
+    "message": "已完成翻译"
+  },
+  "requestFailedTryAgain": {
+    "message": "请求失败，请重试"
+  },
+  "hoverToPreviewTheFloatingButtonColor": {
+    "message": "悬停预览悬浮球颜色"
+  },
+  "previewTheCurrentSchemeHoverOverTrTo": {
+    "message": "预览当前编辑的配色，悬停「译」可查看悬浮球悬停色。保存后同步更新界面、控件和已有双色译文。"
+  },
+  "popupMenu": {
+    "message": "弹窗菜单"
+  },
+  "restoreDefaultLayout": {
+    "message": "恢复默认布局"
+  },
+  "arrangeTheFeaturesYouUseMost": {
+    "message": "把常用功能放进菜单，排成顺手的样子。"
+  },
+  "myMenu": {
+    "message": "我的菜单"
+  },
+  "dragToReorderClickToRemove": {
+    "message": "拖动排序 · 点击移除"
+  },
+  "originalColors": {
+    "message": "原色对照"
+  },
+  "addFeaturesFromTheList": {
+    "message": "从右侧添加常用功能"
+  },
+  "pinnedFooterLinks": {
+    "message": "固定底部链接"
+  },
+  "dropBesideAButtonToShareItsRow": {
+    "message": "拖到按钮旁可并排，拖到行间可独占一行。也可按 Alt + 方向键排序；GitHub 和官网固定在底部。"
+  },
+  "availableFeatures": {
+    "message": "可添加功能"
+  },
+  "clickToAdd": {
+    "message": "点击添加"
+  },
+  "allFeaturesAreInYourMenu": {
+    "message": "所有功能都在菜单里了"
+  },
+  "clickAButtonYouWantToRemove": {
+    "message": "点击左侧暂时用不到的按钮，"
+  },
+  "itWillAppearHereSoYouCanAdd": {
+    "message": "它会回到这里，随时可以再添加。"
+  },
+  "removingAShortcutKeepsItsCurrentSettingLanguages": {
+    "message": "移除入口会保留功能的当前开关状态。语言、翻译服务、翻译模式与设置入口始终显示。"
+  },
+  "currentService": {
+    "message": "当前服务"
+  },
+  "addCustomProvider": {
+    "message": "添加自定义供应商"
+  },
+  "thisServiceIsDisabledYouCanStillEdit": {
+    "message": "此服务已停用，仍可编辑、保存和测试配置。启用后才会出现在翻译服务列表中。"
+  },
+  "generalPerformance": {
+    "message": "通用性能"
+  },
+  "defaultChunkSize": {
+    "message": "默认分块大小"
+  },
+  "maximumConcurrentRequests": {
+    "message": "全局最大并发数"
+  },
+  "pdfTranslationScope": {
+    "message": "PDF 翻译范围"
+  },
+  "translationScope": {
+    "message": "翻译范围"
+  },
+  "nearbyPages": {
+    "message": "附近页面"
+  },
+  "entirePdf": {
+    "message": "无限制（整份 PDF）"
+  },
+  "pagesBeforeAndAfterTheCurrentPage": {
+    "message": "前后各翻译页数"
+  },
+  "viewTranslationUsageAndActivityStatisticsAreStored": {
+    "message": "查看翻译用量与使用习惯。统计仅保存在当前浏览器，不上传、不跨设备同步。"
+  },
+  "enableUsageStatistics": {
+    "message": "启用使用统计"
+  },
+  "offByDefaultSaveToApply": {
+    "message": "默认关闭，保存后生效。"
+  },
+  "dateRange": {
+    "message": "统计范围"
+  },
+  "last7Days": {
+    "message": "最近 7 天"
+  },
+  "last30Days": {
+    "message": "最近 30 天"
+  },
+  "last90Days": {
+    "message": "最近 90 天"
+  },
+  "refresh": {
+    "message": "刷新"
+  },
+  "clearStatistics": {
+    "message": "清空统计"
+  },
+  "dailyUsage": {
+    "message": "每日消耗趋势"
+  },
+  "chartMetric": {
+    "message": "趋势指标"
+  },
+  "tokenUsage": {
+    "message": "Token 用量"
+  },
+  "translationRequests": {
+    "message": "翻译请求"
+  },
+  "translatedPages": {
+    "message": "翻译页面"
+  },
+  "viewDailyData": {
+    "message": "查看每日数据"
+  },
+  "dailyTranslationUsage": {
+    "message": "每日翻译用量"
+  },
+  "date": {
+    "message": "日期"
+  },
+  "pages": {
+    "message": "页面"
+  },
+  "requests": {
+    "message": "请求"
+  },
+  "reportedTokens": {
+    "message": "已报告 Token"
+  },
+  "requestFrequency": {
+    "message": "请求频率"
+  },
+  "topModelsAndServices": {
+    "message": "常用模型与服务"
+  },
+  "modelsAndServicesByNumberOfTranslationRequests": {
+    "message": "按翻译请求次数排序的模型和服务"
+  },
+  "modelService": {
+    "message": "模型 / 服务"
+  },
+  "successRate": {
+    "message": "成功率"
+  },
+  "howStatisticsAreCountedAndRetained": {
+    "message": "统计口径与数据保留"
+  },
+  "aPageSessionCountsOncePerDayWhen": {
+    "message": "页面数为有成功翻译结果的页面会话，同日同一会话只计一次，包含缓存结果；刷新、重新打开或重新启动全文翻译会产生新会话。嵌入页面与全文翻译共用会话。"
+  },
+  "requestsCountBatchesSentToAServiceIncluding": {
+    "message": "请求数按调用翻译服务的批次计数，包含失败和译文修复调用；接口内部的 HTTP 重试或子请求不另计。仅缓存命中不增加请求数；服务配置测试和词典查询不计入。"
+  },
+  "tokensCountOnlyUsageReportedByAService": {
+    "message": "Token 仅累加接口实际返回的用量，未返回的部分不估算。免费翻译、本地翻译等通常没有 Token 用量；用量不代表实际账单或金额。"
+  },
+  "backUpSavedSettingsOrRestoreThemIn": {
+    "message": "备份已保存的设置，或在其他浏览器恢复配置。"
+  },
+  "exportsOmitCredentialsByDefaultSelectIncludeCredentials": {
+    "message": "默认导出不包含密钥。导出时可主动勾选「包含密钥」，保存未加密的完整备份，请妥善保管。"
+  },
+  "exportSettings": {
+    "message": "导出设置"
+  },
+  "importSettings": {
+    "message": "导入设置"
+  },
+  "selectATomlSettingsBackup": {
+    "message": "选择 TOML 设置备份"
+  },
+  "save": {
+    "message": "保存"
+  },
+  "restoreThisSectionSDefaultsSaveToApply": {
+    "message": "恢复当前页面的默认设置，保存后生效"
+  },
+  "restoreDefaults": {
+    "message": "恢复默认"
+  },
+  "resetAllSettings": {
+    "message": "完全重置设置"
+  },
+  "thisRestoresEverySettingToItsDefaultDeletes": {
+    "message": "这会将所有设置恢复为默认值，删除全部已保存的密钥与自定义翻译服务，并丢弃未保存的修改。"
+  },
+  "considerExportingAFullBackupWithCredentialsFirst": {
+    "message": "建议先导出包含密钥的完整备份。"
+  },
+  "thisActionCannotBeUndone": {
+    "message": "此操作无法撤销。"
+  },
+  "cancel": {
+    "message": "取消"
+  },
+  "confirmFullReset": {
+    "message": "确认完全重置"
+  },
+  "includeCredentialsUnencryptedFullBackup": {
+    "message": "包含密钥（未加密，仅用于完整备份）"
+  },
+  "confirm": {
+    "message": "确认"
+  },
+  "close": {
+    "message": "关闭"
+  },
+  "displayName": {
+    "message": "显示名称"
+  },
+  "forExampleCompanyTranslation": {
+    "message": "例如：公司翻译服务"
+  },
+  "providerType": {
+    "message": "供应商类型"
+  },
+  "llmApiFormat": {
+    "message": "LLM 接口格式"
+  },
+  "openaiCompatible": {
+    "message": "OpenAI 兼容"
+  },
+  "anthropicCompatible": {
+    "message": "Anthropic 兼容"
+  },
+  "add": {
+    "message": "添加"
+  },
+  "manageModels": {
+    "message": "管理模型"
+  },
+  "action": {
+    "message": "操作"
+  },
+  "addModel": {
+    "message": "添加模型"
+  },
+  "editCurrentModel": {
+    "message": "修改当前模型"
+  },
+  "modelName": {
+    "message": "模型名称"
+  },
+  "enterTheModelNameSuppliedByYourProvider": {
+    "message": "填写服务商提供的模型名称"
+  },
+  "theNewModelWillBeSelectedTheService": {
+    "message": "添加后会选中该模型；当前服务的地址和密钥会保留。"
+  },
+  "saveAndUse": {
+    "message": "保存并使用"
+  },
+  "pdfTranslationWupage": {
+    "message": "PDF 翻译 · WuPage"
+  },
+  "backToPdfTranslation": {
+    "message": "返回 PDF 翻译首页"
+  },
+  "bilingualPdfReader": {
+    "message": "PDF 双语阅读"
+  },
+  "openAnotherDocument": {
+    "message": "打开新文档"
+  },
+  "downloadTranslation": {
+    "message": "下载译文"
+  },
+  "installFontsForPdfExport": {
+    "message": "安装 PDF 导出完整字体包"
+  },
+  "translateNearbyPages": {
+    "message": "翻译附近页面"
+  },
+  "readWithTheOriginalLayout": {
+    "message": "专注阅读，不打乱原稿"
+  },
+  "readYourPdf": {
+    "message": "把 PDF 变成"
+  },
+  "inTwoLanguagesSideBySide": {
+    "message": "左右对照的双语文档"
+  },
+  "theOriginalLayoutStaysOnTheLeftWith": {
+    "message": "原始排版完整保留在左侧，译文按页呈现在右侧。论文、报告和说明书都能自然对照阅读。"
+  },
+  "features": {
+    "message": "功能特点"
+  },
+  "originalAndTranslationAlignedByPage": {
+    "message": "原稿与译文逐页对齐"
+  },
+  "useYourTranslationServiceAndCache": {
+    "message": "复用你的翻译服务和缓存"
+  },
+  "documentsAreParsedOnThisDevice": {
+    "message": "文档只在本机解析"
+  },
+  "allowAccessToLocalPdfs": {
+    "message": "允许访问本地 PDF"
+  },
+  "tryOpeningAgain": {
+    "message": "重试打开"
+  },
+  "choosePdfFile": {
+    "message": "选择 PDF 文件"
+  },
+  "openAPdf": {
+    "message": "打开一个 PDF"
+  },
+  "dropAFileHereOrChooseOneFrom": {
+    "message": "拖放文件到这里，或从电脑中选择"
+  },
+  "filesAreProcessedInThisBrowser": {
+    "message": "文件仅在当前浏览器中处理"
+  },
+  "orEnterAPdfAddress": {
+    "message": "或者使用 PDF 地址"
+  },
+  "onlineOrLocalPdfAddress": {
+    "message": "PDF 在线地址或本地文件地址"
+  },
+  "open": {
+    "message": "打开"
+  },
+  "openingPdf": {
+    "message": "正在打开 PDF"
+  },
+  "preparingDocument": {
+    "message": "准备解析文档…"
+  },
+  "installFontsForHigherQualityExports": {
+    "message": "安装完整字体，提升导出效果"
+  },
+  "theFullFontsMakeTranslationsSearchableSelectableAnd": {
+    "message": "安装后，译文可以搜索、复制，放大更清晰，并尽可能保留矢量图形。字体只需下载一次，之后可离线使用。"
+  },
+  "youCanAlsoExportAnImageBasedPdf": {
+    "message": "暂不安装也能导出图像版 PDF，外观与预览一致，但文字无法选中或搜索。"
+  },
+  "downloadTheFontFileManually": {
+    "message": "手动下载字体文件"
+  },
+  "fontDownloadProgress": {
+    "message": "字体包下载进度"
+  },
+  "exportAsImages": {
+    "message": "直接导出"
+  },
+  "installFromFile": {
+    "message": "从文件安装"
+  },
+  "installAndExport": {
+    "message": "安装并导出"
+  },
+  "dictionaryLookupTimedOutTryAgain": {
+    "message": "词典处理超时，请重试。"
+  },
+  "theDictionaryIsStillStartingTryAgain": {
+    "message": "词典运行环境未就绪，请重试。"
+  },
+  "tooManyDictionaryRequestsTryAgainLater": {
+    "message": "词典请求过于频繁，请稍后重试。"
+  },
+  "dictionaryTemporarilyUnavailableTryAgainLaterOrSwitch": {
+    "message": "词典服务暂时不可用（$ARG1$），请稍后重试或切换词典。",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "theDictionaryResponseWasTooLargeTryAgain": {
+    "message": "词典响应过大，请重试。"
+  },
+  "theDictionaryReturnedAnEmptyResponse": {
+    "message": "词典返回了空响应。"
+  },
+  "chooseTheYoudaoOrBingDictionary": {
+    "message": "请选择有道或 Bing 词典。"
+  },
+  "selectAWordOrPhraseOfUpTo": {
+    "message": "请选择不超过 100 个字符的单词或短语。"
+  },
+  "youdaoReturnedAnUnrecognizedResponseTryAgainLater": {
+    "message": "有道词典返回了无法识别的数据，请稍后重试。"
+  },
+  "theLookupTimedOutTryAgain": {
+    "message": "$ARG1$查询超时，请重试。",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "couldNotConnectToCheckYourConnectionOr": {
+    "message": "$ARG1$连接失败，请检查网络或切换词典。",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "invalidPronunciationAudioAddress": {
+    "message": "词典发音地址无效。"
+  },
+  "theDictionaryReturnedNoUsablePronunciationAudioTry": {
+    "message": "词典未返回有效发音，请稍后重试。"
+  },
+  "thePronunciationRecordingIsEmptyTryAgain": {
+    "message": "词典发音为空，请重试。"
+  },
+  "pronunciationAudioTimedOutTryAgain": {
+    "message": "发音加载超时，请重试。"
+  },
+  "couldNotLoadPronunciationAudioCheckYourConnection": {
+    "message": "发音加载失败，请检查网络后重试。"
+  },
+  "couldNotPrepareTheDoubaoRequestCheckSite": {
+    "message": "无法准备豆包请求，请检查扩展的站点访问权限并重新加载扩展。"
+  },
+  "unsupportedDoubaoRequestAddress": {
+    "message": "豆包请求地址不受支持。"
+  },
+  "aProtectedMarkerExceedsDoubaoSLengthLimit": {
+    "message": "豆包待译内容中的单个保护标记超过长度限制。"
+  },
+  "theTextSegmentForDoubaoIsEmpty": {
+    "message": "豆包待译片段为空。"
+  },
+  "doubaoSTranslationDoesNotMatchTheSource": {
+    "message": "豆包译文与原文的对应关系无效。"
+  },
+  "doubaoReturnedAnIncompleteTranslationTryAgain": {
+    "message": "豆包返回的译文不完整，请重试。"
+  },
+  "signInToDoubaoInThisBrowserThen": {
+    "message": "请先在同一浏览器登录豆包，然后重试翻译或重新检测。"
+  },
+  "doubaoRateLimitReachedWaitBeforeRetryingManually": {
+    "message": "豆包请求受限，请稍后手动重试。"
+  },
+  "doubaoRejectedTheRequestCheckTheDoubaoWebsite": {
+    "message": "豆包拒绝了请求，请在豆包网站检查后重试翻译或重新检测。"
+  },
+  "unsupportedDoubaoResponseFormatTryAgainLater": {
+    "message": "豆包返回的数据格式不受支持，请稍后重试。"
+  },
+  "couldNotConnectToDoubaoTryAgainLater": {
+    "message": "豆包网络请求失败，请稍后重试。"
+  },
+  "doubaoTranslationTimedOutTryAgainLater": {
+    "message": "豆包翻译超时，请稍后重试。"
+  },
+  "doubaoRequestCanceled": {
+    "message": "豆包请求已取消。"
+  },
+  "theDoubaoTaskExceeded110SecondsRetryThe": {
+    "message": "豆包任务超过 110 秒，请重试未完成的内容。"
+  },
+  "doubaoRateLimitReachedWaitBeforeRetryingThe": {
+    "message": "豆包请求受限，请等待后重试翻译或重新检测。"
+  },
+  "couldNotSaveTheDoubaoDeviceConfigurationCheck": {
+    "message": "无法保存豆包设备配置，请检查扩展存储权限。"
+  },
+  "doubaoRejectedTheRequestHttpCheckTheDoubao": {
+    "message": "豆包拒绝了请求（HTTP $ARG1$），请到豆包网页检查后重试翻译或重新检测。",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "doubaoReturnedAnEmptyResponse": {
+    "message": "豆包返回了空响应。"
+  },
+  "theDoubaoResponseWasInterruptedTryAgainLater": {
+    "message": "豆包响应中断，请稍后重试。"
+  },
+  "stoppedReadingAnOversizedDoubaoResponse": {
+    "message": "豆包响应过大，已停止读取。"
+  },
+  "invalidDoubaoResponseEncoding": {
+    "message": "豆包响应编码无效。"
+  },
+  "unrecognizedDoubaoResponseCheckTheDoubaoWebsiteThen": {
+    "message": "豆包返回了无法识别的响应，请到官网检查后重新检测。"
+  },
+  "doubaoDidNotRespondInTimeTryAgain": {
+    "message": "豆包未及时响应，请稍后重试。"
+  },
+  "doubaoRedirectedTheRequestTheAuthenticatedRequestWas": {
+    "message": "豆包请求被重定向，已停止发送登录态请求。"
+  },
+  "invalidDoubaoInitializationResponse": {
+    "message": "豆包初始化响应无效。"
+  },
+  "deviceInformationMissingFromTheDoubaoInitializationResponse": {
+    "message": "豆包初始化缺少设备信息。"
+  },
+  "doubaoSArticleEndpointReturnedNoTranslationStream": {
+    "message": "豆包文章接口未返回翻译流。"
+  },
+  "readyToTranslate": {
+    "message": "可以翻译"
+  },
+  "doubaoExperimentalCurrentlyRequiresAChromiumBrowser": {
+    "message": "豆包（实验性）目前仅支持 Chromium 浏览器，Firefox 尚未支持。"
+  },
+  "doubaoDoesNotSupportThisTargetLanguageChoose": {
+    "message": "豆包暂不支持所选目标语言，请选择列表中的语言。"
+  },
+  "doubaoReturnedIncompleteParagraphsRetryTheUnfinishedText": {
+    "message": "豆包返回的段落不完整，请重试未完成内容。"
+  },
+  "checkingDoubaoTranslation": {
+    "message": "正在检测豆包翻译…"
+  },
+  "theDoubaoCheckReturnedNoValidTranslation": {
+    "message": "豆包检测未返回有效译文。"
+  },
+  "aValidPageDocumentIsRequired": {
+    "message": "需要有效的网页文档。"
+  },
+  "thePageDocumentHasChanged": {
+    "message": "网页文档已经更新。"
+  },
+  "couldNotConnectToThisPageRefreshIt": {
+    "message": "无法连接当前网页，请刷新页面后重试。"
+  },
+  "unsupportedFrameSessionOperation": {
+    "message": "不支持的框架会话操作。"
+  },
+  "theTranslationDocumentHasExpired": {
+    "message": "翻译文档已经失效。"
+  },
+  "theTranslationSessionHasStopped": {
+    "message": "翻译会话已经停止。"
+  },
+  "waitingForTheDocumentToConnectOrFor": {
+    "message": "文档尚未接入，或浏览器不允许访问"
+  },
+  "waitingForEmbeddedPageToBecomeVisible": {
+    "message": "等待嵌入页面显示"
+  },
+  "waitingForDocumentConnection": {
+    "message": "等待文档接入"
+  },
+  "parentFrameExcluded": {
+    "message": "上级嵌入页面已排除：$ARG1$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "frameResponseTimedOut": {
+    "message": "框架响应超时"
+  },
+  "frameDidNotRespond": {
+    "message": "框架没有响应"
+  },
+  "theConnectionToThisPageWasInterrupted": {
+    "message": "当前网页的翻译连接已中断。"
+  },
+  "theConnectionToAnEmbeddedPageWasInterrupted": {
+    "message": "嵌入页面的翻译连接已中断，可在 Debug 查看具体文档。"
+  },
+  "rejectedTheGoogleTranslateRequestHttp": {
+    "message": "谷歌翻译请求被 $ARG1$ 拒绝（HTTP $ARG2$）。",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      },
+      "arg2": {
+        "content": "$2"
+      }
+    }
+  },
+  "googleTranslateReturnedNoValidTranslationItsResponse": {
+    "message": "谷歌翻译未返回有效译文，接口格式可能发生变化。"
+  },
+  "couldNotReachTranslateGoogleapisComOrTranslate": {
+    "message": "无法连接谷歌翻译，已尝试 translate.googleapis.com 和 translate.google.com。请检查这两个域名的网络或代理规则；能打开 Google 网页不代表翻译接口可用。"
+  },
+  "translateImageWithWupage": {
+    "message": "使用 WuPage 翻译图片"
+  },
+  "imageRecognitionReturnedIncompleteJson": {
+    "message": "图片识别结果不是完整 JSON。"
+  },
+  "missingRegionsArrayOrMoreThan300Text": {
+    "message": "图片结果缺少 regions 数组，或文字区域超过 300 个。"
+  },
+  "textRegionMustBeAnObject": {
+    "message": "文字区域必须是对象"
+  },
+  "missingSourceTextField": {
+    "message": "缺少原文 text"
+  },
+  "emptyTranslationField": {
+    "message": "译文 translation 为空"
+  },
+  "translationTooLong": {
+    "message": "译文过长"
+  },
+  "invalidFormat": {
+    "message": "格式无效"
+  },
+  "textRegion": {
+    "message": "第 $ARG1$ 个文字区域：$ARG2$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      },
+      "arg2": {
+        "content": "$2"
+      }
+    }
+  },
+  "theBoxMustContainFourCoordinates": {
+    "message": "box 必须包含四个坐标"
+  },
+  "coordinatesContainANonnumericValue": {
+    "message": "坐标包含非数值"
+  },
+  "unknownBoxformatUseXywh": {
+    "message": "未知 boxFormat，请使用 xywh"
+  },
+  "pixelCoordinatesRequireImageDimensions": {
+    "message": "像素坐标缺少图片尺寸"
+  },
+  "unknownCoordinatesystemUseNormalized1000": {
+    "message": "未知 coordinateSystem，请使用 normalized_1000"
+  },
+  "boxWidthAndHeightMustBePositiveUse": {
+    "message": "文字框宽高必须大于零，不能把右下角坐标当作宽高"
+  },
+  "boxOutOfBoundsBoxCoordinatesystemBoxformat": {
+    "message": "文字框越界 box=[$ARG1$], coordinateSystem=$ARG2$, boxFormat=$ARG3$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      },
+      "arg2": {
+        "content": "$2"
+      },
+      "arg3": {
+        "content": "$3"
+      }
+    }
+  },
+  "textBoxLiesOutsideTheImage": {
+    "message": "文字框位于图片之外"
+  },
+  "enableImageTranslationFirst": {
+    "message": "请先开启图片翻译。"
+  },
+  "useTheWrenchBesideImageTranslationToInstall": {
+    "message": "请先点击图片翻译旁的扳手安装 OCR 模型。"
+  },
+  "unsupportedImageFormatOrDimensionsTryASmaller": {
+    "message": "图片格式或尺寸不支持，请使用较小的静态图片。"
+  },
+  "noTranslationServiceIsAvailable": {
+    "message": "没有可用的翻译服务。"
+  },
+  "twoImagesAreAlreadyBeingTranslatedTryAgain": {
+    "message": "已有两张图片正在翻译，请稍后重试。"
+  },
+  "theOcrModelsWereRemovedOrReplacedReinstall": {
+    "message": "OCR 模型已删除或更换，请重新安装后重试。"
+  },
+  "couldNotReliablyRecognizeTextStylizedVerticalOr": {
+    "message": "未能可靠识别图片文字，艺术字、竖排或低对比度图片可能漏识别。"
+  },
+  "textWasDetectedButConfidenceWasLowOr": {
+    "message": "已检测到文字，但置信度不足或仅包含无需翻译的数字、符号。"
+  },
+  "recognizedTextRegionsTheServiceReturnedTheOriginal": {
+    "message": "已识别 $ARG1$ 处文字，翻译服务返回的译文与原文相同。",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "cannotReadThisImageAddress": {
+    "message": "无法读取此图片地址。"
+  },
+  "cannotReadImageCheckThatItIsLoaded": {
+    "message": "无法读取图片 ($ARG1$)，请确认图片已加载并且可以访问。",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "imageTooLargeChooseAnImageOfUp": {
+    "message": "图片过大，请使用 12 MB 以内的图片。"
+  },
+  "unsupportedImageFormatOrTheAddressReturnedA": {
+    "message": "图片格式不支持，或图片地址返回了登录页面。"
+  },
+  "theImageIsEmpty": {
+    "message": "图片内容为空。"
+  },
+  "enableSelectionTranslationInSettingsFirst": {
+    "message": "请先在设置中开启划词翻译。"
+  },
+  "enableTheDoubaoTranslationServiceFirst": {
+    "message": "请先启用豆包翻译服务。"
+  },
+  "unsupportedPdfAddress": {
+    "message": "此 PDF 地址不支持打开。"
+  },
+  "localTranslationCouldNotStartReloadTheExtension": {
+    "message": "本地翻译未能启动，请重新加载扩展。"
+  },
+  "couldNotReliablyDetectTheSourceLanguageSelect": {
+    "message": "本地翻译无法可靠识别源语言，请在翻译设置中手动选择源语言。"
+  },
+  "ocrCouldNotStartReloadTheExtension": {
+    "message": "OCR 未能启动，请重新加载扩展。"
+  },
+  "localEngineInitializationTimedOutReloadTheExtension": {
+    "message": "本地引擎初始化超时，请重新加载扩展。"
+  },
+  "couldNotLoadTheLocalEngineReloadThe": {
+    "message": "本地引擎加载失败，请重新加载扩展。"
+  },
+  "baseUrlMustUseHttpOrHttps": {
+    "message": "Base URL 仅支持 HTTP 或 HTTPS。"
+  },
+  "reloadTheUpdatedExtensionForOllamaCompatibilityOr": {
+    "message": "Ollama 兼容需要重新加载新版扩展。也可在 Ollama 中配置 OLLAMA_ORIGINS 后重启服务。"
+  },
+  "tooManyConcurrentOllamaConnectionsTryAgainLater": {
+    "message": "Ollama 并发连接过多，请稍后重试。"
+  },
+  "restoreOriginal": {
+    "message": "恢复原文"
+  },
+  "translateFullPage": {
+    "message": "全文翻译"
+  },
+  "ollamaCompatibilityIsEnabledCheckTheApiKey": {
+    "message": " Ollama 兼容已开启，请检查 API Key、服务端权限或反向代理配置。"
+  },
+  "forOllamaEnableOllamaCompatibilityInTheService": {
+    "message": " 如果使用 Ollama，请在服务设置中开启“Ollama 兼容”；仍失败时检查服务端权限或 OLLAMA_ORIGINS。"
+  },
+  "microsoftSFreeTranslationRequestFailedTryAgain": {
+    "message": "Microsoft 免费翻译请求失败 ($ARG1$)。请稍后重试或切换翻译服务。",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "enterYourVolcengineAccessKeyIdAndSecret": {
+    "message": "请填写火山引擎 Access Key ID 和 Secret Access Key。"
+  },
+  "enterAnApiKeyOrSwitchToThe": {
+    "message": "请填写 API Key，或切换到免费服务。"
+  },
+  "enterAValidHttpsBaseUrl": {
+    "message": "请填写有效的 HTTPS Base URL。"
+  },
+  "enterATokenhubTranslationModel": {
+    "message": "请填写 TokenHub 翻译模型。"
+  },
+  "tokenhubReturnedAnIncompleteTranslation": {
+    "message": "TokenHub 未返回完整译文。"
+  },
+  "aSegmentExceedsCharactersReduceTheChunkSize": {
+    "message": "$ARG1$ 单段文本超过 $ARG2$ 字符，请减小分块大小。",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      },
+      "arg2": {
+        "content": "$2"
+      }
+    }
+  },
+  "unknownError": {
+    "message": "未知错误"
+  },
+  "volcengineApiRequestFailed": {
+    "message": "火山引擎 API 请求失败：$ARG1$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "theApiReturnedAnIncompleteTranslation": {
+    "message": "$ARG1$ API 未返回完整译文。",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "theApiRequestFailedCheckCredentialsQuotaOr": {
+    "message": "$ARG1$ API 请求失败 ($ARG2$)，请检查凭据、额度或使用方式。",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      },
+      "arg2": {
+        "content": "$2"
+      }
+    }
+  },
+  "enterARapidapiKeyOrSwitchToThe": {
+    "message": "请填写 RapidAPI Key，或切换到免费服务。"
+  },
+  "tencentTransmartIsTemporarilyUnavailableTryAgainLater": {
+    "message": "腾讯 TranSmart 暂时无法翻译，请稍后重试或切换服务。"
+  },
+  "yandexSFreeServiceIsTemporarilyUnavailableTry": {
+    "message": "Yandex 免费翻译暂时不可用 ($ARG1$)，请稍后重试或切换服务。",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "volcengineSFreeServiceIsTemporarilyUnavailableTry": {
+    "message": "火山免费翻译暂时不可用，请稍后重试或切换服务。"
+  },
+  "theRequestFailedTryAgainLaterOrSwitch": {
+    "message": "$ARG1$ 请求失败 ($ARG2$)，请稍后重试或切换服务。",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      },
+      "arg2": {
+        "content": "$2"
+      }
+    }
+  },
+  "mymemoryCouldNotDetectTheSourceLanguageSelect": {
+    "message": "MyMemory 无法自动识别源语言，请手动选择源语言后重试。"
+  },
+  "mymemoryCouldNotReliablyDetectTheSourceLanguage": {
+    "message": "MyMemory 无法可靠识别源语言，请手动选择源语言后重试。"
+  },
+  "mymemoryIsTemporarilyUnavailableCheckTheSourceLanguage": {
+    "message": "MyMemory 暂时无法翻译，请检查源语言或切换服务。"
+  },
+  "mymemoryApiQuotaExceededCheckYourRapidapiSubscription": {
+    "message": "MyMemory API 额度已用完，请检查 RapidAPI 订阅或切换服务。"
+  },
+  "mymemoryFreeQuotaExceededTryAgainTomorrowOr": {
+    "message": "MyMemory 免费额度已用完，请次日重试或切换服务。"
+  },
+  "theProtectedTextExceedsMymemorySLimitSwitch": {
+    "message": "MyMemory 无法处理过长的受保护文本，请切换翻译服务。"
+  },
+  "enterAValidHttpsEndpoint": {
+    "message": "请填写有效的 HTTPS Endpoint。"
+  },
+  "cannotLocateTheVideoFrameBringTheEntire": {
+    "message": "无法定位视频画面，请将完整视频显示在窗口内后重试。"
+  },
+  "enableSubtitlesAndImageTranslationAndInstallThe": {
+    "message": "请先开启视频字幕和图片翻译，并安装 OCR 模型。"
+  },
+  "theVideoPageHasChangedReturnToThe": {
+    "message": "视频页已切换，请回到原视频页重试。"
+  },
+  "tooManyFrameCapturesTryAgainLater": {
+    "message": "画面截取过于频繁，请稍后重试。"
+  },
+  "theBrowserDeniedScreenAccessClickWupageIn": {
+    "message": "浏览器未允许读取画面，请点击工具栏中的 WuPage 图标后重试，并检查网站访问权限。"
+  },
+  "theBrowserCouldNotReadTheVideoFrame": {
+    "message": "浏览器无法读取视频画面。"
+  },
+  "videoSubtitlesAreOff": {
+    "message": "视频字幕已关闭。"
+  },
+  "subtitleRequestsMustComeFromAVideoPage": {
+    "message": "字幕请求需要来自视频页面。"
+  },
+  "noActiveVideoPage": {
+    "message": "没有活动视频页面。"
+  },
+  "videoSubtitlesAreOffEnableThemInThe": {
+    "message": "视频字幕已关闭，请先在扩展弹窗中开启。"
+  },
+  "noPlayableVideoFoundOpenAVideoAnd": {
+    "message": "当前页面没有找到可播放的视频，请先打开视频后重试。"
+  },
+  "invalidSubtitleRequest": {
+    "message": "字幕请求格式无效。"
+  },
+  "aSubtitleRequestIsAlreadyInProgress": {
+    "message": "字幕请求正在处理。"
+  },
+  "waitForThePreviousSubtitleTranslationToFinish": {
+    "message": "请等待上一条字幕翻译结束。"
+  },
+  "subtitleTaskCanceled": {
+    "message": "字幕任务已取消。"
+  },
+  "theVideoPageHasClosed": {
+    "message": "视频页面已关闭。"
+  },
+  "wupageTranslation": {
+    "message": "WuPage 翻译"
+  },
+  "translationFeatures": {
+    "message": "翻译功能"
+  },
+  "hideTheFloatingButtonTurnItOnAgain": {
+    "message": "隐藏悬浮球，可在扩展弹窗中重新开启"
+  },
+  "clickTheFloatingButtonToTranslateThePage": {
+    "message": "点击悬浮球即可翻译全文"
+  },
+  "translateAgain": {
+    "message": "重新翻译"
+  },
+  "doubaoSignInAndConnectionCheck": {
+    "message": "豆包登录与检测"
+  },
+  "showLess": {
+    "message": "收起更多"
+  },
+  "currentServiceUnavailableChooseAnotherService": {
+    "message": "当前服务不可用，请选择其他服务"
+  },
+  "showOriginal": {
+    "message": "显示原文"
+  },
+  "openSettingsToSignInToDoubaoAnd": {
+    "message": "去设置登录豆包并检测"
+  },
+  "retryInS": {
+    "message": "等待 $ARG1$ 秒后重试",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "retryTranslation": {
+    "message": "重试翻译"
+  },
+  "paragraphsCompleted": {
+    "message": "，已完成 $ARG1$ 段",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "translatingThisAreaClickSrcToStopAnd": {
+    "message": "正在翻译当前区域$ARG1$，点击「原」可停止并恢复原文。",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "tryAgain": {
+    "message": "请重试。"
+  },
+  "translatedFailed": {
+    "message": "已翻译 $ARG1$ 段，失败 $ARG2$ 段。$ARG3$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      },
+      "arg2": {
+        "content": "$2"
+      },
+      "arg3": {
+        "content": "$3"
+      }
+    }
+  },
+  "translationIncomplete": {
+    "message": "翻译未完成：$ARG1$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "cacheHits": {
+    "message": " · 缓存命中 $ARG1$ 段",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "paragraphsTranslatedScrollToContinue": {
+    "message": "已翻译 $ARG1$ 段$ARG2$。滚动页面继续翻译。",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      },
+      "arg2": {
+        "content": "$2"
+      }
+    }
+  },
+  "translationShownClickTheFloatingButtonToRestore": {
+    "message": "已显示译文，点击悬浮球可恢复原文。"
+  },
+  "noTextToTranslateInThisAreaScroll": {
+    "message": "当前区域暂无可翻译内容，滚动页面将继续翻译。"
+  },
+  "waitAboutSecondsBeforeTryingAgain": {
+    "message": " 请等待约 $ARG1$ 秒后再试。",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "tap": {
+    "message": "轻点"
+  },
+  "click": {
+    "message": "单击"
+  },
+  "longPress": {
+    "message": "长按"
+  },
+  "hover": {
+    "message": "悬停"
+  },
+  "toOpenMenuDragToMove": {
+    "message": "$ARG1$$ARG2$ · $ARG3$打开菜单 · 拖动调整位置",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      },
+      "arg2": {
+        "content": "$2"
+      },
+      "arg3": {
+        "content": "$3"
+      }
+    }
+  },
+  "closeDebugPanel": {
+    "message": "关闭 Debug 面板"
+  },
+  "loadingTasks": {
+    "message": "正在读取任务..."
+  },
+  "resizeWindow": {
+    "message": "调整窗口大小"
+  },
+  "resizeDebugWindow": {
+    "message": "调整 Debug 窗口大小"
+  },
+  "runningQueuedRecent": {
+    "message": "执行中 $ARG1$ · 排队 $ARG2$ · 最近 $ARG3$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      },
+      "arg2": {
+        "content": "$2"
+      },
+      "arg3": {
+        "content": "$3"
+      }
+    }
+  },
+  "pageDocuments": {
+    "message": "页面文档 $ARG1$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "ready": {
+    "message": "就绪"
+  },
+  "connecting": {
+    "message": "接入中"
+  },
+  "translating": {
+    "message": "翻译中"
+  },
+  "waitingToScrollIntoView": {
+    "message": "等待滚动或显示"
+  },
+  "noTranslatableText": {
+    "message": "没有可翻译正文"
+  },
+  "excluded": {
+    "message": "已排除"
+  },
+  "unavailable": {
+    "message": "无法访问"
+  },
+  "translationFailed": {
+    "message": "翻译失败"
+  },
+  "mainPage": {
+    "message": "主页面"
+  },
+  "embeddedPage": {
+    "message": "嵌入页面"
+  },
+  "translateThisPdf": {
+    "message": "翻译此 PDF"
+  },
+  "noTasks": {
+    "message": "暂无任务"
+  },
+  "segmentsCharacters": {
+    "message": "$ARG1$ 段 · $ARG2$ 字符 · $ARG3$ -> $ARG4$ · $ARG5$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      },
+      "arg2": {
+        "content": "$2"
+      },
+      "arg3": {
+        "content": "$3"
+      },
+      "arg4": {
+        "content": "$4"
+      },
+      "arg5": {
+        "content": "$5"
+      }
+    }
+  },
+  "serviceOverride": {
+    "message": "服务商覆盖"
+  },
+  "generalSettings": {
+    "message": "继承通用"
+  },
+  "performanceChunkSizeConcurrency": {
+    "message": "性能：分块 $ARG1$ · 并发 $ARG2$ · $ARG3$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      },
+      "arg2": {
+        "content": "$2"
+      },
+      "arg3": {
+        "content": "$3"
+      }
+    }
+  },
+  "requestText": {
+    "message": "请求文本"
+  },
+  "translationResults": {
+    "message": "翻译结果"
+  },
+  "none": {
+    "message": "无"
+  },
+  "waitS": {
+    "message": "等待 $ARG1$s",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "queued": {
+    "message": "排队"
+  },
+  "waiting": {
+    "message": "等待"
+  },
+  "running": {
+    "message": "执行中"
+  },
+  "done": {
+    "message": "完成"
+  },
+  "failed": {
+    "message": "失败"
+  },
+  "switchToAWebPageToAddA": {
+    "message": "请切换到普通网页后再添加网站"
+  },
+  "excludeFromAutomaticTranslation": {
+    "message": "将 $ARG1$ 排除自动翻译",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "addToAutomaticTranslation": {
+    "message": "将 $ARG1$ 加入自动翻译列表",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "tapAParagraph": {
+    "message": "点选段落"
+  },
+  "tapAParagraphToTranslateItAndExit": {
+    "message": "点选一个正文段落，翻译后自动退出"
+  },
+  "enableParagraphTranslation": {
+    "message": "开启段落翻译模式"
+  },
+  "thisDocumentUsesADedicatedViewer": {
+    "message": "此文档使用专用查看器"
+  },
+  "bringTheEntireVideoIntoViewAndTry": {
+    "message": "请将完整视频画面显示在窗口内后重试。"
+  },
+  "cannotLocateTheEmbeddedVideoBringTheEntire": {
+    "message": "无法定位内嵌视频画面，请将完整播放器显示在窗口内后重试。"
+  },
+  "cannotLocateTheEmbeddedVideoTryOnThe": {
+    "message": "无法定位内嵌视频画面，请在视频原网页中重试。"
+  },
+  "theBrowserCannotRenderTheImageTranslation": {
+    "message": "浏览器无法绘制图片译文。"
+  },
+  "translateImageTextAndOverlayTheOriginal": {
+    "message": "翻译图片文字并覆盖原文"
+  },
+  "translateImage": {
+    "message": "翻译图片"
+  },
+  "installOcrModelsAndEnableImageTranslationIn": {
+    "message": "请先在 WuPage 设置中安装 OCR 模型并开启图片翻译。"
+  },
+  "theImageHasChangedRightClickItAgain": {
+    "message": "这张图片已变化，请重新右键点击图片。"
+  },
+  "multipleIdenticalImagesFoundRightClickTheOne": {
+    "message": "页面中有多张相同图片，请重新右键点击需要翻译的那一张。"
+  },
+  "imageNotFoundLetItLoadThenRight": {
+    "message": "未找到这张图片，请等待图片加载完成后重新右键翻译。"
+  },
+  "thisImageIsInAnEditorOrAn": {
+    "message": "此图片位于编辑区或禁止翻译区域。"
+  },
+  "theImageIsStillLoadingTryAgainShortly": {
+    "message": "图片尚未加载完成，请稍后重试。"
+  },
+  "imageTranslationFailedTryAgain": {
+    "message": "图片翻译失败，请重试。"
+  },
+  "recognizingAndTranslatingImageText": {
+    "message": "正在识别并翻译图片文字…"
+  },
+  "couldNotReliablyIdentifyTextToTranslate": {
+    "message": "未能可靠识别需要翻译的文字。"
+  },
+  "showOriginalImage": {
+    "message": "显示原图"
+  },
+  "showTranslatedImage": {
+    "message": "显示图片译文"
+  },
+  "theBrowserCannotReadThisImage": {
+    "message": "浏览器无法读取图片。"
+  },
+  "cannotReadThisImageTryAnImageOn": {
+    "message": "此图片无法读取，请在普通网页图片上重试。"
+  },
+  "switchToARegularWebPageToTranslate": {
+    "message": "此页面不支持翻译，请切换到普通网页。"
+  },
+  "thePageStructureOrTranslationMarkersChangedThe": {
+    "message": "页面结构或译文标记已变化，已保留原文。"
+  },
+  "hoverOverAParagraphOrSelectItsText": {
+    "message": "请将鼠标移到正文段落，或选中段落文字后再使用段落翻译快捷键。"
+  },
+  "theParagraphHasChangedSelectItAgain": {
+    "message": "该段落已发生变化，请重新选择。"
+  },
+  "noTranslatableParagraphHere": {
+    "message": "此处没有可翻译的段落。"
+  },
+  "theSourceTextHasChangedSelectItAgain": {
+    "message": "原文已变化，请重新选择后翻译。"
+  },
+  "theReplacementExceedsTheInputSCharacterLimit": {
+    "message": "替换后的文字超出输入框长度限制。"
+  },
+  "couldNotRestoreTheSelectionSelectTheText": {
+    "message": "无法恢复选区，请重新选择后翻译。"
+  },
+  "thisEditorBlockedReplacementCopyTheTranslationManually": {
+    "message": "此编辑器阻止了替换，请手动复制译文。"
+  },
+  "thePageDeclinedTheReplacementCopyTheTranslation": {
+    "message": "网页未接受替换，请手动复制译文。"
+  },
+  "thisEditorDoesNotSupportReplacementCopyThe": {
+    "message": "此编辑器暂不支持替换，请手动复制译文。"
+  },
+  "editSource": {
+    "message": "编辑原文"
+  },
+  "original": {
+    "message": "原文"
+  },
+  "dictionary": {
+    "message": "查词词典"
+  },
+  "closeSelectionTranslation": {
+    "message": "关闭划词翻译"
+  },
+  "replaceSelection": {
+    "message": "替换所选"
+  },
+  "translateSelection": {
+    "message": "翻译所选"
+  },
+  "lookUp": {
+    "message": "查词"
+  },
+  "closeSelectionShortcut": {
+    "message": "关闭划词入口"
+  },
+  "translate": {
+    "message": "翻译"
+  },
+  "chinesePinyinAndDefinitionsProvidedByYoudao": {
+    "message": "中文拼音和释义由有道词典提供"
+  },
+  "viewIn": {
+    "message": "在$ARG1$中查看",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "lookingUp": {
+    "message": "正在查询…"
+  },
+  "retry": {
+    "message": "重试"
+  },
+  "sourceTextCannotExceed5000Characters": {
+    "message": "原文不能超过 5,000 个字符。"
+  },
+  "enterTextToLookUpOrTranslate": {
+    "message": "请输入要查询或翻译的文字。"
+  },
+  "chooseAnAvailableTranslationServiceInSettings": {
+    "message": "请先在设置中选择可用的翻译服务。"
+  },
+  "theServiceReturnedNoTranslationTryAgain": {
+    "message": "翻译服务未返回译文，请重试。"
+  },
+  "theExtensionBackgroundIsOutOfDateReload": {
+    "message": "扩展后台尚未更新，请重新加载扩展并刷新当前页面。"
+  },
+  "theExtensionHasBeenUpdatedRefreshThePage": {
+    "message": "扩展已更新，请刷新当前页面后重试。"
+  },
+  "us": {
+    "message": "美"
+  },
+  "pinyin": {
+    "message": "拼音"
+  },
+  "pronunciation": {
+    "message": "读音"
+  },
+  "word": {
+    "message": "单词"
+  },
+  "playPronunciation": {
+    "message": "播放$ARG1$发音",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "noDefinitionsFoundViewTheDictionaryWebsite": {
+    "message": "未找到词典释义，可查看原站。"
+  },
+  "noDefinitionsFoundSwitchDictionariesOrViewThe": {
+    "message": "未找到词典释义，可切换词典或查看原站。"
+  },
+  "loadingPronunciation": {
+    "message": "正在加载发音…"
+  },
+  "paragraphModeIsOnHoldTheConfiguredModifier": {
+    "message": "段落模式已开启，按配置的修饰键点击段落即可翻译。"
+  },
+  "paragraphModeIsOff": {
+    "message": "段落模式已关闭。"
+  },
+  "translationStoppedOriginalTextRestored": {
+    "message": "已停止翻译并恢复原文。"
+  },
+  "translatingThePageActivateAgainToShowThe": {
+    "message": "正在翻译全文，再次操作可恢复原文。"
+  },
+  "checkTranslationServiceSettings": {
+    "message": "请检查翻译服务设置。"
+  },
+  "someParagraphsFailedToTranslate": {
+    "message": "部分段落翻译失败：$ARG1$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "translatingThisAreaNewContentWillBeTranslated": {
+    "message": "正在翻译当前区域，后续内容将自动继续翻译。"
+  },
+  "scrollToContinue": {
+    "message": "，滚动页面继续翻译"
+  },
+  "paragraphsTranslated": {
+    "message": "已翻译 $ARG1$ 段$ARG2$。",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      },
+      "arg2": {
+        "content": "$2"
+      }
+    }
+  },
+  "noTextToTranslateHereTranslationWillContinue": {
+    "message": "当前区域暂无可翻译内容，新内容加载或滚动页面后将自动翻译。"
+  },
+  "tapTheFloatingButtonToTranslateLongPress": {
+    "message": "轻点悬浮球翻译全文，长按打开菜单，拖动调整位置。"
+  },
+  "dismissFloatingButtonHint": {
+    "message": "关闭悬浮球操作提示"
+  },
+  "tapToTranslateAParagraph": {
+    "message": "点选段落翻译"
+  },
+  "tapAParagraphToTranslateItSelectionMode": {
+    "message": "点选要翻译的段落，完成后自动退出。"
+  },
+  "cancelParagraphSelection": {
+    "message": "取消点选段落"
+  },
+  "dismissParagraphTranslationStatus": {
+    "message": "关闭段落翻译状态"
+  },
+  "processingSelectedParagraph": {
+    "message": "正在处理所选段落…"
+  },
+  "doneTapThisParagraphAgainToSwitchBetween": {
+    "message": "已完成，再次点选此段可切换原文与译文。"
+  },
+  "paragraphTranslationFailedTryAgain": {
+    "message": "段落翻译失败，请重试。"
+  },
+  "theVideoFrameIsNotReadyWaitUntil": {
+    "message": "视频画面尚未就绪，请等待加载或跳转完成后重试。"
+  },
+  "thisVideoIsProtectedItsFramesCannotBe": {
+    "message": "此视频受内容保护，无法读取画面。"
+  },
+  "returnToTheVideoPageToTranslateA": {
+    "message": "请回到视频页后重试画面翻译。"
+  },
+  "theVideoMovedStopScrollingOrResizingAnd": {
+    "message": "视频位置已变化，请停止滚动或调整窗口后重试。"
+  },
+  "theVideoIsSeekingWaitForTheFrame": {
+    "message": "视频正在跳转，请等待画面加载完成后重试。"
+  },
+  "recognizingAndTranslatingVideoFrame": {
+    "message": "正在识别并翻译视频画面…"
+  },
+  "enableVideoSubtitlesFirst": {
+    "message": "请先开启视频字幕功能。"
+  },
+  "useTheWrenchBesideImageTranslationInWupage": {
+    "message": "请在 WuPage 图片翻译旁的扳手中安装 OCR 模型，并开启图片翻译。"
+  },
+  "noTranslatableTextFoundInThisFrame": {
+    "message": "未识别到需要翻译的画面文字。"
+  },
+  "frameTranslationFailedTryAgain": {
+    "message": "画面翻译失败，请重试。"
+  },
+  "subtitlePositionDragOrUseArrowKeysTo": {
+    "message": "字幕位置，拖动或使用方向键移动，Shift 加速"
+  },
+  "leftSubtitleEdgeDragOrUseLeftAnd": {
+    "message": "字幕左边界，拖动或使用左右方向键调整宽度"
+  },
+  "rightSubtitleEdgeDragOrUseLeftAnd": {
+    "message": "字幕右边界，拖动或使用左右方向键调整宽度"
+  },
+  "adjustSubtitleLayout": {
+    "message": "调整字幕布局"
+  },
+  "dragSubtitlesToMove": {
+    "message": "· 拖动字幕移动位置"
+  },
+  "width": {
+    "message": "宽度"
+  },
+  "subtitleWidth": {
+    "message": "字幕宽度"
+  },
+  "fontSize": {
+    "message": "字号"
+  },
+  "subtitleLayoutFontSize": {
+    "message": "布局字幕字号"
+  },
+  "dragTheSideHandlesToSetWidthHeight": {
+    "message": "左右手柄调宽；高度随文字换行。完成后记住此网站的布局，Esc 取消。"
+  },
+  "dragSubtitlesToRepositionThemDragTheSide": {
+    "message": "拖动调整字幕位置，拉动左右手柄调整宽度。"
+  },
+  "layoutCouldNotBeSavedRetryOrCancel": {
+    "message": "布局未保存，请重试或取消。"
+  },
+  "inPictureInPictureBilingualSubtitlesAreAvailable": {
+    "message": "画中画中可在原播放器查看双语字幕。"
+  },
+  "readingPlayerSubtitles": {
+    "message": "正在读取播放器字幕…"
+  },
+  "chooseAnAvailableTranslationServiceFirst": {
+    "message": "请先选择可用的翻译服务。"
+  },
+  "theSubtitleListHasChanged": {
+    "message": "字幕目录已变化。"
+  },
+  "theSelectedSubtitleTrackWasRemoved": {
+    "message": "所选字幕已移除。"
+  },
+  "theSelectedSubtitleTrackReturnedNoContent": {
+    "message": "所选字幕没有返回内容。"
+  },
+  "couldNotReadTheSelectedTrackEnableIts": {
+    "message": "未能读取所选原字幕。请在网站播放器开启对应语言，或选择「跟随播放器」后重试。"
+  },
+  "subtitles": {
+    "message": "字幕 $ARG1$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "subtitlesTemporarilyUnavailableTryAgain": {
+    "message": "字幕暂不可用，请重试。"
+  },
+  "translationTemporarilyUnavailable": {
+    "message": "翻译暂不可用：$ARG1$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "sourceSubtitlesAreNotReadyEnableThemIn": {
+    "message": "原字幕尚未就绪，请先在播放器开启字幕，或选择其他原字幕语言。"
+  },
+  "enableSubtitlesInThePlayerSomeTracksRequire": {
+    "message": "请先在播放器开启字幕。部分字幕需要登录后才能使用。"
+  },
+  "enableCcOrSubtitlesInThePlayerTranslation": {
+    "message": "请先开启播放器的 CC / 字幕，播放后会自动翻译。"
+  },
+  "paused": {
+    "message": "已暂停"
+  },
+  "wupageBilingual": {
+    "message": "WuPage 双语"
+  },
+  "thisServiceRequiresAnApiKeyEnterIt": {
+    "message": "当前服务需要 API 密钥。请在 WuPage 设置中填写，或选择已配置的翻译服务。"
+  },
+  "theExtensionWasUpdatedOrReloadedRefreshThe": {
+    "message": "扩展已更新或重新加载，请刷新视频页后继续。"
+  },
+  "theExtensionDisconnectedChooseRetrySubtitlesIfYou": {
+    "message": "扩展连接已中断，请点击「重试读取」；如果刚更新过扩展，请刷新视频页。"
+  },
+  "thePlayerHasClosed": {
+    "message": "播放器已关闭。"
+  },
+  "settingsCouldNotBeSaved": {
+    "message": "设置未保存：$ARG1$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "subtitleFilesMustBe2MibOrSmaller": {
+    "message": "字幕文件不能超过 2 MiB。"
+  },
+  "loadedSubtitleCues": {
+    "message": "已载入 $ARG1$ 条字幕",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "clickTrOnThePlayerToEnableSubtitle": {
+    "message": "点击播放器上的「译」即可开启字幕翻译。"
+  },
+  "translation": {
+    "message": "译文"
+  },
+  "useOverallFontSize": {
+    "message": "跟随整体字号"
+  },
+  "font": {
+    "message": "$ARG1$字体",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "sansSerif": {
+    "message": "黑体"
+  },
+  "serif": {
+    "message": "宋体"
+  },
+  "monospace": {
+    "message": "等宽"
+  },
+  "fontWeight": {
+    "message": "$ARG1$字重",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "regular": {
+    "message": "常规"
+  },
+  "semibold": {
+    "message": "中粗"
+  },
+  "bold": {
+    "message": "粗体"
+  },
+  "videoTranslation": {
+    "message": "视频翻译"
+  },
+  "translateVideoSubtitles": {
+    "message": "翻译视频字幕"
+  },
+  "pauseAndTranslateFrame": {
+    "message": "暂停并翻译画面"
+  },
+  "subtitleSettings": {
+    "message": "字幕设置"
+  },
+  "bilingualSubtitles": {
+    "message": "双语字幕"
+  },
+  "closeSubtitleSettings": {
+    "message": "关闭字幕设置"
+  },
+  "translateTo": {
+    "message": "译为"
+  },
+  "subtitleTargetLanguage": {
+    "message": "字幕目标语言"
+  },
+  "subtitleFontSize": {
+    "message": "字幕字号"
+  },
+  "small": {
+    "message": "小"
+  },
+  "large": {
+    "message": "大"
+  },
+  "subtitleTranslationService": {
+    "message": "字幕翻译服务"
+  },
+  "sourceSubtitles": {
+    "message": "原字幕"
+  },
+  "sourceSubtitleLanguage": {
+    "message": "原字幕语言"
+  },
+  "followPlayer": {
+    "message": "跟随播放器"
+  },
+  "subtitleAppearance": {
+    "message": "字幕外观"
+  },
+  "order": {
+    "message": "排列"
+  },
+  "originalAndTranslationOrder": {
+    "message": "原文与译文顺序"
+  },
+  "originalOnTop": {
+    "message": "原文在上"
+  },
+  "translationOnTop": {
+    "message": "译文在上"
+  },
+  "longSubtitlesAdvanceWithPlaybackWithUpTo": {
+    "message": "长字幕随播放进度分屏，每种语言最多两行；字号随播放器尺寸自动适配。"
+  },
+  "enableAutomaticallyOnThisSite": {
+    "message": "在此网站自动开启"
+  },
+  "retrySubtitles": {
+    "message": "重试读取"
+  },
+  "moreOptions": {
+    "message": "更多选项"
+  },
+  "subtitleBackground": {
+    "message": "字幕背景"
+  },
+  "translucent": {
+    "message": "半透明"
+  },
+  "transparent": {
+    "message": "透明"
+  },
+  "timeOffsetSeconds": {
+    "message": "时间偏移（秒）"
+  },
+  "subtitleTimeOffset": {
+    "message": "字幕时间偏移"
+  },
+  "importSrtVtt": {
+    "message": "导入 SRT / VTT"
+  },
+  "onlySubtitleTextIsTranslatedNoAudioIs": {
+    "message": "仅翻译字幕文本，不采集音频。在线翻译使用所选服务的额度。"
+  },
+  "cancelFrameTranslation": {
+    "message": "取消画面翻译"
+  },
+  "showOriginalFrame": {
+    "message": "显示原画面"
+  },
+  "showTranslatedFrame": {
+    "message": "显示画面译文"
+  },
+  "readingSubtitlesClickToStopTranslation": {
+    "message": "正在读取字幕，点击停止字幕翻译"
+  },
+  "subtitlesNeedARetryClickToStopTranslation": {
+    "message": "字幕需重试，点击停止字幕翻译"
+  },
+  "waitingForSourceSubtitlesClickToStopTranslation": {
+    "message": "等待原字幕，点击停止字幕翻译"
+  },
+  "translationOnly": {
+    "message": "仅译文"
+  },
+  "enabledClickToStopSubtitleTranslation": {
+    "message": "$ARG1$已开启，点击停止字幕翻译",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "translatingSubtitlesClickToStop": {
+    "message": "正在翻译字幕，点击停止字幕翻译"
+  },
+  "translatedSubtitles": {
+    "message": "译文字幕"
+  },
+  "bingDictionaryIsUnavailableOrItsLayoutHas": {
+    "message": "Bing 词典暂时不可用或页面结构已变化，请切换词典后重试。"
+  },
+  "invalidPronunciationAudioData": {
+    "message": "词典发音数据无效。"
+  },
+  "couldNotPlayPronunciationTryAgain": {
+    "message": "发音播放失败，请重试。"
+  },
+  "unknownDictionaryOperation": {
+    "message": "未知词典操作。"
+  },
+  "autoDetectionUsesTheBrowserSLocalLanguage": {
+    "message": "自动检测使用浏览器的本地语言识别。请预先准备可能用到的语言模型；源语言和目标语言都不是英语时，需要「源语言 → 英语」和「英语 → 目标语言」两个模型。短文本识别不准时，可手动选择源语言。"
+  },
+  "translationGoesThroughEnglishAndRequiresBothModels": {
+    "message": "经英语中转，两个模型都需准备。"
+  },
+  "requiredForThisDirection": {
+    "message": "当前方向需要：$ARG1$。$ARG2$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      },
+      "arg2": {
+        "content": "$2"
+      }
+    }
+  },
+  "sourceAndTargetLanguagesMatchNoTranslationNeeded": {
+    "message": "源语言和目标语言相同，无需翻译。"
+  },
+  "firefoxLocalModels": {
+    "message": "Firefox 本地模型"
+  },
+  "languageModel": {
+    "message": "语言模型"
+  },
+  "modelDownloadProgress": {
+    "message": "模型下载进度"
+  },
+  "checkingLocalModels": {
+    "message": "正在检查本地模型…"
+  },
+  "downloadModel": {
+    "message": "下载模型"
+  },
+  "pauseDownload": {
+    "message": "暂停下载"
+  },
+  "importOffline": {
+    "message": "离线导入"
+  },
+  "deleteModel": {
+    "message": "删除模型"
+  },
+  "offlineInstallationAndInterruptedDownloads": {
+    "message": "网络不畅或离线安装"
+  },
+  "failedDownloadsRetryAutomaticallyCompletedFilesAndEach": {
+    "message": "下载会自动重试，暂停或中断后保留已完成的文件和每 1 MB 的进度。点击下载可继续；服务器不支持续传时会重新下载当前文件。"
+  },
+  "youCanDownloadAllFilesBelowOnAnother": {
+    "message": "也可在网络较好的设备上保存下列全部文件，复制到本机后点击「离线导入」。文件会按大小和校验值验证，可分次导入。下载来源为 Mozilla 官方 CDN。"
+  },
+  "experimentalSupportForEnglishSimplifiedChineseJapaneseGerman": {
+    "message": "实验功能：支持英语、简体中文、日语、德语、法语、西班牙语和俄语。复杂文本的质量可能低于在线服务。模型缺失或语言不支持时会提示处理方式，切换在线服务需手动选择。"
+  },
+  "resumable": {
+    "message": "可继续下载"
+  },
+  "notInstalled": {
+    "message": "未安装"
+  },
+  "downloading": {
+    "message": "下载中"
+  },
+  "downloadIncomplete": {
+    "message": "下载未完成"
+  },
+  "modelReadyForOfflineTranslation": {
+    "message": "模型已就绪，可离线翻译。"
+  },
+  "retained": {
+    "message": "已保留"
+  },
+  "pendingDownload": {
+    "message": "待下载"
+  },
+  "downloadsContinueAfterYouCloseSettings": {
+    "message": "可以关闭设置页，下载会继续。"
+  },
+  "modelsAreDownloadedOnlyWhenYouChooseDownload": {
+    "message": "模型准备完成前不会自动联网下载。"
+  },
+  "modelInstalled": {
+    "message": "模型已安装"
+  },
+  "resumeDownload": {
+    "message": "继续下载"
+  },
+  "verifiedAndImportedFilesOfflineTranslationIsAvailable": {
+    "message": "已验证并导入 $ARG1$ 个文件。全部文件就绪后即可离线翻译。",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "localTranslationStopped": {
+    "message": "本地翻译已停止。"
+  },
+  "localTranslationTimedOutTryASmallerSelection": {
+    "message": "本地翻译处理超时，请缩小文本范围后重试。"
+  },
+  "localTranslationFailed": {
+    "message": "本地翻译失败。"
+  },
+  "couldNotStartTheLocalEngineCheckWebassembly": {
+    "message": "本地翻译引擎启动失败，请确认浏览器支持 WebAssembly SIMD，或重新加载扩展。"
+  },
+  "couldNotReadTheLocalTranslationMessageTry": {
+    "message": "本地翻译消息读取失败，请重试。"
+  },
+  "couldNotReadTheLocalTranslationRuntimeReload": {
+    "message": "本地翻译运行库读取失败，请重新加载扩展。"
+  },
+  "localTranslationReturnedIncompleteResultsTryAgain": {
+    "message": "本地翻译返回了不完整的结果，请重试。"
+  },
+  "anotherWindowIsInstallingImportingOrDeletingA": {
+    "message": "另一窗口正在下载、导入或删除模型，请稍后重试。"
+  },
+  "sizeMismatchForChooseAModelFileFrom": {
+    "message": "$ARG1$ 大小不匹配，请使用列表中的模型文件。",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "integrityCheckFailedForDownloadTheFileAgain": {
+    "message": "$ARG1$ 完整性校验失败，请重新下载该文件。",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "noMatchingModelFilesFoundChooseTheListed": {
+    "message": "未找到匹配的模型文件，请选择下方列表中对应的 .bin 和 .spm 文件。"
+  },
+  "modelDownloadFailed": {
+    "message": "模型下载失败（$ARG1$）。",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "theServerResponseDoesNotMatchTheRequested": {
+    "message": "模型续传响应不匹配。"
+  },
+  "modelDownloadSizeMismatch": {
+    "message": "模型下载大小不匹配。"
+  },
+  "modelDownloadInterruptedDownloadedDataWasKeptFor": {
+    "message": "模型下载中断，已保留可续传的数据。"
+  },
+  "downloadOrImportTheModelInSettingsFirst": {
+    "message": "请先在设置中下载或导入「$ARG1$」模型。翻译不会自动下载模型。",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "localTranslationRequiresASeparateModelDownloadFor": {
+    "message": "首次使用需额外下载所需语言模型（每个方向约 35–55 MB，以列表为准），并占用相应磁盘空间。翻译使用本机 CPU，可能增加耗电、发热，运行内存可能达数百 MB，实际取决于设备和文本。默认单线程，空闲 60 秒后释放运行内存。模型准备好后可离线翻译，文本不会发送到在线翻译服务。"
+  },
+  "localLanguageModelNotFound": {
+    "message": "未找到该本地语言模型。"
+  },
+  "theExperimentalLocalServiceSupportsEnglishSimplifiedChinese": {
+    "message": "本地实验服务支持英语、简体中文、日语、德语、法语、西班牙语和俄语。请更换语言或翻译服务。"
+  },
+  "aModelIsDownloadingPauseItBeforeSwitching": {
+    "message": "已有模型正在下载，可先暂停后再切换语言模型。"
+  },
+  "downloadedDataWasKeptRetryOrImportOffline": {
+    "message": "$ARG1$ 已保留完成的数据，可重试或离线导入。",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "pauseTheDownloadAndWaitForTranslationTo": {
+    "message": "请先暂停下载并等待翻译结束，再删除模型。"
+  },
+  "downloadOrImportTheModelInSettingsIt": {
+    "message": "请先在设置中下载或导入「$ARG1$」模型。下载完成后即可离线使用。",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "unknownLocalModelOperation": {
+    "message": "未知本地模型操作。"
+  },
+  "theBrowserCannotReadTheOcrImage": {
+    "message": "浏览器无法读取 OCR 图片。"
+  },
+  "theBrowserCannotPrepareTheOcrImage": {
+    "message": "浏览器无法准备 OCR 图片。"
+  },
+  "modelDownloadFailedTryAgain": {
+    "message": "模型下载失败（$ARG1$），请重试。",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "modelSizeVerificationFailedTryAgain": {
+    "message": "模型大小校验失败，请重试。"
+  },
+  "modelIntegrityVerificationFailedTryAgain": {
+    "message": "模型完整性校验失败，请重试。"
+  },
+  "ocrTaskCanceled": {
+    "message": "OCR 任务已取消。"
+  },
+  "ocrProcessingTimedOutTryAgain": {
+    "message": "OCR 处理超时，请重试。"
+  },
+  "ocrInitializationTimedOut": {
+    "message": "OCR 初始化超时。"
+  },
+  "waitForOcrModelInstallationToFinishBefore": {
+    "message": "正在安装 OCR 模型，请完成后再删除。"
+  },
+  "waitForImageRecognitionToFinishBeforeRemoving": {
+    "message": "正在识别图片，请完成后再删除 OCR 模型。"
+  },
+  "imageRecognitionIsAlreadyRunningTryAgainShortly": {
+    "message": "已有图片正在识别，请稍后重试。"
+  },
+  "unknownOcrOperation": {
+    "message": "未知 OCR 操作。"
+  },
+  "loadingAnUnknownModelIsNotAllowed": {
+    "message": "不允许加载未知模型。"
+  },
+  "ocrHasNotBeenInitialized": {
+    "message": "OCR 尚未初始化。"
+  },
+  "builtInSchemes": {
+    "message": "内置方案"
+  },
+  "customSchemes": {
+    "message": "自定义方案"
+  },
+  "youCanSaveUpTo32CustomSchemes": {
+    "message": "最多保存 32 个自定义方案"
+  },
+  "duplicateAndEditTheCurrentScheme": {
+    "message": "复制当前方案并编辑"
+  },
+  "hexColor": {
+    "message": "$ARG1$十六进制颜色",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "opacity": {
+    "message": "透明度"
+  },
+  "lowerValuesAreMoreTransparent100IsFully": {
+    "message": "数值越低越透明，100% 为完全不透明"
+  },
+  "floatingButtonOpacityPercentage": {
+    "message": "悬浮球透明度百分比"
+  },
+  "copy": {
+    "message": "$ARG1$（副本）",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "schemeCopiedYouCanEditItsColorsAnd": {
+    "message": "已复制，可调整颜色和名称。"
+  },
+  "defaultColorsRestoredSaveToApply": {
+    "message": "已重置为默认配色，保存后生效。"
+  },
+  "schemeDeletedAndDefaultColorsSelectedSaveTo": {
+    "message": "已删除方案并切换到默认配色，保存后生效。"
+  },
+  "enterAColorSchemeName": {
+    "message": "请填写配色方案名称。"
+  },
+  "enterAnIntegerOpacityFrom0To100": {
+    "message": "请输入 0 到 100 之间的整数透明度。"
+  },
+  "enterAFullHexColorSuchAs116466": {
+    "message": "请输入完整的十六进制颜色，例如 #116466。"
+  },
+  "removeExclusionFor": {
+    "message": "取消排除 $ARG1$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "noSitesYetUseTheAddButtonBelow": {
+    "message": "暂无站点，点击下方“＋”添加。"
+  },
+  "enableSiteRule": {
+    "message": "启用第 $ARG1$ 条站点规则",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "exampleComOrHttpsExampleComDocs": {
+    "message": "example.com 或 https://example.com/docs/*"
+  },
+  "siteRule": {
+    "message": "第 $ARG1$ 条站点规则",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "customSite": {
+    "message": "自定义站点"
+  },
+  "empty": {
+    "message": "未填写"
+  },
+  "deleteSite": {
+    "message": "删除站点 $ARG1$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "addSite": {
+    "message": "添加站点"
+  },
+  "thisSiteRuleAlreadyExists": {
+    "message": "这个站点规则已经存在。"
+  },
+  "lineEditOrRemoveThisRow": {
+    "message": "第 $ARG1$ 行：$ARG2$ 请修改或用“−”删除该行。",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      },
+      "arg2": {
+        "content": "$2"
+      }
+    }
+  },
+  "noExclusionRulesYet": {
+    "message": "暂无排除规则。"
+  },
+  "collapseRule": {
+    "message": "收起规则"
+  },
+  "expandRule": {
+    "message": "展开规则"
+  },
+  "enableExclusionRule": {
+    "message": "启用第 $ARG1$ 条排除规则",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "enableRule": {
+    "message": "启用规则"
+  },
+  "deleteRule": {
+    "message": "删除规则"
+  },
+  "deleteExclusionRule": {
+    "message": "删除第 $ARG1$ 条排除规则",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "rule": {
+    "message": "第 $ARG1$ 条规则$ARG2$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      },
+      "arg2": {
+        "content": "$2"
+      }
+    }
+  },
+  "name": {
+    "message": "名称"
+  },
+  "forExampleSidebarNavigation": {
+    "message": "例如：侧边导航栏"
+  },
+  "site": {
+    "message": "网站"
+  },
+  "excludedElements": {
+    "message": "排除元素"
+  },
+  "excludedElementsForRule": {
+    "message": "第 $ARG1$ 条规则排除元素",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "newRule": {
+    "message": "新规则"
+  },
+  "siteNotEntered": {
+    "message": "尚未填写网站"
+  },
+  "ruleEnterAtLeastOneCssSelectorTo": {
+    "message": "第 $ARG1$ 条规则：请填写至少一个排除元素的 CSS 选择器。",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "ruleEnterUpTo100Selectors": {
+    "message": "第 $ARG1$ 条规则：最多填写 100 个选择器。",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "ruleCssSelectorIsInvalidCheckItAnd": {
+    "message": "第 $ARG1$ 条规则：第 $ARG2$ 个 CSS 选择器无效，请检查后重试。",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      },
+      "arg2": {
+        "content": "$2"
+      }
+    }
+  },
+  "beforeTranslatingImagesFromTheContextMenuInstall": {
+    "message": "使用右键图片翻译前，请先点击扳手安装 OCR 模型，开启图片翻译并保存。"
+  },
+  "couldNotConnectToTheImageSPage": {
+    "message": "无法连接图片所在页面。请刷新刚才的网页，再右键点击图片翻译；部分嵌入页面暂不支持。"
+  },
+  "couldNotConnectToThePageRefreshIt": {
+    "message": "无法连接网页。请刷新刚才的网页，再右键选择全文翻译。"
+  },
+  "doubaoTranslationIsUnavailableInThisBrowser": {
+    "message": "此浏览器暂不支持豆包翻译"
+  },
+  "disabledEditable": {
+    "message": "（已停用，可编辑）"
+  },
+  "disable": {
+    "message": "停用"
+  },
+  "enable": {
+    "message": "启用"
+  },
+  "delete": {
+    "message": "删除 $ARG1$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "doubaoExperimental": {
+    "message": "豆包（实验性）"
+  },
+  "signInToDoubaoInThisBrowserTo": {
+    "message": "无需 API Key。在当前浏览器打开豆包并登录，即可开始翻译。连接异常时可点击“重新检测”。"
+  },
+  "translationSendsYourSourceTextToDoubaoThe": {
+    "message": "翻译会将待译文本发送到豆包；检测只发送固定短文本。"
+  },
+  "openDoubaoAndSignIn": {
+    "message": "打开豆包并登录"
+  },
+  "checkAgain": {
+    "message": "重新检测"
+  },
+  "ifYourSessionExpiresSignInAgainAnd": {
+    "message": "如提示登录失效，请重新登录后重试翻译，或点击重新检测；如遇限流，请等待。登录状态由浏览器管理，无需复制 Cookie。"
+  },
+  "azureRegionOptional": {
+    "message": "Azure 区域（可选）"
+  },
+  "translationModel": {
+    "message": "翻译模型"
+  },
+  "folderIdIfRequiredByYourAccount": {
+    "message": "Folder ID（按账号要求填写）"
+  },
+  "region": {
+    "message": "区域"
+  },
+  "tencentTokenhubTranslationApi": {
+    "message": "腾讯 TokenHub 翻译 API"
+  },
+  "volcengineMachineTranslationApi": {
+    "message": "火山引擎机器翻译 API"
+  },
+  "serviceMode": {
+    "message": "使用方式"
+  },
+  "freeServiceDefault": {
+    "message": "免费服务（默认）"
+  },
+  "apiServiceOwnCredentials": {
+    "message": "API 服务（自备凭据）"
+  },
+  "yourProviderDeterminesQuotaAndPricingSwitchingBack": {
+    "message": "$ARG1$，额度和费用按服务商账号计算。切回免费服务会保留凭据。",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "globalOrAnAzureRegion": {
+    "message": "global 或 Azure 区域"
+  },
+  "ollamaCompatibility": {
+    "message": "Ollama 兼容"
+  },
+  "enabledDefault": {
+    "message": "开启（默认）"
+  },
+  "enabledByDefaultSupportsIpv4Ipv6CustomPorts": {
+    "message": "默认开启，支持 IPv4、IPv6、自定义端口和完整 Chat Completions 地址。"
+  },
+  "apiKeyOptional": {
+    "message": "API key（可选）"
+  },
+  "systemPrompt": {
+    "message": "系统提示词"
+  },
+  "apiFormat": {
+    "message": "接口格式：$ARG1$。",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "usesDeepseekChatCompletionsWithThinkingDisabledBy": {
+    "message": "使用 DeepSeek Chat Completions，默认关闭思考模式以降低翻译延迟，可在「高级」中覆盖。API 地址默认使用 https://api.deepseek.com。"
+  },
+  "usesZhipuGlmChatCompletionsDefaultApiAddress": {
+    "message": "使用智谱 GLM Chat Completions。API 地址默认使用 https://open.bigmodel.cn/api/paas/v4。"
+  },
+  "requestMethod": {
+    "message": "请求方法"
+  },
+  "responsePath": {
+    "message": "响应路径"
+  },
+  "requestHeadersJson": {
+    "message": "请求头 JSON"
+  },
+  "requestBodyTemplate": {
+    "message": "请求体模板"
+  },
+  "testService": {
+    "message": "测试服务"
+  },
+  "model": {
+    "message": "模型"
+  },
+  "addOrEditModel": {
+    "message": "添加或修改模型"
+  },
+  "enterAModelName": {
+    "message": "请填写模型名称。"
+  },
+  "savedModel": {
+    "message": "已保存模型：$ARG1$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "localTranslationUsesAFixedChunkSizeOf": {
+    "message": "本地翻译使用固定分块大小 800、并发数 1。"
+  },
+  "doubaoUsesAFixedChunkSizeOf1200": {
+    "message": "豆包翻译使用固定分块大小 1200、并发数 1。"
+  },
+  "useGeneralPerformanceSettings": {
+    "message": "继承通用性能设置"
+  },
+  "chunkSize": {
+    "message": "分块大小"
+  },
+  "serviceConcurrency": {
+    "message": "服务商并发数"
+  },
+  "serviceConcurrencyIsCappedByTheGlobalMaximum": {
+    "message": "服务商并发数不会超过通用设置中的全局最大并发数。"
+  },
+  "disabledServiceSelectedYouCanEditItsConfiguration": {
+    "message": "已选中停用服务，可编辑配置。"
+  },
+  "currentServiceChanged": {
+    "message": "已切换当前服务。"
+  },
+  "enableAtLeastOneTranslationService": {
+    "message": "至少需要启用一个翻译服务。"
+  },
+  "serviceEnabled": {
+    "message": "已启用服务。"
+  },
+  "serviceDisabled": {
+    "message": "已停用服务。"
+  },
+  "customServiceDeleted": {
+    "message": "已删除自定义服务。"
+  },
+  "customServiceAddedCompleteItsConfigurationAndSave": {
+    "message": "已添加自定义服务，请完成配置后保存。"
+  },
+  "customHttp": {
+    "message": "自定义 HTTP"
+  },
+  "customAnthropicLlm": {
+    "message": "自定义 Anthropic LLM"
+  },
+  "customOpenaiLlm": {
+    "message": "自定义 OpenAI LLM"
+  },
+  "saved": {
+    "message": "已保存。"
+  },
+  "testing": {
+    "message": "测试中..."
+  },
+  "testPassed": {
+    "message": "测试通过：$ARG1$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "builtInServiceDefaultsRestoredCredentialsAndCustom": {
+    "message": "已恢复内置服务默认参数，密钥和自定义服务已保留，保存后生效。"
+  },
+  "sectionDefaultsRestoredSaveToApply": {
+    "message": "已恢复当前页默认设置，保存后生效。"
+  },
+  "allSettingsReset": {
+    "message": "已完全重置设置。"
+  },
+  "requestHeadersMustBeAJsonObject": {
+    "message": "请求头必须是 JSON 对象。"
+  },
+  "requestHeaderValuesMustBeStrings": {
+    "message": "请求头的值必须是字符串。"
+  },
+  "currentTranslationServiceNotFound": {
+    "message": "找不到当前翻译服务。"
+  },
+  "pressKeys": {
+    "message": "请按下按键…"
+  },
+  "unassigned": {
+    "message": "未设置"
+  },
+  "alreadyUsedByChooseADifferentCombination": {
+    "message": "已用于「$ARG1$」，请换一个组合。",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "featureShortcutChangedSaveToApply": {
+    "message": "局部快捷键已修改，点击「保存」后生效。"
+  },
+  "openMenu": {
+    "message": "进入菜单"
+  },
+  "shortcut": {
+    "message": "$ARG1$快捷键",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "clickAndPressTheShortcutEscCancelsAnd": {
+    "message": "点击后按下快捷键；Esc 取消，Delete 清空；也可点击「使用 Esc」绑定 Esc"
+  },
+  "pressAShortcutEscCancelsAndDeleteClears": {
+    "message": "按下快捷键，Esc 取消，Delete 清空。绑定 Esc 可点击旁边的「使用 Esc」。"
+  },
+  "recordingCanceledPreviousShortcutKept": {
+    "message": "已取消录入，原绑定保持不变。"
+  },
+  "useAFunctionKeyOrCombineCtrlAlt": {
+    "message": "请使用功能键，或 Ctrl、Alt、Command 加字母等组合键。"
+  },
+  "clickParagraph": {
+    "message": "$ARG1$ + 点击段落",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "default": {
+    "message": "默认"
+  },
+  "restoreDefaultShortcutFor": {
+    "message": "恢复$ARG1$默认快捷键",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "useEsc": {
+    "message": "使用 Esc"
+  },
+  "remove": {
+    "message": "移除$ARG1$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "clickToRemoveLinksStayAtTheBottom": {
+    "message": "点击移除$ARG1$；链接固定在底部",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "clickToRemoveDragOrPressAltAnd": {
+    "message": "点击移除$ARG1$；拖动或按 Alt + 方向键排序",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "addedSaveToApply": {
+    "message": "已添加$ARG1$，保存后生效。",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "movedSaveToApply": {
+    "message": "已移动$ARG1$，保存后生效。",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "removedAddItAgainFromTheListSave": {
+    "message": "已移除$ARG1$，可从右侧重新添加。保存后生效。",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "dragCanceled": {
+    "message": "已取消拖动。"
+  },
+  "repositionedSaveToApply": {
+    "message": "已调整$ARG1$的位置，保存后生效。",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "dragNearAPositionToSnapIntoPlace": {
+    "message": "拖近目标位置即可吸附，松开鼠标放置。按 Esc 取消。"
+  },
+  "defaultLayoutRestoredSaveToApply": {
+    "message": "已恢复默认布局，保存后生效。"
+  },
+  "translationServiceConfiguration": {
+    "message": "翻译服务配置"
+  },
+  "advanced": {
+    "message": "高级"
+  },
+  "enableCustomRequestTemplate": {
+    "message": "启用自定义请求模板"
+  },
+  "appliesToThisServiceOnlyEmptyFieldsShow": {
+    "message": "仅影响当前服务。空配置会展示此服务的默认文本请求模板，变量使用「常规」中的配置。关闭后使用默认请求，并保留已修改的模板。"
+  },
+  "loadDefaultTemplate": {
+    "message": "载入默认模板"
+  },
+  "customRequestTemplate": {
+    "message": "自定义请求模板"
+  },
+  "requestHeadersTemplateJson": {
+    "message": "请求头模板（JSON）"
+  },
+  "addOrOverrideDefaultHeadersNamesAreCase": {
+    "message": "在默认请求头上添加或覆盖，名称不区分大小写；值为字符串，null 删除该请求头。默认认证头随「常规」中的 API Key 配置生成。"
+  },
+  "requestBodyTemplateJson": {
+    "message": "请求体参数模板（JSON）"
+  },
+  "objectsMergeRecursivelyWithTheDefaultBodyArrays": {
+    "message": "在默认请求体上合并：对象逐层合并，数组和其他值整体替换，null 删除字段。留空或 {} 使用默认值。仅支持非流式响应。"
+  },
+  "templateVariablesAndExamples": {
+    "message": "模板变量与示例"
+  },
+  "useModelApikeySourcelangTargetlangContextSystempromptAnd": {
+    "message": "变量写在 JSON 字符串内，可使用 {{model}}、{{apiKey}}、{{sourceLang}}、{{targetLang}}、{{context}}、{{systemPrompt}} 和 {{userPrompt}}。引号与换行会自动转义。"
+  },
+  "anEntireTextsValueBecomesAnArrayOf": {
+    "message": "完整的 \"{{texts}}\" 会替换为文本数组；\"{{json texts}}\" 为 JSON 编码后的文本字符串。{{userPrompt}} 包含默认的语言、上下文与输入文本。变量仅替换值，不替换字段名。"
+  },
+  "customRequestHeaders": {
+    "message": "自定义请求头："
+  },
+  "examplesOfDisablingThinkingChooseTheFormatYour": {
+    "message": "关闭思考的常见写法（按服务商接口要求选择）："
+  },
+  "replacingTheMessagesTemplateOpenaiCompatibleFormat": {
+    "message": "替换消息模板（OpenAI 兼容格式）："
+  },
+  "whenEditingMessagesKeepTheInstructionToReturn": {
+    "message": "修改消息时，保留返回与输入顺序、数量一致的 JSON 字符串数组要求。"
+  },
+  "restoreDefaultRequest": {
+    "message": "恢复默认请求"
+  },
+  "customizeTheFullHttpRequestHeadersAndBody": {
+    "message": "自定义完整的 HTTP 请求。请求头与请求体支持 {{sourceLang}}、{{targetLang}}、{{context}}、{{texts}} 和 {{json texts}}；请求体中的文本数组请使用不加引号的 {{json texts}}。"
+  },
+  "thisServiceUsesABuiltInProtocolAdd": {
+    "message": "当前服务使用内置翻译协议，无可修改的请求模板。如需自定义接口，可添加 LLM 服务或使用 HTTP Template。"
+  },
+  "quotasAndLimits": {
+    "message": "额度与限制 · $ARG1$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "updated": {
+    "message": "更新于 $ARG1$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "freeAnonymousQuota": {
+    "message": "免费 / 匿名额度"
+  },
+  "perRequest": {
+    "message": "单次请求"
+  },
+  "requestRate": {
+    "message": "请求速率"
+  },
+  "providerConcurrency": {
+    "message": "服务商并发"
+  },
+  "officialSources": {
+    "message": "官方来源："
+  },
+  "seeTheConfiguredServiceProviderSOfficialDocumentation": {
+    "message": "官方来源：请参阅所配置服务商的官方文档。"
+  },
+  "seeTheProviderSLatestPublishedQuotasAnd": {
+    "message": "额度及限制以服务商最新公布为准。"
+  },
+  "upToFourInternalRequestsPerTask": {
+    "message": "；每个任务内部最多 4 路请求"
+  },
+  "sequentialProcessingWithinEachTask": {
+    "message": "；每个任务内部串行处理"
+  },
+  "currentSettingsChunkSizeCharactersConcurrency": {
+    "message": "插件当前设置：分块大小 $ARG1$ 字符，调度并发 $ARG2$$ARG3$。",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      },
+      "arg2": {
+        "content": "$2"
+      },
+      "arg3": {
+        "content": "$3"
+      }
+    }
+  },
+  "resetting": {
+    "message": "正在重置…"
+  },
+  "resetFailed": {
+    "message": "重置失败：$ARG1$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "exportSettingsBackup": {
+    "message": "导出设置备份"
+  },
+  "importAndReplaceSettings": {
+    "message": "导入并覆盖设置"
+  },
+  "servicesWupage": {
+    "message": "$ARG1$ 个翻译服务 · WuPage $ARG2$ · $ARG3$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      },
+      "arg2": {
+        "content": "$2"
+      },
+      "arg3": {
+        "content": "$3"
+      }
+    }
+  },
+  "thisBackupIncludesCredentialsAndWillOverwriteThe": {
+    "message": "此备份包含密钥，将覆盖本机凭据。"
+  },
+  "thisBackupOmitsCredentialsImportingClearsExistingCredentials": {
+    "message": "此备份不包含密钥，将清空本机旧凭据；其他配置按备份恢复，密钥需重新填写。"
+  },
+  "importingImmediatelyReplacesAllSettingsAndDiscardsUnsaved": {
+    "message": "$ARG1$导入会立即覆盖全部设置，并丢弃当前未保存的编辑。仅导入可信来源的备份；文件中的服务地址决定后续翻译请求和密钥的接收方。建议先导出当前设置。",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "confirmExport": {
+    "message": "确认导出"
+  },
+  "confirmReplacement": {
+    "message": "确认覆盖"
+  },
+  "settingsBackupsMustBe5MibOrSmaller": {
+    "message": "设置备份不能超过 5 MiB。"
+  },
+  "saving": {
+    "message": "正在保存…"
+  },
+  "creatingBackup": {
+    "message": "正在生成备份…"
+  },
+  "fullBackupWithCredentialsCreatedFindItIn": {
+    "message": "已生成包含密钥的完整备份，请查看浏览器下载记录。文件未加密，请妥善保管。"
+  },
+  "settingsBackupCreatedWithoutCredentialsFindItIn": {
+    "message": "已生成不含密钥的设置备份，其余配置已保留，请查看浏览器下载记录。"
+  },
+  "settingsImportedAndSaved": {
+    "message": "已导入并保存设置。"
+  },
+  "settingsRestoredThisBackupOmittedCredentialsSoPrevious": {
+    "message": "无密钥备份已清空本机旧凭据，其他配置已恢复，密钥需重新填写。"
+  },
+  "ocrModelsAreMissingOnThisDeviceInstall": {
+    "message": "本机未安装 OCR 模型，图片翻译保持关闭；安装模型后可重新开启。"
+  },
+  "settingsBackupOperationFailedTryAgain": {
+    "message": "设置备份操作失败，请重试。"
+  },
+  "thisUnencryptedTomlBackupIncludesSavedSettingsCredentials": {
+    "message": "备份包含全部已保存设置，以及密钥、请求头和模板等敏感信息，以未加密 TOML 保存。请妥善保管，不要公开分享。当前未保存的编辑不会导出。"
+  },
+  "thisBackupKeepsSavedServiceAddressesHeadersTemplates": {
+    "message": "备份不包含密钥，保留服务地址、请求头、模板、提示词及其他已保存设置，仅清空密钥字段和可识别的认证值。分享前请检查自定义内容中手动嵌入的敏感信息。当前未保存的编辑不会导出。"
+  },
+  "shortcutsEnabledSaveToApply": {
+    "message": "快捷键已开启，点击「保存」后生效。"
+  },
+  "shortcutsDisabledExistingKeyBindingsAreKeptSave": {
+    "message": "快捷键已关闭，保留原按键；点击「保存」后生效。"
+  },
+  "pressAKeyCombination": {
+    "message": "请按下组合键…"
+  },
+  "assignAShortcutBeforeEnabling": {
+    "message": "请先设置快捷键，再启用"
+  },
+  "disableShortcutAndKeepItsBinding": {
+    "message": "关闭快捷键，保留当前按键"
+  },
+  "enableShortcut": {
+    "message": "开启快捷键"
+  },
+  "shortcutChangedSaveToApply": {
+    "message": "快捷键已修改，点击底部「保存」后生效。"
+  },
+  "clickAndPressACombinationEscCancelsBackspace": {
+    "message": "点击后按下组合键；Esc 取消，Backspace 或 Delete 清空"
+  },
+  "pressANewCombinationEscCancelsBackspaceOr": {
+    "message": "按下新的组合键，Esc 取消，Backspace 或 Delete 清空。"
+  },
+  "clickAShortcutFieldToRecordKeysThen": {
+    "message": "点击按键框录入，修改后点击底部「保存」。"
+  },
+  "combineCtrlAltOrCommandWithALetter": {
+    "message": "请使用 Ctrl、Alt 或 Command 加字母、数字等按键的组合。"
+  },
+  "start": {
+    "message": "开始"
+  },
+  "stop": {
+    "message": "停止"
+  },
+  "saveToRecordingUsage": {
+    "message": "保存后$ARG1$记录统计。",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "enabledUsageIsRecordedFromTheTimeTracking": {
+    "message": "已开启，仅记录开启后的使用数据。"
+  },
+  "trackingIsOffEnableItAndSaveTo": {
+    "message": "统计已关闭；开启并保存后开始记录。已有数据仍可查看或清空。"
+  },
+  "noUsageYet": {
+    "message": "暂无用量"
+  },
+  "mostUsedModelService": {
+    "message": "最常用模型 / 服务"
+  },
+  "noRecords": {
+    "message": "暂无记录"
+  },
+  "reportedInputOutputTokens": {
+    "message": "已报告输入 / 输出 Token"
+  },
+  "noBreakdownAvailable": {
+    "message": "暂无明细"
+  },
+  "noRequests": {
+    "message": "暂无请求"
+  },
+  "averageResponseTime": {
+    "message": "平均响应时间"
+  },
+  "textServedFromCache": {
+    "message": "缓存命中文本"
+  },
+  "averagePerActiveMinutePeakPerMinuteFailed": {
+    "message": "活跃分钟平均 $ARG1$ 次 · 单分钟峰值 $ARG2$ 次 · 失败 $ARG3$ 次。下图为所选日期内各小时的累计请求。",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      },
+      "arg2": {
+        "content": "$2"
+      },
+      "arg3": {
+        "content": "$3"
+      }
+    }
+  },
+  "numberOfRequests": {
+    "message": "请求次数"
+  },
+  "partial": {
+    "message": "（部分）"
+  },
+  "unreported": {
+    "message": "未报告"
+  },
+  "noUsageRecorded": {
+    "message": "暂无使用记录"
+  },
+  "loadingStatistics": {
+    "message": "正在读取统计…"
+  },
+  "noRecordsYetEnableStatisticsAndTranslateSome": {
+    "message": "暂无统计记录。开启统计并完成翻译后，可在此查看用量。"
+  },
+  "couldNotLoadData": {
+    "message": "读取失败：$ARG1$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "clearAllUsageStatisticsThisCannotBeUndone": {
+    "message": "清空全部使用统计？此操作无法撤销，翻译缓存和设置会保留。"
+  },
+  "statisticsCleared": {
+    "message": "统计已清空。"
+  },
+  "couldNotClearStatistics": {
+    "message": "清空失败：$ARG1$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "to": {
+    "message": "$ARG1$，$ARG2$ 至 $ARG3$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      },
+      "arg2": {
+        "content": "$2"
+      },
+      "arg3": {
+        "content": "$3"
+      }
+    }
+  },
+  "hoverOverAPointForItsValueOr": {
+    "message": "$ARG1$；悬停数据点可查看数值，每日明细见下方表格。",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "reportedUsageOnly": {
+    "message": "（仅已报告用量）"
+  },
+  "theServiceDidNotPreserveTextFormattingRetry": {
+    "message": "翻译服务未完整保留文字格式，请重试或切换翻译服务。"
+  },
+  "editableTranslation": {
+    "message": "可编辑译文"
+  },
+  "moveTranslationBlock": {
+    "message": "移动译文块"
+  },
+  "deleteTranslationBlock": {
+    "message": "删除译文块"
+  },
+  "resizeTranslationBlock": {
+    "message": "调整译文块大小"
+  },
+  "decreaseFontSize": {
+    "message": "减小字号"
+  },
+  "increaseFontSize": {
+    "message": "增大字号"
+  },
+  "translationBlockTools": {
+    "message": "译文块工具"
+  },
+  "noPdfPagesToExport": {
+    "message": "没有可导出的 PDF 页面。"
+  },
+  "couldNotEncodeThePreservedPdfContent": {
+    "message": "无法编码 PDF 保留内容。"
+  },
+  "someTranslatedTextDoesNotFitAtA": {
+    "message": "有译文超出可读排版范围，请调整译文块大小或文字后再下载。"
+  },
+  "theBrowserCouldNotCreateThePdfExport": {
+    "message": "浏览器无法创建 PDF 导出画布。"
+  },
+  "couldNotEncodeThePdfPageImage": {
+    "message": "无法编码 PDF 页面图像。"
+  },
+  "fullFontPackMbOneTimeDownload": {
+    "message": "完整字体包 · $ARG1$ MB · 仅下载一次",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "removePdfExportFont": {
+    "message": "卸载 PDF 导出字体"
+  },
+  "installFullPdfExportFontMb": {
+    "message": "安装 PDF 导出完整字体包（$ARG1$ MB）",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "installing": {
+    "message": "正在安装…"
+  },
+  "installFontPack": {
+    "message": "安装字体包"
+  },
+  "cancelInstallation": {
+    "message": "取消安装"
+  },
+  "cancelDownload": {
+    "message": "取消下载"
+  },
+  "installPdfExportFont": {
+    "message": "安装 PDF 导出字体"
+  },
+  "couldNotReadTheFontCacheYouCan": {
+    "message": "无法读取字体缓存，仍可直接导出图像版 PDF。"
+  },
+  "fontsAreProvidedByNotoOnlyFontData": {
+    "message": "字体由 Noto 官方提供。下载仅传输字体数据，不上传文档内容。"
+  },
+  "verifyingFontFile": {
+    "message": "正在校验字体文件…"
+  },
+  "downloadingFontPack0": {
+    "message": "正在下载字体包 · 0%"
+  },
+  "downloadCompleteVerifying": {
+    "message": "下载完成，正在校验…"
+  },
+  "downloadingFontPack": {
+    "message": "正在下载字体包 · $ARG1$%",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "fullFontInstalledYouCanExportSearchableSelectable": {
+    "message": "完整字体已安装，可离线导出可搜索、可复制的 PDF。"
+  },
+  "removalFailed": {
+    "message": "卸载失败：$ARG1$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "fontPackSizeMismatchReinstallThePack": {
+    "message": "字体包大小不匹配，请重新安装。"
+  },
+  "fontIntegrityCheckFailedReinstallThePack": {
+    "message": "字体包完整性校验失败，请重新安装。"
+  },
+  "fontFileSizeMismatchChooseFromTheDownload": {
+    "message": "字体文件大小不匹配，请选择下载链接提供的 $ARG1$，无需在系统中安装。",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "fontDownloadFailedRetryOrExportAsImages": {
+    "message": "字体包下载失败（$ARG1$），可重试或直接导出。",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "fontPackSizeMismatchTryAgain": {
+    "message": "字体包大小不匹配，请重试。"
+  },
+  "fontDownloadIncompleteRetryOrExportAsImages": {
+    "message": "字体包下载不完整，可重试或直接导出。"
+  },
+  "couldNotDownloadFontsFromCheckYourNetwork": {
+    "message": "无法从 $ARG1$ 下载字体包，请检查该域名的网络或代理规则。也可手动下载后选择「从文件安装」，或直接导出图像版 PDF。",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "chooseAPdfFile": {
+    "message": "请选择 PDF 文件。"
+  },
+  "translationSettingsChangedChooseTranslateToStartAgain": {
+    "message": "翻译设置已更改，请点击翻译按钮重新开始。"
+  },
+  "invalidPdfAddress": {
+    "message": "PDF 地址格式不正确。"
+  },
+  "useAnHttpHttpsOrLocalFileUrl": {
+    "message": "PDF 地址仅支持 HTTP、HTTPS 或本地 file 文件地址。"
+  },
+  "allowAccessToFileUrlsAndTryAgain": {
+    "message": "请允许访问文件网址后重试，或直接选择这份 PDF 文件。"
+  },
+  "readingLocalPdf": {
+    "message": "正在读取本地 PDF"
+  },
+  "downloadingPdf": {
+    "message": "正在下载 PDF"
+  },
+  "readingLocalDocument": {
+    "message": "正在读取本地文档…"
+  },
+  "readingOnlineDocument": {
+    "message": "正在读取在线文档…"
+  },
+  "couldNotReadFileHttp": {
+    "message": "读取失败（HTTP $ARG1$）",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "theAddressDidNotReturnAPdfFile": {
+    "message": "该地址返回的内容不是 PDF 文件。"
+  },
+  "localDocumentPdf": {
+    "message": "本地文档.pdf"
+  },
+  "onlineDocumentPdf": {
+    "message": "在线文档.pdf"
+  },
+  "readingThePdfFile": {
+    "message": "PDF 文件读取"
+  },
+  "readingDocumentStructure": {
+    "message": "正在读取文档结构…"
+  },
+  "pdfParsing": {
+    "message": "PDF 解析"
+  },
+  "parsingPageOf": {
+    "message": "正在解析第 $ARG1$ / $ARG2$ 页",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      },
+      "arg2": {
+        "content": "$2"
+      }
+    }
+  },
+  "pdfTextExtraction": {
+    "message": "PDF 文本提取"
+  },
+  "documentOpenChooseToStartTranslating": {
+    "message": "文档已打开，点击“$ARG1$”开始翻译。",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "noTranslatableTextFoundThisMayBeA": {
+    "message": "未检测到可翻译文字，这可能是一份扫描版 PDF。"
+  },
+  "originalPage": {
+    "message": "原文第 $ARG1$ 页",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "pdfPage": {
+    "message": "PDF 第 $ARG1$ 页",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "originalTextLayerForPage": {
+    "message": "第 $ARG1$ 页原文文字层",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "translatedPage": {
+    "message": "译文第 $ARG1$ 页",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "pdfTranslationPage": {
+    "message": "PDF 译文第 $ARG1$ 页",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "editableTranslationForPage": {
+    "message": "第 $ARG1$ 页可编辑译文",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "thisPageHasNotBeenTranslatedStartTranslation": {
+    "message": "此页尚未翻译；开始翻译后，滚动会自动补译附近页面。"
+  },
+  "noTranslatableTextFoundOnThisPage": {
+    "message": "此页未检测到可翻译文字"
+  },
+  "retryUnfinishedParagraphs": {
+    "message": "补译未完成段落"
+  },
+  "retryUnfinishedParagraphsOnPage": {
+    "message": "重试第 $ARG1$ 页未完成段落",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "translateEntirePdf": {
+    "message": "翻译整份 PDF"
+  },
+  "translateThisPageAndContinueAsYouScroll": {
+    "message": "仅翻译当前页，滚动后自动补译；在扩展设置中调整翻译范围"
+  },
+  "translateThisPageAndPagesOnEachSide": {
+    "message": "翻译当前页及前后各 $ARG1$ 页，滚动后自动补译；在扩展设置中调整翻译范围",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "entireDocument": {
+    "message": "全文"
+  },
+  "pagesOnEachSide": {
+    "message": "前后各 $ARG1$ 页",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "couldNotStartTranslation": {
+    "message": "无法开始翻译：$ARG1$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "translationPausedWaitingForPendingRequestsToFinish": {
+    "message": "翻译已暂停：$ARG1$ 正在等待已发出的 $ARG2$ 个请求结束，随后可点击翻译按钮重试。",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      },
+      "arg2": {
+        "content": "$2"
+      }
+    }
+  },
+  "finishingTranslationBeforeDownload": {
+    "message": "下载前正在补全翻译"
+  },
+  "paragraphs": {
+    "message": "$ARG1$$ARG2$：$ARG3$ / $ARG4$ 段…",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      },
+      "arg2": {
+        "content": "$2"
+      },
+      "arg3": {
+        "content": "$3"
+      },
+      "arg4": {
+        "content": "$4"
+      }
+    }
+  },
+  "translationPausedCompletedParagraphsResolveTheIssueAnd": {
+    "message": "翻译已暂停：$ARG1$ 已完成 $ARG2$ 段，处理后可直接点击翻译按钮重试。",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      },
+      "arg2": {
+        "content": "$2"
+      }
+    }
+  },
+  "translationFinishedSuccessfulParagraphsFailedAcrossPagesCompleted": {
+    "message": "翻译完成：$ARG1$ 段成功，$ARG2$ 段失败（$ARG3$ 页）；已完成译文已保留，可补译未完成段落。",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      },
+      "arg2": {
+        "content": "$2"
+      },
+      "arg3": {
+        "content": "$3"
+      }
+    }
+  },
+  "scrollToTranslateNearbyPagesAutomatically": {
+    "message": "滚动后自动补译附近尚未翻译的页面。"
+  },
+  "translationCompleteParagraphsCacheHits": {
+    "message": "翻译完成：$ARG1$ 段译文，缓存命中 $ARG2$ 段。$ARG3$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      },
+      "arg2": {
+        "content": "$2"
+      },
+      "arg3": {
+        "content": "$3"
+      }
+    }
+  },
+  "translatedParagraphs": {
+    "message": "已翻译 $ARG1$ / $ARG2$ 段",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      },
+      "arg2": {
+        "content": "$2"
+      }
+    }
+  },
+  "completedTranslationsWereKept": {
+    "message": " 已完成译文已保留。"
+  },
+  "remainingParagraphsFailed": {
+    "message": "$ARG1$；未完成段落翻译失败：$ARG2$$ARG3$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      },
+      "arg2": {
+        "content": "$2"
+      },
+      "arg3": {
+        "content": "$3"
+      }
+    }
+  },
+  "connectionInterruptedRetryingUnfinishedParagraphs": {
+    "message": "$ARG1$；连接中断，正在重试未完成的段落…",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "translatingThisPage": {
+    "message": "$ARG1$；正在翻译本页…",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "pageQueuedVisiblePagesAreTranslatedFirst": {
+    "message": "$ARG1$；本页排队中，优先翻译正在阅读的页面。",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "translationReadyScrollToThisPageToView": {
+    "message": "译文已就绪，滚动到本页后显示。"
+  },
+  "chooseExportFormat": {
+    "message": "选择导出方式…"
+  },
+  "untranslatedPagesChooseDownloadTranslationAgainToRetry": {
+    "message": "$ARG1$ 页未完成翻译，请再次点击“下载译文”重试。",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "generating": {
+    "message": "正在生成…"
+  },
+  "generatingTranslatedPdfPageOf": {
+    "message": "正在生成译文 PDF：$ARG1$ / $ARG2$ 页…",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      },
+      "arg2": {
+        "content": "$2"
+      }
+    }
+  },
+  "translatedPdfReady": {
+    "message": "译文 PDF 已生成：$ARG1$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "downloadFailed": {
+    "message": "下载失败：$ARG1$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "pageTranslationFailed": {
+    "message": "本页翻译失败：$ARG1$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "translationServiceDisconnectedOrTimedOutTryAgain": {
+    "message": "翻译服务连接中断或响应超时，请稍后重试。"
+  },
+  "googleWebTranslateTimedOutThisFreeService": {
+    "message": "Google Web Translate 连接超时。该免密服务在部分网络中不稳定，请重试或在顶部切换其他翻译服务。"
+  },
+  "signInAndCheck": {
+    "message": "登录与检测"
+  },
+  "couldNotOpenPdf": {
+    "message": "无法打开 PDF：$ARG1$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "untitledDocumentPdf": {
+    "message": "未命名文档.pdf"
+  },
+  "pdfDownloadExceededSecondsCheckYourConnectionOr": {
+    "message": "PDF 下载超过 $ARG1$ 秒，请检查网络或改用本地文件。",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "exceededSecondsTheTaskWasStopped": {
+    "message": "$ARG1$超过 $ARG2$ 秒，任务已停止。",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      },
+      "arg2": {
+        "content": "$2"
+      }
+    }
+  },
+  "theServiceDidNotPreserveTheMathExpressions": {
+    "message": "翻译服务未完整保留数学公式，请重试或切换翻译服务。"
+  },
+  "theServiceDidNotPreserveParagraphsSpanningColumns": {
+    "message": "翻译服务未完整保留跨栏或跨页段落，请重试或切换翻译服务。"
+  },
+  "incompatiblePdfRenderingInterfaceCannotSafelyRemoveThe": {
+    "message": "PDF 绘制接口不兼容，无法安全移除原文。"
+  },
+  "theServiceReturnedAnIncompleteTranslationTryAgain": {
+    "message": "翻译服务返回的译文不完整，请重试。"
+  },
+  "translationWasInterruptedRepeatedlyFurtherRequestsArePaused": {
+    "message": "翻译服务多次中断，已暂停后续请求。请检查连接后重试；已完成译文已保留。"
+  },
+  "paragraphModeIsUnavailableOnBrowserSettingsAnd": {
+    "message": "浏览器设置页和扩展内部页面不支持段落模式。"
+  },
+  "switchToARegularWebPageToOpen": {
+    "message": "请切换到普通网页后再打开 Debug。"
+  },
+  "switchToAWebPageOrPdfTo": {
+    "message": "此页面不支持翻译，请切换到网页或 PDF。"
+  },
+  "couldNotReadTheCurrentPageAddressFor": {
+    "message": "无法读取当前页面地址。若为本地 PDF，请开启扩展的文件访问权限，或点击“打开 PDF”选择文件。"
+  },
+  "pdfsOpenInASeparateSideBySide": {
+    "message": "PDF 使用独立的双栏翻译页面。"
+  },
+  "imageTranslationEnabledClickTrBesideAnImage": {
+    "message": "图片翻译已开启，点击图片旁的“译”按钮即可覆盖翻译。"
+  },
+  "imageTranslationDisabledOriginalImagesRestored": {
+    "message": "图片翻译已关闭，已恢复原图。"
+  },
+  "openingPdfAndStartingTranslation": {
+    "message": "正在打开 PDF 并开始翻译..."
+  },
+  "showingOriginal": {
+    "message": "正在显示原文..."
+  },
+  "noActiveTab": {
+    "message": "没有活动标签页。"
+  },
+  "originalTextRestored": {
+    "message": "已显示原文。"
+  },
+  "noTranslationsToClear": {
+    "message": "没有可清除的译文。"
+  },
+  "pageOrTranslationStateChangedTranslationCanceled": {
+    "message": "页面或翻译状态已变化，本次翻译已取消。"
+  },
+  "paragraphsTranslatedInThisAreaScrollToContinue": {
+    "message": "已翻译当前区域 $ARG1$ 段，滚动页面将继续翻译。",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "paragraphsTranslatedCacheHits": {
+    "message": "已翻译 $ARG1$ 段，缓存命中 $ARG2$ 段。",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      },
+      "arg2": {
+        "content": "$2"
+      }
+    }
+  },
+  "noTranslatableTextInThisAreaNewContent": {
+    "message": "当前区域暂无可翻译内容，新内容加载后将自动翻译。"
+  },
+  "paragraphsTranslatedFailed": {
+    "message": "已翻译 $ARG1$ 段，失败 $ARG2$ 段：$ARG3$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      },
+      "arg2": {
+        "content": "$2"
+      },
+      "arg3": {
+        "content": "$3"
+      }
+    }
+  },
+  "automaticTranslationIsOnEnableASiteOr": {
+    "message": "自动翻译已开启，请在设置中启用站点或语言规则。"
+  },
+  "translatePagesInOtherLanguagesAutomaticallyLimitSites": {
+    "message": "自动翻译非目标语言页面；可在设置中限定站点"
+  },
+  "translateAutomaticallyUsingConfiguredSiteRules": {
+    "message": "按已配置的站点规则自动翻译"
+  },
+  "addedToAutomaticTranslation": {
+    "message": "已将 $ARG1$ 加入自动翻译列表。",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "excludedFromAutomaticTranslation": {
+    "message": "已将 $ARG1$ 排除自动翻译。",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "paragraphModeIsUnavailableOnThisPage": {
+    "message": "此页面不支持段落模式。"
+  },
+  "updatingFloatingButton": {
+    "message": "正在切换悬浮球..."
+  },
+  "floatingButtonEnabled": {
+    "message": "悬浮球已开启。"
+  },
+  "floatingButtonDisabled": {
+    "message": "悬浮球已关闭。"
+  },
+  "switchToARegularWebPageToUse": {
+    "message": "此页面无法打开 Debug，请切换到普通网页。"
+  },
+  "openingDebug": {
+    "message": "正在打开 Debug..."
+  },
+  "debugOpened": {
+    "message": "Debug 已打开。"
+  },
+  "clearingCache": {
+    "message": "正在清除缓存..."
+  },
+  "cacheEntriesCleared": {
+    "message": "已清除 $ARG1$ 条缓存。",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "translatePdf": {
+    "message": "翻译PDF"
+  },
+  "showOriginalPage": {
+    "message": "显示全文"
+  },
+  "interface": {
+    "message": "界面"
+  },
+  "settingsPopupFloatingMenuAndDebugPanel": {
+    "message": "设置、弹窗、悬浮菜单与 Debug 面板。"
+  },
+  "backgroundTextAndHoverColorsForTheFloating": {
+    "message": "悬浮球的背景、文字和鼠标悬停颜色。"
+  },
+  "translationAndParagraphs": {
+    "message": "译文与段落"
+  },
+  "twoColorTranslationsAdaptToThePageBackground": {
+    "message": "双色译文按网页背景选色，并自动调整对比度；原色对照和译文替换沿用原文颜色。"
+  },
+  "selectionShortcutAndDictionaryCard": {
+    "message": "划词入口和词典卡片。"
+  },
+  "theTranslationButtonBesideAnImageOverlaidText": {
+    "message": "图片旁的翻译按钮；图片内译文按原图配色。"
+  },
+  "pageBackground": {
+    "message": "页面背景"
+  },
+  "panelBackground": {
+    "message": "面板背景"
+  },
+  "primaryText": {
+    "message": "主要文字"
+  },
+  "secondaryText": {
+    "message": "次要文字"
+  },
+  "accent": {
+    "message": "强调色"
+  },
+  "border": {
+    "message": "边框"
+  },
+  "successMessage": {
+    "message": "成功提示"
+  },
+  "errorMessage": {
+    "message": "错误提示"
+  },
+  "background": {
+    "message": "背景"
+  },
+  "text": {
+    "message": "文字"
+  },
+  "hoverBackground": {
+    "message": "悬停背景"
+  },
+  "translationOnLightPages": {
+    "message": "浅色网页译文"
+  },
+  "translationOnDarkPages": {
+    "message": "深色网页译文"
+  },
+  "cardBackground": {
+    "message": "卡片背景"
+  },
+  "cardText": {
+    "message": "卡片文字"
+  },
+  "cardAccent": {
+    "message": "卡片强调色"
+  },
+  "buttonBackground": {
+    "message": "按钮背景"
+  },
+  "buttonText": {
+    "message": "按钮文字"
+  },
+  "mistyTeal": {
+    "message": "雾青"
+  },
+  "warmPaper": {
+    "message": "暖纸"
+  },
+  "nightTeal": {
+    "message": "夜青"
+  },
+  "midnightBlue": {
+    "message": "午夜蓝"
+  },
+  "cherryBlossom": {
+    "message": "樱粉"
+  },
+  "midnightRose": {
+    "message": "玫夜"
+  },
+  "skyBlue": {
+    "message": "晴蓝"
+  },
+  "deepSea": {
+    "message": "深海"
+  },
+  "chalkWhite": {
+    "message": "素白"
+  },
+  "inkBlack": {
+    "message": "墨黑"
+  },
+  "customColors": {
+    "message": "自定义配色"
+  },
+  "englishWikipedia": {
+    "message": "英文维基百科"
+  },
+  "enterAValidSiteDomainOrUrl": {
+    "message": "请填写有效的站点域名或网址。"
+  },
+  "enterAValidSiteDomainOrHttpHttps": {
+    "message": "请填写有效的站点域名或 HTTP/HTTPS 网址。"
+  },
+  "enterAnHttpHttpsDomainOrPathWithout": {
+    "message": "请填写 HTTP/HTTPS 域名或路径，不包含账号、查询参数或 # 片段。"
+  },
+  "invalidDomainUseExampleComForASubdomain": {
+    "message": "域名格式不正确；子域名通配请使用 *.example.com。"
+  },
+  "switchToARegularWebPageToAdd": {
+    "message": "请切换到普通网页后再添加网站。"
+  },
+  "enableAutomaticTranslationFirst": {
+    "message": "请先开启自动翻译。"
+  },
+  "switchToARegularWebPageToExclude": {
+    "message": "请切换到普通网页后再排除网站。"
+  },
+  "microsoftTranslator": {
+    "message": "Microsoft 翻译"
+  },
+  "googleTranslate": {
+    "message": "Google 翻译"
+  },
+  "tencentTranslate": {
+    "message": "腾讯翻译"
+  },
+  "yandexTranslate": {
+    "message": "Yandex 翻译"
+  },
+  "volcengineTranslate": {
+    "message": "火山翻译"
+  },
+  "firefoxLocalTranslationExperimental": {
+    "message": "Firefox 本地翻译（实验）"
+  },
+  "hideTheOriginalAndShowOnlyTheTranslation": {
+    "message": "隐藏原文，仅显示译文"
+  },
+  "showTheTranslationBelowTheOriginalInThe": {
+    "message": "译文显示在原文下方，并沿用原文颜色"
+  },
+  "twoColorBilingual": {
+    "message": "双色对照"
+  },
+  "showTheTranslationBelowTheOriginalInA": {
+    "message": "译文显示在原文下方，并用不同颜色区分"
+  },
+  "doubaoExperimentalCurrentlyRequiresAChromiumBrowserChoose": {
+    "message": "豆包（实验性）目前仅支持 Chromium 浏览器，Firefox 尚未支持。请手动选择其他服务。"
+  },
+  "doubaoExperimentalSignInToDoubaoInThis": {
+    "message": "豆包（实验性）：在同一浏览器登录豆包后可直接翻译；连接异常时可到设置中重新检测。待译文本会发送到豆包。"
+  },
+  "notCheckedYetSignInToDoubaoIn": {
+    "message": "尚未验证。在同一浏览器登录豆包后可直接翻译，也可点击重新检测检查连接。"
+  },
+  "checkingDoubaoConnection": {
+    "message": "正在检测豆包连接…"
+  },
+  "theLastTranslationOrCheckSucceededReadyTo": {
+    "message": "最近一次翻译或检测成功，可以翻译。"
+  },
+  "signInToDoubaoThenRetryTheTranslation": {
+    "message": "需要登录豆包。登录后可直接重试翻译，也可重新检测连接。"
+  },
+  "doubaoRateLimitReachedWaitBeforeRetrying": {
+    "message": "豆包请求受限，请等待后再试。"
+  },
+  "doubaoTemporarilyRejectedTheRequestCheckItsWebsite": {
+    "message": "豆包暂时拒绝请求。请检查豆包网页状态，再重试翻译或重新检测。"
+  },
+  "doubaoSiteAccessIsMissingCheckTheExtension": {
+    "message": "缺少豆包网站访问权限。请检查浏览器的扩展权限。"
+  },
+  "cannotReachDoubaoCheckYourConnectionThenRetry": {
+    "message": "无法连接豆包，请检查网络后重试翻译，或重新检测连接。"
+  },
+  "doubaoTimedOutRetryTheTranslationOrConnection": {
+    "message": "豆包请求超时，请稍后重试翻译，或重新检测连接。"
+  },
+  "doubaoSResponseFormatChangedThisVersionCannot": {
+    "message": "豆包响应格式发生变化，当前版本暂时无法翻译。"
+  },
+  "doubaoReturnedAnIncompleteTranslationRetryTheUnfinished": {
+    "message": "豆包未返回完整译文，请重试未完成内容。"
+  },
+  "doubaoTranslationIsUnavailableInThisBrowserUse": {
+    "message": "此浏览器暂不支持豆包翻译。请使用 Chrome / Edge。"
+  },
+  "retryInAboutSeconds": {
+    "message": " 约 $ARG1$ 秒后可重试。",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "lastChecked": {
+    "message": " 最近验证：$ARG1$。",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "xSidebarNavigation": {
+    "message": "X 侧边导航栏"
+  },
+  "embeddedPageTranslationIsOff": {
+    "message": "已关闭嵌入页面翻译"
+  },
+  "exclusionRule": {
+    "message": "排除规则：$ARG1$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "traditionalChinese": {
+    "message": "繁中"
+  },
+  "downloadOrImportLanguageModelsInSettingsBefore": {
+    "message": "首次使用请在设置中下载或导入语言模型。"
+  },
+  "localModelsDoNotSupportThisLanguagePair": {
+    "message": "当前语言方向不受本地模型支持"
+  },
+  "downloadingLanguageModel": {
+    "message": "语言模型下载中 · $ARG1$%",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "retryInSettings": {
+    "message": "请在设置中重试"
+  },
+  "languageModelReady": {
+    "message": "当前语言模型已就绪"
+  },
+  "sourceAndTargetLanguagesMatch": {
+    "message": "源语言与目标语言相同"
+  },
+  "installedLanguageModels": {
+    "message": "已安装 $ARG1$ 个语言模型",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "installTheRequiredLanguageModelsFirst": {
+    "message": "需先安装所需语言模型"
+  },
+  "checkingLocalLanguageModels": {
+    "message": "正在检查本地语言模型…"
+  },
+  "checkLanguageModelStatusInSettings": {
+    "message": "请在设置中查看语言模型状态"
+  },
+  "paragraphClick": {
+    "message": "段落点击"
+  },
+  "submitSelectedText": {
+    "message": "提交划词原文"
+  },
+  "closeCardCollapseMenu": {
+    "message": "关闭卡片 / 收起菜单"
+  },
+  "translateWithFloatingButton": {
+    "message": "悬浮球翻译"
+  },
+  "openFloatingMenu": {
+    "message": "进入悬浮菜单"
+  },
+  "space": {
+    "message": "空格"
+  },
+  "downArrow": {
+    "message": "向下键"
+  },
+  "upArrow": {
+    "message": "向上键"
+  },
+  "leftArrow": {
+    "message": "向左键"
+  },
+  "rightArrow": {
+    "message": "向右键"
+  },
+  "setAParagraphClickShortcutInSettingsKeyboard": {
+    "message": "请在设置 → 快捷键中设置段落点击快捷键。"
+  },
+  "theParagraphClickShortcutIsOffEnableIt": {
+    "message": "段落点击快捷键已关闭，可在设置 → 快捷键中开启。"
+  },
+  "onAnyPageHoldAndClickAParagraph": {
+    "message": "所有网页生效；按住 $ARG1$ 点击段落翻译，再次点击恢复原文。",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "noConnectionToThisPageYetIfYou": {
+    "message": "尚未连接到当前网页。若刚更新或重新加载扩展，请刷新网页后重试。"
+  },
+  "imageTranslationHelpAndModelStatus": {
+    "message": "图片翻译说明与模型状态"
+  },
+  "removeOcrModelsAndDisableImageTranslation": {
+    "message": "删除 OCR 模型并关闭图片翻译"
+  },
+  "installingOcrModels": {
+    "message": "正在安装 OCR 模型"
+  },
+  "installOcrModelsAbout205Mb": {
+    "message": "安装 OCR 模型（约 20.5 MB）"
+  },
+  "ocrModelsInstalledImageTranslationAvailable": {
+    "message": "OCR 模型已安装 · 可开启图片翻译"
+  },
+  "downloadCompleteCheckingModels": {
+    "message": "下载完成，正在验证模型可用性…"
+  },
+  "downloadingOcrModels": {
+    "message": "正在下载 OCR 模型 · $ARG1$%",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "installationFailedClickTheWrenchToRetry": {
+    "message": "安装失败：$ARG1$。点击扳手重试。",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "ocrModelsNotInstalledClickTheWrenchTo": {
+    "message": "未安装 OCR 模型 · 点击旁边的扳手安装"
+  },
+  "couldNotReadModelStatus": {
+    "message": "无法读取模型状态：$ARG1$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "retryOcrModelStatusCheck": {
+    "message": "重试读取 OCR 模型状态"
+  },
+  "removingOcrModels": {
+    "message": "正在删除 OCR 模型…"
+  },
+  "startingInstallation": {
+    "message": "正在开始安装…"
+  },
+  "imageTranslationRequiresAnAdditionalDownloadOfAbout": {
+    "message": "启用前需额外下载约 20.5 MB 的 OCR 模型，保存在此浏览器。点击图片或视频画面的翻译按钮时才识别；识别在本地完成，文字交给当前翻译服务。"
+  },
+  "pageExceededThe120SecondTranslationLimitChoose": {
+    "message": "第 $ARG1$ 页翻译超过 120 秒，已取消该页请求，可点击翻译按钮重试。",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "translationDisconnectedChooseTranslateToRetry": {
+    "message": "翻译连接已中断，请点击翻译按钮重试。$ARG1$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "featureToggles": {
+    "message": "功能开关"
+  },
+  "translationActions": {
+    "message": "翻译操作"
+  },
+  "tools": {
+    "message": "工具"
+  },
+  "links": {
+    "message": "链接"
+  },
+  "noneSelected": {
+    "message": "未选择"
+  },
+  "chooseTranslationService": {
+    "message": "选择翻译服务"
+  },
+  "notPublishedByTheProvider": {
+    "message": "官方未公布。"
+  },
+  "microsoftBrowserTranslationAnonymous": {
+    "message": "Microsoft 浏览器翻译 · 匿名"
+  },
+  "microsoftEdgeHelp": {
+    "message": "Microsoft Edge 帮助"
+  },
+  "googleWebTranslateAnonymous": {
+    "message": "Google Web Translate · 匿名"
+  },
+  "tencentTransmartAnonymous": {
+    "message": "腾讯 TranSmart · 匿名"
+  },
+  "yandexWebTranslationAnonymous": {
+    "message": "Yandex 网页翻译 · 匿名"
+  },
+  "volcengineBrowserTranslationAnonymous": {
+    "message": "火山浏览器翻译 · 匿名"
+  },
+  "f0FreeTier2MillionCharactersPerMonth": {
+    "message": "F0 免费层：每月 200 万字符；需 Azure 账号和密钥。其他套餐按订阅计费。"
+  },
+  "upTo50000CharactersAnd1000": {
+    "message": "最多 50,000 字符、1,000 个文本项；字符数按所有目标语言合计。"
+  },
+  "f02MillionCharactersPerHourEvenlyDistributed": {
+    "message": "F0：200 万字符/小时，需均匀发送。其他套餐以账号配额为准。"
+  },
+  "noFixedConcurrencyCapCharacterRateAndSubscription": {
+    "message": "无固定并发上限，受字符速率和订阅额度限制。"
+  },
+  "microsoftFreeTier": {
+    "message": "Microsoft 免费层说明"
+  },
+  "azureRequestRateAndConcurrencyLimits": {
+    "message": "Azure 请求、速率与并发限制"
+  },
+  "nmtTheFirst500000CharactersPerMonth": {
+    "message": "NMT 每月前 50 万字符以 10 美元抵扣额形式免费；需 Cloud 账号和 API Key。"
+  },
+  "basicUpTo100KbAnd128Text": {
+    "message": "Basic 单次最多 100K 字节、128 个文本项；官方建议每次约 5K 字符以内。"
+  },
+  "defaultPerProject6MillionCharactersPerMinute": {
+    "message": "默认每项目 600 万字符/分钟、v2 30 万次请求/分钟；以账号配额为准。"
+  },
+  "noCommonConcurrencyCapIsPublished": {
+    "message": "官方未公布统一并发上限。"
+  },
+  "googleCloudPricingAndFreeQuota": {
+    "message": "Google Cloud 计费与免费额度"
+  },
+  "googleCloudQuotasAndRequestLimits": {
+    "message": "Google Cloud 配额与请求限制"
+  },
+  "v2TextItemLimit": {
+    "message": "v2 文本项数量限制"
+  },
+  "customEndpoint": {
+    "message": "自定义接口"
+  },
+  "dependsOnTheConfiguredServicePlanAndAccount": {
+    "message": "以所配置服务的套餐及账号额度为准。"
+  },
+  "dependsOnTheProviderSPerRequestLimits": {
+    "message": "以服务商的单次请求或模型规格为准。"
+  },
+  "dependsOnTheProviderSAccountRateLimits": {
+    "message": "以服务商的账号限流为准。"
+  },
+  "dependsOnTheProviderSAccountConcurrencyLimits": {
+    "message": "以服务商的账号并发额度为准。"
+  },
+  "dependsOnTheQuotaAvailableFromDoubao": {
+    "message": "以豆包服务实际提供的额度为准。"
+  },
+  "doubao": {
+    "message": "豆包"
+  },
+  "noAnonymousApiQuotaIsPublished": {
+    "message": "官方未公布匿名接口配额。"
+  },
+  "microsoftTranslatorCustomApiAddress": {
+    "message": "Microsoft 翻译 · 自定义 API 地址"
+  },
+  "tencentTranslateCustomApiAddress": {
+    "message": "腾讯翻译 · 自定义 API 地址"
+  },
+  "noModelSpecified": {
+    "message": "未填写模型"
+  },
+  "tencentTokenhub": {
+    "message": "腾讯 TokenHub · $ARG1$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "eligibleNewUsersCanClaimATrialAllowance": {
+    "message": "新用户可领取 100 万 Tokens 体验额度，有效期 1 年；需符合领取条件。"
+  },
+  "dependsOnTheSelectedModelSContextAnd": {
+    "message": "以所选模型的上下文和输出上限为准。"
+  },
+  "tpmTokensPerMinuteAndQpmRequestsPer": {
+    "message": "按模型和账号限制 TPM（Tokens/分钟）、QPM（请求/分钟）。"
+  },
+  "dependsOnTheAccountAndSelectedModelS": {
+    "message": "以账号和所选模型的限流设置为准。"
+  },
+  "trialOfferEnds20261231CheckThe": {
+    "message": "体验活动截至 2026-12-31，领取资格及可用额度以控制台为准。"
+  },
+  "tokenhubNewUserTrial": {
+    "message": "TokenHub 新人免费体验包"
+  },
+  "tokenhubOnlineInferenceAndRateLimits": {
+    "message": "TokenHub 在线推理与限流"
+  },
+  "billedPerCharacterRequiresAnAccountAndKey": {
+    "message": "按字符计费，需账号和密钥；试用额度以账号为准。"
+  },
+  "upTo10000CharactersTotalPerRequest": {
+    "message": "单次所有文本合计最多 10,000 字符。"
+  },
+  "default20RequestsPerSecondPerApiMethod": {
+    "message": "默认同一 API 方法 20 次/秒；翻译和语言检测合计 100 万字符/小时，账号配额可能调整。"
+  },
+  "noFixedConcurrencyLimitIsPublished": {
+    "message": "官方未公布固定并发上限。"
+  },
+  "yandexCloudQuotas": {
+    "message": "Yandex Cloud 官方配额表"
+  },
+  "yandexTranslateRequestLimits": {
+    "message": "Yandex Translate 请求限制"
+  },
+  "yandexCloudPricing": {
+    "message": "Yandex Cloud 计费说明"
+  },
+  "theFirst2MillionCharactersOfTextTranslation": {
+    "message": "文本翻译每月前 200 万字符免费；需开通 API 服务并配置账号密钥。"
+  },
+  "upTo16TextItemsAnd5000": {
+    "message": "每次最多 16 个文本项，文本总长度最多 5,000 字符。"
+  },
+  "dependsOnTheAccountQpsQuotaRequestsPer": {
+    "message": "以账号的 QPS（请求/秒）配额为准。"
+  },
+  "volcengineMachineTranslationPricing": {
+    "message": "火山引擎机器翻译计费"
+  },
+  "volcengineTextTranslationApiLimits": {
+    "message": "火山引擎文本翻译 API 限制"
+  },
+  "quotaDependsOnTheRapidapiSubscription": {
+    "message": "按 RapidAPI 订阅方案计算额度。"
+  },
+  "upTo500Utf8BytesPerRequest": {
+    "message": "每次最多 500 UTF-8 字节，实际限制以订阅方案为准。"
+  },
+  "dependsOnRapidapiSubscriptionAndAccountRateLimits": {
+    "message": "以 RapidAPI 订阅方案和账号限流为准。"
+  },
+  "dependsOnTheRapidapiSubscription": {
+    "message": "以 RapidAPI 订阅方案为准。"
+  },
+  "mymemoryRapidapiSubscription": {
+    "message": "MyMemory RapidAPI 订阅"
+  },
+  "mymemoryApiSpecification": {
+    "message": "MyMemory API 规范"
+  },
+  "mymemoryAnonymous": {
+    "message": "MyMemory · 匿名"
+  },
+  "label5000CharactersPerDay": {
+    "message": "每天 5,000 字符。"
+  },
+  "mymemoryAnonymousQuota": {
+    "message": "MyMemory 匿名免费额度"
+  },
+  "mymemoryPerRequestLimit": {
+    "message": "MyMemory 单次请求限制"
+  },
+  "deepseekCustomApiAddress": {
+    "message": "DeepSeek · 自定义 API 地址"
+  },
+  "deepseekFlash2500ConcurrentRequestsPerAccount": {
+    "message": "deepseek-flash：每账号 2,500 并发。"
+  },
+  "deepseekV4Pro500ConcurrentRequestsPerAccount": {
+    "message": "deepseek-v4-pro：每账号 500 并发。"
+  },
+  "billedByTokensRequiresAnApiKeyPromotional": {
+    "message": "按 Tokens 计费，需 API Key；赠送额度以账号为准。"
+  },
+  "rateLimitsDependOnTheAccountAndModel": {
+    "message": "按账号和模型限流，超限时返回 429。"
+  },
+  "deepseekOfficialConcurrencyLimits": {
+    "message": "DeepSeek 官方并发限制"
+  },
+  "deepseekOfficialApiDocumentation": {
+    "message": "DeepSeek 官方 API 说明"
+  },
+  "zhipuGlmCustomApiAddress": {
+    "message": "智谱 GLM · 自定义 API 地址"
+  },
+  "zhipuGlmApi": {
+    "message": "智谱 GLM API · $ARG1$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "thisModelIsFreeAndRequiresAnAccount": {
+    "message": "当前模型免费，需账号和 API Key。"
+  },
+  "pricingAndCreditsDependOnTheModelAnd": {
+    "message": "价格及赠送额度以模型定价和账号信息为准。"
+  },
+  "label128kContextAndUpTo16kOutputTokens": {
+    "message": "128K 上下文，最大输出 16K Tokens。"
+  },
+  "dependsOnTheAccountSConcurrencyQuotaFor": {
+    "message": "以账号当前模型的并发额度为准。"
+  },
+  "zhipuOfficialModelListIncludingFreeModels": {
+    "message": "智谱官方模型表（含免费模型）"
+  },
+  "zhipuOfficialRateLimits": {
+    "message": "智谱官方速率限制说明"
+  },
+  "localTranslationUsesNoOnlineApiQuotaDownload": {
+    "message": "本地翻译，不消耗在线 API 额度；首次使用需下载或导入模型。"
+  },
+  "limitedByTheLanguageModelAndDeviceMemory": {
+    "message": "受语言模型及设备内存限制。"
+  },
+  "notApplicableToLocalTranslation": {
+    "message": "不适用（本地翻译）。"
+  },
+  "mozillaLocalTranslationOverview": {
+    "message": "Mozilla 本地翻译说明"
+  },
+  "officialOpenaiApi": {
+    "message": "OpenAI 官方 API · $ARG1$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "billedByModelRequiresAnApiKeyPromotional": {
+    "message": "按模型计费，需 API Key；赠送额度以账号为准。"
+  },
+  "subjectToTheCurrentModelSContextAnd": {
+    "message": "以当前模型的上下文和输出上限为准。"
+  },
+  "subjectToModelAndAccountTierLimitsIncluding": {
+    "message": "按模型和账号等级限制 RPM（请求/分钟）、TPM（Tokens/分钟）等。"
+  },
+  "seeTheAccountSLimitsPage": {
+    "message": "以账号 Limits 页的限额为准。"
+  },
+  "openaiRateLimitsAndAccountTiers": {
+    "message": "OpenAI 官方速率与账号等级"
+  },
+  "officialAnthropicApi": {
+    "message": "Anthropic 官方 API · $ARG1$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "billedByModelRequiresAnApiKeyTrial": {
+    "message": "按模型计费，需 API Key；试用额度以账号为准。"
+  },
+  "subjectToModelContextOutputAndPerRequest": {
+    "message": "以当前模型的上下文、输出上限及单次请求大小限制为准。"
+  },
+  "subjectToModelAndAccountTierLimitsOn": {
+    "message": "按模型和账号等级限制 RPM（请求/分钟）、每分钟输入 Tokens 和输出 Tokens。"
+  },
+  "anthropicRateLimitsAndAccountTiers": {
+    "message": "Anthropic 官方速率与账号等级"
+  },
+  "anthropicApiOverview": {
+    "message": "Anthropic 官方 API 概览"
+  },
+  "customHttpService": {
+    "message": "自定义 HTTP 服务"
+  },
+  "customCompatibleLlmService": {
+    "message": "自定义 LLM 兼容服务"
+  },
+  "requestHeadersTemplate": {
+    "message": "请求头模板"
+  },
+  "requestBodyParametersTemplate": {
+    "message": "请求体参数模板"
+  },
+  "mustBeValidJsonCheckQuotesCommasAnd": {
+    "message": "$ARG1$必须是有效的 JSON，请检查引号、逗号和括号。",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "mustBeAJsonObject": {
+    "message": "$ARG1$必须是 JSON 对象。",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "containsAnUnknownVariable": {
+    "message": "$ARG1$包含未知变量：$ARG2$。",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      },
+      "arg2": {
+        "content": "$2"
+      }
+    }
+  },
+  "requestHeaderValuesMustBeStringsOrNull": {
+    "message": "请求头的值必须是字符串或 null。"
+  },
+  "invalidHeaderNameOrContentCheckForLine": {
+    "message": "请求头名称或内容无效，请检查名称及换行等特殊字符。"
+  },
+  "onlyNonStreamingResponsesAreSupportedSetStream": {
+    "message": "当前仅支持非流式响应，请将 stream 设为 false 或用 null 删除该字段。"
+  },
+  "lineColumn": {
+    "message": "（第 $ARG1$ 行，第 $ARG2$ 列）",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      },
+      "arg2": {
+        "content": "$2"
+      }
+    }
+  },
+  "couldNotReadBackupChooseAValidToml": {
+    "message": "无法读取备份，请选择有效的 TOML 文件$ARG1$。",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "thisIsNotAWupageSettingsBackup": {
+    "message": "这不是 WuPage 设置备份文件。"
+  },
+  "unsupportedBackupFormatVersionUseAVersionOf": {
+    "message": "不支持此备份格式版本，请使用支持该格式的 WuPage。"
+  },
+  "backupInformation": {
+    "message": "备份信息"
+  },
+  "backupStructureIsTooComplex": {
+    "message": "备份结构过于复杂。"
+  },
+  "backupContainsAnUnsafeProperty": {
+    "message": "备份包含不安全的属性。"
+  },
+  "translationServiceIdsInTheBackupAreEmpty": {
+    "message": "备份中的翻译服务 ID 为空或重复。"
+  },
+  "theActiveTranslationServiceInTheBackupIs": {
+    "message": "备份中的当前翻译服务不存在或已停用。"
+  },
+  "invalidOrUnsupportedBackupField": {
+    "message": "备份字段无效或不受支持：$ARG1$。",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "translatePageRestoreOriginal": {
+    "message": "翻译全文 / 恢复原文"
+  },
+  "toggleParagraphMode": {
+    "message": "开启 / 关闭段落模式"
+  },
+  "cycleTranslationDisplayMode": {
+    "message": "切换译文显示模式"
+  },
+  "translateRestoreCurrentParagraphInParagraphMode": {
+    "message": "段落模式中翻译 / 恢复当前段落"
+  },
+  "submitEditedSourceInSelectionCard": {
+    "message": "提交划词卡片中编辑的原文"
+  },
+  "closeSelectionCardCollapseFloatingMenu": {
+    "message": "关闭划词卡片 / 收起悬浮菜单"
+  },
+  "translateWithFloatingButtonOpenMenu": {
+    "message": "悬浮球翻译 / 进入菜单"
+  },
+  "enterSpace": {
+    "message": "Enter / 空格"
+  },
+  "thisCombinationMayConflictWithAltgrInput": {
+    "message": "这个组合可能与 AltGr 输入冲突。"
+  },
+  "thisCombinationMayConflictWithABrowserOr": {
+    "message": "这个组合可能与浏览器或编辑快捷键冲突。"
+  },
+  "invalidSubtitleTrackData": {
+    "message": "字幕轨数据无效。"
+  },
+  "subtitleTrackDataTooLarge": {
+    "message": "字幕轨数据过大。"
+  },
+  "unsupportedSubtitleTrackFormat": {
+    "message": "字幕轨格式暂不支持。"
+  },
+  "subtitleReadCanceled": {
+    "message": "字幕读取已取消。"
+  },
+  "readingPlayerSubtitlesTimedOutEnableNativeSubtitles": {
+    "message": "播放器字幕读取超时，请打开原生字幕后重试。"
+  },
+  "invalidPlayerSubtitleData": {
+    "message": "播放器字幕数据无效。"
+  },
+  "incompleteTranslationTryAgain": {
+    "message": "翻译结果不完整，请重试。"
+  },
+  "theSubtitleAddressDoesNotBelongToThis": {
+    "message": "字幕地址不属于当前播放器。"
+  },
+  "thePlayerDidNotReturnSubtitlesEnableNative": {
+    "message": "播放器未能返回字幕，请打开原生字幕后重试。"
+  },
+  "thePlayerReturnedNoSubtitleContent": {
+    "message": "播放器没有返回字幕内容。"
+  },
+  "subtitleDataTooLarge": {
+    "message": "字幕数据过大。"
+  },
+  "theseSubtitlesRequirePlayerAuthorizationEnableNativeSubtitles": {
+    "message": "字幕需要播放器授权，请先开启原生字幕。"
+  },
+  "theVideoHasChanged": {
+    "message": "视频已切换。"
+  },
+  "theSubtitleTrackHasChangedSelectItAgain": {
+    "message": "字幕轨已变化，请重新选择。"
+  },
+  "subtitleFormatTemporarilyUnavailableEnableNativeSubtitlesAnd": {
+    "message": "播放器字幕格式暂不可用，请打开原生字幕后重试。"
+  },
+  "bilibili": {
+    "message": "哔哩哔哩"
+  },
+  "subtitleDataExceedsTheSupportedLimit": {
+    "message": "字幕数据超出可处理范围。"
+  },
+  "invalidSubtitleTimeFormat": {
+    "message": "字幕时间格式无效。"
+  },
+  "subtitleEndTimeMustBeLaterThanStart": {
+    "message": "字幕结束时间必须晚于开始时间。"
+  },
+  "aSubtitleCueIsTooLongSplitIt": {
+    "message": "单条字幕过长，请拆分后重新导入。"
+  },
+  "moreThan20000SubtitleCuesSplitThe": {
+    "message": "字幕条数超过 20,000 条，请拆分文件。"
+  },
+  "noUsableSubtitlesFoundChooseAUtf8": {
+    "message": "没有找到可用字幕，请选择 UTF-8 编码的 SRT 或 VTT 文件。"
+  },
+  "theServiceReturnedIncompleteSubtitlesTryAgain": {
+    "message": "翻译服务返回的字幕不完整，请重试。"
+  },
+  "mediumFontSize": {
+    "message": "中"
+  },
+  "generalTab": {
+    "message": "常规"
+  },
+  "disabledOption": {
+    "message": "关闭"
+  },
+  "ukAccent": {
+    "message": "英"
+  },
+  "dropHere": {
+    "message": "放在这里"
+  },
+  "fontDownloadHelpStart": {
+    "message": "下载失败时，可"
+  },
+  "fontDownloadHelpEnd": {
+    "message": "，再从文件安装。也可使用其他设备下载后复制到本机，无需在系统中安装字体。"
+  },
+  "apiKeyRequired": {
+    "message": "请填写 API Key。"
+  },
+  "modelRequired": {
+    "message": "请填写模型名称。"
+  },
+  "baseUrlRequired": {
+    "message": "请填写 Base URL。"
+  },
+  "endpointRequired": {
+    "message": "请填写 API 地址。"
+  },
+  "urlRequired": {
+    "message": "请填写 URL。"
+  },
+  "responsePathRequired": {
+    "message": "请填写响应路径。"
+  },
+  "responsePathArray": {
+    "message": "响应路径必须指向字符串数组。"
+  },
+  "responseCountMismatch": {
+    "message": "译文数量与原文数量不一致。"
+  },
+  "responseItemsMissing": {
+    "message": "翻译服务返回的译文缺失或为空。"
+  },
+  "providerNotFound": {
+    "message": "找不到翻译服务。"
+  },
+  "unknownProvider": {
+    "message": "找不到翻译服务：$ARG1$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "providerDisabled": {
+    "message": "翻译服务已停用：$ARG1$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "serviceUnreachable": {
+    "message": "无法连接翻译服务，请检查网络与服务地址后重试。"
+  },
+  "requestTimeout": {
+    "message": "翻译请求超过 $ARG1$ 秒，已超时。",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "serviceResponseInterrupted": {
+    "message": "翻译服务响应中断，请检查网络后重试。"
+  },
+  "responseTooLarge": {
+    "message": "翻译服务响应过大，请检查服务地址或模型。"
+  },
+  "serverReturnedHtml": {
+    "message": "服务器返回了 HTML 网页，请检查 Base URL 或服务地址。"
+  },
+  "providerReturnedHtml": {
+    "message": "$ARG1$ 返回了 HTML 网页，请检查 Base URL 或服务地址。",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "providerInvalidJson": {
+    "message": "$ARG1$ 返回的 JSON 无效，请检查 Base URL 或服务地址。",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "llmEmptyResponse": {
+    "message": "模型未返回内容。"
+  },
+  "llmNoText": {
+    "message": "模型未返回文本内容。"
+  },
+  "llmReturnedHtml": {
+    "message": "模型返回了 HTML 网页，请检查 Base URL。"
+  },
+  "llmInvalidJson": {
+    "message": "模型返回的 JSON 无效。"
+  },
+  "llmEmptyTranslation": {
+    "message": "模型返回了空译文。"
+  },
+  "llmStringArray": {
+    "message": "模型须返回 JSON 字符串数组。"
+  },
+  "llmCountMismatch": {
+    "message": "模型返回的译文数量不符（预期 $ARG1$，实际 $ARG2$）。",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      },
+      "arg2": {
+        "content": "$2"
+      }
+    }
+  },
+  "providerDidNotPreserveEntities": {
+    "message": "翻译服务未保留原文中的字符实体。"
+  },
+  "providerItemsMissing": {
+    "message": "翻译服务未返回预期的非空文本。"
+  },
+  "httpRequestFailed": {
+    "message": "HTTP 模板请求失败：$ARG1$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "serviceGoogleCloudNoText": {
+    "message": "Google Cloud Translation 未返回译文。"
+  },
+  "serviceGoogleCloudCountMismatch": {
+    "message": "Google Cloud Translation 返回的译文数量与原文数量不符。"
+  },
+  "serviceGoogleCloudRequestFailed": {
+    "message": "Google Cloud Translation 请求失败：$ARG1$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "serviceMicrosoftNoText": {
+    "message": "Microsoft Translator 未返回译文。"
+  },
+  "serviceMicrosoftCountMismatch": {
+    "message": "Microsoft Translator 返回的译文数量与原文数量不符。"
+  },
+  "serviceMicrosoftRequestFailed": {
+    "message": "Microsoft Translator 请求失败：$ARG1$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "serviceMicrosoftWebNoText": {
+    "message": "Microsoft Web Translate 未返回译文。"
+  },
+  "serviceMicrosoftWebCountMismatch": {
+    "message": "Microsoft Web Translate 返回的译文数量与原文数量不符。"
+  },
+  "serviceGoogleWebNoText": {
+    "message": "Google Web Translate 未返回译文。"
+  },
+  "googleSegmentsMissing": {
+    "message": "Google Web Translate 未返回译文片段。"
+  },
+  "llmRequestFailed": {
+    "message": "模型请求失败：$ARG1$ $ARG2$。$ARG3$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      },
+      "arg2": {
+        "content": "$2"
+      },
+      "arg3": {
+        "content": "$3"
+      }
+    }
+  },
+  "imageTranslationHelp": {
+    "message": "点击图片旁按钮，覆盖原文"
+  },
+  "confirmResetAllSettings": {
+    "message": "完全重置设置？"
+  },
+  "pdfFileAccessHelp": {
+    "message": "在扩展详情中开启“允许访问文件网址”或“允许访问文件 URL”。如果浏览器关闭了此页，请回到原 PDF 标签页再次点击“翻译 PDF”；也可以直接在下方选择文件。"
+  },
+  "pdfReaderRegion": {
+    "message": "PDF 双语阅读器"
+  },
+  "doubaoSignInRequired": {
+    "message": "请先在同一浏览器登录豆包，再重试翻译或重新检测。"
+  },
+  "floatingIdleHint": {
+    "message": "点击悬浮球即可翻译全文。"
+  },
+  "translationInProgress": {
+    "message": "正在翻译…"
+  },
+  "requestFailure": {
+    "message": "请求失败，请重试。"
+  },
+  "currentDisplayMode": {
+    "message": "译文显示：$ARG1$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "namedFontSize": {
+    "message": "$ARG1$字号",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "singleSubtitleBadge": {
+    "message": "单"
+  },
+  "modelReady": {
+    "message": "已就绪"
+  },
+  "modelDownloading": {
+    "message": "正在下载"
+  },
+  "downloadModelWithSize": {
+    "message": "下载模型（$ARG1$）",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "numberedSchemeCopy": {
+    "message": "$ARG1$（副本 $ARG2$）",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      },
+      "arg2": {
+        "content": "$2"
+      }
+    }
+  },
+  "removeSiteButton": {
+    "message": "删除站点"
+  },
+  "ruleError": {
+    "message": "第 $ARG1$ 条规则：$ARG2$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      },
+      "arg2": {
+        "content": "$2"
+      }
+    }
+  },
+  "currentServiceName": {
+    "message": "当前服务：$ARG1$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "confirmDeleteProvider": {
+    "message": "删除“$ARG1$”？",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "addMenuItem": {
+    "message": "添加$ARG1$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "documentPageCount": {
+    "message": "$ARG1$ 页 · $ARG2$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      },
+      "arg2": {
+        "content": "$2"
+      }
+    }
+  },
+  "documentPageRange": {
+    "message": "第 $ARG1$–$ARG2$ 页",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      },
+      "arg2": {
+        "content": "$2"
+      }
+    }
+  },
+  "pdfTranslating": {
+    "message": "正在翻译"
+  },
+  "popupSwitchToWebPage": {
+    "message": "请切换到普通网页后再翻译。"
+  },
+  "popupTranslating": {
+    "message": "正在翻译..."
+  },
+  "paragraphHighlightColor": {
+    "message": "段落高亮"
+  },
+  "replaceDisplayMode": {
+    "message": "译文替换"
+  },
+  "doubaoChooseSupportedLanguage": {
+    "message": "豆包暂不支持此目标语言，请选择列表中的其他语言。"
+  },
+  "doubaoSupportedLanguages": {
+    "message": "豆包暂不支持当前目标语言，请选择中文、英语、日语、韩语、法语、德语、西班牙语或俄语。"
+  },
+  "doubaoUnsupportedLanguage": {
+    "message": "豆包暂不支持此目标语言，请选择支持的语言。"
+  },
+  "modelDownloadErrorDetail": {
+    "message": "模型下载失败：$ARG1$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "modelRetry": {
+    "message": "请重试"
+  },
+  "selectedServiceLabel": {
+    "message": "翻译服务：$ARG1$",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "myMemoryAnonymousRequestLimit": {
+    "message": "每次最多 500 UTF-8 字节。"
+  },
+  "modelConcurrencyLimit": {
+    "message": "以账号和所选模型的并发额度为准。"
+  },
+  "accountModelRateLimit": {
+    "message": "按账号和模型限流。"
+  },
+  "paragraphClickShortcut": {
+    "message": "点击段落"
+  },
+  "subtitleTrackFallback": {
+    "message": "字幕"
+  },
+  "accentPronunciationType": {
+    "message": "$ARG1$式",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "durationSeconds": {
+    "message": "$ARG1$ 秒",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "englishBadge": {
+    "message": "英"
+  },
+  "chineseBadge": {
+    "message": "中"
+  },
+  "translateBadge": {
+    "message": "译"
+  },
+  "originalBadge": {
+    "message": "原"
+  },
+  "bilingualSubtitleBadge": {
+    "message": "双"
+  },
+  "backupFileTitle": {
+    "message": "WuPage 设置备份"
+  },
+  "backupFileIncludesCredentials": {
+    "message": "包含密钥，文件未加密，请妥善保管。"
+  },
+  "backupFileOmitsCredentials": {
+    "message": "已清空密钥及可识别的认证值，其余配置保留。分享前请检查自定义内容。"
+  },
+  "backupFilePdfScope": {
+    "message": "settings.pdfTranslationPageRadius = \"all\" 表示整份 PDF。"
+  }
+}

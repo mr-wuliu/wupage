@@ -1,3 +1,4 @@
+import { t } from "./i18n";
 import type { LlmRequestTemplate, ProviderConfig, TranslateBatchRequest } from "./types";
 
 export type LlmTemplateProvider = Extract<ProviderConfig, { systemPrompt: string }>;
@@ -89,19 +90,19 @@ export function defaultLlmRequest(
 
 /** Parse before substitution so quotes, newlines and input text cannot become JSON syntax. */
 function renderObject(template: string, context: RequestTemplateContext, field: "headers" | "body"): JsonObject {
-  const label = field === "headers" ? "请求头模板" : "请求体参数模板";
+  const label = field === "headers" ? t("requestHeadersTemplate") : t("requestBodyParametersTemplate");
   let parsed: unknown;
   try {
     parsed = JSON.parse(template.trim() || "{}");
   } catch {
-    throw new RequestTemplateError(field, `${label}必须是有效的 JSON，请检查引号、逗号和括号。`);
+    throw new RequestTemplateError(field, t("mustBeValidJsonCheckQuotesCommasAnd", label));
   }
-  if (!isObject(parsed)) throw new RequestTemplateError(field, `${label}必须是 JSON 对象。`);
+  if (!isObject(parsed)) throw new RequestTemplateError(field, t("mustBeAJsonObject", label));
 
   const render = (value: unknown): unknown => {
     if (typeof value === "string") {
       const tokenValue = (asJson: string | undefined, key: string): string | string[] => {
-        if (!VARIABLES.has(key)) throw new RequestTemplateError(field, `${label}包含未知变量：${key}。`);
+        if (!VARIABLES.has(key)) throw new RequestTemplateError(field, t("containsAnUnknownVariable", label, key));
         const entry = context[key] ?? "";
         return asJson ? JSON.stringify(entry) : entry;
       };
@@ -143,18 +144,18 @@ export function applyRequestTemplate(
   const headers = new Headers(defaultHeaders);
   for (const [name, value] of Object.entries(headerPatch)) {
     if (value !== null && typeof value !== "string") {
-      throw new RequestTemplateError("headers", "请求头的值必须是字符串或 null。");
+      throw new RequestTemplateError("headers", t("requestHeaderValuesMustBeStringsOrNull"));
     }
     try {
       if (value === null) headers.delete(name);
       else headers.set(name, value);
     } catch {
-      throw new RequestTemplateError("headers", "请求头名称或内容无效，请检查名称及换行等特殊字符。");
+      throw new RequestTemplateError("headers", t("invalidHeaderNameOrContentCheckForLine"));
     }
   }
   const body = mergePatch(defaultBody, renderObject(template.body, context, "body"));
   if (body.stream !== undefined && body.stream !== false) {
-    throw new RequestTemplateError("body", "当前仅支持非流式响应，请将 stream 设为 false 或用 null 删除该字段。");
+    throw new RequestTemplateError("body", t("onlyNonStreamingResponsesAreSupportedSetStream"));
   }
   return { headers: Object.fromEntries(headers.entries()), body };
 }

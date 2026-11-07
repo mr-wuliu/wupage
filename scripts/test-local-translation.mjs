@@ -53,7 +53,7 @@ if (process.env.LOCAL_MODEL_FIXTURE_DIR) {
 const context = await chromium.launchPersistentContext(path.join(output, `profile-${Date.now()}`), {
   ...(process.env.PDF_TEST_BROWSER ? { executablePath: process.env.PDF_TEST_BROWSER } : { channel: 'chromium' }),
   headless: true, ignoreDefaultArgs: ['--disable-extensions'],
-  args: [`--load-extension=${extension}`], viewport: { width: 900, height: 1000 }
+  args: ['--lang=zh-CN', `--load-extension=${extension}`], viewport: { width: 900, height: 1000 }
 });
 const errors = [];
 const requests = [];

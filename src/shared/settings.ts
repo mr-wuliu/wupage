@@ -1,3 +1,4 @@
+import { INTERFACE_LANGUAGE_KEY, t, type InterfaceLanguage } from "./i18n";
 import { DEFAULT_SETTINGS, SETTINGS_KEY } from "./defaults";
 import { isLlmProvider } from "./performance";
 import { normalizeAutoTranslation } from "./auto-translation";
@@ -21,11 +22,15 @@ let pendingWrite: Promise<unknown> = Promise.resolve();
 
 /** Resolve updates against the latest value inside one shared write queue. */
 export function saveSettings(
-  update: ExtensionSettings | ((latest: ExtensionSettings) => ExtensionSettings | Promise<ExtensionSettings>)
+  update: ExtensionSettings | ((latest: ExtensionSettings) => ExtensionSettings | Promise<ExtensionSettings>),
+  interfaceLanguage?: InterfaceLanguage
 ): Promise<ExtensionSettings> {
   const write = pendingWrite.catch(() => undefined).then(async () => {
     const settings = normalizeSettings(typeof update === "function" ? await update(await getSettings()) : update);
-    await chrome.storage.local.set({ [SETTINGS_KEY]: settings });
+    await chrome.storage.local.set({
+      [SETTINGS_KEY]: settings,
+      ...(interfaceLanguage === undefined ? {} : { [INTERFACE_LANGUAGE_KEY]: interfaceLanguage })
+    });
     return settings;
   });
   pendingWrite = write;
@@ -156,8 +161,8 @@ function normalizeProvider(
     return {
       type: "doubao-web",
       id: provider.id,
-      label: provider.id === "doubao-web" && provider.label === "豆包（网页登录，实验）"
-        ? "豆包（实验性）" : provider.label,
+      label: provider.id === "doubao-web" && ["豆包（网页登录，实验）", "豆包（实验性）", "Doubao (experimental)"].includes(provider.label)
+        ? t("doubaoExperimental") : provider.label,
       enabled: provider.enabled !== false,
       performanceMode: "custom",
       chunkSize: 1200,
@@ -165,12 +170,15 @@ function normalizeProvider(
     };
   }
   if (supportsServiceMode(provider)) provider = normalizeServiceConfig(provider);
-  const previousLabels: Record<string, string[]> = {
-    "microsoft-web-translate": ["Microsoft 免费翻译", "Microsoft Translator API（Azure）", "Microsoft Translator"],
-    "google-web-translate": ["Google Web Translate", "Google Cloud Translation"],
-    "tencent-transmart": ["腾讯 TranSmart"], "yandex-web-translate": ["Yandex 免费翻译"], "volcengine-web-translate": ["火山免费翻译"]
+  const builtInLabels: Record<string, string[]> = {
+    "microsoft-web-translate": ["Microsoft 翻译", "Microsoft 免费翻译", "Microsoft Translator API（Azure）", "Microsoft Translator"],
+    "google-web-translate": ["Google 翻译", "Google Translate", "Google Web Translate", "Google Cloud Translation"],
+    "tencent-transmart": ["腾讯翻译", "Tencent Translate", "腾讯 TranSmart"],
+    "yandex-web-translate": ["Yandex 翻译", "Yandex Translate", "Yandex 免费翻译"],
+    "volcengine-web-translate": ["火山翻译", "Volcengine Translate", "火山免费翻译"],
+    "firefox-local": ["Firefox 本地翻译（实验）", "Firefox local translation (experimental)"]
   };
-  if (previousLabels[provider.id]?.includes(provider.label)) {
+  if (builtInLabels[provider.id]?.includes(provider.label)) {
     provider = { ...provider, label: DEFAULT_SETTINGS.providers.find(entry => entry.id === provider.id)!.label };
   }
   if (provider.customModels !== undefined) {

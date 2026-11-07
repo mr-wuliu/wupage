@@ -1,3 +1,4 @@
+import { t } from "../../shared/i18n";
 import type { DualServiceProviderConfig, GoogleCloudTranslationConfig, GoogleWebTranslateConfig, MicrosoftTranslatorConfig, MicrosoftWebTranslateConfig, ProviderConfig, TranslateBatchRequest, TranslatorProvider, ValidationResult } from "../../shared/types";
 import { chatCompletionsEndpoint } from "../ollama-compatibility";
 import { TranslationResponseError } from "../translation-response";
@@ -80,15 +81,15 @@ export class MicrosoftWebTranslateProvider implements TranslatorProvider {
       body: JSON.stringify(prepared.map((item) => item.text)),
       signal
     }, WEB_TRANSLATION_TIMEOUT_MS);
-    if (!response.ok) throw httpResponseError(response, `Microsoft 免费翻译请求失败 (${response.status})。请稍后重试或切换翻译服务。`);
+    if (!response.ok) throw httpResponseError(response, t("microsoftSFreeTranslationRequestFailedTryAgain", response.status));
     const payload = await readJsonResponse<MicrosoftTranslateResponse>(response, "Microsoft Web Translate");
     if (!Array.isArray(payload) || payload.length !== request.texts.length) {
-      throw new TranslationResponseError("Microsoft Web Translate response count does not match source text count.");
+      throw new TranslationResponseError(t("serviceMicrosoftWebCountMismatch"));
     }
     return payload.map((entry, index) => {
       const text = entry?.translations?.[0]?.text;
       if (typeof text !== "string" || !text.trim()) {
-        throw new TranslationResponseError("Microsoft Web Translate response did not include translated text.");
+        throw new TranslationResponseError(t("serviceMicrosoftWebNoText"));
       }
       return restoreLiteralEntities(decodeHtmlEntities(text), prepared[index].entities);
     });
@@ -123,7 +124,7 @@ function protectLiteralEntities(source: string): {
 function restoreLiteralEntities(text: string, entities: Array<{ marker: string; literal: string }>): string {
   for (const { marker, literal } of entities) {
     if (text.split(marker).length !== 2) {
-      throw new TranslationResponseError("Translation response did not preserve literal entities.");
+      throw new TranslationResponseError(t("providerDidNotPreserveEntities"));
     }
     text = text.replace(marker, () => literal);
   }
@@ -139,15 +140,15 @@ export class CloudTranslationProvider implements TranslatorProvider {
     const api = translationApiOptions(this.config);
     if (this.config.type === "volcengine-web-translate") {
       return api.accessKeyId?.trim() && api.secretAccessKey?.trim()
-        ? { ok: true } : { ok: false, message: "请填写火山引擎 Access Key ID 和 Secret Access Key。" };
+        ? { ok: true } : { ok: false, message: t("enterYourVolcengineAccessKeyIdAndSecret") };
     }
-    if (!api.apiKey?.trim()) return { ok: false, message: "请填写 API Key，或切换到免费服务。" };
+    if (!api.apiKey?.trim()) return { ok: false, message: t("enterAnApiKeyOrSwitchToThe") };
     if (this.config.type === "tencent-transmart") {
       try {
         const url = new URL(api.endpoint ?? "");
         if (url.protocol !== "https:" || url.username || url.password || url.search || url.hash) throw new Error();
-      } catch { return { ok: false, message: "请填写有效的 HTTPS Base URL。" }; }
-      if (!api.model?.trim()) return { ok: false, message: "请填写 TokenHub 翻译模型。" };
+      } catch { return { ok: false, message: t("enterAValidHttpsBaseUrl") }; }
+      if (!api.model?.trim()) return { ok: false, message: t("enterATokenhubTranslationModel") };
     }
     return { ok: true };
   }
@@ -165,7 +166,7 @@ export class CloudTranslationProvider implements TranslatorProvider {
           { model: api.model, stream: false, messages: [{ role: "user", content:
             `Translate the following text${request.sourceLang && request.sourceLang !== "auto" ? ` from ${request.sourceLang}` : ""} into ${request.targetLang}. Preserve placeholders, numbers, links and formatting. Return only the translated text.\n\n${text}` }] }, signal, onUsage);
         const translated = payload.choices?.[0]?.message?.content;
-        if (typeof translated !== "string" || !translated.trim()) throw new Error("TokenHub 未返回完整译文。");
+        if (typeof translated !== "string" || !translated.trim()) throw new Error(t("tokenhubReturnedAnIncompleteTranslation"));
         return translated;
       });
     }
@@ -177,7 +178,7 @@ export class CloudTranslationProvider implements TranslatorProvider {
       while (cursor < request.texts.length && texts.length < 16 && length + request.texts[cursor].length <= limit) {
         const text = request.texts[cursor++]; texts.push(text); length += text.length;
       }
-      if (!texts.length) throw new Error(`${this.label} 单段文本超过 ${limit} 字符，请减小分块大小。`);
+      if (!texts.length) throw new Error(t("aSegmentExceedsCharactersReduceTheChunkSize", this.label, limit));
       const source = request.sourceLang && request.sourceLang !== "auto" ? normalizePublicLanguage(request.sourceLang) : undefined;
       if (this.config.type === "yandex-web-translate") {
         const payload = await this.request<{ translations?: Array<{ text?: unknown }> }>(
@@ -193,7 +194,7 @@ export class CloudTranslationProvider implements TranslatorProvider {
         const payload = await this.request<{ TranslationList?: Array<{ Translation?: unknown }>;
           ResponseMetadata?: { Error?: { Code?: string; Message?: string } } }>(
           "https://translate.volcengineapi.com/?Action=TranslateText&Version=2020-06-01", headers, body, signal);
-        if (payload.ResponseMetadata?.Error) throw new Error(`火山引擎 API 请求失败：${payload.ResponseMetadata.Error.Code || "未知错误"}`);
+        if (payload.ResponseMetadata?.Error) throw new Error(t("volcengineApiRequestFailed", payload.ResponseMetadata.Error.Code || t("unknownError")));
         result.push(...this.checkTranslations(payload.TranslationList?.map(entry => entry.Translation), texts.length));
       }
     }
@@ -202,7 +203,7 @@ export class CloudTranslationProvider implements TranslatorProvider {
 
   private checkTranslations(values: unknown[] | undefined, count: number): string[] {
     if (!Array.isArray(values) || values.length !== count || values.some(text => typeof text !== "string" || !text.trim())) {
-      throw new Error(`${this.label} API 未返回完整译文。`);
+      throw new Error(t("theApiReturnedAnIncompleteTranslation", this.label));
     }
     return values as string[];
   }
@@ -210,7 +211,7 @@ export class CloudTranslationProvider implements TranslatorProvider {
   private async request<T>(url: string, headers: Record<string, string>, body: unknown, signal?: AbortSignal, onUsage?: (payload: unknown) => void): Promise<T> {
     signal?.throwIfAborted();
     const response = await fetchWithTimeout(url, { method: "POST", headers, body: JSON.stringify(body), credentials: "omit", redirect: "error", signal }, API_TRANSLATION_TIMEOUT_MS);
-    if (!response.ok) throw httpResponseError(response, `${this.label} API 请求失败 (${response.status})，请检查凭据、额度或使用方式。`);
+    if (!response.ok) throw httpResponseError(response, t("theApiRequestFailedCheckCredentialsQuotaOr", this.label, response.status));
     return readJsonResponse<T>(response, this.label, onUsage);
   }
 }
@@ -228,7 +229,7 @@ export class PublicTranslationProvider implements TranslatorProvider {
   get label(): string { return this.config.label; }
   validateConfig(): ValidationResult {
     return this.config.type === "mymemory" && this.config.serviceMode === "api" && !this.config.api?.apiKey?.trim()
-      ? { ok: false, message: "请填写 RapidAPI Key，或切换到免费服务。" } : { ok: true };
+      ? { ok: false, message: t("enterARapidapiKeyOrSwitchToThe") } : { ok: true };
   }
 
   async translateBatch(request: TranslateBatchRequest, signal?: AbortSignal): Promise<string[]> {
@@ -250,7 +251,7 @@ export class PublicTranslationProvider implements TranslatorProvider {
           })
         }, signal
       );
-      if (payload?.header?.ret_code !== "succ") throw new Error("腾讯 TranSmart 暂时无法翻译，请稍后重试或切换服务。");
+      if (payload?.header?.ret_code !== "succ") throw new Error(t("tencentTransmartIsTemporarilyUnavailableTryAgainLater"));
       return validatePublicTranslations(payload.auto_translation, request.texts.length);
     }
     if (this.config.type === "mymemory") return this.translateMyMemory(request, signal);
@@ -261,7 +262,7 @@ export class PublicTranslationProvider implements TranslatorProvider {
         url.search = new URLSearchParams({ id: `${crypto.randomUUID().replace(/-/g, "")}-0-0`, srv: "android",
           target_lang: to, text, ...(from !== "auto" ? { source_lang: from } : {}) }).toString();
         const payload = await this.requestJson<{ code?: number; text?: unknown }>(url.toString(), { method: "POST" }, signal);
-        if (payload?.code !== 200) throw new Error(`Yandex 免费翻译暂时不可用 (${payload?.code ?? "未知错误"})，请稍后重试或切换服务。`);
+        if (payload?.code !== 200) throw new Error(t("yandexSFreeServiceIsTemporarilyUnavailableTry", payload?.code ?? t("unknownError")));
         return validatePublicTranslations(payload.text, 1)[0];
       }
       const payload = await this.requestJson<{ translation?: unknown; base_resp?: { status_code?: number } }>(
@@ -270,7 +271,7 @@ export class PublicTranslationProvider implements TranslatorProvider {
           body: JSON.stringify({ source_language: normalizeVolcengineLang(from), target_language: normalizeVolcengineLang(to), text })
         }, signal
       );
-      if (payload?.base_resp?.status_code !== 0) throw new Error("火山免费翻译暂时不可用，请稍后重试或切换服务。");
+      if (payload?.base_resp?.status_code !== 0) throw new Error(t("volcengineSFreeServiceIsTemporarilyUnavailableTry"));
       return validatePublicTranslations([payload.translation], 1)[0];
     });
   }
@@ -280,7 +281,7 @@ export class PublicTranslationProvider implements TranslatorProvider {
     const response = await fetchWithTimeout(url, { ...init, credentials: "omit", signal }, WEB_TRANSLATION_TIMEOUT_MS);
     if (!response.ok) {
       if (this.config.type === "mymemory" && response.status === 429) throw this.myMemoryQuotaError();
-      throw httpResponseError(response, `${this.label} 请求失败 (${response.status})，请稍后重试或切换服务。`);
+      throw httpResponseError(response, t("theRequestFailedTryAgainLaterOrSwitch", this.label, response.status));
     }
     return readJsonResponse<T>(response, this.label);
   }
@@ -289,13 +290,13 @@ export class PublicTranslationProvider implements TranslatorProvider {
     let source = request.sourceLang;
     if (!source || source === "auto") {
       if (typeof chrome === "undefined" || !chrome.i18n?.detectLanguage) {
-        throw new Error("MyMemory 无法自动识别源语言，请手动选择源语言后重试。");
+        throw new Error(t("mymemoryCouldNotDetectTheSourceLanguageSelect"));
       }
       const detected = await chrome.i18n.detectLanguage(request.texts.join("\n").slice(0, 12000));
       signal?.throwIfAborted();
       const best = detected.languages[0];
       if (!best || best.language === "und" || best.percentage < 50) {
-        throw new Error("MyMemory 无法可靠识别源语言，请手动选择源语言后重试。");
+        throw new Error(t("mymemoryCouldNotReliablyDetectTheSourceLanguage"));
       }
       source = best.language;
     }
@@ -321,7 +322,7 @@ export class PublicTranslationProvider implements TranslatorProvider {
           || (Number(payload?.responseStatus) === 403 && /quota|used all|limit|next available/i.test(payload?.responseDetails ?? ""))) {
           throw this.myMemoryQuotaError();
         }
-        if (Number(payload?.responseStatus) !== 200) throw new Error("MyMemory 暂时无法翻译，请检查源语言或切换服务。");
+        if (Number(payload?.responseStatus) !== 200) throw new Error(t("mymemoryIsTemporarilyUnavailableCheckTheSourceLanguage"));
         return leading + decodeHtmlEntities(validatePublicTranslations([payload.responseData?.translatedText], 1)[0]).trim() + trailing;
       });
       return restoreLiteralEntities(translated.join(""), prepared.entities);
@@ -330,8 +331,8 @@ export class PublicTranslationProvider implements TranslatorProvider {
 
   private myMemoryQuotaError(): Error {
     return new ProviderError(this.config.serviceMode === "api"
-      ? "MyMemory API 额度已用完，请检查 RapidAPI 订阅或切换服务。"
-      : "MyMemory 免费额度已用完，请次日重试或切换服务。", "rate-limited");
+      ? t("mymemoryApiQuotaExceededCheckYourRapidapiSubscription")
+      : t("mymemoryFreeQuotaExceededTryAgainTomorrowOr"), "rate-limited");
   }
 }
 
@@ -341,7 +342,7 @@ function normalizePublicLanguage(value: string): string {
 
 function validatePublicTranslations(value: unknown, count: number): string[] {
   if (!Array.isArray(value) || value.length !== count || value.some(text => typeof text !== "string" || !text.trim())) {
-    throw new TranslationResponseError("Translation response did not include the expected nonempty text items.");
+    throw new TranslationResponseError(t("providerItemsMissing"));
   }
   return value as string[];
 }
@@ -352,7 +353,7 @@ function splitMyMemoryText(text: string): string[] {
   let current = "";
   // Keep Unicode code points and translation placeholders intact at the byte boundary.
   for (const token of text.match(/⟪WUPAGE[^⟫]*⟫|[\s\S]/gu) ?? []) {
-    if (encoder.encode(token).byteLength > 500) throw new Error("MyMemory 无法处理过长的受保护文本，请切换翻译服务。");
+    if (encoder.encode(token).byteLength > 500) throw new Error(t("theProtectedTextExceedsMymemorySLimitSwitch"));
     while (encoder.encode(current + token).byteLength > 500) {
       let boundary = 0;
       for (const match of current.matchAll(/[\s.!?。！？]+/gu)) boundary = match.index + match[0].length;
@@ -378,12 +379,12 @@ export class MicrosoftTranslatorProvider implements TranslatorProvider {
   constructor(private readonly config: MicrosoftTranslatorConfig) {}
 
   validateConfig(): ValidationResult {
-    if (!this.config.endpoint.trim()) return { ok: false, message: "Endpoint is required." };
-    if (!this.config.apiKey.trim()) return { ok: false, message: "API key is required." };
+    if (!this.config.endpoint.trim()) return { ok: false, message: t("endpointRequired") };
+    if (!this.config.apiKey.trim()) return { ok: false, message: t("apiKeyRequired") };
     try {
       const url = new URL(this.config.endpoint);
       if (url.protocol !== "https:" || url.username || url.password || url.search || url.hash) throw new Error();
-    } catch { return { ok: false, message: "请填写有效的 HTTPS Endpoint。" }; }
+    } catch { return { ok: false, message: t("enterAValidHttpsEndpoint") }; }
     return { ok: true };
   }
 
@@ -416,19 +417,19 @@ export class MicrosoftTranslatorProvider implements TranslatorProvider {
       body: JSON.stringify(request.texts.map((text) => ({ Text: text })))
     }, API_TRANSLATION_TIMEOUT_MS);
 
-    if (!response.ok) throw httpResponseError(response, `Microsoft Translator request failed: ${response.status}`);
+    if (!response.ok) throw httpResponseError(response, t("serviceMicrosoftRequestFailed", response.status));
     const payload = await readJsonResponse<MicrosoftTranslateResponse>(
       response,
       "Microsoft Translator"
     );
     if (!Array.isArray(payload) || payload.length !== request.texts.length) {
-      throw new Error("Microsoft Translator response count does not match source text count.");
+      throw new Error(t("serviceMicrosoftCountMismatch"));
     }
 
     return payload.map((entry) => {
       const text = entry.translations?.[0]?.text;
       if (typeof text !== "string") {
-        throw new Error("Microsoft Translator response did not include translated text.");
+        throw new Error(t("serviceMicrosoftNoText"));
       }
       return text;
     });
@@ -447,7 +448,7 @@ export class GoogleCloudTranslationProvider implements TranslatorProvider {
   constructor(private readonly config: GoogleCloudTranslationConfig) {}
 
   validateConfig(): ValidationResult {
-    if (!this.config.apiKey.trim()) return { ok: false, message: "API key is required." };
+    if (!this.config.apiKey.trim()) return { ok: false, message: t("apiKeyRequired") };
     return { ok: true };
   }
 
@@ -478,19 +479,19 @@ export class GoogleCloudTranslationProvider implements TranslatorProvider {
       body: JSON.stringify(body)
     }, API_TRANSLATION_TIMEOUT_MS);
 
-    if (!response.ok) throw httpResponseError(response, `Google Cloud Translation request failed: ${response.status}`);
+    if (!response.ok) throw httpResponseError(response, t("serviceGoogleCloudRequestFailed", response.status));
     const payload = await readJsonResponse<GoogleTranslateResponse>(
       response,
       "Google Cloud Translation"
     );
     const translations = payload.data?.translations;
     if (!Array.isArray(translations) || translations.length !== request.texts.length) {
-      throw new Error("Google Cloud Translation response count does not match source text count.");
+      throw new Error(t("serviceGoogleCloudCountMismatch"));
     }
 
     return translations.map((entry) => {
       if (typeof entry.translatedText !== "string") {
-        throw new Error("Google Cloud Translation response did not include translated text.");
+        throw new Error(t("serviceGoogleCloudNoText"));
       }
       return decodeHtmlEntities(entry.translatedText);
     });
@@ -553,12 +554,12 @@ function normalizeGoogleLang(value: string): string {
 function parseGoogleWebResponse(payload: GoogleWebTranslateResponse): string {
   const segments = payload[0];
   if (!Array.isArray(segments)) {
-    throw new Error("Google Web Translate response did not include translated segments.");
+    throw new Error(t("googleSegmentsMissing"));
   }
   const text = segments
     .map((segment) => (Array.isArray(segment) && typeof segment[0] === "string" ? segment[0] : ""))
     .join("");
-  if (!text) throw new Error("Google Web Translate response did not include translated text.");
+  if (!text) throw new Error(t("serviceGoogleWebNoText"));
   return text;
 }
 

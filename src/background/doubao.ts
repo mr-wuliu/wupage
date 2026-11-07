@@ -1,3 +1,4 @@
+import { t } from "../shared/i18n";
 import type { DoubaoStatus, DoubaoStatusState, DoubaoWebConfig, TranslateBatchRequest, TranslatorProvider, ValidationResult } from "../shared/types";
 import { ProviderError } from "../shared/errors";
 import { DOUBAO_TARGET_LANGUAGES, isDoubaoBrowserSupported } from "../shared/doubao";
@@ -45,10 +46,10 @@ let lastRequestStartedAt: number | undefined;
 const queue: QueueEntry[] = [];
 
 class TransientNetworkError extends ProviderError {
-  constructor() { super("豆包网络请求失败，请稍后重试。", "network-error"); }
+  constructor() { super(t("couldNotConnectToDoubaoTryAgainLater"), "network-error"); }
 }
 
-function timeoutError(message = "豆包翻译超时，请稍后重试。"): ProviderError {
+function timeoutError(message = t("doubaoTranslationTimedOutTryAgainLater")): ProviderError {
   return new ProviderError(message, "timeout");
 }
 
@@ -63,7 +64,7 @@ function throwIfAborted(signal: AbortSignal): void {
 function asProviderError(error: unknown): ProviderError {
   if (error instanceof ProviderError) return error;
   if (error instanceof DOMException && error.name === "AbortError") {
-    return new ProviderError("豆包请求已取消。", "cancelled");
+    return new ProviderError(t("doubaoRequestCanceled"), "cancelled");
   }
   return new TransientNetworkError();
 }
@@ -109,7 +110,7 @@ export async function withDoubaoDeadline<T>(
   const onAbort = () => controller.abort(parent && abortReason(parent));
   if (parent?.aborted) onAbort();
   else parent?.addEventListener("abort", onAbort, { once: true });
-  const timer = setTimeout(() => controller.abort(timeoutError("豆包任务超过 110 秒，请重试未完成的内容。")), TASK_TIMEOUT_MS);
+  const timer = setTimeout(() => controller.abort(timeoutError(t("theDoubaoTaskExceeded110SecondsRetryThe"))), TASK_TIMEOUT_MS);
   try {
     throwIfAborted(controller.signal);
     return await abortable(Promise.resolve().then(() => {
@@ -149,7 +150,7 @@ function taskGeneration(signal: AbortSignal): number {
 
 function assertAllowed(probe: boolean, signal: AbortSignal): void {
   if (retryAt > Date.now()) {
-    const error = new ProviderError("豆包请求受限，请等待后重试翻译或重新检测。", "rate-limited", retryAt - Date.now());
+    const error = new ProviderError(t("doubaoRateLimitReachedWaitBeforeRetryingThe"), "rate-limited", retryAt - Date.now());
     reportedErrors.add(error);
     throw error;
   }
@@ -240,7 +241,7 @@ async function deviceId(): Promise<string> {
         return value;
       } catch {
         devicePromise = undefined;
-        throw new ProviderError("无法保存豆包设备配置，请检查扩展存储权限。", "permission-required");
+        throw new ProviderError(t("couldNotSaveTheDoubaoDeviceConfigurationCheck"), "permission-required");
       }
     })();
   }
@@ -283,11 +284,11 @@ function retryAfter(response: Response): number {
 }
 
 function httpError(response: Response): ProviderError {
-  if (response.status === 401) return new ProviderError("请先在同一浏览器登录豆包，再重试翻译或重新检测。", "login-required");
-  if (response.status === 429) return new ProviderError("豆包请求受限，请等待后重试翻译或重新检测。", "rate-limited", retryAfter(response));
+  if (response.status === 401) return new ProviderError(t("doubaoSignInRequired"), "login-required");
+  if (response.status === 429) return new ProviderError(t("doubaoRateLimitReachedWaitBeforeRetryingThe"), "rate-limited", retryAfter(response));
   if (response.status >= 500) return new TransientNetworkError();
   if (response.status === 408) return timeoutError();
-  return new ProviderError(`豆包拒绝了请求（HTTP ${response.status}），请到豆包网页检查后重试翻译或重新检测。`, "service-rejected");
+  return new ProviderError(t("doubaoRejectedTheRequestHttpCheckTheDoubao", response.status), "service-rejected");
 }
 
 async function consumeBody(
@@ -295,13 +296,13 @@ async function consumeBody(
   controller: AbortController,
   onText: (text: string) => boolean | void
 ): Promise<void> {
-  if (!response.body) throw new ProviderError("豆包返回了空响应。", "protocol-changed");
+  if (!response.body) throw new ProviderError(t("doubaoReturnedAnEmptyResponse"), "protocol-changed");
   const reader = response.body.getReader();
   const decoder = new TextDecoder("utf-8", { fatal: true });
   let bytes = 0;
   try {
     for (;;) {
-      const idle = setTimeout(() => controller.abort(timeoutError("豆包响应中断，请稍后重试。")), IDLE_TIMEOUT_MS);
+      const idle = setTimeout(() => controller.abort(timeoutError(t("theDoubaoResponseWasInterruptedTryAgainLater"))), IDLE_TIMEOUT_MS);
       let chunk: ReadableStreamReadResult<Uint8Array>;
       try {
         chunk = await abortable(reader.read(), controller.signal);
@@ -313,12 +314,12 @@ async function consumeBody(
         return;
       }
       bytes += chunk.value.byteLength;
-      if (bytes > MAX_RESPONSE_BYTES) throw new ProviderError("豆包响应过大，已停止读取。", "protocol-changed");
+      if (bytes > MAX_RESPONSE_BYTES) throw new ProviderError(t("stoppedReadingAnOversizedDoubaoResponse"), "protocol-changed");
       if (onText(decoder.decode(chunk.value, { stream: true }))) return;
     }
   } catch (error) {
     if (error instanceof TypeError && /encoded data|encoding/i.test(error.message)) {
-      throw new ProviderError("豆包响应编码无效。", "protocol-changed");
+      throw new ProviderError(t("invalidDoubaoResponseEncoding"), "protocol-changed");
     }
     throw error;
   } finally {
@@ -335,7 +336,7 @@ async function readJson(response: Response, controller: AbortController): Promis
     if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error();
     return value as Record<string, unknown>;
   } catch {
-    throw new ProviderError("豆包返回了无法识别的响应，请到官网检查后重新检测。", "protocol-changed");
+    throw new ProviderError(t("unrecognizedDoubaoResponseCheckTheDoubaoWebsiteThen"), "protocol-changed");
   }
 }
 
@@ -360,7 +361,7 @@ async function physicalRequest<T>(
         throwIfAborted(controller.signal);
         assertAllowed(probe, signal);
         lastRequestStartedAt = Date.now();
-        headersTimer = setTimeout(() => controller.abort(timeoutError("豆包未及时响应，请稍后重试。")), HEADERS_TIMEOUT_MS);
+        headersTimer = setTimeout(() => controller.abort(timeoutError(t("doubaoDidNotRespondInTimeTryAgain"))), HEADERS_TIMEOUT_MS);
         const response = await abortable(fetch(`${endpoint}?${parameters}`, {
           method: "POST",
           headers: {
@@ -375,7 +376,7 @@ async function physicalRequest<T>(
         }), controller.signal);
         clearTimeout(headersTimer);
         if (response.redirected || (response.url && new URL(response.url).origin + new URL(response.url).pathname !== endpoint)) {
-          throw new ProviderError("豆包请求被重定向，已停止发送登录态请求。", "service-rejected");
+          throw new ProviderError(t("doubaoRedirectedTheRequestTheAuthenticatedRequestWas"), "service-rejected");
         }
         if (!response.ok) throw httpError(response);
         return await consume(response, controller);
@@ -416,12 +417,12 @@ async function ensureSession(signal: AbortSignal, probe: boolean): Promise<numbe
       if (payload.code !== 0) throw doubaoServiceError(payload.code);
       const data = payload.data;
       if (!data || typeof data !== "object" || Array.isArray(data)) {
-        throw new ProviderError("豆包初始化响应无效。", "protocol-changed");
+        throw new ProviderError(t("invalidDoubaoInitializationResponse"), "protocol-changed");
       }
       const { config, country } = data as Record<string, unknown>;
       const details = config && typeof config === "object" && !Array.isArray(config) ? config as Record<string, unknown> : {};
       const serverDeviceId = typeof details.web_id === "string" || typeof details.web_id === "number" ? String(details.web_id) : "";
-      if (details.ttwid && !serverDeviceId) throw new ProviderError("豆包初始化缺少设备信息。", "protocol-changed");
+      if (details.ttwid && !serverDeviceId) throw new ProviderError(t("deviceInformationMissingFromTheDoubaoInitializationResponse"), "protocol-changed");
       session = { deviceId: details.ttwid ? serverDeviceId : "0", country: typeof country === "string" ? country : "" };
       return retries;
     }, entry.controller.signal).catch((error) => {
@@ -459,7 +460,7 @@ async function article(
     if (!/^text\/event-stream\b/i.test(response.headers.get("Content-Type") ?? "")) {
       const payload = await readJson(response, controller);
       if (payload.code !== undefined && payload.code !== 0) throw doubaoServiceError(payload.code);
-      throw new ProviderError("豆包文章接口未返回翻译流。", "protocol-changed");
+      throw new ProviderError(t("doubaoSArticleEndpointReturnedNoTranslationStream"), "protocol-changed");
     }
     const parser = new DoubaoSseParser(sources, target);
     await consumeBody(response, controller, (chunk) => {
@@ -472,7 +473,7 @@ async function article(
       // Commit health while still owning the physical queue slot. A later
       // response must win over an earlier caller's Promise continuation.
       retryAt = 0;
-      status = { state: "ready", checkedAt: Date.now(), message: "可以翻译" };
+      status = { state: "ready", checkedAt: Date.now(), message: t("readyToTranslate") };
     }
     return translations;
   });
@@ -483,11 +484,11 @@ async function translateTexts(request: TranslateBatchRequest, signal: AbortSigna
   taskGeneration(signal);
   if (!request.texts.length) return [];
   if (!isDoubaoBrowserSupported()) {
-    throw new ProviderError("豆包（实验性）目前仅支持 Chromium 浏览器，Firefox 尚未支持。", "unsupported-browser");
+    throw new ProviderError(t("doubaoExperimentalCurrentlyRequiresAChromiumBrowser"), "unsupported-browser");
   }
   const target = Object.prototype.hasOwnProperty.call(DOUBAO_TARGET_LANGUAGES, request.targetLang)
     ? DOUBAO_TARGET_LANGUAGES[request.targetLang] : undefined;
-  if (!target) throw new ProviderError("豆包暂不支持所选目标语言，请选择列表中的语言。", "unsupported-language");
+  if (!target) throw new ProviderError(t("doubaoDoesNotSupportThisTargetLanguageChoose"), "unsupported-language");
   assertAllowed(probe, signal);
   const segments = segmentDoubaoTexts(request.texts);
   const groups = groupDoubaoSegments(segments);
@@ -514,7 +515,7 @@ async function translateTexts(request: TranslateBatchRequest, signal: AbortSigna
       }
       missing = missing.filter((index) => !translated.has(index));
       if (!missing.length) break;
-      if (additionalAttempts === 0) throw new ProviderError("豆包返回的段落不完整，请重试未完成内容。", "incomplete");
+      if (additionalAttempts === 0) throw new ProviderError(t("doubaoReturnedIncompleteParagraphsRetryTheUnfinishedText"), "incomplete");
       additionalAttempts--;
     }
   }
@@ -529,7 +530,7 @@ export class DoubaoProvider implements TranslatorProvider {
   validateConfig(): ValidationResult {
     return isDoubaoBrowserSupported()
       ? { ok: true }
-      : { ok: false, message: "豆包（实验性）目前仅支持 Chromium 浏览器，Firefox 尚未支持。" };
+      : { ok: false, message: t("doubaoExperimentalCurrentlyRequiresAChromiumBrowser") };
   }
   async translateBatch(request: TranslateBatchRequest, signal?: AbortSignal): Promise<string[]> {
     try {
@@ -546,7 +547,7 @@ export class DoubaoProvider implements TranslatorProvider {
 
 export function getDoubaoStatus(): DoubaoStatus {
   if (!isDoubaoBrowserSupported()) {
-    return { state: "unsupported-browser", message: "豆包（实验性）目前仅支持 Chromium 浏览器，Firefox 尚未支持。" };
+    return { state: "unsupported-browser", message: t("doubaoExperimentalCurrentlyRequiresAChromiumBrowser") };
   }
   return { ...status };
 }
@@ -554,10 +555,10 @@ export function getDoubaoStatus(): DoubaoStatus {
 /** Optional diagnostic; normal new translation tasks can also refresh a failed session. */
 export function checkDoubao(): Promise<DoubaoStatus> {
   if (checkPromise) return checkPromise;
-  status = { state: "checking", message: "正在检测豆包翻译…" };
+  status = { state: "checking", message: t("checkingDoubaoTranslation") };
   checkPromise = withDoubaoDeadline(async (signal) => {
     const result = await translateTexts({ texts: ["Hello world"], targetLang: "zh-CN", sourceLang: "en" }, signal, true);
-    if (result.length !== 1 || !result[0]?.trim()) throw new ProviderError("豆包检测未返回有效译文。", "incomplete");
+    if (result.length !== 1 || !result[0]?.trim()) throw new ProviderError(t("theDoubaoCheckReturnedNoValidTranslation"), "incomplete");
     return getDoubaoStatus();
   }).catch((error) => {
     const normalized = asProviderError(error);

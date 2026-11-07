@@ -1,3 +1,4 @@
+import { t } from "../shared/i18n";
 const SETTLE_MS = 250;
 const ROLLING_MS = 900;
 const CARRY_MS = 1500;
@@ -123,7 +124,7 @@ export class LiveSubtitleTranslator {
     try {
       const result = await this.translate([text], controller.signal);
       if (this.disposed || controller.signal.aborted) return;
-      if (result.length !== 1 || !result[0]?.trim()) throw new Error("翻译结果不完整，请重试。");
+      if (result.length !== 1 || !result[0]?.trim()) throw new Error(t("incompleteTranslationTryAgain"));
       this.cache.delete(text); this.cache.set(text, result[0]);
       if (this.cache.size > 256) this.cache.delete(this.cache.keys().next().value!);
       this.carryMs = Math.min(2500, Math.max(CARRY_MS, Date.now() - started + 300));

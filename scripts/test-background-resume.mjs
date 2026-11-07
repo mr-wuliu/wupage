@@ -44,7 +44,7 @@ let browser;
 try {
   browser = await chromium.launchPersistentContext(path.join(output, `profile-${Date.now()}`), {
     ...target.chromiumOptions, headless: true, viewport: { width: 1200, height: 900 },
-    ignoreDefaultArgs: ['--disable-extensions'], args: ['--enable-unsafe-extension-debugging']
+    ignoreDefaultArgs: ['--disable-extensions'], args: ['--lang=zh-CN', '--enable-unsafe-extension-debugging']
   });
   const loader = await browser.browser().newBrowserCDPSession();
   await loader.send('Extensions.loadUnpacked', { path: path.join(root, 'dist') }); await loader.detach();

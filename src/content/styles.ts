@@ -828,6 +828,7 @@ const CONTENT_CSS = `
     }
 
     #wupage-floating-menu .wupage-feature-button[aria-busy="true"] { opacity: 1; cursor: wait; }
+    #wupage-floating-menu:lang(en) .wupage-feature-button { white-space: normal; }
 
     #wupage-floating-menu .wupage-feature-button[aria-pressed="true"] {
       color: var(--wp-accent, #116466);

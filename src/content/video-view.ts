@@ -1,3 +1,4 @@
+import { t, htmlMessage } from "../shared/i18n";
 import { TARGET_LANGUAGES } from "../shared/languages";
 import type { ExtensionSettings } from "../shared/types";
 import { normalizeVideoTranslation, type VideoSubtitleLayout, type VideoTranslationSettings } from "../shared/video";
@@ -102,38 +103,39 @@ export class VideoView {
   private cleanups: Array<() => void> = [];
 
   constructor(actions: VideoViewActions, label: string) {
+    this.host.lang = t("interfaceLanguage");
     this.host.id = this.id; this.host.dataset.wupageVideo = ""; this.host.setAttribute("translate", "no");
     setHtmlContent(this.root, `<style>${styles}</style>
       <div class="frame-layer"></div>
-      <div class="toolbar" role="group" aria-label="视频翻译">
-        <button class="toggle" type="button" aria-label="翻译视频字幕" aria-pressed="false" title="翻译视频字幕"><span class="mark" aria-hidden="true">译</span></button>
-        <button class="frame" type="button" aria-label="暂停并翻译画面" aria-pressed="false" title="暂停并翻译画面">${uiIconMarkup("display")}</button>
-        <button class="settings" type="button" aria-label="字幕设置" title="字幕设置" aria-expanded="false">${uiIconMarkup("settings")}</button>
+      <div class="toolbar" role="group" aria-label="${htmlMessage("videoTranslation")}">
+        <button class="toggle" type="button" aria-label="${htmlMessage("translateVideoSubtitles")}" aria-pressed="false" title="${htmlMessage("translateVideoSubtitles")}"><span class="mark" aria-hidden="true">${htmlMessage("translateBadge")}</span></button>
+        <button class="frame" type="button" aria-label="${htmlMessage("pauseAndTranslateFrame")}" aria-pressed="false" title="${htmlMessage("pauseAndTranslateFrame")}">${uiIconMarkup("display")}</button>
+        <button class="settings" type="button" aria-label="${htmlMessage("subtitleSettings")}" title="${htmlMessage("subtitleSettings")}" aria-expanded="false">${uiIconMarkup("settings")}</button>
       </div>
-      <div class="captions" role="region" aria-label="双语字幕" hidden><div class="source" dir="auto"><span></span></div><div class="translation" dir="auto"><span></span></div></div>
-      <section class="panel" popover="manual" aria-label="字幕设置" hidden>
-        <header><h2>视频字幕</h2><button class="close" type="button" aria-label="关闭字幕设置">${uiIconMarkup("cross")}</button></header>
-        <div class="row"><label class="field">译为<select class="target" aria-label="字幕目标语言"></select></label><label class="field">字号<select class="font" aria-label="字幕字号"><option value="18">小</option><option value="22">中</option><option value="26">大</option></select></label></div>
-        <label class="field">翻译服务<select class="provider" aria-label="字幕翻译服务"></select></label>
-        <label class="field">原字幕<select class="track" aria-label="原字幕语言"><option value="auto">跟随播放器</option></select></label>
-        <label class="check"><input class="original" type="checkbox" checked>显示原文</label>
-        <details><summary>字幕外观</summary>
-          <label class="field">排列<select class="order" aria-label="原文与译文顺序"><option value="above">原文在上</option><option value="below">译文在上</option></select></label>
-          ${[ ["source", "原文"], ["translation", "译文"] ].map(([key, label]) => `<div class="row">
-            <label class="field">${label}字号<select class="${key}-size" aria-label="${label}字号"><option value="auto">跟随整体字号</option>${[14,18,22,26,32,40,48].map(size => `<option value="${size}">${size}px</option>`).join("")}</select></label>
-            <label class="field">${label}字体<select class="${key}-family" aria-label="${label}字体"><option value="sans-serif">黑体</option><option value="serif">宋体</option><option value="monospace">等宽</option></select></label>
-            <label class="field">${label}字重<select class="${key}-weight" aria-label="${label}字重"><option value="400">常规</option><option value="600">中粗</option><option value="700">粗体</option></select></label>
+      <div class="captions" role="region" aria-label="${htmlMessage("bilingualSubtitles")}" hidden><div class="source" dir="auto"><span></span></div><div class="translation" dir="auto"><span></span></div></div>
+      <section class="panel" popover="manual" aria-label="${htmlMessage("subtitleSettings")}" hidden>
+        <header><h2>${htmlMessage("videoSubtitles")}</h2><button class="close" type="button" aria-label="${htmlMessage("closeSubtitleSettings")}">${uiIconMarkup("cross")}</button></header>
+        <div class="row"><label class="field">${htmlMessage("translateTo")}<select class="target" aria-label="${htmlMessage("subtitleTargetLanguage")}"></select></label><label class="field">${htmlMessage("fontSize")}<select class="font" aria-label="${htmlMessage("subtitleFontSize")}"><option value="18">${htmlMessage("small")}</option><option value="22">${htmlMessage("mediumFontSize")}</option><option value="26">${htmlMessage("large")}</option></select></label></div>
+        <label class="field">${htmlMessage("translationService")}<select class="provider" aria-label="${htmlMessage("subtitleTranslationService")}"></select></label>
+        <label class="field">${htmlMessage("sourceSubtitles")}<select class="track" aria-label="${htmlMessage("sourceSubtitleLanguage")}"><option value="auto">${htmlMessage("followPlayer")}</option></select></label>
+        <label class="check"><input class="original" type="checkbox" checked>${htmlMessage("showOriginal")}</label>
+        <details><summary>${htmlMessage("subtitleAppearance")}</summary>
+          <label class="field">${htmlMessage("order")}<select class="order" aria-label="${htmlMessage("originalAndTranslationOrder")}"><option value="above">${htmlMessage("originalOnTop")}</option><option value="below">${htmlMessage("translationOnTop")}</option></select></label>
+          ${[ ["source", t("original")], ["translation", t("translation")] ].map(([key, label]) => `<div class="row">
+            <label class="field">${htmlMessage("namedFontSize", label)}<select class="${key}-size" aria-label="${htmlMessage("namedFontSize", label)}"><option value="auto">${htmlMessage("useOverallFontSize")}</option>${[14,18,22,26,32,40,48].map(size => `<option value="${size}">${size}px</option>`).join("")}</select></label>
+            <label class="field">${htmlMessage("font", label)}<select class="${key}-family" aria-label="${htmlMessage("font", label)}"><option value="sans-serif">${htmlMessage("sansSerif")}</option><option value="serif">${htmlMessage("serif")}</option><option value="monospace">${htmlMessage("monospace")}</option></select></label>
+            <label class="field">${htmlMessage("fontWeight", label)}<select class="${key}-weight" aria-label="${htmlMessage("fontWeight", label)}"><option value="400">${htmlMessage("regular")}</option><option value="600">${htmlMessage("semibold")}</option><option value="700">${htmlMessage("bold")}</option></select></label>
           </div>`).join("")}
-          <p class="help">长字幕随播放进度分屏，每种语言最多两行；字号随播放器尺寸自动适配。</p>
+          <p class="help">${htmlMessage("longSubtitlesAdvanceWithPlaybackWithUpTo")}</p>
         </details>
-        <label class="check"><input class="automatic" type="checkbox">在此网站自动开启</label>
-        <button class="layout-open panel-action" type="button">${uiIconMarkup("cursor-move")} 调整字幕布局</button>
-        <p class="status" role="status"></p><button class="retry" type="button" hidden>重试读取</button>
-        <details><summary>更多选项</summary>
-          <label class="field">字幕背景<select class="background" aria-label="字幕背景"><option value="soft">半透明</option><option value="none">透明</option></select></label>
-          <label class="field">时间偏移（秒）<input class="offset" type="number" min="-30" max="30" step="0.5" value="0" aria-label="字幕时间偏移"></label>
-          <button class="import panel-action" type="button">导入 SRT / VTT</button><input class="file" type="file" accept=".srt,.vtt" hidden>
-          <p class="help">仅翻译字幕文本，不采集音频。在线翻译使用所选服务的额度。</p>
+        <label class="check"><input class="automatic" type="checkbox">${htmlMessage("enableAutomaticallyOnThisSite")}</label>
+        <button class="layout-open panel-action" type="button">${uiIconMarkup("cursor-move")} ${htmlMessage("adjustSubtitleLayout")}</button>
+        <p class="status" role="status"></p><button class="retry" type="button" hidden>${htmlMessage("retrySubtitles")}</button>
+        <details><summary>${htmlMessage("moreOptions")}</summary>
+          <label class="field">${htmlMessage("subtitleBackground")}<select class="background" aria-label="${htmlMessage("subtitleBackground")}"><option value="soft">${htmlMessage("translucent")}</option><option value="none">${htmlMessage("transparent")}</option></select></label>
+          <label class="field">${htmlMessage("timeOffsetSeconds")}<input class="offset" type="number" min="-30" max="30" step="0.5" value="0" aria-label="${htmlMessage("subtitleTimeOffset")}"></label>
+          <button class="import panel-action" type="button">${htmlMessage("importSrtVtt")}</button><input class="file" type="file" accept=".srt,.vtt" hidden>
+          <p class="help">${htmlMessage("onlySubtitleTextIsTranslatedNoAudioIs")}</p>
         </details>
       </section><div class="notice" role="status" hidden></div><div class="notice frame-status" role="status" hidden></div>`);
     const query = <T extends Element>(selector: string) => this.root.querySelector<T>(selector)!;
@@ -211,7 +213,7 @@ export class VideoView {
     this.host.toggleAttribute("data-frame-visible", active);
     this.frameButton.setAttribute("aria-pressed", String(active));
     this.frameButton.setAttribute("aria-busy", String(phase === "loading"));
-    const label = phase === "loading" ? "取消画面翻译" : active ? "显示原画面" : phase === "original" ? "显示画面译文" : "暂停并翻译画面";
+    const label = phase === "loading" ? t("cancelFrameTranslation") : active ? t("showOriginalFrame") : phase === "original" ? t("showTranslatedFrame") : t("pauseAndTranslateFrame");
     this.frameButton.title = label; this.frameButton.setAttribute("aria-label", label);
     this.setText(this.frameStatus, message); this.frameStatus.hidden = !message;
     if (message) {
@@ -292,7 +294,7 @@ export class VideoView {
     if (!enabled || phase === "loading") this.hasTranslation = false;
     this.updateMark();
     this.toggle.setAttribute("aria-pressed", String(enabled));
-    this.toggle.title = !enabled ? "翻译视频字幕" : phase === "loading" ? "正在读取字幕，点击停止字幕翻译" : phase === "error" ? "字幕需重试，点击停止字幕翻译" : phase === "waiting" ? "等待原字幕，点击停止字幕翻译" : this.hasTranslation ? `${this.showOriginal ? "双语字幕" : "仅译文"}已开启，点击停止字幕翻译` : "正在翻译字幕，点击停止字幕翻译";
+    this.toggle.title = !enabled ? t("translateVideoSubtitles") : phase === "loading" ? t("readingSubtitlesClickToStopTranslation") : phase === "error" ? t("subtitlesNeedARetryClickToStopTranslation") : phase === "waiting" ? t("waitingForSourceSubtitlesClickToStopTranslation") : this.hasTranslation ? t("enabledClickToStopSubtitleTranslation", this.showOriginal ? t("bilingualSubtitles") : t("translationOnly")) : t("translatingSubtitlesClickToStop");
     this.toggle.setAttribute("aria-label", this.toggle.title);
     this.setText(this.status, message); this.retry.hidden = !enabled || !["waiting", "error"].includes(phase);
   }
@@ -337,7 +339,7 @@ export class VideoView {
 
   tracks(tracks: Array<{ id: string; label: string }>, selected = "auto"): void {
     const select = this.root.querySelector<HTMLSelectElement>(".track")!;
-    select.replaceChildren(new Option("跟随播放器", "auto"), ...tracks.map(track => new Option(track.label, track.id)));
+    select.replaceChildren(new Option(t("followPlayer"), "auto"), ...tracks.map(track => new Option(track.label, track.id)));
     select.value = [...select.options].some(option => option.value === selected) ? selected : "auto";
   }
 
@@ -359,8 +361,8 @@ export class VideoView {
   }
 
   private updateMark(): void {
-    this.setText(this.mark, this.hasTranslation && this.host.hasAttribute("data-enabled") ? (this.showOriginal ? "双" : "单") : "译");
-    this.caption.setAttribute("aria-label", this.showOriginal ? "双语字幕" : "译文字幕");
+    this.setText(this.mark, this.hasTranslation && this.host.hasAttribute("data-enabled") ? (this.showOriginal ? t("bilingualSubtitleBadge") : t("singleSubtitleBadge")) : t("translateBadge"));
+    this.caption.setAttribute("aria-label", this.showOriginal ? t("bilingualSubtitles") : t("translatedSubtitles"));
   }
 
   tell(message: string): void {

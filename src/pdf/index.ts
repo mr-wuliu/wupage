@@ -1,3 +1,4 @@
+import { initializeInterfaceLanguage, localizeDocument, t } from "../shared/i18n";
 import { anySignal } from "../shared/abort";
 import {
   GlobalWorkerOptions,
@@ -48,6 +49,8 @@ import { findReadingPage, selectPdfTranslationPages } from "./scheduling";
 import { PdfTranslationQueue, type PdfQueuePage, type PdfQueuePageStatus } from "./translation-queue";
 import "./styles.css";
 
+await initializeInterfaceLanguage();
+localizeDocument(document);
 renderUiIcons();
 document.documentElement.style.setProperty("--wp-select-arrow", uiIconUrl("arrow-down-03", "#edf5f1"));
 
@@ -204,7 +207,7 @@ function bindEvents(): void {
     const file = event.dataTransfer?.files[0];
     if (!file) return;
     if (!isPdfFile(file)) {
-      showStatus("请选择 PDF 文件。", "error");
+      showStatus(t("chooseAPdfFile"), "error");
       return;
     }
     void openLocalPdf(file);
@@ -254,16 +257,16 @@ function onReaderSettingsChange(): void {
     translateButton.disabled = false;
     updateDownloadButtonState();
     session.followReading = false;
-    for (const number of session.queue.activePages) renderPageError(pageStates[number - 1], new Error("翻译设置已更改，请点击翻译按钮重新开始。"));
+    for (const number of session.queue.activePages) renderPageError(pageStates[number - 1], new Error(t("translationSettingsChangedChooseTranslateToStartAgain")));
     progressBar.style.width = "0%";
-    showStatus("翻译设置已更改，请点击翻译按钮重新开始。", "info");
+    showStatus(t("translationSettingsChangedChooseTranslateToStartAgain"), "info");
   }
   void saveReaderSettings();
 }
 
 async function openLocalPdf(file: File): Promise<void> {
   if (!isPdfFile(file)) {
-    showStatus("请选择 PDF 文件。", "error");
+    showStatus(t("chooseAPdfFile"), "error");
     return;
   }
   const operation = beginOpen();
@@ -292,12 +295,12 @@ async function openPdfUrl(value: string, autoTranslate: boolean, operation: Abor
   try {
     url = new URL(value);
   } catch {
-    showStatus("PDF 地址格式不正确。", "error");
+    showStatus(t("invalidPdfAddress"), "error");
     return false;
   }
   const local = url.protocol === "file:";
   if (!local && url.protocol !== "http:" && url.protocol !== "https:") {
-    showStatus("PDF 地址仅支持 HTTP、HTTPS 或本地 file 文件地址。", "error");
+    showStatus(t("useAnHttpHttpsOrLocalFileUrl"), "error");
     return false;
   }
 
@@ -309,24 +312,24 @@ async function openPdfUrl(value: string, autoTranslate: boolean, operation: Abor
     if (!fileAccess) {
       fileAccessNotice.hidden = false;
       fileAccessSettingsButton.hidden = !hasExtensionRuntime();
-      showStatus("请允许访问文件网址后重试，或直接选择这份 PDF 文件。", "info", true);
+      showStatus(t("allowAccessToFileUrlsAndTryAgain"), "info", true);
       return false;
     }
-    showLoading(local ? "正在读取本地 PDF" : "正在下载 PDF", local ? "正在读取本地文档…" : "正在读取在线文档…");
+    showLoading(local ? t("readingLocalPdf") : t("downloadingPdf"), local ? t("readingLocalDocument") : t("readingOnlineDocument"));
     assertCurrentOpen(operation);
     const response = await fetchWithTimeout(url.toString(), PDF_DOWNLOAD_TIMEOUT_MS, operation.signal);
-    if (!response.ok) throw new Error(`读取失败（HTTP ${response.status}）`);
+    if (!response.ok) throw new Error(t("couldNotReadFileHttp", response.status));
     const contentType = response.headers.get("content-type") ?? "";
     if (contentType && !contentType.includes("pdf") && !url.pathname.toLowerCase().endsWith(".pdf")) {
-      throw new Error("该地址返回的内容不是 PDF 文件。");
+      throw new Error(t("theAddressDidNotReturnAPdfFile"));
     }
-    const rawName = url.pathname.split("/").pop() || (local ? "本地文档.pdf" : "在线文档.pdf");
+    const rawName = url.pathname.split("/").pop() || (local ? t("localDocumentPdf") : t("onlineDocumentPdf"));
     let name = rawName;
     try { name = decodeURIComponent(rawName); } catch { /* Literal percent signs are valid in remote file names. */ }
     const data = await withTimeout(
       response.arrayBuffer(),
       PDF_DOWNLOAD_TIMEOUT_MS,
-      "PDF 文件读取"
+      t("readingThePdfFile")
     );
     assertCurrentOpen(operation);
     await loadPdf(data, name, autoTranslate, operation);
@@ -341,7 +344,7 @@ async function loadPdf(data: ArrayBuffer, name: string, autoTranslate: boolean, 
   assertCurrentOpen(operation);
   fontControl.cancel();
   fileAccessNotice.hidden = true;
-  showLoading("正在打开 PDF", "正在读取文档结构…");
+  showLoading(t("openingPdf"), t("readingDocumentStructure"));
   translationRun += 1;
   cancelTranslationSession();
   translateButton.classList.remove("is-loading");
@@ -367,7 +370,7 @@ async function loadPdf(data: ArrayBuffer, name: string, autoTranslate: boolean, 
   pdfLoadingTask = task;
   let documentProxy: PDFDocumentProxy;
   try {
-    documentProxy = await withTimeout(task.promise, PDF_OPEN_TIMEOUT_MS, "PDF 解析");
+    documentProxy = await withTimeout(task.promise, PDF_OPEN_TIMEOUT_MS, t("pdfParsing"));
     assertCurrentOpen(operation);
   } catch (error) {
     await task.destroy();
@@ -430,14 +433,14 @@ async function loadPdf(data: ArrayBuffer, name: string, autoTranslate: boolean, 
         textContent: { ...textContent, items: visibleItems }
       };
       parsedCount += 1;
-      loadingDetail.textContent = `正在解析第 ${parsedCount} / ${documentProxy.numPages} 页`;
+      loadingDetail.textContent = t("parsingPageOf", parsedCount, documentProxy.numPages);
     }
   }
   try {
     await withTimeout(
       Promise.all(Array.from({ length: Math.min(4, documentProxy.numPages) }, () => parseWorker())),
       Math.min(300_000, Math.max(60_000, documentProxy.numPages * 2_000)),
-      "PDF 文本提取"
+      t("pdfTextExtraction")
     );
     assertCurrentOpen(operation);
   } catch (error) {
@@ -474,8 +477,8 @@ async function loadPdf(data: ArrayBuffer, name: string, autoTranslate: boolean, 
   } else {
     showStatus(
       hasTranslatableText
-        ? `文档已打开，点击“${translateButton.textContent?.trim()}”开始翻译。`
-        : "未检测到可翻译文字，这可能是一份扫描版 PDF。",
+        ? t("documentOpenChooseToStartTranslating", translateButton.textContent?.trim())
+        : t("noTranslatableTextFoundThisMayBeA"),
       hasTranslatableText ? "success" : "error"
     );
   }
@@ -494,40 +497,40 @@ function createPageState(
 
   const originalPanel = document.createElement("section");
   originalPanel.className = "page-panel original-panel";
-  originalPanel.setAttribute("aria-label", `原文第 ${pageNumber} 页`);
+  originalPanel.setAttribute("aria-label", t("originalPage", pageNumber));
   const canvasShell = document.createElement("div");
   canvasShell.className = "canvas-shell";
   canvasShell.style.aspectRatio = `${viewport.width} / ${viewport.height}`;
   const canvas = document.createElement("canvas");
-  canvas.setAttribute("aria-label", `PDF 第 ${pageNumber} 页`);
+  canvas.setAttribute("aria-label", t("pdfPage", pageNumber));
   const originalTextLayer = document.createElement("div");
   originalTextLayer.className = "textLayer original-text-layer";
-  originalTextLayer.setAttribute("aria-label", `第 ${pageNumber} 页原文文字层`);
+  originalTextLayer.setAttribute("aria-label", t("originalTextLayerForPage", pageNumber));
   canvasShell.append(canvas, originalTextLayer);
   originalPanel.append(canvasShell);
 
   const translatedPanel = document.createElement("section");
   translatedPanel.className = "page-panel translated-panel";
-  translatedPanel.setAttribute("aria-label", `译文第 ${pageNumber} 页`);
+  translatedPanel.setAttribute("aria-label", t("translatedPage", pageNumber));
   const translatedCanvasShell = document.createElement("div");
   translatedCanvasShell.className = "canvas-shell translation-canvas-shell is-pending";
   translatedCanvasShell.style.aspectRatio = `${viewport.width} / ${viewport.height}`;
   const translatedCanvas = document.createElement("canvas");
-  translatedCanvas.setAttribute("aria-label", `PDF 译文第 ${pageNumber} 页`);
+  translatedCanvas.setAttribute("aria-label", t("pdfTranslationPage", pageNumber));
   const translatedBaseCanvas = document.createElement("canvas");
   const translationLayer = document.createElement("div");
   translationLayer.className = "translation-text-layer";
-  translationLayer.setAttribute("aria-label", `第 ${pageNumber} 页可编辑译文`);
+  translationLayer.setAttribute("aria-label", t("editableTranslationForPage", pageNumber));
   const translationViewport = document.createElement("div");
   translationViewport.className = "translation-layer-viewport";
   translationViewport.append(translationLayer);
   const prompt = document.createElement("p");
   prompt.className = "translation-prompt";
-  prompt.textContent = blocks.length ? "此页尚未翻译；开始翻译后，滚动会自动补译附近页面。" : "此页未检测到可翻译文字";
+  prompt.textContent = blocks.length ? t("thisPageHasNotBeenTranslatedStartTranslation") : t("noTranslatableTextFoundOnThisPage");
   const retryButton = document.createElement("button");
   retryButton.className = "translation-retry";
-  retryButton.textContent = "补译未完成段落";
-  retryButton.setAttribute("aria-label", `重试第 ${pageNumber} 页未完成段落`);
+  retryButton.textContent = t("retryUnfinishedParagraphs");
+  retryButton.setAttribute("aria-label", t("retryUnfinishedParagraphsOnPage", pageNumber));
   retryButton.hidden = true;
   retryButton.addEventListener("click", () => {
     const session = translationSession;
@@ -893,11 +896,11 @@ function getReadingPageNumber(): number {
 
 function updateTranslationScopeControl(): void {
   const radius = settings.pdfTranslationPageRadius;
-  translateButton.querySelector("span")!.textContent = radius === null ? "翻译全文" : "翻译附近页面";
-  translateButton.title = radius === null ? "翻译整份 PDF" : radius === 0
-    ? "仅翻译当前页，滚动后自动补译；在扩展设置中调整翻译范围"
-    : `翻译当前页及前后各 ${radius} 页，滚动后自动补译；在扩展设置中调整翻译范围`;
-  if (pdfDocument) documentMeta.textContent = `${pdfDocument.numPages} 页 · ${radius === null ? "全文" : `前后各 ${radius} 页`}`;
+  translateButton.querySelector("span")!.textContent = radius === null ? t("translatePage") : t("translateNearbyPages");
+  translateButton.title = radius === null ? t("translateEntirePdf") : radius === 0
+    ? t("translateThisPageAndContinueAsYouScroll")
+    : t("translateThisPageAndPagesOnEachSide", radius);
+  if (pdfDocument) documentMeta.textContent = t("documentPageCount", pdfDocument.numPages, radius === null ? t("entireDocument") : t("pagesOnEachSide", radius));
 }
 
 function cancelTranslationSession(): void {
@@ -926,7 +929,7 @@ async function translateDocument(forDownload = false): Promise<PdfTranslationSes
     translateButton.classList.remove("is-loading");
     updateDownloadButtonState();
     if (forDownload) throw error;
-    showStatus(`无法开始翻译：${formatTranslationError(error)}`, "error");
+    showStatus(t("couldNotStartTranslation", formatTranslationError(error)), "error");
     return;
   }
   if (runId !== translationRun) return;
@@ -1076,13 +1079,13 @@ function pumpTranslationQueue(session: PdfTranslationSession): void {
     const total = scope.reduce((sum, status) => sum + status.total, 0);
     const completed = scope.reduce((sum, status) => sum + status.completed, 0);
     progressBar.style.width = `${Math.round(completed / Math.max(1, total) * 100)}%`;
-    const label = session.radius === null ? "全文"
-      : `第 ${session.scopePages[0].pageNumber}–${session.scopePages.at(-1)!.pageNumber} 页`;
+    const label = session.radius === null ? t("entireDocument")
+      : t("documentPageRange", session.scopePages[0].pageNumber, session.scopePages.at(-1)!.pageNumber);
     if (session.pauseError) {
-      showStatus(`翻译已暂停：${formatTranslationError(session.pauseError)} 正在等待已发出的 ${session.queue.activeCount} 个请求结束，随后可点击翻译按钮重试。`, "error", true);
+      showStatus(t("translationPausedWaitingForPendingRequestsToFinish", formatTranslationError(session.pauseError), session.queue.activeCount), "error", true);
     } else {
-      const action = session.forDownload ? "下载前正在补全翻译" : "正在翻译";
-      showStatus(`${action}${label}：${completed} / ${total} 段…`, "info", true);
+      const action = session.forDownload ? t("finishingTranslationBeforeDownload") : t("pdfTranslating");
+      showStatus(t("paragraphs", action, label, completed, total), "info", true);
     }
   } else if (session.busy) {
     finishTranslationBatch(session);
@@ -1097,14 +1100,14 @@ function finishTranslationBatch(session: PdfTranslationSession): void {
   session.resolveFinished();
   if (session.forDownload) return;
   if (session.pauseError) {
-    showStatus(`翻译已暂停：${formatTranslationError(session.pauseError)} 已完成 ${session.translated} 段，处理后可直接点击翻译按钮重试。`, "error", true);
+    showStatus(t("translationPausedCompletedParagraphsResolveTheIssueAnd", formatTranslationError(session.pauseError), session.translated), "error", true);
   } else if (session.failedPages) {
     const remaining = session.scopePages.reduce((sum, page) => sum + (page.translationProgress
       ? page.translationProgress.total - page.translationProgress.completed : 0), 0);
-    showStatus(`翻译完成：${session.translated} 段成功，${remaining} 段失败（${session.failedPages} 页）；已完成译文已保留，可补译未完成段落。`, "error");
+    showStatus(t("translationFinishedSuccessfulParagraphsFailedAcrossPagesCompleted", session.translated, remaining, session.failedPages), "error");
   } else {
-    const detail = session.radius === null || !session.followReading ? "" : "滚动后自动补译附近尚未翻译的页面。";
-    showStatus(`翻译完成：${session.translated} 段译文，缓存命中 ${session.cached} 段。${detail}`, "success");
+    const detail = session.radius === null || !session.followReading ? "" : t("scrollToTranslateNearbyPagesAutomatically");
+    showStatus(t("translationCompleteParagraphsCacheHits", session.translated, session.cached, detail), "success");
   }
   window.setTimeout(() => {
     if (translationSession === session && !session.busy) progressBar.style.width = "0%";
@@ -1120,13 +1123,13 @@ function updatePartialPageStatus(page: PdfPageState): void {
   page.translatedCanvasShell.className = `canvas-shell translation-canvas-shell ${visible ? "is-rendered is-partial" : "is-pending"}`
     + (status.running ? " is-loading" : "") + (status.error ? " has-error" : "");
   if (!partial) page.translationLayer.replaceChildren();
-  const progress = `已翻译 ${status.completed} / ${status.total} 段`;
+  const progress = t("translatedParagraphs", status.completed, status.total);
   page.translationPrompt.hidden = false;
   page.translationPrompt.textContent = status.error
-    ? `${progress}；未完成段落翻译失败：${formatTranslationError(status.error)}${partial ? " 已完成译文已保留。" : ""}`
-    : status.retrying ? `${progress}；连接中断，正在重试未完成的段落…`
-    : status.running ? `${progress}；正在翻译本页…`
-    : `${progress}；本页排队中，优先翻译正在阅读的页面。`;
+    ? t("remainingParagraphsFailed", progress, formatTranslationError(status.error), partial ? t("completedTranslationsWereKept") : "")
+    : status.retrying ? t("connectionInterruptedRetryingUnfinishedParagraphs", progress)
+    : status.running ? t("translatingThisPage", progress)
+    : t("pageQueuedVisiblePagesAreTranslatedFirst", progress);
 }
 
 function renderPageTranslations(page: PdfPageState, translations: string[], context: string): void {
@@ -1140,7 +1143,7 @@ function renderPageTranslations(page: PdfPageState, translations: string[], cont
     // completed offscreen page displaying the old spinner or failure state.
     page.translatedCanvasShell.className = "canvas-shell translation-canvas-shell is-pending";
     page.translationPrompt.hidden = false;
-    page.translationPrompt.textContent = "译文已就绪，滚动到本页后显示。";
+    page.translationPrompt.textContent = t("translationReadyScrollToThisPageToView");
   }
 }
 
@@ -1151,7 +1154,7 @@ async function downloadTranslatedDocument(): Promise<void> {
   downloadButton.disabled = true;
   downloadButton.classList.add("is-loading");
   fontControl.setExporting(true);
-  downloadButton.textContent = "选择导出方式…";
+  downloadButton.textContent = t("chooseExportFormat");
   sourceLang.disabled = targetLang.disabled = provider.disabled = true;
   enhanceProviderSelect(provider, settings.providers);
   progressBar.style.width = "0%";
@@ -1160,7 +1163,7 @@ async function downloadTranslatedDocument(): Promise<void> {
   try {
     const choice = await fontControl.prepareExport();
     if (!choice || pdfDocument !== documentProxy) return;
-    downloadButton.textContent = "正在翻译…";
+    downloadButton.textContent = t("translationInProgress");
     const session = await translateDocument(true);
     if (!session || pdfDocument !== documentProxy) return;
     await session.finished;
@@ -1169,9 +1172,9 @@ async function downloadTranslatedDocument(): Promise<void> {
     const incompletePages = pageStates.filter((page) => page.blocks.some((block) => block.translatable)
       && (!page.translations || page.translationContext !== session.context || session.failed.has(page)));
     if (incompletePages.length) {
-      throw new Error(`${incompletePages.length} 页未完成翻译，请再次点击“下载译文”重试。`);
+      throw new Error(t("untranslatedPagesChooseDownloadTranslationAgainToRetry", incompletePages.length));
     }
-    downloadButton.textContent = "正在生成…";
+    downloadButton.textContent = t("generating");
     for (let index = 0; index < pageStates.length; index += 1) {
       const page = pageStates[index];
       if (!renderedPages.has(page.pageNumber)) await renderPdfPage(page);
@@ -1191,7 +1194,7 @@ async function downloadTranslatedDocument(): Promise<void> {
       });
       const percentage = Math.round(((index + 1) / pageStates.length) * 85);
       progressBar.style.width = `${percentage}%`;
-      showStatus(`正在生成译文 PDF：${index + 1} / ${pageStates.length} 页…`, "info", true);
+      showStatus(t("generatingTranslatedPdfPageOf", index + 1, pageStates.length), "info", true);
     }
 
     const fileName = translatedPdfFileName(currentDocumentName);
@@ -1200,13 +1203,13 @@ async function downloadTranslatedDocument(): Promise<void> {
     if (translationSession !== session || pdfDocument !== documentProxy) return;
     progressBar.style.width = "100%";
     downloadPdfBytes(bytes, fileName);
-    showStatus(`译文 PDF 已生成：${fileName}`, "success");
+    showStatus(t("translatedPdfReady", fileName), "success");
   } catch (error) {
-    showStatus(`下载失败：${error instanceof Error ? error.message : String(error)}`, "error");
+    showStatus(t("downloadFailed", error instanceof Error ? error.message : String(error)), "error");
   } finally {
     fontControl.setExporting(false);
     downloadButton.classList.remove("is-loading");
-    downloadButton.textContent = "下载译文";
+    downloadButton.textContent = t("downloadTranslation");
     sourceLang.disabled = targetLang.disabled = provider.disabled = false;
     enhanceProviderSelect(provider, settings.providers);
     translateButton.disabled = Boolean(translationSession?.busy)
@@ -1243,16 +1246,16 @@ function renderPageError(page: PdfPageState, error: unknown): void {
   page.translatedCanvasShell.className = "canvas-shell translation-canvas-shell has-error";
   page.translationLayer.replaceChildren();
   page.translationPrompt.hidden = false;
-  page.translationPrompt.textContent = `本页翻译失败：${formatTranslationError(error)}`;
+  page.translationPrompt.textContent = t("pageTranslationFailed", formatTranslationError(error));
 }
 
 function formatTranslationError(error: unknown): string {
   const message = error instanceof Error ? error.message : String(error);
   if (/translation response was interrupted|translation request timed out|cannot connect to the translation service/iu.test(message)) {
-    return "翻译服务连接中断或响应超时，请稍后重试。";
+    return t("translationServiceDisconnectedOrTimedOutTryAgain");
   }
   if (provider.value === "google-web-translate" && /timed out|timeout|超时/iu.test(message)) {
-    return "Google Web Translate 连接超时。该免密服务在部分网络中不稳定，请重试或在顶部切换其他翻译服务。";
+    return t("googleWebTranslateTimedOutThisFreeService");
   }
   return message;
 }
@@ -1307,7 +1310,7 @@ function updateDoubaoControls(): void {
     description.dataset.role = "doubao-description";
     const settingsButton = document.createElement("button");
     settingsButton.type = "button";
-    settingsButton.textContent = "登录与检测";
+    settingsButton.textContent = t("signInAndCheck");
     settingsButton.addEventListener("click", () => {
       void sendRuntimeMessage({ type: "OPEN_OPTIONS_PAGE" }).catch((error: unknown) => showStatus(error instanceof Error ? error.message : String(error), "error"));
     });
@@ -1352,7 +1355,7 @@ function hideLoading(): void {
 function handleOpenError(error: unknown): void {
   hideLoading();
   const message = error instanceof Error ? error.message : String(error);
-  showStatus(`无法打开 PDF：${message}`, "error");
+  showStatus(t("couldNotOpenPdf", message), "error");
 }
 
 function showStatus(
@@ -1374,7 +1377,7 @@ function isPdfFile(file: File): boolean {
 }
 
 function cleanFileName(name: string): string {
-  const normalized = name.trim() || "未命名文档.pdf";
+  const normalized = name.trim() || t("untitledDocumentPdf");
   return normalized.length > 64 ? `${normalized.slice(0, 61)}…` : normalized;
 }
 
@@ -1388,7 +1391,7 @@ async function fetchWithTimeout(url: string, timeoutMs: number, source: AbortSig
     return await fetch(url, { signal });
   } catch (error) {
     if (signal.reason instanceof DOMException && signal.reason.name === "TimeoutError") {
-      throw new Error(`PDF 下载超过 ${Math.round(timeoutMs / 1000)} 秒，请检查网络或改用本地文件。`);
+      throw new Error(t("pdfDownloadExceededSecondsCheckYourConnectionOr", Math.round(timeoutMs / 1000)));
     }
     throw error;
   }
@@ -1398,7 +1401,7 @@ async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: str
   let timer: number | undefined;
   const timeout = new Promise<never>((_, reject) => {
     timer = window.setTimeout(
-      () => reject(new Error(`${label}超过 ${Math.round(timeoutMs / 1000)} 秒，任务已停止。`)),
+      () => reject(new Error(t("exceededSecondsTheTaskWasStopped", label, Math.round(timeoutMs / 1000)))),
       timeoutMs
     );
   });

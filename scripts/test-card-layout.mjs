@@ -110,7 +110,7 @@ try {
     ...(target.kind === "edge" || process.env.CHROME_TEST_BROWSER ? target.chromiumOptions
       : process.env.PDF_TEST_BROWSER ? { executablePath: process.env.PDF_TEST_BROWSER } : target.chromiumOptions),
     headless: true, ignoreDefaultArgs: ["--disable-extensions"],
-    args: target.kind === "edge" || process.env.CHROME_TEST_BROWSER ? ["--enable-unsafe-extension-debugging"] : [`--load-extension=${path.join(root, "dist")}`],
+    args: target.kind === "edge" || process.env.CHROME_TEST_BROWSER ? ['--lang=zh-CN', "--enable-unsafe-extension-debugging"] : ['--lang=zh-CN', `--load-extension=${path.join(root, "dist")}`],
     viewport: { width: 1000, height: 900 }
   });
   if (target.kind === "edge" || process.env.CHROME_TEST_BROWSER) {

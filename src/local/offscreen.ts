@@ -1,3 +1,4 @@
+import { initializeInterfaceLanguage, t } from "../shared/i18n";
 import { LocalTranslationEngine } from "./engine";
 import { downloadLocalModel, localModelStates, removeLocalModel } from "./model-store";
 import { getLocalModel, getLocalRoute, type LocalModelStatus } from "./models";
@@ -24,14 +25,14 @@ async function handle(action: string, data?: unknown): Promise<unknown> {
   if (action === "status") return status();
   if (action === "install") {
     const model = getLocalModel(String(data));
-    if (download) throw new Error("已有模型正在下载，可先暂停后再切换语言模型。");
+    if (download) throw new Error(t("aModelIsDownloadingPauseItBeforeSwitching"));
     const controller = new AbortController();
     const job = { id: model.id, controller, downloaded: 0, settled: Promise.resolve() };
     download = job;
     lastError = undefined;
     job.settled = withInferenceLifetime(() => downloadLocalModel(model.id, controller.signal, (bytes) => { job.downloaded = bytes; }))
       .catch((error: unknown) => {
-        if (!controller.signal.aborted) lastError = { id: model.id, message: `${error instanceof Error ? error.message : String(error)} 已保留完成的数据，可重试或离线导入。` };
+        if (!controller.signal.aborted) lastError = { id: model.id, message: t("downloadedDataWasKeptRetryOrImportOffline", error instanceof Error ? error.message : String(error)) };
       }).finally(() => { if (download === job) download = undefined; });
     return status();
   }
@@ -42,7 +43,7 @@ async function handle(action: string, data?: unknown): Promise<unknown> {
     return status();
   }
   if (action === "remove") {
-    if (download || translating) throw new Error("请先暂停下载并等待翻译结束，再删除模型。");
+    if (download || translating) throw new Error(t("pauseTheDownloadAndWaitForTranslationTo"));
     getLocalModel(String(data));
     engine.release();
     await removeLocalModel(String(data));
@@ -55,7 +56,7 @@ async function handle(action: string, data?: unknown): Promise<unknown> {
     if (!route.length) return request.texts;
     const states = await localModelStates();
     const missing = route.filter((model) => !states.some((entry) => entry.id === model.id && entry.state === "ready"));
-    if (missing.length) throw new Error(`请先在设置中下载或导入「${missing.map((model) => model.label).join("、")}」模型。下载完成后即可离线使用。`);
+    if (missing.length) throw new Error(t("downloadOrImportTheModelInSettingsIt", missing.map((model) => model.label).join("、")));
     translating++;
     clearTimeout(idleTimer);
     const task = queue.then(() => engine.translate(route, request.texts));
@@ -66,12 +67,12 @@ async function handle(action: string, data?: unknown): Promise<unknown> {
       if (!translating) idleTimer = setTimeout(() => engine.release(), 60_000);
     }
   }
-  throw new Error("未知本地模型操作。");
+  throw new Error(t("unknownLocalModelOperation"));
 }
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request?.target !== "bergamot-offscreen" || sender.id !== chrome.runtime.id || sender.tab) return;
-  void handle(request.action, request.data).then(
+  void initializeInterfaceLanguage().then(() => handle(request.action, request.data)).then(
     (data) => sendResponse({ ok: true, data }),
     (error: unknown) => sendResponse({ ok: false, error: error instanceof Error ? error.message : String(error) })
   );

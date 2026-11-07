@@ -22,18 +22,20 @@ afterEach(() => vi.unstubAllGlobals());
 
 describe("image context menu", () => {
   it("registers an image-only menu without duplicating it on worker restart", async () => {
-    initImageContextMenu(); await Promise.resolve();
-    expect(chrome.contextMenus.update).toHaveBeenCalledWith(IMAGE_MENU_ID, expect.objectContaining({ contexts: ["image"], documentUrlPatterns: ["http://*/*", "https://*/*"] }), expect.any(Function));
-    expect(chrome.contextMenus.create).not.toHaveBeenCalled();
+    initImageContextMenu();
     expect(chrome.contextMenus.onClicked.addListener).toHaveBeenCalledTimes(1);
+    await vi.waitFor(() => expect(chrome.contextMenus.update).toHaveBeenCalledWith(IMAGE_MENU_ID, expect.objectContaining({
+      contexts: ["image"], documentUrlPatterns: ["http://*/*", "https://*/*"]
+    }), expect.any(Function)));
+    expect(chrome.contextMenus.create).not.toHaveBeenCalled();
     vi.mocked(chrome.contextMenus.update).mockImplementationOnce((_id, _properties, callback) => {
       Object.assign(chrome.runtime, { lastError: { message: "missing" } });
       callback?.();
       Reflect.deleteProperty(chrome.runtime, "lastError");
       return undefined as never;
     });
-    initImageContextMenu(); await Promise.resolve();
-    expect(chrome.contextMenus.create).toHaveBeenCalledWith(expect.objectContaining({ id: IMAGE_MENU_ID }), expect.any(Function));
+    initImageContextMenu();
+    await vi.waitFor(() => expect(chrome.contextMenus.create).toHaveBeenCalledWith(expect.objectContaining({ id: IMAGE_MENU_ID }), expect.any(Function)));
   });
   it("routes the exact source URL to the clicked tab and frame", async () => {
     await handleImageMenuClick(info, tab);

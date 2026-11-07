@@ -35,7 +35,7 @@ let context;
 try {
   context = await chromium.launchPersistentContext(path.join(output, `profile-${Date.now()}`), {
     ...(process.env.PDF_TEST_BROWSER ? { executablePath: process.env.PDF_TEST_BROWSER } : { channel: 'chromium' }),
-    headless: true, ignoreDefaultArgs: ['--disable-extensions'], args: ['--enable-unsafe-extension-debugging'],
+    headless: true, ignoreDefaultArgs: ['--disable-extensions'], args: ['--lang=zh-CN', '--enable-unsafe-extension-debugging'],
     viewport: { width: 1440, height: 1040 }, colorScheme: 'light'
   });
   context.on('page', page => page.on('pageerror', error => errors.push(error.message)));

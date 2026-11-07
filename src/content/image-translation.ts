@@ -1,3 +1,4 @@
+import { t } from "../shared/i18n";
 import type { ExtensionSettings, ImageTextRegion, TranslateImageResponse } from "../shared/types";
 import { SETTINGS_KEY } from "../shared/defaults";
 import { hasRuntimeContext, sendRuntimeRequest } from "./runtime";
@@ -185,8 +186,8 @@ function createEntry(image: HTMLImageElement): ImageEntry {
     existing.generation += 1; existing.button.remove(); existing.status.remove(); existing.canvas?.remove();
   }
   const button = document.createElement("button");
-  button.type = "button"; button.textContent = "译"; button.title = "翻译图片文字并覆盖原文";
-  button.setAttribute("aria-label", "翻译图片"); button.setAttribute("aria-pressed", "false");
+  button.type = "button"; button.textContent = t("translateBadge"); button.title = t("translateImageTextAndOverlayTheOriginal");
+  button.setAttribute("aria-label", t("translateImage")); button.setAttribute("aria-pressed", "false");
   const status = document.createElement("div"); status.className = "status"; status.setAttribute("role", "status"); status.hidden = true;
   const entry: ImageEntry = { image, source: imageSource(image), button, status, busy: false, showing: false, generation: 0 };
   button.addEventListener("click", (event) => { event.preventDefault(); event.stopPropagation(); void translateImage(entry); });
@@ -204,11 +205,11 @@ export async function translateContextImage(srcUrl: string): Promise<{ started: 
   try {
     const selected = contextTarget;
     const settings = await sendRuntimeRequest<ExtensionSettings>({ type: "GET_SETTINGS" });
-    if (!settings.imageTranslationEnabled) throw new Error("请先在 WuPage 设置中安装 OCR 模型并开启图片翻译。");
+    if (!settings.imageTranslationEnabled) throw new Error(t("installOcrModelsAndEnableImageTranslationIn"));
     setImageTranslationEnabled(true);
     let image: HTMLImageElement | undefined;
     if (selected && (selected.source === srcUrl || selected.image.src === srcUrl)) {
-      if (!selected.image.isConnected || imageSource(selected.image) !== selected.source) throw new Error("这张图片已变化，请重新右键点击图片。");
+      if (!selected.image.isConnected || imageSource(selected.image) !== selected.source) throw new Error(t("theImageHasChangedRightClickItAgain"));
       image = selected.image;
     } else {
       const candidates = Array.from(document.images).filter((candidate) => {
@@ -217,12 +218,12 @@ export async function translateContextImage(srcUrl: string): Promise<{ started: 
         return rect.width > 0 && rect.height > 0 && rect.right > 0 && rect.bottom > 0
           && rect.left < window.innerWidth && rect.top < window.innerHeight;
       });
-      if (candidates.length > 1) throw new Error("页面中有多张相同图片，请重新右键点击需要翻译的那一张。");
+      if (candidates.length > 1) throw new Error(t("multipleIdenticalImagesFoundRightClickTheOne"));
       image = candidates[0];
     }
-    if (!image) throw new Error("未找到这张图片，请等待图片加载完成后重新右键翻译。");
-    if (isNonProseElement(image) || isTranslationOptedOut(image)) throw new Error("此图片位于编辑区或禁止翻译区域。");
-    if (!image.complete || !image.naturalWidth) throw new Error("图片尚未加载完成，请稍后重试。");
+    if (!image) throw new Error(t("imageNotFoundLetItLoadThenRight"));
+    if (isNonProseElement(image) || isTranslationOptedOut(image)) throw new Error(t("thisImageIsInAnEditorOrAn"));
+    if (!image.complete || !image.naturalWidth) throw new Error(t("theImageIsStillLoadingTryAgainShortly"));
     const entry = createEntry(image);
     entry.manual = true;
     entry.presentation = imagePresentation(image);
@@ -235,7 +236,7 @@ export async function translateContextImage(srcUrl: string): Promise<{ started: 
     else void translateImage(entry);
     return { started: true };
   } catch (error) {
-    showContextNotice(error instanceof Error ? error.message : "图片翻译失败，请重试。");
+    showContextNotice(error instanceof Error ? error.message : t("imageTranslationFailedTryAgain"));
     return { started: false };
   }
 }
@@ -438,7 +439,7 @@ async function translateImage(entry: ImageEntry): Promise<void> {
     && imageSource(entry.image) === entry.source && entries.get(entry.image) === entry
     && !isNonProseElement(entry.image) && !isTranslationOptedOut(entry.image);
   entry.busy = true; entry.button.disabled = true; entry.button.textContent = "…";
-  entry.status.textContent = "正在识别并翻译图片文字…"; updateLayout();
+  entry.status.textContent = t("recognizingAndTranslatingImageText"); updateLayout();
   try {
     const { canvas: source, image: renderSource } = await readImage(entry.image, entry.presentation);
     if (!current()) return;
@@ -447,7 +448,7 @@ async function translateImage(entry: ImageEntry): Promise<void> {
       sourceText: entry.image.alt.trim().slice(0, 12000) || undefined });
     if (!current()) return;
     if (!result.regions.length) {
-      entry.status.textContent = result.warning ?? "未能可靠识别需要翻译的文字。";
+      entry.status.textContent = result.warning ?? t("couldNotReliablyIdentifyTextToTranslate");
       return;
     }
     const canvas = document.createElement("canvas"); canvas.width = source.width; canvas.height = source.height;
@@ -457,15 +458,15 @@ async function translateImage(entry: ImageEntry): Promise<void> {
     entry.canvas = canvas; entry.showing = true; root!.prepend(canvas);
     entry.status.textContent = result.warning ?? "";
   } catch (error) {
-    if (current()) entry.status.textContent = error instanceof Error ? error.message : "图片翻译失败，请重试。";
+    if (current()) entry.status.textContent = error instanceof Error ? error.message : t("imageTranslationFailedTryAgain");
   } finally {
     if (current()) { entry.busy = false; entry.button.disabled = false; updateButton(entry); updateLayout(); }
   }
 }
 
 function updateButton(entry: ImageEntry): void {
-  entry.button.textContent = entry.showing ? "原" : "译";
-  entry.button.title = entry.showing ? "显示原图" : entry.canvas ? "显示图片译文" : "翻译图片文字并覆盖原文";
+  entry.button.textContent = entry.showing ? t("originalBadge") : t("translateBadge");
+  entry.button.title = entry.showing ? t("showOriginalImage") : entry.canvas ? t("showTranslatedImage") : t("translateImageTextAndOverlayTheOriginal");
   entry.button.setAttribute("aria-label", entry.button.title);
   entry.button.setAttribute("aria-pressed", String(entry.showing));
 }
@@ -477,14 +478,14 @@ async function readImage(image: HTMLImageElement, presentation?: HTMLElement): P
     const canvas = document.createElement("canvas");
     canvas.width = size.width; canvas.height = size.height;
     const context = canvas.getContext("2d");
-    if (!context) throw new Error("浏览器无法读取图片。");
+    if (!context) throw new Error(t("theBrowserCannotReadThisImage"));
     context.drawImage(source, 0, 0, canvas.width, canvas.height);
     canvas.toDataURL("image/png"); // Detect cross-origin canvas restrictions.
     return canvas;
   };
   try { return { canvas: draw(image), image }; } catch { /* Fetch a readable copy without changing the page image. */ }
   const url = imageSource(image);
-  if (!/^https?:/i.test(url)) throw new Error("此图片无法读取，请在普通网页图片上重试。");
+  if (!/^https?:/i.test(url)) throw new Error(t("cannotReadThisImageTryAnImageOn"));
   const { dataUrl } = await sendRuntimeRequest<{ dataUrl: string }>({ type: "LOAD_IMAGE", url });
   const copy = new Image(); copy.src = dataUrl;
   await copy.decode();

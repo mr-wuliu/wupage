@@ -1,3 +1,4 @@
+import { t } from "../shared/i18n";
 import { PaddleOCR } from "@paddleocr/paddleocr-js";
 import { OCR_MODELS } from "../shared/ocr";
 import { prepareOcrInput } from "./image-input";
@@ -16,7 +17,7 @@ window.addEventListener("message", (event) => {
         fetch: (async (input: RequestInfo | URL) => {
           const url = input instanceof Request ? input.url : String(input);
           const index = OCR_MODELS.findIndex((model) => model.url === url);
-          if (index < 0) throw new Error("不允许加载未知模型。");
+          if (index < 0) throw new Error(t("loadingAnUnknownModelIsNotAllowed"));
           return new Response(data.models[index]);
         }) as typeof fetch,
         ortOptions: { backend: "wasm", wasmPaths: data.wasmPath, numThreads: 1, proxy: false },
@@ -24,7 +25,7 @@ window.addEventListener("message", (event) => {
       });
       return null;
     }
-    if (!engine || action !== "recognize") throw new Error("OCR 尚未初始化。");
+    if (!engine || action !== "recognize") throw new Error(t("ocrHasNotBeenInitialized"));
     const bitmap = await createImageBitmap(await (await fetch(data.dataUrl)).blob());
     try {
       const [result] = await engine.predict(prepareOcrInput(bitmap), { textDetLimitSideLen: 1600, textDetLimitType: "max", textRecScoreThresh: 0.6 });

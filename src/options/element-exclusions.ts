@@ -1,3 +1,4 @@
+import { t } from "../shared/i18n";
 import { normalizeElementExclusions, type ElementExclusionRule } from "../shared/element-exclusions";
 import { normalizeSitePattern } from "../shared/auto-translation";
 import { randomId } from "../shared/random-id";
@@ -21,7 +22,7 @@ export function setupElementExclusionControls(root: HTMLElement, reveal: (field:
   function render(): void {
     list.replaceChildren(); fields.clear(); add.disabled = rules.length >= 100;
     if (!rules.length) {
-      const empty = document.createElement("p"); empty.className = "hint"; empty.textContent = "暂无排除规则。"; list.append(empty);
+      const empty = document.createElement("p"); empty.className = "hint"; empty.textContent = t("noExclusionRulesYet"); list.append(empty);
     }
     for (const [index, rule] of rules.entries()) {
       const card = document.createElement("article"); card.className = "exclusion-rule"; card.dataset.ruleId = rule.id;
@@ -37,34 +38,34 @@ export function setupElementExclusionControls(root: HTMLElement, reveal: (field:
       toggle.setAttribute("aria-controls", details.id);
       const setExpanded = (open: boolean): void => {
         if (open) expanded.add(rule.id); else expanded.delete(rule.id);
-        details.hidden = !open; toggle.setAttribute("aria-expanded", String(open)); toggle.title = open ? "收起规则" : "展开规则";
+        details.hidden = !open; toggle.setAttribute("aria-expanded", String(open)); toggle.title = open ? t("collapseRule") : t("expandRule");
       };
       setExpanded(expanded.has(rule.id));
       toggle.addEventListener("click", () => setExpanded(details.hidden));
       const enabledLabel = document.createElement("label"); enabledLabel.className = "setting-toggle";
       const enabled = document.createElement("input"); enabled.type = "checkbox"; enabled.checked = rule.enabled; enabled.setAttribute("role", "switch");
-      enabled.setAttribute("aria-label", `启用第 ${index + 1} 条排除规则`);
+      enabled.setAttribute("aria-label", t("enableExclusionRule", index + 1));
       const track = document.createElement("span"); track.className = "setting-toggle-control"; track.setAttribute("aria-hidden", "true");
-      enabledLabel.title = "启用规则"; enabledLabel.append(enabled, track);
+      enabledLabel.title = t("enableRule"); enabledLabel.append(enabled, track);
       const remove = document.createElement("button"); remove.type = "button"; remove.className = "secondary exclusion-rule-remove";
-      remove.innerHTML = uiIconMarkup("trash"); remove.title = "删除规则"; remove.setAttribute("aria-label", `删除第 ${index + 1} 条排除规则`);
+      remove.innerHTML = uiIconMarkup("trash"); remove.title = t("deleteRule"); remove.setAttribute("aria-label", t("deleteExclusionRule", index + 1));
       heading.append(toggle, enabledLabel, remove);
       const grid = document.createElement("div"); grid.className = "grid";
       const input = (caption: string, value: string, placeholder: string, maxLength: number) => {
         const label = document.createElement("label"); label.textContent = caption;
         const control = document.createElement("input"); control.type = "text"; control.value = value; control.placeholder = placeholder; control.maxLength = maxLength;
-        control.setAttribute("aria-label", `第 ${index + 1} 条规则${caption}`); label.append(control); grid.append(label); return control;
+        control.setAttribute("aria-label", t("rule", index + 1, caption)); label.append(control); grid.append(label); return control;
       };
-      const name = input("名称", rule.name, "例如：侧边导航栏", 80); name.dataset.field = "name";
-      const pattern = input("网站", rule.pattern, "example.com 或 https://example.com/docs/*", 2048); pattern.dataset.field = "pattern";
-      const selectorLabel = document.createElement("label"); selectorLabel.textContent = "排除元素";
+      const name = input(t("name"), rule.name, t("forExampleSidebarNavigation"), 80); name.dataset.field = "name";
+      const pattern = input(t("site"), rule.pattern, t("exampleComOrHttpsExampleComDocs"), 2048); pattern.dataset.field = "pattern";
+      const selectorLabel = document.createElement("label"); selectorLabel.textContent = t("excludedElements");
       const selectors = document.createElement("textarea"); selectors.rows = 3; selectors.spellcheck = false; selectors.value = rule.selectors.join("\n");
       selectors.placeholder = '.sidebar\n[data-region="recommendations"]'; selectors.dataset.field = "selectors";
-      selectors.setAttribute("aria-label", `第 ${index + 1} 条规则排除元素`); selectors.setAttribute("aria-describedby", "elementExclusionSelectorHelp elementExclusionStatus");
+      selectors.setAttribute("aria-label", t("excludedElementsForRule", index + 1)); selectors.setAttribute("aria-describedby", "elementExclusionSelectorHelp elementExclusionStatus");
       selectorLabel.append(selectors); details.append(grid, selectorLabel); card.append(heading, details); list.append(card);
       fields.set(rule.id, { name, pattern, selectors, enabled, toggle, expand: () => setExpanded(true) });
       const updateSummary = (): void => {
-        title.textContent = name.value.trim() || "新规则"; website.textContent = pattern.value.trim() || "尚未填写网站";
+        title.textContent = name.value.trim() || t("newRule"); website.textContent = pattern.value.trim() || t("siteNotEntered");
         title.title = title.textContent; website.title = website.textContent;
       };
       updateSummary();
@@ -100,14 +101,14 @@ export function setupElementExclusionControls(root: HTMLElement, reveal: (field:
         const controls = fields.get(rule.id)!;
         let pattern: string;
         try { pattern = normalizeSitePattern(rule.pattern); }
-        catch (error) { return fail(controls.pattern, `第 ${index + 1} 条规则：${error instanceof Error ? error.message : String(error)}`); }
+        catch (error) { return fail(controls.pattern, t("ruleError", index + 1, error instanceof Error ? error.message : String(error))); }
         const selectors = [...new Set(rule.selectors.map(selector => selector.trim()).filter(Boolean))];
-        if (!selectors.length) fail(controls.selectors, `第 ${index + 1} 条规则：请填写至少一个排除元素的 CSS 选择器。`);
-        if (selectors.length > 100) fail(controls.selectors, `第 ${index + 1} 条规则：最多填写 100 个选择器。`);
+        if (!selectors.length) fail(controls.selectors, t("ruleEnterAtLeastOneCssSelectorTo", index + 1));
+        if (selectors.length > 100) fail(controls.selectors, t("ruleEnterUpTo100Selectors", index + 1));
         const probe = document.createElement("div");
         for (const [line, selector] of selectors.entries()) {
           try { if (selector.length > 4096) throw new Error(); probe.matches(selector); }
-          catch { fail(controls.selectors, `第 ${index + 1} 条规则：第 ${line + 1} 个 CSS 选择器无效，请检查后重试。`); }
+          catch { fail(controls.selectors, t("ruleCssSelectorIsInvalidCheckItAnd", index + 1, line + 1)); }
         }
         return { ...rule, pattern, selectors, name: rule.name.trim() || pattern };
       });

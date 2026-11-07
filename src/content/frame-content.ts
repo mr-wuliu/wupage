@@ -1,4 +1,5 @@
 import { installFrameRuntime } from "./frame-runtime";
+import { initializeInterfaceLanguage } from "../shared/i18n";
 import { injectContentStyles } from "./styles";
 import { initSelectionTranslation } from "./selection-translation";
 import { translateShortcutParagraphs } from "./paragraph-shortcut";
@@ -11,7 +12,8 @@ import { SETTINGS_KEY } from "../shared/defaults";
 import { normalizeShortcutEnabled } from "../shared/shortcuts";
 import { matchesParagraphClick, normalizeLocalShortcuts } from "../shared/local-shortcuts";
 
-export function activateFrameContent(documentKey: string, initialSettings?: ExtensionSettings) {
+export async function activateFrameContent(documentKey: string, initialSettings?: ExtensionSettings) {
+  await initializeInterfaceLanguage();
   injectContentStyles();
   initSelectionTranslation();
   const appearance = setupAppearance(undefined, { extensionPage: false });

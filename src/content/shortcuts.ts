@@ -1,3 +1,4 @@
+import { t } from "../shared/i18n";
 import type { ExtensionSettings } from "../shared/types";
 import type { TranslationShortcut } from "../shared/shortcuts";
 import { TRANSLATION_DISPLAY_MODES } from "../shared/display-modes";
@@ -23,7 +24,7 @@ export async function executeTranslationShortcut(command: TranslationShortcut): 
     else if (command === "toggle-paragraph-mode") {
       const enabled = !getParagraphMode();
       await setParagraphMode(enabled);
-      showShortcutNotice(enabled ? "段落模式已开启，按配置的修饰键点击段落即可翻译。" : "段落模式已关闭。");
+      showShortcutNotice(enabled ? t("paragraphModeIsOnHoldTheConfiguredModifier") : t("paragraphModeIsOff"));
     } else if (command === "cycle-display-mode") {
       // Rapid presses should advance from the last saved mode, not the same stale value.
       modeUpdate = modeUpdate.catch(() => undefined).then(cycleDisplayMode);
@@ -40,7 +41,7 @@ async function togglePage(): Promise<void> {
     startingPage = false;
     hidePageTranslation();
     refreshTranslationState();
-    showShortcutNotice("已停止翻译并恢复原文。");
+    showShortcutNotice(t("translationStoppedOriginalTextRestored"));
     return;
   }
   startingPage = true;
@@ -49,15 +50,15 @@ async function togglePage(): Promise<void> {
     if (revision !== pageRevision) return;
     // The popup or floating control may have started translation while settings loaded.
     if (getPageTranslationState().active) return;
-    showShortcutNotice("正在翻译全文，再次操作可恢复原文。");
+    showShortcutNotice(t("translatingThePageActivateAgainToShowThe"));
     const result = await startPageTranslation(settings);
     const state = getPageTranslationState();
     if (revision !== pageRevision || result.cancelled || !state.active) return;
-    if (result.failed) showShortcutNotice(`部分段落翻译失败：${result.error ?? "请检查翻译服务设置。"}`, true);
-    else if (result.error) showShortcutNotice(`翻译未完成：${result.error}`, true);
-    else if (state.pending) showShortcutNotice("正在翻译当前区域，后续内容将自动继续翻译。");
-    else if (result.translated) showShortcutNotice(`已翻译 ${result.translated} 段${result.remaining ? "，滚动页面继续翻译" : ""}。`);
-    else showShortcutNotice("当前区域暂无可翻译内容，新内容加载或滚动页面后将自动翻译。");
+    if (result.failed) showShortcutNotice(t("someParagraphsFailedToTranslate", result.error ?? t("checkTranslationServiceSettings")), true);
+    else if (result.error) showShortcutNotice(t("translationIncomplete", result.error), true);
+    else if (state.pending) showShortcutNotice(t("translatingThisAreaNewContentWillBeTranslated"));
+    else if (result.translated) showShortcutNotice(t("paragraphsTranslated", result.translated, result.remaining ? t("scrollToContinue") : ""));
+    else showShortcutNotice(t("noTextToTranslateHereTranslationWillContinue"));
     refreshTranslationState();
   } catch (error) {
     if (revision === pageRevision) throw error;
@@ -74,7 +75,7 @@ async function cycleDisplayMode(): Promise<void> {
   await setParagraphMode(false);
   setPageTranslationDisplayMode(mode.value);
   refreshTranslationState();
-  showShortcutNotice(`译文显示：${mode.label}`);
+  showShortcutNotice(t("currentDisplayMode", mode.label));
 }
 
 function showShortcutNotice(message: string, error = false): void {

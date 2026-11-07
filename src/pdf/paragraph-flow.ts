@@ -1,3 +1,4 @@
+import { t } from "../shared/i18n";
 import { preparePdfTranslation, type PdfDocumentPage } from "./document";
 import type { PdfTextBlock } from "./model";
 import { normalizeProtectedText } from "../shared/protected-text";
@@ -213,7 +214,7 @@ function prepareRegionParagraph<Region>(regions: Array<{ key: Region; block: Pdf
   const text = parts.map((part, index) => (index && !parts[index - 1].joinWord ? " " : "") + part.text).join("");
   return { text, restore: (translation) => {
     const normalized = normalizeProtectedText(text, translation);
-    if (normalized === undefined) throw new Error("翻译服务未完整保留跨栏或跨页段落，请重试或切换翻译服务。");
+    if (normalized === undefined) throw new Error(t("theServiceDidNotPreserveParagraphsSpanningColumns"));
     // Validate every region before returning any values, avoiding half-written
     // paragraphs when a provider loses a boundary or a protected formula.
     return new Map(parts.map(part => {

@@ -79,7 +79,7 @@ describe("translation transport recovery", () => {
     vi.stubGlobal("fetch", fetch);
 
     await expect(llm().translateBatch(request)).rejects.toMatchObject({
-      errorCode: "service-rejected", message: expect.stringContaining("too large")
+      errorCode: "service-rejected", message: expect.stringContaining("响应过大")
     });
     expect(downloadedBytes).toBeLessThan(16 * 1024 * 1024);
     await vi.waitFor(() => expect(cancel).toHaveBeenCalledOnce());

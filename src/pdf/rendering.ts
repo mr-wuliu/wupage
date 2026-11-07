@@ -1,3 +1,4 @@
+import { t } from "../shared/i18n";
 import { OPS, type PDFPageProxy } from "pdfjs-dist";
 
 export async function renderPageWithoutText(
@@ -23,7 +24,7 @@ export async function renderPageWithoutText(
       // render task's own list; never apply indices from the other list.
       const internal = task?._internalRenderTask as { operatorList?: { fnArray: number[] } } | null | undefined;
       const operators = internal?.operatorList?.fnArray;
-      if (!operators) throw new Error("PDF 绘制接口不兼容，无法安全移除原文。");
+      if (!operators) throw new Error(t("incompatiblePdfRenderingInterfaceCannotSafelyRemoveThe"));
       return !textOperators.has(operators[index]);
     }
   });

@@ -1,3 +1,4 @@
+import { t } from "./i18n";
 export type DictionaryProvider = "youdao" | "bing";
 export type SelectionTriggerStyle = "dot" | "underline";
 
@@ -22,7 +23,7 @@ export interface DictionaryEntry {
   meanings: { partOfSpeech: string; definition: string; pronunciation?: string }[];
 }
 
-export const DICTIONARY_LABELS: Record<DictionaryProvider, string> = { youdao: "有道词典", bing: "Bing 词典" };
+export const DICTIONARY_LABELS: Record<DictionaryProvider, string> = { get youdao() { return t("youdaoDictionary"); }, get bing() { return t("bingDictionary"); } };
 export const DEFAULT_SELECTION_TRANSLATION: SelectionTranslationSettings = { enabled: true, provider: "youdao", style: "dot" };
 export const MAX_DICTIONARY_QUERY_LENGTH = 100;
 export const MAX_CHINESE_DICTIONARY_QUERY_LENGTH = 8;

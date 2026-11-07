@@ -10,7 +10,7 @@ const moduleName=process.env.PLAYWRIGHT_MODULE||'playwright';
 const {chromium}=await import(path.isAbsolute(moduleName)?pathToFileURL(moduleName).href:moduleName);
 const context=await chromium.launchPersistentContext(path.join(output,`profile-${Date.now()}`),{
   ...(process.env.PDF_TEST_BROWSER?{executablePath:process.env.PDF_TEST_BROWSER}:{channel:'chromium'}),
-  headless:true,ignoreDefaultArgs:['--disable-extensions'],args:[`--load-extension=${path.join(root,'dist')}`],viewport:{width:1100,height:1000}
+  headless:true,ignoreDefaultArgs:['--disable-extensions'],args:['--lang=zh-CN', `--load-extension=${path.join(root,'dist')}`],viewport:{width:1100,height:1000}
 });
 try{
   const worker=context.serviceWorkers()[0]||await context.waitForEvent('serviceworker');

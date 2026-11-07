@@ -1,5 +1,6 @@
+import { t } from "./i18n";
 import { sendRuntimeMessage } from "./messaging";
-import { OCR_DESCRIPTION, type OcrStatus } from "./ocr";
+import type { OcrStatus } from "./ocr";
 import { uiIconMarkup } from "./ui-icons";
 import { setHtmlContent } from "./html";
 
@@ -26,7 +27,7 @@ function setupHelp(action: HTMLButtonElement, contents: HTMLElement[], helpId: s
   const help = document.createElement("div"); help.className = "ocr-help";
   const trigger = document.createElement("button");
   trigger.type = "button"; trigger.className = "ocr-help-trigger"; setHtmlContent(trigger, uiIconMarkup("question-mark"));
-  trigger.setAttribute("aria-label", "图片翻译说明与模型状态");
+  trigger.setAttribute("aria-label", t("imageTranslationHelpAndModelStatus"));
   trigger.setAttribute("aria-describedby", helpId);
   const panel = document.createElement("div");
   panel.id = helpId; panel.className = "ocr-help-panel"; panel.setAttribute("role", "tooltip"); panel.hidden = true;
@@ -64,7 +65,7 @@ export function setupOcrControl(toggle: HTMLButtonElement | HTMLInputElement, on
   const status = options.elements?.status ?? document.querySelector<HTMLElement>("#ocrModelStatus")!;
   const progress = options.elements?.progress ?? document.querySelector<HTMLProgressElement>("#ocrModelProgress")!;
   const request = options.request ?? sendRuntimeMessage;
-  description.textContent = OCR_DESCRIPTION;
+  description.textContent = t("imageTranslationRequiresAnAdditionalDownloadOfAbout");
   const help = setupHelp(button, [description, progress, status], options.helpId ?? "ocrHelpPanel");
   const positionHelp = help.position;
   let current: OcrStatus | undefined;
@@ -87,16 +88,16 @@ export function setupOcrControl(toggle: HTMLButtonElement | HTMLInputElement, on
     button.disabled = acting || installing;
     button.dataset.state = value.state;
     setHtmlContent(button, uiIconMarkup(installed ? "trash" : "wrench"));
-    button.title = installed ? "删除 OCR 模型并关闭图片翻译" : installing ? "正在安装 OCR 模型" : "安装 OCR 模型（约 20.5 MB）";
+    button.title = installed ? t("removeOcrModelsAndDisableImageTranslation") : installing ? t("installingOcrModels") : t("installOcrModelsAbout205Mb");
     button.setAttribute("aria-label", button.title);
     progress.hidden = !installing;
     progress.max = value.total;
     progress.value = value.downloaded;
     status.dataset.state = value.state;
-    status.textContent = installed ? "OCR 模型已安装 · 可开启图片翻译"
-      : installing ? value.downloaded >= value.total ? "下载完成，正在验证模型可用性…" : `正在下载 OCR 模型 · ${Math.floor(value.downloaded / value.total * 100)}%`
-      : value.state === "error" ? `安装失败：${value.error ?? "请重试"}。点击扳手重试。`
-      : "未安装 OCR 模型 · 点击旁边的扳手安装";
+    status.textContent = installed ? t("ocrModelsInstalledImageTranslationAvailable")
+      : installing ? value.downloaded >= value.total ? t("downloadCompleteCheckingModels") : t("downloadingOcrModels", Math.floor(value.downloaded / value.total * 100))
+      : value.state === "error" ? t("installationFailedClickTheWrenchToRetry", value.error ?? t("modelRetry"))
+      : t("ocrModelsNotInstalledClickTheWrenchTo");
     positionHelp();
   }
 
@@ -119,9 +120,9 @@ export function setupOcrControl(toggle: HTMLButtonElement | HTMLInputElement, on
       if (!disposed) render(value);
     } catch (error) {
       if (!disposed) {
-        status.textContent = `无法读取模型状态：${error instanceof Error ? error.message : String(error)}`;
+        status.textContent = t("couldNotReadModelStatus", error instanceof Error ? error.message : String(error));
         button.disabled = false;
-        button.title = "重试读取 OCR 模型状态";
+        button.title = t("retryOcrModelStatusCheck");
         button.setAttribute("aria-label", button.title);
         positionHelp();
       }
@@ -138,7 +139,7 @@ export function setupOcrControl(toggle: HTMLButtonElement | HTMLInputElement, on
     clearTimeout(timer);
     try {
       const removing = current.state === "installed";
-      status.textContent = removing ? "正在删除 OCR 模型…" : "正在开始安装…";
+      status.textContent = removing ? t("removingOcrModels") : t("startingInstallation");
       const value = await request<OcrStatus>({ type: removing ? "REMOVE_OCR" : "INSTALL_OCR" });
       if (removing) onRemoved();
       render(value);

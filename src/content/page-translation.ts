@@ -1,3 +1,4 @@
+import { t } from "../shared/i18n";
 import type { ExtensionSettings, RuntimeRequest, TranslateBatchResponse, TranslationDisplayMode } from "../shared/types";
 import {
   clearTranslationPlaceholders,
@@ -478,7 +479,7 @@ async function runBatch(session: TranslationSession, segments: TextSegment[]): P
     const currentSegments = segments.filter((segment) => session.entries.has(segment.id));
     if (data.translations.length !== segments.length
       || data.translations.some((text) => typeof text !== "string" || !text.trim())) {
-      throw new Error("Translation response contains missing or empty items.");
+      throw new Error(t("responseItemsMissing"));
     }
 
     let accepted: string[] = [];
@@ -500,7 +501,7 @@ async function runBatch(session: TranslationSession, segments: TextSegment[]): P
       if (entry) entry.status = acceptedIds.has(segment.id) ? "done" : "failed";
       if (!acceptedIds.has(segment.id)) {
         session.failed++;
-        session.firstError ??= "页面结构或译文标记已变化，已保留原文。";
+        session.firstError ??= t("thePageStructureOrTranslationMarkersChangedThe");
       }
     });
   } catch (error) {

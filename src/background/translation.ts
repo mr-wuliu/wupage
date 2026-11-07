@@ -1,3 +1,4 @@
+import { t } from "../shared/i18n";
 import { anySignal } from "../shared/abort";
 import { CACHE_PREFIX } from "../shared/defaults";
 import { sha256 } from "../shared/hash";
@@ -46,8 +47,8 @@ export async function translateWithSettings(
   signal?.throwIfAborted();
   const providerId = request.providerId ?? settings.activeProviderId;
   const providerConfig = settings.providers.find((provider) => provider.id === providerId);
-  if (!providerConfig) throw new Error(`Provider not found: ${providerId}`);
-  if (providerConfig.enabled === false) throw new Error(`Provider is disabled: ${providerId}`);
+  if (!providerConfig) throw new Error(t("unknownProvider", providerId));
+  if (providerConfig.enabled === false) throw new Error(t("providerDisabled", providerId));
 
   if (providerConfig.type === "doubao-web") {
     return withDoubaoDeadline(async (deadlineSignal) => {

@@ -35,7 +35,7 @@ const errors=[];
 try{
   context=await chromium.launchPersistentContext(path.join(output,`profile-${Date.now()}`),{
     ...(process.env.PDF_TEST_BROWSER?{executablePath:process.env.PDF_TEST_BROWSER}:{channel:'chromium'}),
-    headless:true,ignoreDefaultArgs:['--disable-extensions'],args:[`--load-extension=${path.join(root,'dist')}`],
+    headless:true,ignoreDefaultArgs:['--disable-extensions'],args:['--lang=zh-CN', `--load-extension=${path.join(root,'dist')}`],
     viewport:{width:1200,height:900}
   });
   const worker=context.serviceWorkers()[0]||await context.waitForEvent('serviceworker');

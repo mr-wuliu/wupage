@@ -1,3 +1,4 @@
+import { t } from "../shared/i18n";
 import { uiIconMarkup } from "../shared/ui-icons";
 import { PDF_FONT, importPdfFont, installPdfFont, readPdfFont, removePdfFont } from "./font-store";
 
@@ -21,7 +22,7 @@ export function setupPdfFontControl(): {
   const download = document.querySelector<HTMLAnchorElement>("#pdfFontDownload")!;
   download.href = PDF_FONT.source;
   download.title = PDF_FONT.file;
-  document.querySelector<HTMLElement>("#pdfFontSize")!.textContent = `完整字体包 · ${(PDF_FONT.bytes / 1_000_000).toFixed(1)} MB · 仅下载一次`;
+  document.querySelector<HTMLElement>("#pdfFontSize")!.textContent = t("fullFontPackMbOneTimeDownload", (PDF_FONT.bytes / 1_000_000).toFixed(1));
   let installed = false, exporting = false, skipPrompt = false, disposed = false;
   let choiceRun = 0;
   let mode: "export" | "install" = "install";
@@ -32,16 +33,16 @@ export function setupPdfFontControl(): {
   function render(): void {
     action.innerHTML = uiIconMarkup(installed ? "trash" : "wrench");
     action.dataset.state = controller ? "installing" : installed ? "installed" : "missing";
-    action.title = installed ? "卸载 PDF 导出字体" : `安装 PDF 导出完整字体包（${(PDF_FONT.bytes / 1_000_000).toFixed(1)} MB）`;
+    action.title = installed ? t("removePdfExportFont") : t("installFullPdfExportFontMb", (PDF_FONT.bytes / 1_000_000).toFixed(1));
     action.setAttribute("aria-label", action.title);
     action.disabled = exporting || Boolean(controller);
     install.disabled = Boolean(controller);
     importButton.disabled = Boolean(controller);
-    install.textContent = controller ? "正在安装…" : mode === "export" ? "安装并导出" : "安装字体包";
+    install.textContent = controller ? t("installing") : mode === "export" ? t("installAndExport") : t("installFontPack");
     basic.hidden = mode !== "export";
-    close.textContent = controller ? importing ? "取消安装" : "取消下载" : "取消";
+    close.textContent = controller ? importing ? t("cancelInstallation") : t("cancelDownload") : t("cancel");
     progress.hidden = !controller || importing;
-    title.textContent = mode === "export" ? "安装完整字体，提升导出效果" : "安装 PDF 导出字体";
+    title.textContent = mode === "export" ? t("installFontsForHigherQualityExports") : t("installPdfExportFont");
   }
 
   async function refresh(): Promise<Uint8Array | undefined> {
@@ -51,7 +52,7 @@ export function setupPdfFontControl(): {
       return bytes;
     } catch {
       installed = false;
-      status.textContent = "无法读取字体缓存，仍可直接导出图像版 PDF。";
+      status.textContent = t("couldNotReadTheFontCacheYouCan");
       return undefined;
     } finally { if (!disposed) render(); }
   }
@@ -69,7 +70,7 @@ export function setupPdfFontControl(): {
 
   function show(nextMode: "export" | "install"): void {
     mode = nextMode;
-    status.textContent = "字体由 Noto 官方提供。下载仅传输字体数据，不上传文档内容。";
+    status.textContent = t("fontsAreProvidedByNotoOnlyFontData");
     status.dataset.state = "missing";
     progress.max = PDF_FONT.bytes; progress.value = 0;
     render();
@@ -89,18 +90,18 @@ export function setupPdfFontControl(): {
     if (controller) return;
     const operation = new AbortController(); controller = operation;
     importing = Boolean(file);
-    status.dataset.state = "installing"; status.textContent = file ? "正在校验字体文件…" : "正在下载字体包 · 0%";
+    status.dataset.state = "installing"; status.textContent = file ? t("verifyingFontFile") : t("downloadingFontPack0");
     progress.value = 0;
     render();
     try {
       const fontBytes = file ? await importPdfFont(file, operation.signal) : await installPdfFont(operation.signal, (bytes) => {
         if (controller !== operation) return;
         progress.value = bytes;
-        status.textContent = bytes === PDF_FONT.bytes ? "下载完成，正在校验…" : `正在下载字体包 · ${Math.floor(bytes / PDF_FONT.bytes * 100)}%`;
+        status.textContent = bytes === PDF_FONT.bytes ? t("downloadCompleteVerifying") : t("downloadingFontPack", Math.floor(bytes / PDF_FONT.bytes * 100));
       });
       if (controller !== operation || disposed) return;
       installed = true; skipPrompt = false;
-      status.textContent = "完整字体已安装，可离线导出可搜索、可复制的 PDF。";
+      status.textContent = t("fullFontInstalledYouCanExportSearchableSelectable");
       finish(mode === "export" ? { fontBytes } : undefined);
     } catch (error) {
       if (controller !== operation || disposed) return;
@@ -125,7 +126,7 @@ export function setupPdfFontControl(): {
     if (installed) {
       action.disabled = true;
       try { await removePdfFont(); installed = false; skipPrompt = false; render(); }
-      catch (error) { show("install"); status.textContent = `卸载失败：${error instanceof Error ? error.message : String(error)}`; }
+      catch (error) { show("install"); status.textContent = t("removalFailed", error instanceof Error ? error.message : String(error)); }
     } else show("install");
   });
   const onFocus = () => { if (!controller && !exporting) void refresh(); };

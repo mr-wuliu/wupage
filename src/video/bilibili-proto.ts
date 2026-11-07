@@ -1,3 +1,4 @@
+import { t } from "../shared/i18n";
 /** Minimal decoder for the subtitle track fields returned by Bilibili's web/view endpoint. */
 interface Field { id: number; bytes?: Uint8Array }
 function fields(buffer: Uint8Array): Field[] {
@@ -10,26 +11,26 @@ function fields(buffer: Uint8Array): Field[] {
       if (!(byte & 128)) return value;
       scale *= 128;
     }
-    throw new Error("字幕轨数据无效。");
+    throw new Error(t("invalidSubtitleTrackData"));
   };
   while (offset < buffer.length) {
-    if (result.length > 5000) throw new Error("字幕轨数据过大。");
+    if (result.length > 5000) throw new Error(t("subtitleTrackDataTooLarge"));
     const tag = integer(); const id = Math.floor(tag / 8); const wire = tag & 7;
-    if (!id) throw new Error("字幕轨数据无效。");
+    if (!id) throw new Error(t("invalidSubtitleTrackData"));
     if (wire === 0) { integer(); result.push({ id }); }
     else if (wire === 1 || wire === 5) { offset += wire === 1 ? 8 : 4; result.push({ id }); }
     else if (wire === 2) {
       const length = integer();
-      if (!Number.isSafeInteger(length) || length < 0 || offset + length > buffer.length) throw new Error("字幕轨数据无效。");
+      if (!Number.isSafeInteger(length) || length < 0 || offset + length > buffer.length) throw new Error(t("invalidSubtitleTrackData"));
       result.push({ id, bytes: buffer.subarray(offset, offset + length) }); offset += length;
-    } else throw new Error("字幕轨格式暂不支持。");
-    if (offset > buffer.length) throw new Error("字幕轨数据无效。");
+    } else throw new Error(t("unsupportedSubtitleTrackFormat"));
+    if (offset > buffer.length) throw new Error(t("invalidSubtitleTrackData"));
   }
   return result;
 }
 
 export function bilibiliProtoTracks(buffer: Uint8Array): Array<{ id_str: string; lan: string; lan_doc: string; subtitle_url: string }> {
-  if (buffer.byteLength > 4 * 1024 * 1024) throw new Error("字幕轨数据过大。");
+  if (buffer.byteLength > 4 * 1024 * 1024) throw new Error(t("subtitleTrackDataTooLarge"));
   const data = fields(buffer).find(field => field.id === 1)?.bytes;
   if (!data) return [];
   const decoder = new TextDecoder("utf-8", { fatal: true });

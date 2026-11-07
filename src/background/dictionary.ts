@@ -1,3 +1,4 @@
+import { t } from "../shared/i18n";
 import { anySignal } from "../shared/abort";
 import { DICTIONARY_LABELS, dictionaryProviderForQuery, isChineseDictionaryQuery, isDictionaryAudioUrl, normalizeDictionaryQuery, type DictionaryEntry, type DictionaryProvider } from "../shared/dictionary";
 import type { RuntimeResponse } from "../shared/types";
@@ -12,9 +13,9 @@ async function runtimeRequest<T>(message: Record<string, unknown>): Promise<T> {
   try {
     const response = await Promise.race([
       chrome.runtime.sendMessage({ target: "dictionary-runtime", ...message }) as Promise<RuntimeResponse | undefined>,
-      new Promise<never>((_, reject) => { timeout = setTimeout(() => reject(new Error("词典处理超时，请重试。")), 12_000); })
+      new Promise<never>((_, reject) => { timeout = setTimeout(() => reject(new Error(t("dictionaryLookupTimedOutTryAgain"))), 12_000); })
     ]);
-    if (!response) throw new Error("词典运行环境未就绪，请重试。");
+    if (!response) throw new Error(t("theDictionaryIsStillStartingTryAgain"));
     if (!response.ok) throw new Error(response.error);
     return response.data as T;
   } finally { clearTimeout(timeout); }
@@ -23,14 +24,14 @@ async function runtimeRequest<T>(message: Record<string, unknown>): Promise<T> {
 async function readBytes(response: Response, limit: number): Promise<Uint8Array> {
   if (!response.ok) {
     await response.body?.cancel();
-    throw new Error(response.status === 429 ? "词典请求过于频繁，请稍后重试。" : `词典服务暂时不可用（${response.status}），请稍后重试或切换词典。`);
+    throw new Error(response.status === 429 ? t("tooManyDictionaryRequestsTryAgainLater") : t("dictionaryTemporarilyUnavailableTryAgainLaterOrSwitch", response.status));
   }
   if (Number(response.headers.get("content-length")) > limit) {
     await response.body?.cancel();
-    throw new Error("词典响应过大，请重试。");
+    throw new Error(t("theDictionaryResponseWasTooLargeTryAgain"));
   }
   const reader = response.body?.getReader();
-  if (!reader) throw new Error("词典返回了空响应。");
+  if (!reader) throw new Error(t("theDictionaryReturnedAnEmptyResponse"));
   const chunks: Uint8Array[] = [];
   let length = 0;
   try {
@@ -38,7 +39,7 @@ async function readBytes(response: Response, limit: number): Promise<Uint8Array>
       const { done, value } = await reader.read();
       if (done) break;
       length += value.byteLength;
-      if (length > limit) throw new Error("词典响应过大，请重试。");
+      if (length > limit) throw new Error(t("theDictionaryResponseWasTooLargeTryAgain"));
       chunks.push(value);
     }
   } catch (error) { await reader.cancel().catch(() => undefined); throw error; }
@@ -49,13 +50,13 @@ async function readBytes(response: Response, limit: number): Promise<Uint8Array>
 }
 
 function checkProvider(provider: unknown): asserts provider is DictionaryProvider {
-  if (provider !== "youdao" && provider !== "bing") throw new Error("请选择有道或 Bing 词典。");
+  if (provider !== "youdao" && provider !== "bing") throw new Error(t("chooseTheYoudaoOrBingDictionary"));
 }
 
 export function lookupDictionary(provider: DictionaryProvider, input: string): Promise<DictionaryEntry> {
   checkProvider(provider);
   const query = normalizeDictionaryQuery(input);
-  if (!query) throw new Error("请选择不超过 100 个字符的单词或短语。");
+  if (!query) throw new Error(t("selectAWordOrPhraseOfUpTo"));
   provider = dictionaryProviderForQuery(provider, query);
   const key = `${provider}:${query}`;
   const existing = lookups.get(key);
@@ -80,14 +81,14 @@ async function queryDictionary(provider: DictionaryProvider, query: string): Pro
     const body = new TextDecoder().decode(await readBytes(response, 2_000_000));
     if (provider === "youdao") {
       let data: unknown;
-      try { data = JSON.parse(body); } catch { throw new Error("有道词典返回了无法识别的数据，请稍后重试。"); }
+      try { data = JSON.parse(body); } catch { throw new Error(t("youdaoReturnedAnUnrecognizedResponseTryAgainLater")); }
       return parseYoudaoDictionary(data, query);
     }
     await ensureOffscreenDocument();
     return await runtimeRequest<DictionaryEntry>({ action: "parse-bing", html: body, query });
   } catch (error) {
-    if (error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError")) throw new Error(`${DICTIONARY_LABELS[provider]}查询超时，请重试。`);
-    if (error instanceof TypeError) throw new Error(`${DICTIONARY_LABELS[provider]}连接失败，请检查网络或切换词典。`);
+    if (error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError")) throw new Error(t("theLookupTimedOutTryAgain", DICTIONARY_LABELS[provider]));
+    if (error instanceof TypeError) throw new Error(t("couldNotConnectToCheckYourConnectionOr", DICTIONARY_LABELS[provider]));
     throw error;
   }
 }
@@ -102,7 +103,7 @@ export async function stopDictionaryAudio(owner: string): Promise<void> {
 
 export async function playDictionaryAudio(provider: DictionaryProvider, url: string, owner: string): Promise<void> {
   checkProvider(provider);
-  if (!isDictionaryAudioUrl(provider, url)) throw new Error("词典发音地址无效。");
+  if (!isDictionaryAudioUrl(provider, url)) throw new Error(t("invalidPronunciationAudioAddress"));
   const previous = playback;
   const current = { id: crypto.randomUUID(), owner, controller: new AbortController(), runtimeStarted: false };
   playback = current;
@@ -114,10 +115,10 @@ export async function playDictionaryAudio(provider: DictionaryProvider, url: str
     const type = response.headers.get("content-type")?.split(";")[0].trim().toLowerCase();
     if (response.ok && !["audio/mpeg", "audio/mp3", "audio/wav", "audio/ogg"].includes(type ?? "")) {
       await response.body?.cancel();
-      throw new Error("词典未返回有效发音，请稍后重试。");
+      throw new Error(t("theDictionaryReturnedNoUsablePronunciationAudioTry"));
     }
     const bytes = await readBytes(response, 2_000_000);
-    if (!bytes.length) throw new Error("词典发音为空，请重试。");
+    if (!bytes.length) throw new Error(t("thePronunciationRecordingIsEmptyTryAgain"));
     if (playback !== current) return;
     let binary = "";
     for (let i = 0; i < bytes.length; i += 8192) binary += String.fromCharCode(...bytes.subarray(i, i + 8192));
@@ -128,8 +129,8 @@ export async function playDictionaryAudio(provider: DictionaryProvider, url: str
   } catch (error) {
     if (playback !== current || current.controller.signal.aborted) return;
     await stopDictionaryAudio(owner);
-    if (error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError")) throw new Error("发音加载超时，请重试。");
-    if (error instanceof TypeError) throw new Error("发音加载失败，请检查网络后重试。");
+    if (error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError")) throw new Error(t("pronunciationAudioTimedOutTryAgain"));
+    if (error instanceof TypeError) throw new Error(t("couldNotLoadPronunciationAudioCheckYourConnection"));
     throw error;
   }
 }

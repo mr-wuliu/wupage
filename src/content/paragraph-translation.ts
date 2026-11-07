@@ -1,3 +1,4 @@
+import { t } from "../shared/i18n";
 import type { ExtensionSettings, TranslateBatchResponse } from "../shared/types";
 import {
   clearTranslationsIn, collectParagraphTextSegments, hasTranslationsIn, invalidateStaleSegments,
@@ -13,7 +14,7 @@ const pending = new WeakMap<Element, object>();
 
 /** All paragraph entry points share rendering, deduplication, and restoration. */
 export async function translateParagraph(target: Element, action: "toggle" | "translate" | "restore" = "toggle"): Promise<void> {
-  if (!target.isConnected) throw new Error("该段落已发生变化，请重新选择。");
+  if (!target.isConnected) throw new Error(t("theParagraphHasChangedSelectItAgain"));
   if (action === "restore" || (action === "toggle" && hasTranslationsIn(target))) {
     pending.delete(target);
     clearTranslationsIn(target);
@@ -29,7 +30,7 @@ export async function translateParagraph(target: Element, action: "toggle" | "tr
     if (configureElementExclusions(settings.elementExclusions)) { clearPageTranslation(); revision = documentTranslationRevision(); }
     if (!target.isConnected) return;
     const segments = collectParagraphTextSegments(target, settings.translateCodeComments);
-    if (!segments.length) throw new Error("此处没有可翻译的段落。");
+    if (!segments.length) throw new Error(t("noTranslatableParagraphHere"));
     renderTranslationPlaceholders(segments);
     const data = await sendRuntimeRequest<TranslateBatchResponse>({
       type: "TRANSLATE_BATCH", texts: segments.map(segment => segment.requestText ?? segment.text), preservePlaceholders: true,

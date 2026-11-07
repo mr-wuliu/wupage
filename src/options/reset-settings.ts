@@ -1,3 +1,4 @@
+import { t } from "../shared/i18n";
 export function setupSettingsResetControls(reset: () => Promise<void>): void {
   const query = <T extends HTMLElement>(id: string): T => document.getElementById(id) as T;
   const trigger = query<HTMLButtonElement>("restore");
@@ -25,13 +26,13 @@ export function setupSettingsResetControls(reset: () => Promise<void>): void {
   confirm.addEventListener("click", () => {
     if (closed || busy || !dialog.open) return;
     setBusy(true);
-    status.textContent = "正在重置…";
+    status.textContent = t("resetting");
     void (async () => {
       try {
         await reset();
         if (!closed) dialog.close();
       } catch (error) {
-        if (!closed) status.textContent = `重置失败：${error instanceof Error ? error.message : "请重试。"}`;
+        if (!closed) status.textContent = t("resetFailed", error instanceof Error ? error.message : t("tryAgain"));
       } finally { setBusy(false); }
     })();
   });

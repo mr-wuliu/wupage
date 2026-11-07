@@ -1,3 +1,4 @@
+import { t } from "../shared/i18n";
 export function selectOcrBackground(pixels: Uint8ClampedArray): "white" | "black" | undefined {
   let transparent = false;
   let luminance = 0;
@@ -23,14 +24,14 @@ export function prepareOcrInput(bitmap: ImageBitmap): HTMLCanvasElement {
   sample.width = Math.max(1, Math.round(bitmap.width * scale));
   sample.height = Math.max(1, Math.round(bitmap.height * scale));
   const sampleContext = sample.getContext("2d", { willReadFrequently: true });
-  if (!sampleContext) throw new Error("浏览器无法读取 OCR 图片。");
+  if (!sampleContext) throw new Error(t("theBrowserCannotReadTheOcrImage"));
   sampleContext.drawImage(bitmap, 0, 0, sample.width, sample.height);
   const background = selectOcrBackground(sampleContext.getImageData(0, 0, sample.width, sample.height).data);
   const canvas = document.createElement("canvas");
   canvas.width = bitmap.width;
   canvas.height = bitmap.height;
   const context = canvas.getContext("2d");
-  if (!context) throw new Error("浏览器无法准备 OCR 图片。");
+  if (!context) throw new Error(t("theBrowserCannotPrepareTheOcrImage"));
   if (background) {
     context.fillStyle = background;
     context.fillRect(0, 0, canvas.width, canvas.height);

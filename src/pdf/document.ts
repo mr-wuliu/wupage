@@ -1,3 +1,4 @@
+import { t } from "../shared/i18n";
 import { validatePdfMathTranslation } from "./math";
 import type { PdfTextBlock } from "./model";
 import { normalizeProtectedText } from "../shared/protected-text";
@@ -156,7 +157,7 @@ export function preparePdfTranslation(block: PdfTextBlock, abbreviations: Readon
   return { text, restore: (translation) => {
     if (block.boldPrefix) {
       const normalized = normalizeProtectedText(text, translation);
-      if (normalized === undefined) throw new Error("翻译服务未完整保留文字格式，请重试或切换翻译服务。");
+      if (normalized === undefined) throw new Error(t("theServiceDidNotPreserveTextFormattingRetry"));
       translation = normalized;
     }
     validatePdfMathTranslation(translation, [...(block.formulas ?? []), ...literals]);

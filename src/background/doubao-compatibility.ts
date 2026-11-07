@@ -1,3 +1,4 @@
+import { t } from "../shared/i18n";
 import { ProviderError } from "../shared/errors";
 
 export const DOUBAO_LAUNCH_ENDPOINT = "https://www.doubao.com/alice/user/launch";
@@ -17,14 +18,14 @@ function serialize<T>(operation: () => Promise<T>): Promise<T> {
 }
 
 function permissionError(): ProviderError {
-  return new ProviderError("无法准备豆包请求，请检查扩展的站点访问权限并重新加载扩展。", "permission-required");
+  return new ProviderError(t("couldNotPrepareTheDoubaoRequestCheckSite"), "permission-required");
 }
 
 function doubaoEndpoint(url: string): string {
   const parsed = new URL(url);
   const endpoint = parsed.origin + parsed.pathname;
   if (!ENDPOINT_IDS.has(endpoint) || parsed.username || parsed.password || parsed.hash) {
-    throw new ProviderError("豆包请求地址不受支持。", "protocol-changed");
+    throw new ProviderError(t("unsupportedDoubaoRequestAddress"), "protocol-changed");
   }
   return endpoint;
 }

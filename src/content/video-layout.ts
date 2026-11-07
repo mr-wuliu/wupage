@@ -1,3 +1,4 @@
+import { t, htmlMessage } from "../shared/i18n";
 import { DEFAULT_VIDEO_LAYOUT, normalizeVideoLayout, type VideoSubtitleLayout, type VideoTranslationSettings } from "../shared/video";
 import { setHtmlContent } from "../shared/html";
 import { uiIconMarkup } from "../shared/ui-icons";
@@ -62,17 +63,17 @@ export class VideoLayoutEditor {
     private readonly save: (layout: VideoSubtitleLayout) => Promise<void>, private readonly closed: () => void) {
     this.editor.className = "layout-editor"; this.editor.hidden = true;
     setHtmlContent(this.editor, `
-      <div class="layout-preview" role="group" tabindex="0" aria-label="字幕位置，拖动或使用方向键移动，Shift 加速">
+      <div class="layout-preview" role="group" tabindex="0" aria-label="${htmlMessage("subtitlePositionDragOrUseArrowKeysTo")}">
         <div class="source" dir="auto"><span></span></div><div class="translation" dir="auto"><span></span></div>
-        <button class="layout-handle layout-left" type="button" aria-label="字幕左边界，拖动或使用左右方向键调整宽度">${uiIconMarkup("adjustment")}</button>
-        <button class="layout-handle layout-right" type="button" aria-label="字幕右边界，拖动或使用左右方向键调整宽度">${uiIconMarkup("adjustment")}</button>
+        <button class="layout-handle layout-left" type="button" aria-label="${htmlMessage("leftSubtitleEdgeDragOrUseLeftAnd")}">${uiIconMarkup("adjustment")}</button>
+        <button class="layout-handle layout-right" type="button" aria-label="${htmlMessage("rightSubtitleEdgeDragOrUseLeftAnd")}">${uiIconMarkup("adjustment")}</button>
       </div>
-      <section class="layout-panel" popover="manual" role="region" aria-label="调整字幕布局">
-        <p><strong>调整字幕布局</strong> · 拖动字幕移动位置</p>
-        <label>宽度<input class="layout-width" type="range" min="20" max="96" step="1" aria-label="字幕宽度"><output class="layout-width-value"></output></label>
-        <label>字号<input class="layout-font" type="range" min="14" max="48" step="1" aria-label="布局字幕字号"><output class="layout-font-value"></output></label>
-        <p class="help">左右手柄调宽；高度随文字换行。完成后记住此网站的布局，Esc 取消。</p>
-        <div class="layout-actions"><button class="layout-done" type="button">完成</button><button class="layout-cancel" type="button">取消</button><button class="layout-reset" type="button">恢复默认</button></div>
+      <section class="layout-panel" popover="manual" role="region" aria-label="${htmlMessage("adjustSubtitleLayout")}">
+        <p><strong>${htmlMessage("adjustSubtitleLayout")}</strong> ${htmlMessage("dragSubtitlesToMove")}</p>
+        <label>${htmlMessage("width")}<input class="layout-width" type="range" min="20" max="96" step="1" aria-label="${htmlMessage("subtitleWidth")}"><output class="layout-width-value"></output></label>
+        <label>${htmlMessage("fontSize")}<input class="layout-font" type="range" min="14" max="48" step="1" aria-label="${htmlMessage("subtitleLayoutFontSize")}"><output class="layout-font-value"></output></label>
+        <p class="help">${htmlMessage("dragTheSideHandlesToSetWidthHeight")}</p>
+        <div class="layout-actions"><button class="layout-done" type="button">${htmlMessage("done")}</button><button class="layout-cancel" type="button">${htmlMessage("cancel")}</button><button class="layout-reset" type="button">${htmlMessage("restoreDefaults")}</button></div>
         <p class="layout-error" role="status" hidden></p>
       </section>`);
     host.shadowRoot!.append(this.editor);
@@ -125,7 +126,7 @@ export class VideoLayoutEditor {
     const source = this.caption.querySelector(".source span")!.textContent;
     const translation = this.caption.querySelector(".translation span")!.textContent;
     this.preview.querySelector(".source span")!.textContent = source || (!translation ? "Drag to move subtitles. Resize to change wrapping." : "");
-    this.preview.querySelector(".translation span")!.textContent = translation || "拖动调整字幕位置，拉动左右手柄调整宽度。";
+    this.preview.querySelector(".translation span")!.textContent = translation || t("dragSubtitlesToRepositionThemDragTheSide");
     this.editor.hidden = false; this.host.setAttribute("data-layout-editing", "");
     this.error.hidden = true; this.sync();
     try { this.panel.showPopover?.(); } catch { /* Fixed panel also works without popover support. */ }
@@ -151,7 +152,7 @@ export class VideoLayoutEditor {
       await this.save(layout);
       if (!this.disposed) { if (revision === this.revision) this.saved = layout; this.busy = false; this.end(); }
     } catch {
-      if (!this.disposed) { this.error.textContent = "布局未保存，请重试或取消。"; this.error.hidden = false; }
+      if (!this.disposed) { this.error.textContent = t("layoutCouldNotBeSavedRetryOrCancel"); this.error.hidden = false; }
     } finally {
       this.busy = false;
       this.editor.querySelectorAll<HTMLInputElement | HTMLButtonElement>("input,button").forEach(control => { control.disabled = false; });

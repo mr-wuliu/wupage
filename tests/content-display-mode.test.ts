@@ -59,8 +59,9 @@ describe("saved page settings updates", () => {
     expect(setupAppearance).not.toHaveBeenCalled();
     expect(addListener).not.toHaveBeenCalled();
     const response = vi.fn();
-    vi.mocked(addRuntimeMessageListener).mock.calls[0][0]({ type: "TRANSLATE_PAGE" }, {} as chrome.runtime.MessageSender, response);
-    expect(response).toHaveBeenCalledWith({ ok: false, error: expect.stringContaining("不支持翻译") });
+    const receive = vi.mocked(addRuntimeMessageListener).mock.calls[0][0];
+    expect(receive({ type: "TRANSLATE_PAGE" }, {} as chrome.runtime.MessageSender, response)).toBe(true);
+    await vi.waitFor(() => expect(response).toHaveBeenCalledWith({ ok: false, error: expect.stringContaining("不支持翻译") }));
     expect(xml.documentElement.childElementCount).toBe(0);
   });
 

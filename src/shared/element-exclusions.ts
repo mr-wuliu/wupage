@@ -1,3 +1,4 @@
+import { t } from "./i18n";
 import { matchesSitePattern, normalizeSitePattern } from "./auto-translation";
 
 export interface ElementExclusionRule {
@@ -9,7 +10,7 @@ export interface ElementExclusionRule {
 }
 
 export const DEFAULT_ELEMENT_EXCLUSIONS: ElementExclusionRule[] = [{
-  id: "x-sidebar", name: "X 侧边导航栏", pattern: "x.com", selectors: ['header[role="banner"]'], enabled: true
+  id: "x-sidebar", get name() { return t("xSidebarNavigation"); }, pattern: "x.com", selectors: ['header[role="banner"]'], enabled: true
 }];
 
 export function normalizeElementExclusions(value: unknown): ElementExclusionRule[] {

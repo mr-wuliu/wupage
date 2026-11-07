@@ -1,3 +1,4 @@
+import { t } from "../shared/i18n";
 import { AUTO_TRANSLATION_PRESETS, normalizeAutoTranslation, normalizeSitePattern, setAutoTranslationEnabled } from "../shared/auto-translation";
 import type { AutoTranslationSettings, AutoTranslationSite } from "../shared/types";
 import { uiIconMarkup } from "../shared/ui-icons";
@@ -31,7 +32,7 @@ export function setupAutoTranslationControls(
       const row = document.createElement("li");
       const label = document.createElement("span"); label.textContent = site; label.title = site;
       const remove = document.createElement("button"); remove.type = "button"; remove.innerHTML = uiIconMarkup("cross");
-      remove.title = `取消排除 ${site}`; remove.setAttribute("aria-label", remove.title);
+      remove.title = t("removeExclusionFor", site); remove.setAttribute("aria-label", remove.title);
       remove.addEventListener("click", () => {
         excludedSites = excludedSites.filter(value => value !== site);
         renderExcludedSites();
@@ -65,29 +66,29 @@ export function setupAutoTranslationControls(
 
   function renderSites(): void {
     list.replaceChildren(); controls.clear();
-    if (!sites.length) { const empty = document.createElement("li"); empty.className = "auto-site-empty"; empty.textContent = "暂无站点，点击下方“＋”添加。"; list.append(empty); }
+    if (!sites.length) { const empty = document.createElement("li"); empty.className = "auto-site-empty"; empty.textContent = t("noSitesYetUseTheAddButtonBelow"); list.append(empty); }
     sites.forEach((site, index) => {
       const row = document.createElement("li"); row.className = "auto-site-row";
       row.dataset.siteId = site.id;
       const checkbox = document.createElement("input"); checkbox.type = "checkbox"; checkbox.checked = site.enabled; checkbox.className = "auto-site-enabled";
-      checkbox.setAttribute("aria-label", `启用第 ${index + 1} 条站点规则`);
+      checkbox.setAttribute("aria-label", t("enableSiteRule", index + 1));
       if (site.preset) checkbox.dataset.preset = site.preset;
       checkbox.addEventListener("change", () => { site.enabled = checkbox.checked; });
       const editor = document.createElement("div"); editor.className = "auto-site-editor";
       const pattern = document.createElement("input"); pattern.type = "text"; pattern.className = "auto-site-pattern";
       pattern.value = site.pattern; pattern.title = site.pattern; pattern.maxLength = 2048;
-      pattern.placeholder = "example.com 或 https://example.com/docs/*";
-      pattern.setAttribute("aria-label", `第 ${index + 1} 条站点规则`); pattern.setAttribute("aria-describedby", "autoTranslateSiteHelp autoTranslateSiteStatus");
+      pattern.placeholder = t("exampleComOrHttpsExampleComDocs");
+      pattern.setAttribute("aria-label", t("siteRule", index + 1)); pattern.setAttribute("aria-describedby", "autoTranslateSiteHelp autoTranslateSiteStatus");
       const caption = document.createElement("small");
-      const updateCaption = (): void => { caption.textContent = AUTO_TRANSLATION_PRESETS.find(preset => preset.domain === site.pattern.trim().toLowerCase())?.label ?? "自定义站点"; };
+      const updateCaption = (): void => { caption.textContent = AUTO_TRANSLATION_PRESETS.find(preset => preset.domain === site.pattern.trim().toLowerCase())?.label ?? t("customSite"); };
       updateCaption();
       pattern.addEventListener("input", () => {
         site.pattern = pattern.value; pattern.title = pattern.value; pattern.removeAttribute("aria-invalid"); message.textContent = ""; updateCaption();
-        remove.setAttribute("aria-label", `删除站点 ${site.pattern || "未填写"}`);
+        remove.setAttribute("aria-label", t("deleteSite", site.pattern || t("empty")));
       });
       controls.set(site.id, pattern);
       const remove = document.createElement("button"); remove.type = "button"; remove.className = "secondary auto-site-remove";
-      remove.innerHTML = uiIconMarkup("trash"); remove.title = "删除站点"; remove.setAttribute("aria-label", `删除站点 ${site.pattern || "未填写"}`);
+      remove.innerHTML = uiIconMarkup("trash"); remove.title = t("removeSiteButton"); remove.setAttribute("aria-label", t("deleteSite", site.pattern || t("empty")));
       remove.addEventListener("click", () => {
         syncDrafts();
         const index = sites.indexOf(site);
@@ -99,7 +100,7 @@ export function setupAutoTranslationControls(
     });
     const addRow = document.createElement("li"); addRow.className = "auto-site-add-row";
     const add = document.createElement("button"); add.id = "addAutoTranslateSite"; add.type = "button"; add.innerHTML = uiIconMarkup("plus");
-    add.title = "添加站点"; add.setAttribute("aria-label", "添加站点");
+    add.title = t("addSite"); add.setAttribute("aria-label", t("addSite"));
     add.addEventListener("click", () => {
       syncDrafts();
       const site = { id: crypto.randomUUID(), pattern: "", enabled: true };
@@ -134,11 +135,11 @@ export function setupAutoTranslationControls(
       const normalized = sites.map((site, index) => {
         try {
           const pattern = normalizeSitePattern(controls.get(site.id)?.value ?? site.pattern);
-          if (patterns.has(pattern)) throw new Error("这个站点规则已经存在。");
+          if (patterns.has(pattern)) throw new Error(t("thisSiteRuleAlreadyExists"));
           const checkbox = controls.get(site.id)?.closest("li")?.querySelector<HTMLInputElement>(".auto-site-enabled");
           patterns.add(pattern); return { ...site, pattern, enabled: checkbox?.checked ?? site.enabled };
         } catch (error) {
-          const text = `第 ${index + 1} 行：${error instanceof Error ? error.message : String(error)} 请修改或用“−”删除该行。`;
+          const text = t("lineEditOrRemoveThisRow", index + 1, error instanceof Error ? error.message : String(error));
           message.textContent = text;
           const field = controls.get(site.id);
           if (field) { field.setAttribute("aria-invalid", "true"); revealInvalidField(field); field.focus(); }

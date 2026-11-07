@@ -1,3 +1,4 @@
+import { t } from "../shared/i18n";
 import type { LocalModel } from "./models";
 import { readLocalModel } from "./model-store";
 import { fromStructuredHTML, toStructuredHTML } from "./structured-html";
@@ -10,7 +11,7 @@ export class LocalTranslationEngine {
   private readonly pending = new Map<number, { resolve: (value: unknown) => void; reject: (error: Error) => void; timer: ReturnType<typeof setTimeout> }>();
   private routeKey = "";
 
-  release(error = new Error("本地翻译已停止。")): void {
+  release(error = new Error(t("localTranslationStopped"))): void {
     this.worker?.terminate();
     this.worker = undefined;
     this.routeKey = "";
@@ -21,7 +22,7 @@ export class LocalTranslationEngine {
   private call(name: string, args: unknown[], transfer: Transferable[] = []): Promise<unknown> {
     return new Promise((resolve, reject) => {
       const id = ++this.serial;
-      const timer = setTimeout(() => this.release(new Error("本地翻译处理超时，请缩小文本范围后重试。")), 120_000);
+      const timer = setTimeout(() => this.release(new Error(t("localTranslationTimedOutTryASmallerSelection"))), 120_000);
       this.pending.set(id, { resolve, reject, timer });
       try { this.worker!.postMessage({ id, name, args }, transfer); }
       catch (error) { this.release(error instanceof Error ? error : new Error(String(error))); }
@@ -38,17 +39,17 @@ export class LocalTranslationEngine {
       if (!task) return;
       clearTimeout(task.timer);
       this.pending.delete(data.id);
-      if (data.error) task.reject(new Error(data.error.message ?? "本地翻译失败。"));
+      if (data.error) task.reject(new Error(data.error.message ?? t("localTranslationFailed")));
       else task.resolve(data.result);
     };
-    this.worker.onerror = (event) => { event.preventDefault(); this.release(new Error("本地翻译引擎启动失败，请确认浏览器支持 WebAssembly SIMD，或重新加载扩展。")); };
-    this.worker.onmessageerror = () => this.release(new Error("本地翻译消息读取失败，请重试。"));
+    this.worker.onerror = (event) => { event.preventDefault(); this.release(new Error(t("couldNotStartTheLocalEngineCheckWebassembly"))); };
+    this.worker.onmessageerror = () => this.release(new Error(t("couldNotReadTheLocalTranslationMessageTry")));
     // Firefox's offline mode permits extension-page fetches but rejects the
     // worker's first fetch of packaged WASM. Transfer it from this page instead.
     let wasmBinary: ArrayBuffer | undefined;
     if (import.meta.env.MODE === "firefox") {
       const response = await fetch(chrome.runtime.getURL("bergamot-runtime/bergamot-translator-worker.wasm"));
-      if (!response.ok) throw new Error("本地翻译运行库读取失败，请重新加载扩展。");
+      if (!response.ok) throw new Error(t("couldNotReadTheLocalTranslationRuntimeReload"));
       wasmBinary = await response.arrayBuffer();
     }
     await this.call("initialize", [{ cacheSize: 0, useNativeIntGemm: false, ...(wasmBinary ? { wasmBinary } : {}) }], wasmBinary ? [wasmBinary] : []);
@@ -73,7 +74,7 @@ export class LocalTranslationEngine {
         })
       }]) as { target: { text: string } }[];
       if (!Array.isArray(result) || result.length !== texts.length || result.some((item) => typeof item?.target?.text !== "string")) {
-        throw new Error("本地翻译返回了不完整的结果，请重试。");
+        throw new Error(t("localTranslationReturnedIncompleteResultsTryAgain"));
       }
       // Malformed/dropped markup stays invalid for the shared protected-text
       // validator, which retries only that item and can fall back to fragments.

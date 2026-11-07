@@ -1,3 +1,4 @@
+import { initializeInterfaceLanguage, t } from "../shared/i18n";
 import { getSettings } from "../shared/settings";
 import { installedRevision } from "../ocr/model-store";
 import type { RuntimeRequest, RuntimeResponse } from "../shared/types";
@@ -5,8 +6,15 @@ import type { RuntimeRequest, RuntimeResponse } from "../shared/types";
 export const IMAGE_MENU_ID = "wupage-translate-image";
 
 export function initImageContextMenu(): void {
+  chrome.contextMenus.onClicked.addListener((info, tab) => {
+    void handleImageMenuClick(info, tab).catch(() => openImageSettings("refresh"));
+  });
+  void initializeInterfaceLanguage().then(refreshImageContextMenu).catch(error => console.warn("WuPage image menu:", error));
+}
+
+export function refreshImageContextMenu(): void {
   const properties: chrome.contextMenus.CreateProperties = {
-    title: "使用 WuPage 翻译图片", contexts: ["image"], documentUrlPatterns: ["http://*/*", "https://*/*"]
+    title: t("translateImageWithWupage"), contexts: ["image"], documentUrlPatterns: ["http://*/*", "https://*/*"]
   };
   // Menus persist across service-worker restarts; update the existing item first.
   // update() only returns a Promise in Chrome 123+. Keep callback support for
@@ -16,9 +24,6 @@ export function initImageContextMenu(): void {
     chrome.contextMenus.create({ ...properties, id: IMAGE_MENU_ID }, () => {
       if (chrome.runtime.lastError) console.warn("WuPage image menu:", chrome.runtime.lastError.message);
     });
-  });
-  chrome.contextMenus.onClicked.addListener((info, tab) => {
-    void handleImageMenuClick(info, tab).catch(() => openImageSettings("refresh"));
   });
 }
 

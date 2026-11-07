@@ -1,3 +1,4 @@
+import { t } from "../shared/i18n";
 import { createDocumentKey } from "../shared/frame-session";
 import { validVideoFrameArea, type VideoFrameArea } from "../shared/video-frame";
 
@@ -7,7 +8,7 @@ const GEOMETRY_REPLY = "wupage-video-frame-area-result";
 /** Page messages carry coordinates only; capturing pixels requires extension messaging. */
 export async function topVideoFrameArea(area: VideoFrameArea, signal?: AbortSignal): Promise<VideoFrameArea> {
   signal?.throwIfAborted();
-  if (!validVideoFrameArea(area)) throw new Error("请将完整视频画面显示在窗口内后重试。");
+  if (!validVideoFrameArea(area)) throw new Error(t("bringTheEntireVideoIntoViewAndTry"));
   if (window === window.top) return area;
   const key = createDocumentKey();
   return new Promise((resolve, reject) => {
@@ -17,9 +18,9 @@ export async function topVideoFrameArea(area: VideoFrameArea, signal?: AbortSign
       if (event.source !== window.parent || event.data?.type !== GEOMETRY_REPLY || event.data.key !== key) return;
       cleanup();
       if (validVideoFrameArea(event.data.area)) resolve(event.data.area);
-      else reject(new Error("无法定位内嵌视频画面，请将完整播放器显示在窗口内后重试。"));
+      else reject(new Error(t("cannotLocateTheEmbeddedVideoBringTheEntire")));
     };
-    const timer = setTimeout(() => { cleanup(); reject(new Error("无法定位内嵌视频画面，请在视频原网页中重试。")); }, 2000);
+    const timer = setTimeout(() => { cleanup(); reject(new Error(t("cannotLocateTheEmbeddedVideoTryOnThe"))); }, 2000);
     window.addEventListener("message", receive);
     signal?.addEventListener("abort", cancel, { once: true });
     window.parent.postMessage({ type: GEOMETRY_REQUEST, key, area }, "*");

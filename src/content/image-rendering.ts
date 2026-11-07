@@ -1,3 +1,4 @@
+import { t } from "../shared/i18n";
 import type { ImageTextRegion } from "../shared/types";
 
 export function getImageRasterSize(
@@ -39,7 +40,7 @@ export function wrapImageText(context: Pick<CanvasRenderingContext2D, "measureTe
 // erasures would otherwise reveal the original lettering beneath the canvas.
 export function renderImageTranslation(canvas: HTMLCanvasElement, source: CanvasImageSource, regions: ImageTextRegion[]): boolean {
   const context = canvas.getContext("2d", { willReadFrequently: regions.some((region) => region.sampleColors) });
-  if (!context) throw new Error("浏览器无法绘制图片译文。");
+  if (!context) throw new Error(t("theBrowserCannotRenderTheImageTranslation"));
   context.clearRect(0, 0, canvas.width, canvas.height);
   context.drawImage(source, 0, 0, canvas.width, canvas.height);
   // Sample before drawing any overlays so adjacent regions do not sample a translation.

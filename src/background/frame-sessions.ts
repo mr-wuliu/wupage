@@ -1,3 +1,4 @@
+import { t } from "../shared/i18n";
 import { anySignal } from "../shared/abort";
 import type { ExtensionSettings, RuntimeRequest, RuntimeResponse, TranslateBatchRequest } from "../shared/types";
 import {
@@ -73,13 +74,13 @@ export class FrameSessionManager {
 
   async handle(request: FrameSessionRequest, sender: chrome.runtime.MessageSender): Promise<unknown> {
     const tabId = sender.tab?.id;
-    if (tabId === undefined || sender.frameId === undefined) throw new Error("需要有效的网页文档。");
+    if (tabId === undefined || sender.frameId === undefined) throw new Error(t("aValidPageDocumentIsRequired"));
     const tab = await this.get(tabId);
-    if (tab.retired) throw new Error("网页文档已经更新。");
+    if (tab.retired) throw new Error(t("thePageDocumentHasChanged"));
     const frameId = sender.frameId;
     if (request.type === "FRAME_REGISTER") {
       const metadata = await this.api.webNavigation?.getFrame({ tabId, frameId }).catch(() => undefined);
-      if (metadata?.documentId && sender.documentId && metadata.documentId !== sender.documentId) throw new Error("网页文档已经更新。");
+      if (metadata?.documentId && sender.documentId && metadata.documentId !== sender.documentId) throw new Error(t("thePageDocumentHasChanged"));
       if (frameId === 0 && tab.topDocument && tab.topDocument !== request.documentKey) {
         this.reset(tab); await this.applyAll(tabId, tab, true);
       }
@@ -134,7 +135,7 @@ export class FrameSessionManager {
     if (request.type === "FRAME_SESSION_ACTION") {
       const version = ++tab.controlVersion;
       if (request.action === "start") {
-        if (!tab.frames.get(0)?.documentKey) throw new Error("无法连接当前网页，请刷新页面后重试。");
+        if (!tab.frames.get(0)?.documentKey) throw new Error(t("couldNotConnectToThisPageRefreshIt"));
         const settingsRevision = tab.settingsRevision;
         const settings = await this.readSettings();
         if (version !== tab.controlVersion) return this.snapshot(tab);
@@ -153,16 +154,16 @@ export class FrameSessionManager {
       tab.settings = { ...tab.settings, translationDisplayMode: request.mode }; tab.revision++;
       await this.applyAll(tabId, tab, true); this.publish(tabId, tab); return null;
     }
-    throw new Error("不支持的框架会话操作。");
+    throw new Error(t("unsupportedFrameSessionOperation"));
   }
 
   async translate<T>(request: TranslateBatchRequest, sender: chrome.runtime.MessageSender,
     run: (signal?: AbortSignal) => Promise<T>): Promise<T> {
     if (!request.pageSession) return run();
     const tabId = sender.tab?.id;
-    if (tabId === undefined || sender.frameId === undefined) throw new Error("翻译文档已经失效。");
+    if (tabId === undefined || sender.frameId === undefined) throw new Error(t("theTranslationDocumentHasExpired"));
     const tab = await this.get(tabId);
-    if (tab.retired) throw new Error("网页文档已经更新。");
+    if (tab.retired) throw new Error(t("thePageDocumentHasChanged"));
     if (tab.paused) throw new ProviderError(tab.paused.message, tab.paused.errorCode,
       tab.paused.retryAt === undefined ? undefined : Math.max(0, tab.paused.retryAt - Date.now()));
     let frame = tab.frames.get(sender.frameId);
@@ -178,7 +179,7 @@ export class FrameSessionManager {
     if (!tab.active || tab.id !== request.pageSession.id || !frame
       || frame.documentKey !== request.pageSession.documentKey
       || frame.documentId && sender.documentId && frame.documentId !== sender.documentId
-      || this.exclusion(tab, frame)) throw new Error("翻译会话已经停止。");
+      || this.exclusion(tab, frame)) throw new Error(t("theTranslationSessionHasStopped"));
     let documentController = tab.documents.get(frame.frameId);
     if (!documentController) { documentController = new AbortController(); tab.documents.set(frame.frameId, documentController); }
     const signal = anySignal([tab.controller.signal, documentController.signal]);
@@ -186,7 +187,7 @@ export class FrameSessionManager {
     const generation = tab.id;
     const frameId = sender.frameId;
     await new Promise<void>((resolve, reject) => {
-      const abort = () => { tab.queue = tab.queue.filter(item => item !== entry); reject(new Error("翻译会话已经停止。")); };
+      const abort = () => { tab.queue = tab.queue.filter(item => item !== entry); reject(new Error(t("theTranslationSessionHasStopped"))); };
       const entry = { frameId, reject, run: () => { signal.removeEventListener("abort", abort); resolve(); } };
       signal.addEventListener("abort", abort, { once: true });
       tab.queue.push(entry); this.pump(tab);
@@ -211,7 +212,7 @@ export class FrameSessionManager {
         for (const id of tab.frames.keys()) if (!ids.has(id)) tab.frames.delete(id);
         for (const frame of current) if (!tab.frames.has(frame.frameId)) tab.frames.set(frame.frameId, {
           frameId: frame.frameId, documentKey: "", url: frame.url,
-          status: "unavailable", reason: "文档尚未接入，或浏览器不允许访问"
+          status: "unavailable", reason: t("waitingForTheDocumentToConnectOrFor")
         });
       }
     } catch { /* Restricted documents are reported without failing the parent. */ }
@@ -255,7 +256,7 @@ export class FrameSessionManager {
     const documents = await Promise.all(current.map(async metadata => {
       const frame: Frame = { frameId: metadata.frameId, parentFrameId: metadata.parentFrameId,
         documentId: metadata.documentId, documentKey: "", url: this.documentUrl(metadata.url),
-        status: "unavailable", reason: "文档尚未接入，或浏览器不允许访问" };
+        status: "unavailable", reason: t("waitingForTheDocumentToConnectOrFor") };
       try {
         const identity = await this.send(tabId, frame, { type: "FRAME_IDENTIFY" }, 1500) as FrameDocumentIdentity | undefined;
         if (identity?.documentKey && typeof identity.documentKey === "string") {
@@ -283,7 +284,7 @@ export class FrameSessionManager {
   }
   private updateFrameState(frame: Frame, state: DocumentTranslationState): void {
     frame.state = state;
-    frame.reason = state.documentHidden ? "等待嵌入页面显示" : undefined;
+    frame.reason = state.documentHidden ? t("waitingForEmbeddedPageToBecomeVisible") : undefined;
     frame.status = state.failed || state.error ? "failed" : state.documentHidden ? "waiting-viewport" : state.pending ? "translating"
       : state.remaining ? "waiting-viewport" : state.translated ? "ready" : "empty";
   }
@@ -336,7 +337,7 @@ export class FrameSessionManager {
       const parent = await this.api.webNavigation?.getFrame({ tabId, frameId: parentId }).catch(() => undefined);
       if (!parent) break;
       tab.frames.set(parentId, { frameId: parentId, parentFrameId: parent.parentFrameId, documentKey: "",
-        documentId: parent.documentId, url: this.documentUrl(parent.url), status: "unavailable", reason: "等待文档接入" });
+        documentId: parent.documentId, url: this.documentUrl(parent.url), status: "unavailable", reason: t("waitingForDocumentConnection") });
       if (parentId === 0 && !tab.topUrl) tab.topUrl = parent.url;
       parentId = parent.parentFrameId;
     }
@@ -367,12 +368,12 @@ export class FrameSessionManager {
       const effectiveUrl = /^https?:/u.test(ancestor.url) ? ancestor.url
         : chain.slice(index + 1).find(item => /^https?:/u.test(item.url))?.url ?? tab.topUrl;
       const reason = frameExclusion(tab.settings, tab.topUrl, effectiveUrl, ancestor.frameId);
-      if (reason) return index ? `上级嵌入页面已排除：${reason}` : reason;
+      if (reason) return index ? t("parentFrameExcluded", reason) : reason;
     }
   }
   private send(tabId: number, frame: Frame, request: RuntimeRequest, timeout = 25000): Promise<unknown> {
     return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => reject(new Error("框架响应超时")), timeout);
+      const timer = setTimeout(() => reject(new Error(t("frameResponseTimedOut"))), timeout);
       this.api.tabs.sendMessage(tabId, request, frame.documentId ? { documentId: frame.documentId } : { frameId: frame.frameId })
         .catch(error => {
           const message = error instanceof Error ? error.message : String(error);
@@ -384,7 +385,7 @@ export class FrameSessionManager {
           throw error;
         })
         .then((response: RuntimeResponse) => {
-          if (!response?.ok) throw new Error(response?.ok === false ? response.error : "框架没有响应");
+          if (!response?.ok) throw new Error(response?.ok === false ? response.error : t("frameDidNotRespond"));
           resolve(response.data);
         }).catch(reject).finally(() => clearTimeout(timer));
     });
@@ -439,7 +440,7 @@ export class FrameSessionManager {
           // document and provider failures must still be reported to the user.
           const reportError = tab.active && allowed && !(connectionLost && frame.frameId !== 0 && documentHidden);
           const failure = connectionLost ? {
-            error: frame.frameId === 0 ? "当前网页的翻译连接已中断。" : "嵌入页面的翻译连接已中断，可在 Debug 查看具体文档。",
+            error: frame.frameId === 0 ? t("theConnectionToThisPageWasInterrupted") : t("theConnectionToAnEmbeddedPageWasInterrupted"),
             errorCode: frame.frameId === 0 ? "page-connection-lost" : "frame-connection-lost"
           } : { error: frame.reason };
           frame.state = { ...emptyDocumentState(), documentHidden,

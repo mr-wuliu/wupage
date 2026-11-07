@@ -1,3 +1,4 @@
+import { getInterfaceLanguage, initializeInterfaceLanguage, localizeDocument, t, htmlMessage, type InterfaceLanguage } from "../shared/i18n";
 import { BUILT_IN_PROVIDER_IDS, DEFAULT_SETTINGS } from "../shared/defaults";
 import { normalizeFrameTranslation } from "../shared/frame-session";
 import { SOURCE_LANGUAGES, TARGET_LANGUAGES } from "../shared/languages";
@@ -28,6 +29,8 @@ import { setupSettingsResetControls } from "./reset-settings";
 import { ACTION_STATUS_DURATION, setupSettingsActionFeedback } from "./action-feedback";
 import { defaultProviderPerformance, restoreProviderParameters } from "./provider-defaults";
 
+await initializeInterfaceLanguage();
+localizeDocument(document);
 renderUiIcons();
 
 const settingsNavigation = setupSettingsNavigation(query<HTMLElement>(".settings"));
@@ -37,6 +40,8 @@ const statisticsControls = setupStatisticsControls(query<HTMLElement>("#statisti
 
 const targetLang = query<HTMLSelectElement>("#targetLang");
 const sourceLang = query<HTMLSelectElement>("#sourceLang");
+const interfaceLanguageSelect = query<HTMLSelectElement>("#interfaceLanguage");
+interfaceLanguageSelect.value = getInterfaceLanguage();
 const chunkSize = query<HTMLInputElement>("#chunkSize");
 const concurrency = query<HTMLInputElement>("#concurrency");
 const pdfTranslationScope = query<HTMLSelectElement>("#pdfTranslationScope");
@@ -142,14 +147,14 @@ async function init(): Promise<void> {
   } });
   setupOcrControl(imageTranslationEnabled, () => { settings.imageTranslationEnabled = false; setImageTranslationToggle(imageTranslationEnabled, false); });
   const imageNotice = new URLSearchParams(location.search).get("imageTranslationNotice");
-  if (imageNotice === "setup") setStatus("使用右键图片翻译前，请先点击扳手安装 OCR 模型，开启图片翻译并保存。");
-  if (imageNotice === "refresh") setStatus("无法连接图片所在页面。请刷新刚才的网页，再右键点击图片翻译；部分嵌入页面暂不支持。");
+  if (imageNotice === "setup") setStatus(t("beforeTranslatingImagesFromTheContextMenuInstall"));
+  if (imageNotice === "refresh") setStatus(t("couldNotConnectToTheImageSPage"));
   if (imageNotice) {
     settingsNavigation.reveal(imageTranslationEnabled);
     imageTranslationEnabled.closest(".image-feature")?.scrollIntoView?.({ block: "center" });
   }
   if (new URLSearchParams(location.search).get("pageTranslationNotice") === "refresh") {
-    setStatus("无法连接网页。请刷新刚才的网页，再右键选择全文翻译。");
+    setStatus(t("couldNotConnectToThePageRefreshIt"));
   }
 
   providerTrigger.addEventListener("click", () => setProviderMenuOpen(providerMenu.hidden));
@@ -315,7 +320,7 @@ function renderProviderMenuRow(provider: ProviderConfig): string {
         aria-selected="${provider.id === editingProviderId}"
         data-enabled="${enabled}"
         ${unavailable ? "disabled" : ""}
-        title="${unavailable ? "此浏览器暂不支持豆包翻译" : `${escapeAttr(provider.label)}${enabled ? "" : "（已停用，可编辑）"}`}"
+        title="${unavailable ? t("doubaoTranslationIsUnavailableInThisBrowser") : `${escapeAttr(provider.label)}${enabled ? "" : t("disabledEditable")}`}"
       >
         ${providerIconMarkup(provider)}
         <span class="provider-option-label">${escapeHtml(provider.label)}</span>
@@ -326,8 +331,8 @@ function renderProviderMenuRow(provider: ProviderConfig): string {
         data-action="toggle"
         data-provider-id="${escapeAttr(provider.id)}"
         aria-pressed="${enabled}"
-        title="${enabled ? "停用" : "启用"} ${escapeAttr(provider.label)}"
-        aria-label="${enabled ? "停用" : "启用"} ${escapeAttr(provider.label)}"
+        title="${enabled ? t("disable") : t("enable")} ${escapeAttr(provider.label)}"
+        aria-label="${enabled ? t("disable") : t("enable")} ${escapeAttr(provider.label)}"
       ></button>
       ${builtIn ? "" : `
         <button
@@ -335,8 +340,8 @@ function renderProviderMenuRow(provider: ProviderConfig): string {
           type="button"
           data-action="delete"
           data-provider-id="${escapeAttr(provider.id)}"
-          title="删除 ${escapeAttr(provider.label)}"
-          aria-label="删除 ${escapeAttr(provider.label)}"
+          title="${htmlMessage("delete", provider.label)}"
+          aria-label="${htmlMessage("delete", provider.label)}"
         >${uiIconMarkup("trash")}</button>
       `}
     </div>
@@ -354,17 +359,17 @@ function renderProviderForm(rebuildPerformance = true): void {
   syncDoubaoTargetControls(settings, targetLang);
   if (provider.type === "doubao-web") {
     setProviderFormMarkup(provider, `
-      <div class="grid"><label>显示名称 <input data-field="label" type="text" value="${escapeAttr(provider.label)}" /></label></div>
+      <div class="grid"><label>${htmlMessage("displayName")} <input data-field="label" type="text" value="${escapeAttr(provider.label)}" /></label></div>
       <div class="doubao-setup">
-        <h3>豆包（实验性）</h3>
-        <p>无需 API Key。在当前浏览器打开豆包并登录，即可开始翻译。连接异常时可点击“重新检测”。</p>
-        <p>翻译会将待译文本发送到豆包；检测只发送固定短文本。</p>
+        <h3>${htmlMessage("doubaoExperimental")}</h3>
+        <p>${htmlMessage("signInToDoubaoInThisBrowserTo")}</p>
+        <p>${htmlMessage("translationSendsYourSourceTextToDoubaoThe")}</p>
         <div class="doubao-actions">
-          <button type="button" data-action="open-doubao">打开豆包并登录</button>
-          <button id="test" type="button" data-action="check-doubao">重新检测</button>
+          <button type="button" data-action="open-doubao">${htmlMessage("openDoubaoAndSignIn")}</button>
+          <button id="test" type="button" data-action="check-doubao">${htmlMessage("checkAgain")}</button>
         </div>
         <p data-role="doubao-status" role="status" aria-live="polite"></p>
-        <p class="hint">如提示登录失效，请重新登录后重试翻译，或点击重新检测；如遇限流，请等待。登录状态由浏览器管理，无需复制 Cookie。</p>
+        <p class="hint">${htmlMessage("ifYourSessionExpiresSignInAgainAnd")}</p>
       </div>`);
     providerForm.querySelector<HTMLButtonElement>("[data-action='open-doubao']")?.addEventListener("click", () => {
       void chrome.tabs.create({ url: "https://www.doubao.com/" }).catch((error: unknown) => setStatus(error instanceof Error ? error.message : String(error)));
@@ -382,34 +387,34 @@ function renderProviderForm(rebuildPerformance = true): void {
     return;
   }
   if (provider.type === "firefox-local") {
-    setProviderFormMarkup(provider, `<div class="grid"><label>显示名称 <input data-field="label" type="text" value="${escapeAttr(provider.label)}" /></label></div><div data-local-model-control></div>`);
+    setProviderFormMarkup(provider, `<div class="grid"><label>${htmlMessage("displayName")} <input data-field="label" type="text" value="${escapeAttr(provider.label)}" /></label></div><div data-local-model-control></div>`);
     updateLocalControl();
     return;
   }
   if (supportsServiceMode(provider)) {
     const api = translationApiOptions(provider);
     const fields = provider.type === "microsoft-web-translate"
-      ? [["endpoint", "Endpoint", "url"], ["apiKey", "API Key", "password"], ["region", "Azure 区域（可选）", "text"]]
+      ? [["endpoint", "Endpoint", "url"], ["apiKey", "API Key", "password"], ["region", t("azureRegionOptional"), "text"]]
       : provider.type === "tencent-transmart"
-        ? [["endpoint", "Base URL", "url"], ["apiKey", "TokenHub API Key", "password"], ["model", "翻译模型", "text"]]
+        ? [["endpoint", "Base URL", "url"], ["apiKey", "TokenHub API Key", "password"], ["model", t("translationModel"), "text"]]
         : provider.type === "yandex-web-translate"
-          ? [["apiKey", "Yandex Cloud API Key", "password"], ["folderId", "Folder ID（按账号要求填写）", "text"]]
+          ? [["apiKey", "Yandex Cloud API Key", "password"], ["folderId", t("folderIdIfRequiredByYourAccount"), "text"]]
           : provider.type === "volcengine-web-translate"
-            ? [["accessKeyId", "Access Key ID", "password"], ["secretAccessKey", "Secret Access Key", "password"], ["region", "区域", "text"]]
+            ? [["accessKeyId", "Access Key ID", "password"], ["secretAccessKey", "Secret Access Key", "password"], ["region", t("region"), "text"]]
             : [["apiKey", provider.type === "mymemory" ? "RapidAPI Key" : "Google Cloud API Key", "password"]];
     const apiLabel = { "microsoft-web-translate": "Microsoft Translator API（Azure）", "google-web-translate": "Google Cloud Translation API",
-      "tencent-transmart": "腾讯 TokenHub 翻译 API", "yandex-web-translate": "Yandex Cloud Translate API",
-      "volcengine-web-translate": "火山引擎机器翻译 API", "mymemory": "MyMemory（RapidAPI）" }[provider.type];
+      "tencent-transmart": t("tencentTokenhubTranslationApi"), "yandex-web-translate": "Yandex Cloud Translate API",
+      "volcengine-web-translate": t("volcengineMachineTranslationApi"), "mymemory": "MyMemory（RapidAPI）" }[provider.type];
     setProviderFormMarkup(provider, `
       <div class="grid">
-        <label>显示名称 <input data-field="label" type="text" value="${escapeAttr(provider.label)}" /></label>
-        <label>使用方式 <select data-field="serviceMode" aria-controls="translationApiFields">
-          <option value="free" ${provider.serviceMode !== "api" ? "selected" : ""}>免费服务（默认）</option>
-          <option value="api" ${provider.serviceMode === "api" ? "selected" : ""}>API 服务（自备凭据）</option>
+        <label>${htmlMessage("displayName")} <input data-field="label" type="text" value="${escapeAttr(provider.label)}" /></label>
+        <label>${htmlMessage("serviceMode")} <select data-field="serviceMode" aria-controls="translationApiFields">
+          <option value="free" ${provider.serviceMode !== "api" ? "selected" : ""}>${htmlMessage("freeServiceDefault")}</option>
+          <option value="api" ${provider.serviceMode === "api" ? "selected" : ""}>${htmlMessage("apiServiceOwnCredentials")}</option>
         </select></label>
       </div>
       <div id="translationApiFields" ${provider.serviceMode !== "api" ? "hidden" : ""}>
-        <p class="hint">${apiLabel}，额度和费用按服务商账号计算。切回免费服务会保留凭据。</p>
+        <p class="hint">${htmlMessage("yourProviderDeterminesQuotaAndPricingSwitchingBack", apiLabel)}</p>
         <div class="grid">${fields.map(([name, label, type]) => `<label>${label}<input data-api-field="${name}" type="${type}" value="${escapeAttr(api[name as keyof TranslationApiOptions] ?? "")}" autocomplete="off" /></label>`).join("")}</div>
       </div>
     `);
@@ -423,10 +428,10 @@ function renderProviderForm(rebuildPerformance = true): void {
   if (provider.type === "microsoft-translator") {
     setProviderFormMarkup(provider, `
       <div class="grid">
-        <label>显示名称 <input data-field="label" type="text" value="${escapeAttr(provider.label)}" /></label>
+        <label>${htmlMessage("displayName")} <input data-field="label" type="text" value="${escapeAttr(provider.label)}" /></label>
         <label>Endpoint <input data-field="endpoint" type="url" value="${escapeAttr(provider.endpoint)}" /></label>
         <label>API key <input data-field="apiKey" type="password" value="${escapeAttr(provider.apiKey)}" /></label>
-        <label>区域 <input data-field="region" type="text" value="${escapeAttr(provider.region)}" placeholder="global 或 Azure 区域" /></label>
+        <label>${htmlMessage("region")} <input data-field="region" type="text" value="${escapeAttr(provider.region)}" placeholder="${htmlMessage("globalOrAnAzureRegion")}" /></label>
       </div>
     `);
     return;
@@ -435,7 +440,7 @@ function renderProviderForm(rebuildPerformance = true): void {
   if (provider.type === "google-cloud-translation") {
     setProviderFormMarkup(provider, `
       <div class="grid">
-        <label>显示名称 <input data-field="label" type="text" value="${escapeAttr(provider.label)}" /></label>
+        <label>${htmlMessage("displayName")} <input data-field="label" type="text" value="${escapeAttr(provider.label)}" /></label>
         <label>API key <input data-field="apiKey" type="password" value="${escapeAttr(provider.apiKey)}" /></label>
       </div>
     `);
@@ -446,22 +451,22 @@ function renderProviderForm(rebuildPerformance = true): void {
     const isAnthropic = provider.type === "anthropic-compatible";
     setProviderFormMarkup(provider, `
       <div class="grid">
-        <label>显示名称 <input data-field="label" type="text" value="${escapeAttr(provider.label)}" /></label>
+        <label>${htmlMessage("displayName")} <input data-field="label" type="text" value="${escapeAttr(provider.label)}" /></label>
         <label>Base URL <input data-field="baseURL" type="url" value="${escapeAttr(provider.baseURL)}" /></label>
-        <label>API key（可选） <input data-field="apiKey" type="password" value="${escapeAttr(provider.apiKey)}" /></label>
+        <label>${htmlMessage("apiKeyOptional")} <input data-field="apiKey" type="password" value="${escapeAttr(provider.apiKey)}" /></label>
         ${renderModelControl(provider)}
       </div>
-      <label>系统提示词 <textarea data-field="systemPrompt">${escapeHtml(provider.systemPrompt)}</textarea></label>
+      <label>${htmlMessage("systemPrompt")} <textarea data-field="systemPrompt">${escapeHtml(provider.systemPrompt)}</textarea></label>
       ${isAnthropic ? "" : `
-        <label>Ollama 兼容
+        <label>${htmlMessage("ollamaCompatibility")}
           <select data-field="ollamaCompatibility">
-            <option value="enabled" ${provider.type === "openai-compatible" && provider.ollamaCompatibility !== false ? "selected" : ""}>开启（默认）</option>
-            <option value="disabled" ${provider.type === "openai-compatible" && provider.ollamaCompatibility === false ? "selected" : ""}>关闭</option>
+            <option value="enabled" ${provider.type === "openai-compatible" && provider.ollamaCompatibility !== false ? "selected" : ""}>${htmlMessage("enabledDefault")}</option>
+            <option value="disabled" ${provider.type === "openai-compatible" && provider.ollamaCompatibility === false ? "selected" : ""}>${htmlMessage("disabledOption")}</option>
           </select>
         </label>
-        <p class="hint">默认开启，支持 IPv4、IPv6、自定义端口和完整 Chat Completions 地址。</p>
+        <p class="hint">${htmlMessage("enabledByDefaultSupportsIpv4Ipv6CustomPorts")}</p>
       `}
-      <p class="hint">接口格式：${isAnthropic ? "Anthropic Messages" : "OpenAI Chat Completions"}。</p>
+      <p class="hint">${htmlMessage("apiFormat", isAnthropic ? "Anthropic Messages" : "OpenAI Chat Completions")}</p>
     `);
     return;
   }
@@ -469,13 +474,13 @@ function renderProviderForm(rebuildPerformance = true): void {
   if (provider.type === "deepseek") {
     setProviderFormMarkup(provider, `
       <div class="grid">
-        <label>显示名称 <input data-field="label" type="text" value="${escapeAttr(provider.label)}" /></label>
+        <label>${htmlMessage("displayName")} <input data-field="label" type="text" value="${escapeAttr(provider.label)}" /></label>
         <label>Base URL <input data-field="baseURL" type="url" value="${escapeAttr(provider.baseURL)}" /></label>
         <label>API key <input data-field="apiKey" type="password" value="${escapeAttr(provider.apiKey)}" /></label>
         ${renderModelControl(provider)}
       </div>
-      <label>系统提示词 <textarea data-field="systemPrompt">${escapeHtml(provider.systemPrompt)}</textarea></label>
-      <p class="hint">使用 DeepSeek Chat Completions，默认关闭思考模式以降低翻译延迟，可在「高级」中覆盖。API 地址默认使用 https://api.deepseek.com。</p>
+      <label>${htmlMessage("systemPrompt")} <textarea data-field="systemPrompt">${escapeHtml(provider.systemPrompt)}</textarea></label>
+      <p class="hint">${htmlMessage("usesDeepseekChatCompletionsWithThinkingDisabledBy")}</p>
     `);
     return;
   }
@@ -483,31 +488,31 @@ function renderProviderForm(rebuildPerformance = true): void {
   if (provider.type === "zhipu-glm") {
     setProviderFormMarkup(provider, `
       <div class="grid">
-        <label>显示名称 <input data-field="label" type="text" value="${escapeAttr(provider.label)}" /></label>
+        <label>${htmlMessage("displayName")} <input data-field="label" type="text" value="${escapeAttr(provider.label)}" /></label>
         <label>Base URL <input data-field="baseURL" type="url" value="${escapeAttr(provider.baseURL)}" /></label>
         <label>API key <input data-field="apiKey" type="password" value="${escapeAttr(provider.apiKey)}" /></label>
         ${renderModelControl(provider)}
       </div>
-      <label>系统提示词 <textarea data-field="systemPrompt">${escapeHtml(provider.systemPrompt)}</textarea></label>
-      <p class="hint">使用智谱 GLM Chat Completions。API 地址默认使用 https://open.bigmodel.cn/api/paas/v4。</p>
+      <label>${htmlMessage("systemPrompt")} <textarea data-field="systemPrompt">${escapeHtml(provider.systemPrompt)}</textarea></label>
+      <p class="hint">${htmlMessage("usesZhipuGlmChatCompletionsDefaultApiAddress")}</p>
     `);
     return;
   }
 
   setProviderFormMarkup(provider, `
     <div class="grid">
-      <label>显示名称 <input data-field="label" type="text" value="${escapeAttr(provider.label)}" /></label>
-      <label>请求方法
+      <label>${htmlMessage("displayName")} <input data-field="label" type="text" value="${escapeAttr(provider.label)}" /></label>
+      <label>${htmlMessage("requestMethod")}
         <select data-field="method">
           <option value="POST" ${provider.method === "POST" ? "selected" : ""}>POST</option>
           <option value="GET" ${provider.method === "GET" ? "selected" : ""}>GET</option>
         </select>
       </label>
       <label>URL <input data-field="url" type="url" value="${escapeAttr(provider.url)}" /></label>
-      <label>响应路径 <input data-field="responsePath" type="text" value="${escapeAttr(provider.responsePath)}" /></label>
+      <label>${htmlMessage("responsePath")} <input data-field="responsePath" type="text" value="${escapeAttr(provider.responsePath)}" /></label>
     </div>
-    <label>请求头 JSON <textarea data-field="headers">${escapeHtml(JSON.stringify(provider.headers, null, 2))}</textarea></label>
-    <label>请求体模板 <textarea data-field="bodyTemplate">${escapeHtml(provider.bodyTemplate)}</textarea></label>
+    <label>${htmlMessage("requestHeadersJson")} <textarea data-field="headers">${escapeHtml(JSON.stringify(provider.headers, null, 2))}</textarea></label>
+    <label>${htmlMessage("requestBodyTemplate")} <textarea data-field="bodyTemplate">${escapeHtml(provider.bodyTemplate)}</textarea></label>
   `);
 }
 
@@ -626,16 +631,16 @@ function modelPresets(provider: ModelProvider): string[] {
 }
 
 function renderTestButton(): string {
-  return '<button id="test" type="button" class="secondary">测试服务</button>';
+  return `<button id="test" type="button" class="secondary">${htmlMessage("testService")}</button>`;
 }
 
 function renderModelControl(provider: ModelProvider): string {
   const models = [...new Set([...modelPresets(provider), ...(provider.customModels ?? [])])];
   return `<div class="model-field">
-    <label for="providerModel">模型</label>
+    <label for="providerModel">${htmlMessage("model")}</label>
     <div class="model-toolbar">
       <select id="providerModel" data-field="model">${renderOptions(models, provider.model)}</select>
-      <button type="button" class="icon-button add-model" data-action="manage-model" title="添加或修改模型" aria-label="添加或修改模型">${uiIconMarkup("plus")}</button>
+      <button type="button" class="icon-button add-model" data-action="manage-model" title="${htmlMessage("addOrEditModel")}" aria-label="${htmlMessage("addOrEditModel")}">${uiIconMarkup("plus")}</button>
       ${renderTestButton()}
     </div>
   </div>`;
@@ -647,7 +652,7 @@ async function saveModel(): Promise<void> {
     if (!("model" in provider)) return;
     const model = customModelName.value.trim();
     if (!model) {
-      query<HTMLElement>("#modelStatus").textContent = "请填写模型名称。";
+      query<HTMLElement>("#modelStatus").textContent = t("enterAModelName");
       return;
     }
     const presets = modelPresets(provider);
@@ -662,7 +667,7 @@ async function saveModel(): Promise<void> {
     await persistSettings(false);
     modelDialog.close();
     render();
-    setStatus(`已保存模型：${model}`);
+    setStatus(t("savedModel", model));
   } catch (error) {
     query<HTMLElement>("#modelStatus").textContent = error instanceof Error ? error.message : String(error);
   }
@@ -670,9 +675,9 @@ async function saveModel(): Promise<void> {
 
 function renderProviderPerformanceControls(provider: ProviderConfig): void {
   providerPerformance.innerHTML = provider.type === "firefox-local"
-    ? '<p class="hint">本地翻译使用固定分块大小 800、并发数 1。</p>'
+    ? `<p class="hint">${htmlMessage("localTranslationUsesAFixedChunkSizeOf")}</p>`
     : provider.type === "doubao-web"
-      ? '<p class="hint">豆包翻译使用固定分块大小 1200、并发数 1。</p>'
+      ? `<p class="hint">${htmlMessage("doubaoUsesAFixedChunkSizeOf1200")}</p>`
       : renderProviderPerformance(provider);
   providerPerformance.querySelector("[data-field='inheritPerformance']")
     ?.addEventListener("change", updateProviderPerformanceFields);
@@ -683,21 +688,21 @@ function renderProviderPerformance(provider: ProviderConfig): string {
   const inherited = provider.performanceMode !== "custom";
   return `
     <fieldset class="provider-performance">
-      <legend>当前服务：${escapeHtml(provider.label)}</legend>
+      <legend>${htmlMessage("currentServiceName", provider.label)}</legend>
       <label class="setting-toggle performance-inherit">
-        <span>继承通用性能设置</span>
+        <span>${htmlMessage("useGeneralPerformanceSettings")}</span>
         <input data-field="inheritPerformance" type="checkbox" role="switch" ${inherited ? "checked" : ""} />
         <span class="setting-toggle-control" aria-hidden="true"></span>
       </label>
       <div class="grid performance-overrides" data-role="performanceOverrides" ${inherited ? "hidden" : ""}>
-        <label>分块大小
+        <label>${htmlMessage("chunkSize")}
           <input data-field="chunkSize" type="number" min="200" max="4000" value="${provider.chunkSize ?? settings.chunkSize}" />
         </label>
-        <label>服务商并发数
+        <label>${htmlMessage("serviceConcurrency")}
           <input data-field="concurrency" type="number" min="1" max="${settings.concurrency}" value="${provider.concurrency ?? settings.concurrency}" />
         </label>
       </div>
-      <p class="hint">服务商并发数不会超过通用设置中的全局最大并发数。</p>
+      <p class="hint">${htmlMessage("serviceConcurrencyIsCappedByTheGlobalMaximum")}</p>
     </fieldset>
   `;
 }
@@ -732,7 +737,7 @@ async function selectProvider(providerId: string): Promise<void> {
   editingProviderId = providerId;
   renderProviderPicker(false);
   renderProviderForm();
-  setStatus(provider.enabled === false ? "已选中停用服务，可编辑配置。" : "已切换当前服务。");
+  setStatus(provider.enabled === false ? t("disabledServiceSelectedYouCanEditItsConfiguration") : t("currentServiceChanged"));
 }
 
 async function toggleProvider(providerId: string): Promise<void> {
@@ -745,7 +750,7 @@ async function toggleProvider(providerId: string): Promise<void> {
       (entry) => entry.id !== providerId && entry.enabled !== false
     );
     if (!hasOtherEnabled) {
-      setStatus("至少需要启用一个翻译服务。");
+      setStatus(t("enableAtLeastOneTranslationService"));
       return;
     }
   }
@@ -758,13 +763,13 @@ async function toggleProvider(providerId: string): Promise<void> {
   await persistSettings(false);
   renderProviderPicker(true);
   renderProviderForm();
-  setStatus(nextEnabled ? "已启用服务。" : "已停用服务。");
+  setStatus(nextEnabled ? t("serviceEnabled") : t("serviceDisabled"));
 }
 
 async function deleteProvider(providerId: string): Promise<void> {
   if (BUILT_IN_PROVIDER_IDS.has(providerId)) return;
   const provider = settings.providers.find((entry) => entry.id === providerId);
-  if (!provider || !window.confirm(`删除“${provider.label}”？`)) return;
+  if (!provider || !window.confirm(t("confirmDeleteProvider", provider.label))) return;
   settings = readSettingsFromForm();
   settings.providers = settings.providers.filter((entry) => entry.id !== providerId);
   if (settings.activeProviderId === providerId) {
@@ -775,7 +780,7 @@ async function deleteProvider(providerId: string): Promise<void> {
   await persistSettings(false);
   renderProviderPicker(true);
   renderProviderForm();
-  setStatus("已删除自定义服务。");
+  setStatus(t("customServiceDeleted"));
 }
 
 function openProviderDialog(): void {
@@ -806,7 +811,7 @@ async function addCustomProvider(): Promise<void> {
     editingProviderId = provider.id;
     providerDialog.close();
     render();
-    setStatus("已添加自定义服务，请完成配置后保存。");
+    setStatus(t("customServiceAddedCompleteItsConfigurationAndSave"));
   } catch (error) {
     setStatus(error instanceof Error ? error.message : String(error));
   }
@@ -818,7 +823,7 @@ function createCustomProvider(name: string, kind: string, llmFormat: string): Pr
     return {
       type: "http-template",
       id,
-      label: name || "自定义 HTTP",
+      label: name || t("customHttp"),
       enabled: true,
       performanceMode: "inherit",
       method: "POST",
@@ -832,7 +837,7 @@ function createCustomProvider(name: string, kind: string, llmFormat: string): Pr
     return {
       type: "anthropic-compatible",
       id,
-      label: name || "自定义 Anthropic LLM",
+      label: name || t("customAnthropicLlm"),
       enabled: true,
       performanceMode: "custom",
       chunkSize: 3200,
@@ -846,7 +851,7 @@ function createCustomProvider(name: string, kind: string, llmFormat: string): Pr
   return {
     type: "openai-compatible",
     id,
-    label: name || "自定义 OpenAI LLM",
+    label: name || t("customOpenaiLlm"),
     enabled: true,
     performanceMode: "custom",
     chunkSize: 3200,
@@ -863,41 +868,51 @@ function createCustomProviderId(kind: string): string {
   return `custom-${kind}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
-async function save(showSavedStatus = true): Promise<void> {
-  if (showSavedStatus) setStatus("");
+async function save(): Promise<void> {
+  setStatus("");
+  const selected = interfaceLanguageSelect.value as InterfaceLanguage;
+  const languageChange = selected !== getInterfaceLanguage() ? selected : undefined;
+  if (languageChange) saveButton.disabled = true;
   try {
     settings = readSettingsFromForm();
-    await persistSettings(false);
+    await persistSettings(false, languageChange);
+    if (languageChange) {
+      location.reload();
+      return;
+    }
     render();
-    if (showSavedStatus) setStatus("已保存。", ACTION_STATUS_DURATION);
+    setStatus(t("saved"), ACTION_STATUS_DURATION);
   } catch (error) {
     setStatus(error instanceof Error ? error.message : String(error));
     throw error;
+  } finally {
+    if (languageChange) saveButton.disabled = false;
   }
 }
 
-function persistSettings(showSavedStatus: boolean): Promise<void> {
-  const write = persistSettingsNow(showSavedStatus);
+function persistSettings(showSavedStatus: boolean, interfaceLanguage?: InterfaceLanguage): Promise<void> {
+  const write = persistSettingsNow(showSavedStatus, interfaceLanguage);
   pendingSettingsWrites.add(write);
   void write.then(() => pendingSettingsWrites.delete(write), () => pendingSettingsWrites.delete(write));
   return write;
 }
 
-async function persistSettingsNow(showSavedStatus: boolean): Promise<void> {
+async function persistSettingsNow(showSavedStatus: boolean, interfaceLanguage?: InterfaceLanguage): Promise<void> {
   const previousSettings = cloneSettings(savedSettings);
   // A service test leaves the current form mounted. Compare its fields with
   // what that form displayed, even if the previous save merged external edits.
   const formSettings = providerFormSettings;
   if (formSettings) previousSettings.providers = previousSettings.providers.map(provider =>
     provider.id === formSettings.id ? formSettings : provider);
-  await sendRuntimeMessage({ type: "SAVE_SETTINGS", settings, previousSettings });
+  await sendRuntimeMessage({ type: "SAVE_SETTINGS", settings, previousSettings, ...(interfaceLanguage ? { interfaceLanguage } : {}) });
+  if (interfaceLanguage) return;
   settings = await sendRuntimeMessage<ExtensionSettings>({ type: "GET_SETTINGS" });
   savedSettings = cloneSettings(settings);
   // Provider actions can save without rebuilding the provider form (for
   // example while a service test owns its status node). Keep every other
   // control aligned with the merged settings used as the next edit baseline.
   renderGeneralSettings();
-  if (showSavedStatus) setStatus("已保存。", ACTION_STATUS_DURATION);
+  if (showSavedStatus) setStatus(t("saved"), ACTION_STATUS_DURATION);
 }
 
 function invalidateProviderTest(): void {
@@ -930,14 +945,14 @@ async function testProvider(): Promise<void> {
   };
   try {
     settings = readSettingsFromForm();
-    report("测试中...");
+    report(t("testing"));
     await persistSettings(false);
     if (!isCurrent()) return;
     const result = await sendRuntimeMessage<{ translation: string }>({
       type: "TEST_PROVIDER",
       providerId: run.providerId
     });
-    report(`测试通过：${result.translation}`);
+    report(t("testPassed", result.translation));
   } catch (error) {
     report(error instanceof Error ? error.message : String(error));
   }
@@ -947,6 +962,7 @@ function restorePageDefaults(): void {
   const panel = document.querySelector<HTMLElement>(".settings-panel:not([hidden])");
   switch (panel?.id) {
     case "generalSettings":
+      interfaceLanguageSelect.value = "browser";
       renderGeneralPageSettings(DEFAULT_SETTINGS);
       syncDoubaoTargetControls(settings, targetLang); updateLocalControl();
       break;
@@ -969,7 +985,7 @@ function restorePageDefaults(): void {
         renderProviderForm(false);
         providerFormSettings = baseline;
       }
-      setStatus("已恢复内置服务默认参数，密钥和自定义服务已保留，保存后生效。", ACTION_STATUS_DURATION);
+      setStatus(t("builtInServiceDefaultsRestoredCredentialsAndCustom"), ACTION_STATUS_DURATION);
       return;
     }
     case "performanceSettings":
@@ -980,7 +996,7 @@ function restorePageDefaults(): void {
       break;
     default: return;
   }
-  setStatus("已恢复当前页默认设置，保存后生效。", ACTION_STATUS_DURATION);
+  setStatus(t("sectionDefaultsRestoredSaveToApply"), ACTION_STATUS_DURATION);
 }
 
 async function resetSettings(): Promise<void> {
@@ -990,13 +1006,18 @@ async function resetSettings(): Promise<void> {
   await Promise.allSettled([...pendingSettingsWrites]);
   const reset = await sendRuntimeMessage<ExtensionSettings>({ type: "RESET_SETTINGS" });
   if (optionsClosed) return;
+  if (getInterfaceLanguage() !== "browser") {
+    location.reload();
+    return;
+  }
+  interfaceLanguageSelect.value = "browser";
   invalidateProviderTest();
   settings = reset;
   savedSettings = cloneSettings(reset);
   editingProviderId = undefined;
   setProviderMenuOpen(false);
   render();
-  setStatus("已完全重置设置。", ACTION_STATUS_DURATION);
+  setStatus(t("allSettingsReset"), ACTION_STATUS_DURATION);
 }
 
 function readSettingsFromForm(): ExtensionSettings {
@@ -1178,10 +1199,10 @@ function readProviderFromForm(provider: ProviderConfig): ProviderConfig {
 function parseHeaders(value: string): Record<string, string> {
   const parsed = JSON.parse(value || "{}") as unknown;
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-    throw new Error("请求头必须是 JSON 对象。");
+    throw new Error(t("requestHeadersMustBeAJsonObject"));
   }
   if (!Object.values(parsed).every((entry) => typeof entry === "string")) {
-    throw new Error("请求头的值必须是字符串。");
+    throw new Error(t("requestHeaderValuesMustBeStrings"));
   }
   return parsed as Record<string, string>;
 }
@@ -1189,7 +1210,7 @@ function parseHeaders(value: string): Record<string, string> {
 function getEditingProvider(): ProviderConfig {
   const provider = settings.providers.find((entry) => entry.id === editingProviderId)
     ?? settings.providers.find((entry) => entry.id === settings.activeProviderId);
-  if (!provider) throw new Error("找不到当前翻译服务。");
+  if (!provider) throw new Error(t("currentTranslationServiceNotFound"));
   editingProviderId = provider.id;
   return provider;
 }
