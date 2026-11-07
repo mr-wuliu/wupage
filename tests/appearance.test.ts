@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { accentForeground, BUILT_IN_SCHEMES, DEFAULT_APPEARANCE, getColorScheme, normalizeAppearance } from "../src/shared/appearance";
+import { accentForeground, applyColorScheme, BUILT_IN_SCHEMES, COLOR_FIELDS, DEFAULT_APPEARANCE, getColorScheme, normalizeAppearance, schemeColor } from "../src/shared/appearance";
 import { setupAppearance } from "../src/shared/appearance-runtime";
 import { SETTINGS_KEY } from "../src/shared/defaults";
 import { normalizeSettings } from "../src/shared/settings";
@@ -59,6 +59,23 @@ describe("appearance settings", () => {
       expect(normalizeAppearance({ floatingOpacity: value }).floatingOpacity).toBe(expected);
     }
     expect(normalizeSettings({ appearance: { floatingOpacity: 0 } }).appearance?.floatingOpacity).toBe(0);
+  });
+
+  it("defaults every color to opaque and validates per-color opacity without changing legacy colors", () => {
+    for (const scheme of BUILT_IN_SCHEMES) {
+      for (const { key } of COLOR_FIELDS) expect(schemeColor(scheme, key)).toBe(scheme.colors[key]);
+    }
+    const source = { ...BUILT_IN_SCHEMES[0], id: "custom-opacity", opacities: {
+      "floating-background": 45.6, "translation-light": 0, accent: -10, surface: 150,
+      muted: "45", border: NaN, foreground: Infinity, unknown: 40
+    } };
+    const scheme = normalizeAppearance({ customSchemes: [source] }).customSchemes[0];
+    expect(scheme.opacities).toEqual({ "floating-background": 46, "translation-light": 0, accent: 0 });
+    expect(scheme.colors).toEqual(source.colors);
+    applyColorScheme(document.documentElement, scheme);
+    expect(document.documentElement.style.getPropertyValue("--wp-floating-background")).toBe("rgba(17, 100, 102, 0.46)");
+    expect(document.documentElement.style.getPropertyValue("--wp-translation-light")).toBe("rgba(15, 118, 110, 0)");
+    expect(normalizeAppearance({ customSchemes: [{ ...source, opacities: { accent: 100 } }] }).customSchemes[0].opacities).toBeUndefined();
   });
 });
 

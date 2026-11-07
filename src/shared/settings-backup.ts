@@ -190,6 +190,7 @@ const settingsShape = {
     lightSchemeId: string, darkSchemeId: string,
     popupMenu: object({ order: strings, hidden: strings, rows: array(strings) }),
     customSchemes: array(object({ id: string, name: string, tone: oneOf("light", "dark"),
+      opacities: optional(object(fields(COLOR_FIELDS.map(field => field.key), optional(number(0, 100))))),
       colors: object(fields(COLOR_FIELDS.map(field => field.key), (v, p) =>
         typeof v === "string" && /^#[a-f\d]{6}$/iu.test(v) ? v : invalid(p))) }), 32) }))
 } satisfies Record<keyof Required<ExtensionSettings>, Rule>;

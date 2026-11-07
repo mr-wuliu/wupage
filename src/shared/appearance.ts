@@ -33,6 +33,7 @@ export interface ColorScheme {
   name: string;
   tone: AppearanceTone;
   colors: AppearanceColors;
+  opacities?: Partial<Record<keyof AppearanceColors, number>>;
 }
 export interface AppearanceSettings {
   popupMenu: PopupMenuLayout;
@@ -140,7 +141,16 @@ export function normalizeAppearance(value: unknown): AppearanceSettings {
     for (const { key } of COLOR_FIELDS) {
       if (isHexColor(savedColors[key])) colors[key] = savedColors[key].toLowerCase();
     }
+    const savedOpacities = record(scheme.opacities);
+    const opacities: ColorScheme["opacities"] = {};
+    for (const { key } of COLOR_FIELDS) {
+      const value = savedOpacities[key];
+      if (typeof value !== "number" || !Number.isFinite(value)) continue;
+      const opacity = Math.max(0, Math.min(100, Math.round(value)));
+      if (opacity < 100) opacities[key] = opacity;
+    }
     customSchemes.push({ id: scheme.id, tone: scheme.tone, colors,
+      ...(Object.keys(opacities).length ? { opacities } : {}),
       name: typeof scheme.name === "string" && scheme.name.trim() ? scheme.name.trim().slice(0, 60) : t("customColors") });
   }
   const all = [...BUILT_IN_SCHEMES, ...customSchemes];
@@ -169,13 +179,21 @@ export function accentForeground(color: string): string {
   return luminance > .179 ? "#000000" : "#ffffff";
 }
 
+export function schemeColor(scheme: ColorScheme, key: keyof AppearanceColors): string {
+  const color = scheme.colors[key];
+  const opacity = scheme.opacities?.[key] ?? 100;
+  if (opacity === 100) return color;
+  const channels = [1, 3, 5].map(start => parseInt(color.slice(start, start + 2), 16));
+  return `rgba(${channels.join(", ")}, ${opacity / 100})`;
+}
+
 export function applyColorScheme(target: HTMLElement, scheme: ColorScheme): void {
-  for (const { key } of COLOR_FIELDS) target.style.setProperty(`--wp-${key}`, scheme.colors[key]);
+  for (const { key } of COLOR_FIELDS) target.style.setProperty(`--wp-${key}`, schemeColor(scheme, key));
   target.style.setProperty("--wp-on-accent", accentForeground(scheme.colors.accent));
   target.style.setProperty("--wp-on-danger", accentForeground(scheme.colors.danger));
   target.style.setProperty("--wp-color-scheme", scheme.tone);
-  target.style.setProperty("--wp-select-arrow", uiIconUrl("arrow-down-03", scheme.colors.muted));
-  target.style.setProperty("--wp-selection-select-arrow", uiIconUrl("arrow-down-03", scheme.colors["selection-foreground"]));
+  target.style.setProperty("--wp-select-arrow", uiIconUrl("arrow-down-03", schemeColor(scheme, "muted")));
+  target.style.setProperty("--wp-selection-select-arrow", uiIconUrl("arrow-down-03", schemeColor(scheme, "selection-foreground")));
   target.style.setProperty("--wp-disclosure-icon", uiIconUrl("arrow-down-03"));
   target.style.setProperty("--wp-soft", "color-mix(in srgb, var(--wp-accent) 6%, var(--wp-surface))");
   target.style.setProperty("--wp-selected", "color-mix(in srgb, var(--wp-accent) 12%, var(--wp-surface))");

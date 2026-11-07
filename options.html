@@ -250,13 +250,20 @@
                   <select id="appearanceScheme"></select>
                   <button id="duplicateScheme" type="button" class="secondary" data-i18n="duplicateScheme">复制方案</button>
                 </div>
+                <div id="customSchemeName" class="appearance-scheme-name" hidden>
+                  <label for="appearanceSchemeName" data-i18n="schemeName">方案名称</label>
+                  <input id="appearanceSchemeName" type="text" maxlength="60" aria-describedby="appearanceSchemeNameHint" />
+                  <p id="appearanceSchemeNameHint" class="field-description" data-i18n="renameSchemeHint">可直接修改名称，点击保存后生效。</p>
+                </div>
+                <div id="appearanceCopyNotice" class="appearance-copy-notice" hidden>
+                  <p role="status" data-i18n="copySchemeBeforeEditing">内置方案不能直接修改，请先复制方案，再调整颜色和透明度。</p>
+                  <button id="copySchemeToEdit" type="button" class="secondary" data-i18n="duplicateAndEditTheCurrentScheme">复制当前方案并编辑</button>
+                </div>
                 <fieldset class="appearance-colors">
                   <legend data-i18n="colors">颜色</legend>
                   <div id="appearanceColors" class="appearance-color-groups"></div>
                 </fieldset>
                 <div id="customSchemeActions" class="appearance-custom-actions" hidden>
-                  <label for="appearanceSchemeName" data-i18n="schemeName">方案名称</label>
-                  <input id="appearanceSchemeName" type="text" maxlength="60" />
                   <div class="appearance-scheme-actions">
                     <button id="resetSchemeColors" type="button" class="secondary" data-settings-feedback data-i18n="resetColors">重置颜色</button>
                     <button id="deleteScheme" type="button" class="appearance-delete secondary" data-i18n="deleteScheme">删除方案</button>
@@ -285,7 +292,6 @@
                   <div class="appearance-preview-feedback"><span data-i18n="translationComplete"><span data-wupage-icon="tick" aria-hidden="true"></span>已完成翻译</span><span data-i18n="requestFailedTryAgain"><span data-wupage-icon="cross" aria-hidden="true"></span>请求失败，请重试</span></div>
                   <span class="appearance-preview-ball" title="悬停预览悬浮球颜色" data-i18n-title="hoverToPreviewTheFloatingButtonColor" data-i18n="translateBadge">译</span>
                 </div>
-                <p class="field-description" data-i18n="previewTheCurrentSchemeHoverOverTrTo">预览当前编辑的配色，悬停「译」可查看悬浮球悬停色。保存后同步更新界面、控件和已有双色译文。</p>
               </aside>
             </div>
             </div>

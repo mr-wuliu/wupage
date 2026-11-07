@@ -104,6 +104,89 @@ describe("appearance editor", () => {
     expect(BUILT_IN_SCHEMES[0].colors.accent).toBe("#116466");
   });
 
+  it("explains locked built-in colors and offers an explicit copy before editing", async () => {
+    await mount();
+    const notice = query<HTMLElement>("#appearanceCopyNotice");
+    expect(notice.hidden).toBe(true);
+    query<HTMLButtonElement>('[data-color-group="floating"] .appearance-locked-color').click();
+    expect(notice.hidden).toBe(false);
+    expect(notice.textContent).toContain("请先复制方案");
+    expect(document.activeElement).toBe(query("#copySchemeToEdit"));
+    expect(query<HTMLSelectElement>("#appearanceScheme").value).toBe("wupage-light");
+    query<HTMLButtonElement>("#copySchemeToEdit").click();
+    expect(notice.hidden).toBe(true);
+    expect(query<HTMLElement>("#customSchemeName").hidden).toBe(false);
+    expect(document.activeElement).toBe(query("#appearanceSchemeName"));
+    expect(query<HTMLInputElement>("#appearance-color-floating-background").disabled).toBe(false);
+    expect(document.querySelector(".appearance-locked-color")).toBeNull();
+  });
+
+  it("renames an existing custom scheme without changing its identity or colors", async () => {
+    stored.appearance = { ...structuredClone(DEFAULT_APPEARANCE), lightSchemeId: "custom-saved",
+      customSchemes: [{ ...BUILT_IN_SCHEMES[0], id: "custom-saved", name: "旧名称" }] };
+    await mount();
+    const name = query<HTMLInputElement>("#appearanceSchemeName");
+    expect(query<HTMLElement>("#customSchemeName").hidden).toBe(false);
+    name.value = "  阅读配色  "; name.dispatchEvent(new Event("input"));
+    expect(query<HTMLSelectElement>("#appearanceScheme").selectedOptions[0].textContent).toBe("阅读配色");
+    query<HTMLButtonElement>("#save").click();
+    await vi.waitFor(() => expect(stored.appearance?.customSchemes[0].name).toBe("阅读配色"));
+    expect(stored.appearance?.customSchemes).toHaveLength(1);
+    expect(stored.appearance?.customSchemes[0]).toMatchObject({ id: "custom-saved", colors: BUILT_IN_SCHEMES[0].colors });
+  });
+
+  it("previews and saves independent color opacities, retaining alpha when the color changes", async () => {
+    await mount();
+    query<HTMLButtonElement>("#duplicateScheme").click();
+    const toggle = query<HTMLButtonElement>('[data-color-opacity="floating-background"]');
+    expect(toggle.textContent).toBe("100%"); toggle.click();
+    const range = query<HTMLInputElement>("#appearance-opacity-floating-background-range");
+    expect(document.activeElement).toBe(range);
+    range.value = "35"; range.dispatchEvent(new Event("input"));
+    expect(query<HTMLInputElement>('[data-color-opacity-number="floating-background"]').value).toBe("35");
+    const hex = query<HTMLInputElement>('[data-color-hex="floating-background"]');
+    hex.value = "#aa3344"; hex.dispatchEvent(new Event("input"));
+    expect(query<HTMLElement>("#appearancePreview").style.getPropertyValue("--wp-floating-background")).toBe("rgba(170, 51, 68, 0.35)");
+    query<HTMLButtonElement>('[data-color-opacity="translation-light"]').click();
+    expect(toggle.getAttribute("aria-expanded")).toBe("false");
+    const number = query<HTMLInputElement>('[data-color-opacity-number="translation-light"]');
+    number.value = "25"; number.dispatchEvent(new Event("input"));
+    expect(query<HTMLElement>(".appearance-preview-translation-light").style.color).toBe("rgba(15, 118, 110, 0.25)");
+    number.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    expect(query<HTMLElement>("#appearance-opacity-translation-light").hidden).toBe(true);
+    expect(document.activeElement).toBe(query('[data-color-opacity="translation-light"]'));
+    query<HTMLButtonElement>("[data-appearance-tone='dark']").click();
+    query<HTMLButtonElement>("[data-appearance-tone='light']").click();
+    expect(query<HTMLInputElement>('[data-color-opacity-number="floating-background"]').value).toBe("35");
+    query<HTMLButtonElement>("#save").click();
+    await vi.waitFor(() => expect(stored.appearance?.customSchemes[0].opacities).toEqual({ "floating-background": 35, "translation-light": 25 }));
+    expect(stored.appearance?.floatingOpacity).toBe(100);
+    query<HTMLButtonElement>("#duplicateScheme").click();
+    query<HTMLButtonElement>("#resetSchemeColors").click();
+    query<HTMLButtonElement>("#save").click();
+    await vi.waitFor(() => expect(stored.appearance?.customSchemes).toHaveLength(2));
+    expect(stored.appearance?.customSchemes[0].opacities).toEqual({ "floating-background": 35, "translation-light": 25 });
+    expect(stored.appearance?.customSchemes[1].opacities).toBeUndefined();
+  });
+
+  it("reopens a collapsed color opacity editor when its value prevents saving", async () => {
+    await mount(); query<HTMLButtonElement>("#duplicateScheme").click();
+    query<HTMLButtonElement>('[data-color-opacity="selection-background"]').click();
+    const number = query<HTMLInputElement>('[data-color-opacity-number="selection-background"]');
+    number.value = "101"; number.dispatchEvent(new Event("input"));
+    query<HTMLButtonElement>('[data-color-opacity="selection-background"]').click();
+    query<HTMLAnchorElement>("a[aria-controls='generalSettings']").click();
+    query<HTMLButtonElement>("#save").click();
+    await vi.waitFor(() => expect(query("#status").textContent).toContain("整数透明度"));
+    expect(query<HTMLElement>("#appearance-opacity-selection-background").hidden).toBe(false);
+    expect(query<HTMLDetailsElement>('[data-color-group="selection"]').open).toBe(true);
+    expect(document.activeElement).toBe(number);
+    expect(sendMessage.mock.calls.some(([request]) => request.type === "SAVE_SETTINGS")).toBe(false);
+    number.value = "0"; number.dispatchEvent(new Event("input"));
+    query<HTMLButtonElement>("#save").click();
+    await vi.waitFor(() => expect(stored.appearance?.customSchemes[0].opacities?.["selection-background"]).toBe(0));
+  });
+
   it("configures light and dark palettes independently and recovers after deleting a custom scheme", async () => {
     await mount();
     query<HTMLSelectElement>("#appearanceScheme").value = "paper";

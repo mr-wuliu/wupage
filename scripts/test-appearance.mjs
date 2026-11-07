@@ -63,6 +63,10 @@ try {
   assert.equal(await options.locator('#floatingOpacityRange').inputValue(), '100');
   assert.equal(await options.locator('#floatingOpacityRange').isEnabled(), true);
   await options.screenshot({ path: path.join(output, 'light.png'), fullPage: true });
+  await options.locator('[data-color-group="floating"] .appearance-locked-color').first().click();
+  assert.equal(await options.locator('#appearanceCopyNotice').isVisible(), true);
+  assert.equal(await options.locator('#appearanceScheme').inputValue(), 'wupage-light');
+  await options.screenshot({ path: path.join(output, 'copy-notice.png'), fullPage: true });
   const origin = `http://127.0.0.1:${server.address().port}`;
   await options.evaluate(async origin => {
     const { data: settings } = await chrome.runtime.sendMessage({ type: 'GET_SETTINGS' });
@@ -162,6 +166,31 @@ try {
   assert.equal(translationCalls, callsBeforeColors);
   await site.screenshot({ path: path.join(output, 'component-colors.png'), fullPage: true });
   checks.push('independent floating, hover, dictionary and image colors; existing bilingual text recolors in place without translation requests');
+  const colorOpacities = { 'floating-background': 42, 'floating-hover': 65, 'floating-foreground': 75,
+    'translation-light': 30, 'translation-dark': 25, 'selection-background': 40, 'image-button-background': 50, 'paragraph-highlight': 0 };
+  for (const [key, value] of Object.entries(colorOpacities)) {
+    await options.locator(`[data-color-opacity="${key}"]`).click();
+    await options.locator(`[data-color-opacity-number="${key}"]`).fill(String(value));
+    assert.equal(await options.locator(`#appearance-opacity-${key}-range`).inputValue(), String(value));
+  }
+  await options.locator('[data-color-opacity="floating-background"]').click();
+  await options.locator('[data-color-group="floating"]').screenshot({ path: path.join(output, 'color-opacity.png') });
+  await options.locator('#save').click();
+  await site.mouse.move(1, 1);
+  await site.waitForFunction(() => getComputedStyle(document.querySelector('#wupage-floating-ball')).backgroundColor === 'rgba(184, 52, 104, 0.42)');
+  assert.equal(await site.locator('#wupage-floating-ball .wupage-floating-label').evaluate(el => getComputedStyle(el).color), 'rgba(255, 255, 255, 0.75)');
+  await site.locator('#wupage-floating-ball').hover();
+  await site.waitForFunction(() => getComputedStyle(document.querySelector('#wupage-floating-ball')).backgroundColor === 'rgba(145, 39, 78, 0.65)');
+  assert.equal(await site.locator('#light .wupage-translation').evaluate(el => getComputedStyle(el).color), 'rgba(170, 51, 68, 0.3)');
+  assert.equal(await site.locator('#dark .wupage-translation').evaluate(el => getComputedStyle(el).color), 'rgba(243, 201, 122, 0.25)');
+  assert.equal(await site.locator('html').evaluate(el => el.style.getPropertyValue('--wp-paragraph-highlight')), 'rgba(123, 69, 187, 0)');
+  await site.locator('#word').dblclick({ position: { x: 35, y: 16 } });
+  await site.locator('#wupage-selection-tools .trigger-dot').click();
+  await card.waitFor({ state: 'visible' });
+  assert.equal(await card.evaluate(el => getComputedStyle(el).backgroundColor), 'rgba(253, 244, 231, 0.4)');
+  await site.locator('#wupage-selection-tools .close').click();
+  assert.equal(translationCalls, callsBeforeColors);
+  checks.push('color opacity saves independently and updates floating controls, translated text and dictionary cards in place');
   await options.bringToFront();
   const opacityRange = options.locator('#floatingOpacityRange');
   const opacityNumber = options.locator('#floatingOpacityNumber');
@@ -205,6 +234,14 @@ try {
   await options.waitForFunction(() => document.querySelector('#appearanceSchemeName').value === '我的午夜');
   assert.equal(await options.locator('[data-color-hex="accent"]').inputValue(), '#ffcc66');
   assert.equal(await options.locator('#floatingOpacityNumber').inputValue(), '55');
+  assert.equal(await options.locator('[data-color-opacity-number="floating-background"]').inputValue(), '42');
+  await options.locator('#appearanceSchemeName').fill('午夜阅读');
+  await options.locator('#save').click();
+  await options.waitForFunction(() => document.querySelector('#status').textContent === '已保存。');
+  await options.reload();
+  await options.waitForFunction(() => document.querySelector('#appearanceSchemeName').value === '午夜阅读');
+  assert.equal(await options.locator('#appearanceScheme option:checked').textContent(), '午夜阅读');
+  assert.equal(await options.locator('[data-color-opacity-number="translation-dark"]').inputValue(), '25');
   await options.screenshot({ path: path.join(output, 'custom.png'), fullPage: true });
   checks.push('custom colors and opacity persist on reopen and survive saves from an existing popup');
 
@@ -219,6 +256,8 @@ try {
     await options.setViewportSize({ width, height: 1000 });
     await options.evaluate(() => new Promise(resolve => requestAnimationFrame(resolve)));
     assert.ok(await options.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `overflow at ${width}px`);
+    await options.locator('[data-color-opacity="floating-background"]').click();
+    assert.ok(await options.locator('[data-color-group="floating"]').evaluate(group => group.scrollWidth <= group.clientWidth + 1), `color controls overflow at ${width}px`);
     await options.screenshot({ path: path.join(output, `width-${width}.png`), fullPage: true });
   }
   checks.push('no document overflow at desktop, tablet and narrow widths');

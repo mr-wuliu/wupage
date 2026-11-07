@@ -120,10 +120,10 @@ it("restores global and per-provider performance without replacing provider edit
   expect(writes()).toHaveLength(0);
   expect(query<HTMLInputElement>("#providerForm [data-field='baseURL']").value).toBe("https://draft.example/v1");
   await save();
-  expect(stored).toMatchObject({ chunkSize: 1200, concurrency: 3, pdfTranslationPageRadius: 5, targetLang: "fr",
+  expect(stored).toMatchObject({ chunkSize: 1200, concurrency: 5, pdfTranslationPageRadius: 5, targetLang: "fr",
     appearance: before.appearance, autoTranslation: before.autoTranslation, shortcuts: before.shortcuts });
   expect(stored.providers.find(provider => provider.id === "deepseek")).toMatchObject({
-    apiKey: "dirty-key", baseURL: "https://draft.example/v1", performanceMode: "custom", chunkSize: 3200, concurrency: 3 });
+    apiKey: "dirty-key", baseURL: "https://draft.example/v1", performanceMode: "custom", chunkSize: 3200, concurrency: 5 });
   expect(stored.providers.find(provider => provider.id === "custom-private")).toMatchObject({
     url: "https://example.com?token=private", headers: { Authorization: "private-header" }, performanceMode: "inherit" });
 });

@@ -22,6 +22,7 @@ import { SETTINGS_KEY } from "../shared/defaults";
 import { initAutoTranslation } from "./auto-translation";
 import { initSelectionTranslation } from "./selection-translation";
 import { setupAppearance } from "../shared/appearance-runtime";
+import { schemeColor } from "../shared/appearance";
 import { executeTranslationShortcut } from "./shortcuts";
 import { initKeyboardShortcuts } from "./keyboard-shortcuts";
 import { installFrameRuntime } from "./frame-runtime";
@@ -62,7 +63,7 @@ function initializeContent(): void {
   let appearance: ReturnType<typeof setupAppearance> | undefined;
   initializeFeature("appearance", () => {
     appearance = setupAppearance(undefined, { extensionPage: false, onChange: scheme => {
-      refreshTranslationColors({ light: scheme.colors["translation-light"], dark: scheme.colors["translation-dark"] });
+      refreshTranslationColors({ light: schemeColor(scheme, "translation-light"), dark: schemeColor(scheme, "translation-dark") });
     } });
   });
   // Ignore an older initial read if the user saves a newer appearance while it is pending.

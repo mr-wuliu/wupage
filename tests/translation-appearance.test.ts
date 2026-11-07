@@ -76,6 +76,13 @@ describe("custom bilingual colors", () => {
     expect(mapTranslationTextColor("rgb(240, 240, 240)", "rgb(0, 0, 0)", { light: "#fffefe", dark: "#000000" })).not.toBe("rgb(0, 0, 0)");
   });
 
+  it("preserves configured transparency on both light and dark pages, including zero opacity", () => {
+    const transparent = { light: "rgba(170, 51, 68, 0.3)", dark: "rgba(243, 201, 122, 0.25)" };
+    expect(mapTranslationTextColor("rgb(30, 30, 30)", "rgb(255, 255, 255)", transparent)).toBe(transparent.light);
+    expect(mapTranslationTextColor("rgb(240, 240, 240)", "rgb(23, 32, 38)", transparent)).toBe(transparent.dark);
+    expect(mapTranslationTextColor("rgb(30, 30, 30)", "rgb(255, 255, 255)", { ...transparent, light: "rgba(170, 51, 68, 0)" })).toBe("rgba(170, 51, 68, 0)");
+  });
+
   it("keeps the chosen hue distinguishable when the source already uses it", () => {
     const result = mapTranslationTextColor("rgb(15, 118, 110)", "rgb(255, 255, 255)", { light: "#0f766e", dark: "#5eead4" });
     expect(result).not.toBe("rgb(15, 118, 110)");

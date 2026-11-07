@@ -28,7 +28,8 @@ export function mapTranslationTextColor(
   const accent = configured ?? (darkBackground
     ? { r: 94, g: 234, b: 212, a: 1 }
     : { r: 15, g: 118, b: 110, a: 1 });
-  let mapped = ensureContrast(configured ? compositeColor(configured, opaqueBackground) : mixColors(opaqueSource, accent, 0.65));
+  // Adjust the hue for readability, then preserve the user's explicit opacity.
+  let mapped = ensureContrast(configured ? { ...configured, a: 1 } : mixColors(opaqueSource, accent, 0.65));
 
   if (configured && colorDistance(mapped, opaqueSource) < 48) {
     // Retain the chosen hue while keeping translation distinguishable from the source.
@@ -44,7 +45,8 @@ export function mapTranslationTextColor(
       : { r: 37, g: 99, b: 235, a: 1 };
     mapped = ensureContrast(mixColors(opaqueSource, alternate, 0.8));
   }
-  return `rgb(${Math.round(mapped.r)}, ${Math.round(mapped.g)}, ${Math.round(mapped.b)})`;
+  const channels = `${Math.round(mapped.r)}, ${Math.round(mapped.g)}, ${Math.round(mapped.b)}`;
+  return configured && configured.a < 1 ? `rgba(${channels}, ${configured.a})` : `rgb(${channels})`;
 }
 
 export function getEffectiveBackgroundColor(source: Element): string {
