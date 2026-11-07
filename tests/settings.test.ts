@@ -87,7 +87,7 @@ describe("normalizeSettings", () => {
       .toMatchObject({
         performanceMode: "custom",
         chunkSize: 3200,
-        concurrency: 3
+        concurrency: 5
       });
     expect(settings.providers.map((provider) => provider.id)).toEqual([
       "microsoft-web-translate",

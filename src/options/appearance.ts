@@ -1,6 +1,6 @@
 import { t } from "../shared/i18n";
 import { applyColorScheme, BUILT_IN_SCHEMES, COLOR_FIELDS, COLOR_GROUPS, DEFAULT_APPEARANCE, getColorScheme,
-  isHexColor, normalizeAppearance, type AppearanceMode, type AppearanceSettings, type AppearanceTone } from "../shared/appearance";
+  isHexColor, normalizeAppearance, schemeColor, type AppearanceMode, type AppearanceSettings, type AppearanceTone } from "../shared/appearance";
 import { setupAppearance } from "../shared/appearance-runtime";
 import { mapTranslationTextColor } from "../shared/translation-colors";
 import "./appearance.css";
@@ -17,6 +17,8 @@ export function setupAppearanceControls(root: HTMLElement): {
   const name = query<HTMLInputElement>("#appearanceSchemeName");
   const status = query<HTMLElement>("#appearanceStatus");
   const duplicate = query<HTMLButtonElement>("#duplicateScheme");
+  const copyNotice = query<HTMLElement>("#appearanceCopyNotice");
+  const copyToEdit = query<HTMLButtonElement>("#copySchemeToEdit");
   const menu = setupPopupMenuControls(query<HTMLElement>("#popupMenuEditor"));
   const tabs = [...root.querySelectorAll<HTMLButtonElement>("[data-appearance-tab]")];
   function selectTab(name: string): void {
@@ -49,7 +51,7 @@ export function setupAppearanceControls(root: HTMLElement): {
     applyColorScheme(preview, scheme);
     preview.style.colorScheme = tone;
     query<HTMLElement>("#appearancePreviewTone").textContent = tone === "light" ? t("light") : t("dark");
-    const palette = { light: scheme.colors["translation-light"], dark: scheme.colors["translation-dark"] };
+    const palette = { light: schemeColor(scheme, "translation-light"), dark: schemeColor(scheme, "translation-dark") };
     query<HTMLElement>(".appearance-preview-translation-light").style.color = mapTranslationTextColor("rgb(39, 49, 58)", "rgb(255, 255, 255)", palette)!;
     query<HTMLElement>(".appearance-preview-translation-dark").style.color = mapTranslationTextColor("rgb(231, 239, 236)", "rgb(23, 32, 38)", palette)!;
   }
@@ -69,11 +71,14 @@ export function setupAppearanceControls(root: HTMLElement): {
     const scheme = selected();
     select.value = scheme.id;
     const editable = Boolean(custom());
+    query<HTMLElement>("#customSchemeName").hidden = !editable;
     query<HTMLElement>("#customSchemeActions").hidden = !editable;
+    copyNotice.hidden = true;
     name.value = editable ? scheme.name : "";
     name.removeAttribute("aria-invalid");
     duplicate.disabled = draft.customSchemes.length >= 32;
     duplicate.title = duplicate.disabled ? t("youCanSaveUpTo32CustomSchemes") : t("duplicateAndEditTheCurrentScheme");
+    copyToEdit.disabled = duplicate.disabled;
     for (const button of root.querySelectorAll<HTMLButtonElement>("[data-appearance-tone]")) {
       button.setAttribute("aria-pressed", String(button.dataset.appearanceTone === tone));
     }
@@ -93,7 +98,8 @@ export function setupAppearanceControls(root: HTMLElement): {
       swatches.setAttribute("aria-hidden", "true");
       for (const { key } of COLOR_FIELDS.filter(field => field.group === group.id).slice(0, 4)) {
         const swatch = document.createElement("span");
-        swatch.style.background = scheme.colors[key]; swatches.append(swatch);
+        swatch.dataset.colorSwatch = key;
+        swatch.style.background = schemeColor(scheme, key); swatches.append(swatch);
       }
       summary.append(swatches);
       const grid = document.createElement("div"); grid.className = "appearance-color-grid";
@@ -118,11 +124,74 @@ export function setupAppearanceControls(root: HTMLElement): {
       hex.spellcheck = false; hex.disabled = !editable;
       hex.setAttribute("aria-label", t("hexColor", label));
       hex.dataset.colorHex = key;
+      const opacity = document.createElement("button");
+      opacity.type = "button"; opacity.className = "appearance-opacity-toggle";
+      opacity.dataset.colorOpacity = key;
+      opacity.setAttribute("aria-expanded", "false");
+      const swatch = document.createElement("span"); swatch.className = "appearance-opacity-swatch";
+      swatch.setAttribute("aria-hidden", "true");
+      const caption = document.createElement("span"); caption.setAttribute("aria-hidden", "true");
+      opacity.append(swatch, caption);
+      const panel = document.createElement("div");
+      panel.className = "appearance-opacity-row appearance-color-opacity"; panel.id = `appearance-opacity-${key}`; panel.hidden = true;
+      opacity.setAttribute("aria-controls", panel.id);
+      const opacityLabel = document.createElement("label");
+      opacityLabel.htmlFor = `${panel.id}-range`; opacityLabel.textContent = t("opacity");
+      const range = document.createElement("input");
+      range.type = "range"; range.id = opacityLabel.htmlFor;
+      const number = document.createElement("input"); number.type = "number"; number.dataset.colorOpacityNumber = key;
+      for (const input of [range, number]) {
+        input.min = "0"; input.max = "100"; input.step = "1";
+        input.value = String(scheme.opacities?.[key] ?? 100);
+        input.setAttribute("aria-label", t("colorOpacity", label));
+        input.title = t("lowerValuesAreMoreTransparent100IsFully");
+      }
+      const value = document.createElement("span"); value.className = "appearance-opacity-value";
+      const percent = document.createElement("span"); percent.textContent = "%"; percent.setAttribute("aria-hidden", "true");
+      value.append(number, percent); panel.append(opacityLabel, range, value);
+      function updateSwatch(): void {
+        const current = selected();
+        const percent = current.opacities?.[key] ?? 100;
+        caption.textContent = `${percent}%`;
+        opacity.title = `${t("colorOpacity", label)} · ${percent}%`;
+        opacity.setAttribute("aria-label", opacity.title);
+        swatch.style.setProperty("--swatch-color", schemeColor(current, key));
+        range.setAttribute("aria-valuetext", `${percent}%`);
+        colors.querySelector<HTMLElement>(`[data-color-swatch="${key}"]`)?.style.setProperty("background", schemeColor(current, key));
+      }
+      function setOpacity(value: number): void {
+        const scheme = custom();
+        if (!scheme) return;
+        scheme.opacities ??= {};
+        scheme.opacities[key] = value;
+        status.textContent = ""; updateSwatch(); paint();
+      }
+      range.addEventListener("input", () => {
+        number.value = range.value; number.removeAttribute("aria-invalid"); setOpacity(Number(range.value));
+      });
+      number.addEventListener("input", () => {
+        const value = number.valueAsNumber;
+        const valid = Number.isInteger(value) && value >= 0 && value <= 100;
+        number.setAttribute("aria-invalid", String(!valid));
+        if (valid) { range.value = String(value); setOpacity(value); }
+      });
+      opacity.addEventListener("click", () => {
+        const open = panel.hidden;
+        for (const other of colors.querySelectorAll<HTMLElement>(".appearance-color-opacity")) other.hidden = true;
+        for (const toggle of colors.querySelectorAll("[data-color-opacity]")) toggle.setAttribute("aria-expanded", "false");
+        panel.hidden = !open; opacity.setAttribute("aria-expanded", String(open));
+        if (open) range.focus();
+      });
+      panel.addEventListener("keydown", event => {
+        if (event.key !== "Escape") return;
+        event.preventDefault(); event.stopPropagation(); panel.hidden = true; opacity.setAttribute("aria-expanded", "false"); opacity.focus();
+      });
+      updateSwatch();
       picker.addEventListener("input", () => {
         const scheme = custom();
         if (!scheme) return;
         scheme.colors[key] = picker.value; hex.value = picker.value;
-        hex.removeAttribute("aria-invalid"); status.textContent = ""; paint();
+        hex.removeAttribute("aria-invalid"); status.textContent = ""; updateSwatch(); paint();
       });
       hex.addEventListener("input", () => {
         const value = hex.value.trim();
@@ -130,12 +199,28 @@ export function setupAppearanceControls(root: HTMLElement): {
         const scheme = custom();
         if (!scheme || !isHexColor(value)) return;
         scheme.colors[key] = value.toLowerCase(); picker.value = value;
-        status.textContent = ""; paint();
+        status.textContent = ""; updateSwatch(); paint();
       });
-      row.append(text, picker, hex); groups.get(group)!.append(row);
+      row.append(text, picker, hex, opacity, panel);
+      if (!editable) {
+        opacity.disabled = true;
+        const locked = document.createElement("button");
+        locked.type = "button"; locked.className = "appearance-locked-color";
+        locked.setAttribute("aria-label", t("copyToConfigureColor", label));
+        locked.title = t("copySchemeBeforeEditing");
+        locked.addEventListener("click", () => {
+          copyNotice.hidden = false;
+          copyNotice.querySelector("p")!.textContent = duplicate.disabled
+            ? t("youCanSaveUpTo32CustomSchemes") : t("copySchemeBeforeEditing");
+          if (copyToEdit.disabled) { copyNotice.tabIndex = -1; copyNotice.focus(); }
+          else copyToEdit.focus();
+        });
+        row.append(locked);
+      }
+      groups.get(group)!.append(row);
     }
     const opacityRow = document.createElement("div"); opacityRow.className = "appearance-opacity-row";
-    const opacityLabel = document.createElement("label"); opacityLabel.htmlFor = "floatingOpacityRange"; opacityLabel.textContent = t("opacity");
+    const opacityLabel = document.createElement("label"); opacityLabel.htmlFor = "floatingOpacityRange"; opacityLabel.textContent = t("overallOpacity");
     const opacityRange = document.createElement("input");
     opacityRange.type = "range"; opacityRange.id = opacityLabel.htmlFor;
     opacityRange.min = "0"; opacityRange.max = "100"; opacityRange.step = "1"; opacityRange.value = String(draft.floatingOpacity);
@@ -188,11 +273,13 @@ export function setupAppearanceControls(root: HTMLElement): {
     const names = new Set([...BUILT_IN_SCHEMES, ...draft.customSchemes].map(scheme => scheme.name));
     let newName = t("copy", source.name.slice(0, 50));
     for (let n = 2; names.has(newName); n++) newName = t("numberedSchemeCopy", source.name.slice(0, 50), n);
-    draft.customSchemes.push({ ...source, id, name: newName, colors: { ...source.colors } });
+    draft.customSchemes.push({ ...source, id, name: newName, colors: { ...source.colors },
+      ...(source.opacities ? { opacities: { ...source.opacities } } : {}) });
     if (tone === "light") draft.lightSchemeId = id;
     else draft.darkSchemeId = id;
     status.textContent = t("schemeCopiedYouCanEditItsColorsAnd"); renderEditor(); name.focus(); name.select();
   });
+  copyToEdit.addEventListener("click", () => duplicate.click());
   name.addEventListener("input", () => {
     const scheme = custom();
     if (!scheme) return;
@@ -207,6 +294,7 @@ export function setupAppearanceControls(root: HTMLElement): {
     const scheme = custom();
     if (!scheme) return;
     scheme.colors = { ...getColorScheme(DEFAULT_APPEARANCE, tone).colors };
+    delete scheme.opacities;
     renderEditor(); showActionStatus(status, t("defaultColorsRestoredSaveToApply"));
   });
   query<HTMLButtonElement>("#deleteScheme").addEventListener("click", () => {
@@ -239,8 +327,13 @@ export function setupAppearanceControls(root: HTMLElement): {
         selectTab("colors");
         const group = invalid.closest("details");
         if (group) group.open = true;
+        const panel = invalid.closest<HTMLElement>(".appearance-color-opacity");
+        if (panel) {
+          panel.hidden = false;
+          colors.querySelector(`[aria-controls="${panel.id}"]`)?.setAttribute("aria-expanded", "true");
+        }
         invalid.focus();
-        throw new Error(invalid === name ? t("enterAColorSchemeName") : invalid.id === "floatingOpacityNumber"
+        throw new Error(invalid === name ? t("enterAColorSchemeName") : invalid.id === "floatingOpacityNumber" || invalid.hasAttribute("data-color-opacity-number")
           ? t("enterAnIntegerOpacityFrom0To100") : t("enterAFullHexColorSuchAs116466"));
       }
       return normalizeAppearance({ ...draft, popupMenu: menu.read() });

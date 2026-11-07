@@ -21,7 +21,8 @@ function fixture(): ExtensionSettings {
   Object.assign(settings.providers[0], { serviceMode: "api", api: { apiKey: "azure-key", endpoint: "https://api.example.com", region: "eastasia", secretAccessKey: "signing-key" } });
   settings.autoTranslation = { enabled: true, nonTargetLanguage: true, presetSites: ["github.com"], customSites: [{ id: "site-1", pattern: "*.example.com/docs/*", enabled: true }] };
   settings.elementExclusions = [{ id: "exclude-1", name: "菜单", pattern: "example.com", selectors: ["nav"], enabled: true }];
-  settings.appearance!.customSchemes = [{ ...structuredClone(BUILT_IN_SCHEMES[0]), id: "custom-backup", name: "自定义" }];
+  settings.appearance!.customSchemes = [{ ...structuredClone(BUILT_IN_SCHEMES[0]), id: "custom-backup", name: "自定义",
+    opacities: { "floating-background": 45, "translation-dark": 0 } }];
   settings.appearance!.lightSchemeId = "custom-backup";
   return normalizeSettings(settings);
 }
@@ -63,6 +64,7 @@ describe("settings backup format", () => {
     ["invalid date", (b: any) => serializeSettingsBackup({ ...b, createdAt: "unknown" })],
     ["missing core setting", (b: any) => { delete b.settings.targetLang; return serializeSettingsBackup(b); }],
     ["wrong nested type", (b: any) => { b.settings.providers[0].api.apiKey = {}; return serializeSettingsBackup(b); }],
+    ["invalid color opacity", (b: any) => { b.settings.appearance.customSchemes[0].opacities.accent = 101; return serializeSettingsBackup(b); }],
     ["unknown provider", (b: any) => { b.settings.providers[0].type = "unknown"; return serializeSettingsBackup(b); }],
     ["duplicate provider ID", (b: any) => { b.settings.providers.push(b.settings.providers[0]); return serializeSettingsBackup(b); }],
     ["retyped built-in", (b: any) => { b.settings.providers[0].type = "firefox-local"; return serializeSettingsBackup(b); }],
@@ -76,7 +78,7 @@ describe("settings backup format", () => {
     ["invalid subtitle layout", (b: any) => { b.settings.videoTranslation.siteLayouts[0].width = 200; return serializeSettingsBackup(b); }],
     ["polluting key", (b: any) => '__proto__.polluted = true\n' + serializeSettingsBackup(b)],
     ["duplicate TOML key", (b: any) => 'kind = "duplicate"\n' + serializeSettingsBackup(b)],
-    ["invalid numeric value", (b: any) => serializeSettingsBackup(b).replace('concurrency = 3', 'concurrency = nan')],
+    ["invalid numeric value", (b: any) => serializeSettingsBackup(b).replace(`concurrency = ${b.settings.concurrency}`, 'concurrency = nan')],
     ["deep tree", (b: any) => serializeSettingsBackup({ ...b, nested: Array.from({ length: 30 }).reduce(value => ({ child: value }), {}) })]
   ])("rejects %s without echoing credential values", (_name, change) => {
     const text = change(createSettingsBackup(fixture(), "1.6.1", now));

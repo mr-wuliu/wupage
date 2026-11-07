@@ -341,9 +341,6 @@
   "hoverToPreviewTheFloatingButtonColor": {
     "message": "Hover to preview the floating button color"
   },
-  "previewTheCurrentSchemeHoverOverTrTo": {
-    "message": "Preview the current scheme. Hover over Tr to see the floating button’s hover color. Saving updates the interface, controls and existing two-color translations."
-  },
   "popupMenu": {
     "message": "Popup menu"
   },
@@ -2434,6 +2431,23 @@
   },
   "opacity": {
     "message": "Opacity"
+  },
+  "colorOpacity": {
+    "message": "$ARG1$ opacity",
+    "placeholders": { "arg1": { "content": "$1" } }
+  },
+  "overallOpacity": {
+    "message": "Overall opacity"
+  },
+  "copyToConfigureColor": {
+    "message": "Configure $ARG1$: duplicate this built-in scheme first",
+    "placeholders": { "arg1": { "content": "$1" } }
+  },
+  "copySchemeBeforeEditing": {
+    "message": "Built-in schemes cannot be edited directly. Duplicate the scheme first to adjust colors and opacity."
+  },
+  "renameSchemeHint": {
+    "message": "Edit the name here, then click Save to apply."
   },
   "lowerValuesAreMoreTransparent100IsFully": {
     "message": "Lower values are more transparent. 100% is fully opaque."

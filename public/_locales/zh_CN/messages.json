@@ -341,9 +341,6 @@
   "hoverToPreviewTheFloatingButtonColor": {
     "message": "悬停预览悬浮球颜色"
   },
-  "previewTheCurrentSchemeHoverOverTrTo": {
-    "message": "预览当前编辑的配色，悬停「译」可查看悬浮球悬停色。保存后同步更新界面、控件和已有双色译文。"
-  },
   "popupMenu": {
     "message": "弹窗菜单"
   },
@@ -2434,6 +2431,23 @@
   },
   "opacity": {
     "message": "透明度"
+  },
+  "colorOpacity": {
+    "message": "$ARG1$透明度",
+    "placeholders": { "arg1": { "content": "$1" } }
+  },
+  "overallOpacity": {
+    "message": "整体透明度"
+  },
+  "copyToConfigureColor": {
+    "message": "配置$ARG1$：请先复制内置方案",
+    "placeholders": { "arg1": { "content": "$1" } }
+  },
+  "copySchemeBeforeEditing": {
+    "message": "内置方案不能直接修改，请先复制方案，再调整颜色和透明度。"
+  },
+  "renameSchemeHint": {
+    "message": "可直接修改名称，点击保存后生效。"
   },
   "lowerValuesAreMoreTransparent100IsFully": {
     "message": "数值越低越透明，100% 为完全不透明"

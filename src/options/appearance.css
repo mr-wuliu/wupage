@@ -30,8 +30,23 @@
 .appearance-scheme-toolbar select { flex: 1; width: 0; min-width: 0; }
 .appearance-scheme-toolbar button { flex: 0 0 auto; }
 .appearance-color-grid { display: grid; gap: 10px; }
-.appearance-color-row { display: grid; grid-template-columns: minmax(68px, 1fr) 30px 80px; gap: 8px; align-items: center; }
+.appearance-color-row { position: relative; display: grid; grid-template-columns: minmax(56px, 1fr) 30px 80px 36px; gap: 8px; align-items: center; }
 .appearance-color-row label { font-size: 12px; }
+.appearance-opacity-toggle { display: grid; justify-items: center; gap: 2px; min-height: 38px; padding: 2px; border-radius: 6px; background: transparent; color: var(--wp-muted); font-size: 10px; font-weight: 400; }
+.appearance-opacity-toggle:hover, .appearance-opacity-toggle[aria-expanded="true"] { background: var(--wp-soft); color: var(--wp-accent); }
+.appearance-opacity-swatch { position: relative; box-sizing: border-box; width: 22px; height: 22px; overflow: hidden; border: 1px solid #8d999d; border-radius: 50%; background: repeating-conic-gradient(#ffffff 0% 25%, #acb5ba 0% 50%) 0 0 / 8px 8px; }
+.appearance-opacity-swatch::after { content: ""; position: absolute; inset: 0 0 0 50%; background: var(--swatch-color); }
+.appearance-color-opacity { padding: 8px 0 4px; border-top: 1px solid var(--wp-border); }
+.appearance-color-opacity[hidden] { display: none; }
+button.appearance-locked-color { position: absolute; inset: 0; width: 100%; padding: 0; border: 0; border-radius: 5px; background: transparent; cursor: pointer; }
+button.appearance-locked-color:hover { background: color-mix(in srgb, var(--wp-accent) 5%, transparent); }
+#appearanceSettings .appearance-opacity-toggle:disabled { opacity: 1; }
+.appearance-scheme-name { display: grid; gap: 8px; margin-bottom: 20px; }
+.appearance-scheme-name > input { box-sizing: border-box; width: 100%; min-width: 0; }
+.appearance-scheme-name p { margin: 0; }
+.appearance-copy-notice { margin-bottom: 16px; padding: 12px; border: 1px solid var(--wp-border); border-radius: 7px; background: var(--wp-soft); }
+.appearance-copy-notice p { margin: 0 0 10px; font-size: 12px; line-height: 1.7; }
+.appearance-scheme-name[hidden], .appearance-copy-notice[hidden] { display: none; }
 .appearance-opacity-row { display: grid; grid-column: 1 / -1; grid-template-columns: 68px minmax(0, 1fr) 72px; align-items: center; gap: 8px; min-width: 0; }
 .appearance-opacity-row > label { font-size: 12px; }
 .appearance-opacity-row input[type="range"] { box-sizing: border-box; width: 100%; min-width: 0; height: 28px; min-height: 28px; margin: 0; padding: 0; border: 0; background: transparent; accent-color: var(--wp-accent); cursor: pointer; }
@@ -53,7 +68,6 @@ button.appearance-delete { color: var(--wp-danger); background: var(--wp-danger-
 #appearanceStatus { margin: 12px 0 0; line-height: 1.6; }
 #appearanceStatus:empty { display: none; }
 .appearance-preview-area { position: sticky; top: 24px; min-width: 0; }
-.appearance-preview-area > p { margin: 14px 0 0; line-height: 1.7; }
 .appearance-preview { position: relative; box-sizing: border-box; min-height: 357px; padding: 18px; border: 1px solid var(--wp-border); border-radius: 10px; background: var(--wp-background); color: var(--wp-foreground); font: 12px/1.6 system-ui, sans-serif; }
 .appearance-preview-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 22px; }
 .appearance-preview-brand { display: flex; align-items: center; gap: 7px; color: var(--wp-accent); font-size: 16px; font-weight: 800; }
@@ -88,7 +102,7 @@ button.appearance-delete { color: var(--wp-danger); background: var(--wp-danger-
 @container settings (max-width: 680px) {
   .appearance-layout { grid-template-columns: minmax(0, 1fr); gap: 24px; }
   .appearance-preview-area { position: static; }
-  .appearance-color-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 24px; }
+  .appearance-color-grid { grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: 12px 24px; }
   .appearance-preview { max-width: 360px; }
 }
 @container settings (max-width: 460px) {
