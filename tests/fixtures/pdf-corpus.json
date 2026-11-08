@@ -51,7 +51,7 @@
     "source": "https://www.nature.com/articles/s41746-025-02038-7",
     "url": "https://www.nature.com/articles/s41746-025-02038-7.pdf",
     "pages": 12,
-    "inspect": [8, 9, 10, 11],
+    "inspect": [4, 5, 6, 8, 9, 10, 11],
     "protectedText": [
       "Totaling the sum of squared deviations for all DRGs",
       "the sum of squared deviations for all cases",
@@ -60,6 +60,7 @@
       "Nonnegative adaptive lasso for ultra-high dimensional regression models"
     ],
     "preservedRegions": [
+      { "page": 4, "x": 212, "y": 254, "width": 151, "height": 451 },
       { "page": 8, "x": 70, "y": 45, "width": 495, "height": 204, "maximumDifferentRatio": 0.00001 },
       { "page": 9, "x": 40, "y": 506, "width": 260, "height": 235, "maximumDifferentRatio": 0.00001 },
       { "page": 10, "x": 335, "y": 322, "width": 230, "height": 51, "maximumDifferentRatio": 0.00001 },
@@ -68,6 +69,26 @@
       { "page": 11, "x": 302, "y": 163, "width": 265, "height": 581 }
     ],
     "features": "Publisher-encoded math symbols, piecewise expressions, rotated table and two-column bibliography with detached numbers (issue #76)"
+  },
+  {
+    "id": "sn74lv1t34",
+    "title": "SN74LV1T34 datasheet (Texas Instruments, Rev. E)",
+    "source": "https://www.ti.com/lit/ds/symlink/sn74lv1t34.pdf",
+    "url": "https://www.ti.com/lit/ds/symlink/sn74lv1t34.pdf",
+    "pages": 26,
+    "inspect": [5, 7],
+    "preservedRegions": [
+      { "page": 5, "x": 430, "y": 531, "width": 124, "height": 122 },
+      { "page": 7, "x": 232, "y": 584, "width": 322, "height": 98 }
+    ],
+    "tableLabels": [
+      { "page": 5, "text": "最小值", "x": 428.7, "y": 654.8, "width": 40.2, "height": 14.1 },
+      { "page": 5, "text": "最大值", "x": 468.7, "y": 654.8, "width": 52.6, "height": 14.1 },
+      { "page": 5, "text": "单位", "x": 521.2, "y": 654.8, "width": 34.2, "height": 14.1 },
+      { "page": 7, "text": "频率", "x": 214.1, "y": 512, "width": 61.3, "height": 28 },
+      { "page": 7, "text": "（典型值）", "x": 214.1, "y": 512, "width": 61.3, "height": 28 }
+    ],
+    "features": "Ruled datasheet tables with spanning headers, separate MIN/TYP/MAX labels, subscripted symbols, numbers and units"
   },
   {
     "id": "plos",

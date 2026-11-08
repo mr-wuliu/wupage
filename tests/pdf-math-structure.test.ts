@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { OPS } from "pdfjs-dist/legacy/build/pdf.mjs";
-import { detectPdfMathStructure, readPdfMathRules } from "../src/pdf/math-structure";
+import { detectPdfMathStructure, readPdfPageGeometry } from "../src/pdf/math-structure";
 import { extractTextBlocks, type PdfTextItemLike } from "../src/pdf/model";
 
 const item = (str: string, x: number, y: number, size = 10, font = "OpaqueA", width = str.length * size * 0.5): PdfTextItemLike => ({
@@ -188,7 +188,7 @@ describe("painted PDF fraction rules", () => {
   const viewport = { height: 800, transform: [2, 0, 0, -2, -100, 900] };
 
   it("uses the same crop, unit and saved form transforms as text extraction", () => {
-    const rules = readPdfMathRules({
+    const { rules } = readPdfPageGeometry({
       fnArray: [OPS.save, OPS.transform, OPS.paintFormXObjectBegin, OPS.constructPath, OPS.paintFormXObjectEnd, OPS.restore, OPS.constructPath],
       argsArray: [[], [1, 0, 0, 1, 10, 20], [[1, 0, 0, 1, 5, 10]], path([100, 200, 120, 200.5]), [], [], path([100, 200, 120, 200.5])]
     }, OPS, viewport);
@@ -196,7 +196,7 @@ describe("painted PDF fraction rules", () => {
   });
 
   it("rejects vertical, thick, invisible and non-painted paths", () => {
-    const rules = readPdfMathRules({
+    const { rules } = readPdfPageGeometry({
       fnArray: [OPS.constructPath, OPS.constructPath, OPS.constructPath, OPS.setGState, OPS.constructPath, OPS.beginMarkedContentProps, OPS.constructPath, OPS.endMarkedContent],
       argsArray: [path([10, 10, 10.5, 30]), path([10, 10, 30, 15]), path([10, 10, 30, 10.5], OPS.clip), [[['ca', 0]]],
         path([10, 10, 30, 10.5]), ['OC', {}], path([10, 10, 30, 10.5], OPS.stroke), []]
@@ -205,8 +205,49 @@ describe("painted PDF fraction rules", () => {
   });
 
   it("includes stroked rules at the displayed rotation", () => {
-    const rules = readPdfMathRules({ fnArray: [OPS.setLineWidth, OPS.constructPath], argsArray: [[0.4], path([10, 20, 10, 40], OPS.stroke)] },
+    const { rules } = readPdfPageGeometry({ fnArray: [OPS.setLineWidth, OPS.constructPath], argsArray: [[0.4], path([10, 20, 10, 40], OPS.stroke)] },
       OPS, { height: 600, transform: [0, 1, 1, 0, 0, 0] });
     expect(rules).toEqual([{ x: 20, y: 590, width: 20, height: 0.4 }]);
+  });
+
+  it("extracts transformed rectangular fills as cell boundaries", () => {
+    const rectangle = [OPS.fill, [new Float32Array([0, 100, 200, 1, 120, 200, 1, 120, 210, 1, 100, 210, 4])],
+      new Float32Array([100, 200, 120, 210])];
+    const triangle = [OPS.fill, [new Float32Array([0, 100, 200, 1, 120, 200, 1, 120, 210, 4])],
+      new Float32Array([100, 200, 120, 210])];
+    const geometry = readPdfPageGeometry({
+      fnArray: [OPS.transform, OPS.constructPath, OPS.constructPath],
+      argsArray: [[1, 0, 0, 1, 10, 15], rectangle, triangle]
+    }, OPS, viewport);
+    expect(geometry).toEqual({ rules: [], cells: [{ x: 120, y: 330, width: 40, height: 20 }], tableCells: [] });
+  });
+});
+
+describe("PDF table rule cells", () => {
+  it("preserves wrapped conditions within their cells and leaves adjacent labels translatable", () => {
+    const source = [
+      item("Rules and thresholds", 125, 150, 8),
+      item("Selected grouping (three classes)", 10, 132, 8, "OpaqueA", 106),
+      item("(obtained by the method)", 10, 122, 8, "OpaqueA", 89),
+      item("1. LOS ≤ 10 and", 125, 132, 8, "OpaqueA", 58),
+      item("Age > 17", 125, 122, 8, "OpaqueA", 35),
+      item("403", 230, 132, 8),
+      item("2. LOS", 125, 107, 8, "OpaqueA", 21), item("≤", 148, 107, 8, "OpaqueB", 4),
+      item("10 and Age ≤ 17", 153, 107, 8, "OpaqueA", 55), item("655", 230, 107, 8),
+      item("3. LOS > 10", 125, 87, 8, "OpaqueA", 40), item("468", 230, 87, 8)
+    ];
+    const ruleCells = [{ x: 120, y: 116, width: 105, height: 25 }, { x: 120, y: 96, width: 105, height: 20 },
+      { x: 120, y: 76, width: 105, height: 20 }];
+    const countCells = ruleCells.map(cell => ({ ...cell, x: 225, width: 30 }));
+    const cells = [...ruleCells, ...countCells];
+    const blocks = extractTextBlocks(source, 1, undefined, [], cells);
+    expect(blocks.filter(block => block.preserveOriginal && /\p{L}/u.test(block.text)).map(block => block.text)).toEqual([
+      "1. LOS ≤ 10 and", "Age > 17", "2. LOS ≤ 10 and Age ≤ 17", "3. LOS > 10"
+    ]);
+    expect(blocks.find(block => block.text === "1. LOS ≤ 10 and")?.lines[0]).toMatchObject({ x: 125, sourceBounds: ruleCells[0] });
+    expect(blocks.filter(block => block.translatable).map(block => block.text).join(" ")).toContain("obtained by the method)");
+    expect(blocks.find(block => block.text === "Rules and thresholds")?.translatable).toBe(true);
+    expect(blocks.filter(block => /^(?:403|655|468)$/u.test(block.text)).map(block => block.lines[0].sourceBounds)).toEqual(countCells);
+    expect(blocks.every(block => !block.formulas?.length)).toBe(true);
   });
 });

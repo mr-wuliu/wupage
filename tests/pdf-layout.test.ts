@@ -3,6 +3,33 @@ import { findAvailableHorizontalLeft, findAvailableHorizontalRight, findAvailabl
 import type { PdfTextBlock } from "../src/pdf/model";
 
 describe("PDF translated text layout", () => {
+  it("centers a longer translated header within its own cell", () => {
+    const block = createBlock("MAX", 142, 16);
+    const layout = getTranslatedBlockLayout(createMeasureContext(), "最大允许值", block,
+      [{ x: 142, y: 15, width: 16, height: 13 }], 1, 240, 500, 0,
+      { x: 133, y: 10, width: 34, height: 18 })!;
+    expect(layout.textAlign).toBe("center");
+    expect(layout.left + layout.width / 2).toBe(150);
+    expect(layout.left + layout.width).toBeLessThan(167);
+    expect(layout.top + layout.height).toBeLessThan(28);
+    const besideSymbol = getTranslatedBlockLayout(createMeasureContext(), "说明", block,
+      [{ x: 142, y: 15, width: 16, height: 13 }], 1, 240, 500, 140,
+      { x: 133, y: 10, width: 34, height: 18 })!;
+    expect(besideSymbol.textAlign).toBe("left");
+    expect(besideSymbol.left).toBe(142);
+  });
+
+  it("gives a right-aligned header space to expand leftward within its cell", () => {
+    const block = createBlock("MAX", 151, 14);
+    const layout = getTranslatedBlockLayout(createMeasureContext(), "最大允许值", block,
+      [{ x: 151, y: 15, width: 14, height: 12 }], 1, 240, 500, 0,
+      { x: 125, y: 10, width: 42, height: 18 })!;
+    expect(layout.textAlign).toBe("right");
+    expect(layout.width).toBeGreaterThan(14);
+    expect(layout.left).toBeGreaterThan(125);
+    expect(layout.left + layout.width).toBe(165);
+  });
+
   it("stops manual vertical expansion before preserved equations as well as prose", () => {
     expect(findAvailableVerticalBottom([
       [{ x: 20, y: 30, width: 200, height: 20 }],
