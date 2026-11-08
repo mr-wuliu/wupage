@@ -46,6 +46,30 @@
     "features": "Journal typography, code, benchmark tables, accents and references"
   },
   {
+    "id": "drg",
+    "title": "A tree-structured multiobjective optimization framework for constructing diagnosis-related groups",
+    "source": "https://www.nature.com/articles/s41746-025-02038-7",
+    "url": "https://www.nature.com/articles/s41746-025-02038-7.pdf",
+    "pages": 12,
+    "inspect": [8, 9, 10, 11],
+    "protectedText": [
+      "Totaling the sum of squared deviations for all DRGs",
+      "the sum of squared deviations for all cases",
+      "Diagnosis-related group (DRG)-based case-mix funding system",
+      "DRG grouping by machine learning",
+      "Nonnegative adaptive lasso for ultra-high dimensional regression models"
+    ],
+    "preservedRegions": [
+      { "page": 8, "x": 70, "y": 45, "width": 495, "height": 204, "maximumDifferentRatio": 0.00001 },
+      { "page": 9, "x": 40, "y": 506, "width": 260, "height": 235, "maximumDifferentRatio": 0.00001 },
+      { "page": 10, "x": 335, "y": 322, "width": 230, "height": 51, "maximumDifferentRatio": 0.00001 },
+      { "page": 10, "x": 388, "y": 263, "width": 177, "height": 36, "maximumDifferentRatio": 0.00001 },
+      { "page": 11, "x": 35, "y": 44, "width": 265, "height": 421 },
+      { "page": 11, "x": 302, "y": 163, "width": 265, "height": 581 }
+    ],
+    "features": "Publisher-encoded math symbols, piecewise expressions, rotated table and two-column bibliography with detached numbers (issue #76)"
+  },
+  {
     "id": "plos",
     "title": "Mathematical modelling, analysis and numerical simulation of social media addiction and depression",
     "source": "https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0293807",

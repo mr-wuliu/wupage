@@ -96,7 +96,9 @@ function preserveReferences(pages: PdfDocumentPage[]): void {
     const referenceCount = [...page.blocks, ...(pages[pageIndex + 1]?.blocks ?? [])]
       .filter((block) => NUMBERED_REFERENCE.test(block.text.trim()) || AUTHOR_REFERENCE.test(block.text.trim())).length;
     if (!active && (!heading || referenceCount < 1)) continue;
-    const nextSections = page.blocks.filter((block) => NEXT_SECTION.test(block.text.trim())
+    // Extraction can join a heading to the paragraph below it. Its first
+    // visual line still marks the end of the bibliography.
+    const nextSections = page.blocks.filter((block) => !block.tocPart && NEXT_SECTION.test(block.lines[0]?.text.trim() ?? "")
       && (!heading || afterHeading(block, heading, page)));
     for (const block of page.blocks) {
       if (block === heading || block.tocPart || nextSections.includes(block)) continue;
@@ -115,7 +117,6 @@ function preserveReferences(pages: PdfDocumentPage[]): void {
 function afterHeading(block: PdfTextBlock, heading: PdfTextBlock, page: PdfDocumentPage): boolean {
   const line = block.lines[0];
   if (!line || !heading.lines.length) return false;
-  const tolerance = Math.max(18, block.fontSize * 2);
   const left = Math.min(...block.lines.map((entry) => entry.x));
   const right = Math.max(...block.lines.map((entry) => entry.x + entry.width));
   const headingLeft = Math.min(...heading.lines.map((entry) => entry.x));
@@ -128,9 +129,9 @@ function afterHeading(block: PdfTextBlock, heading: PdfTextBlock, page: PdfDocum
   })).filter((entry) => entry.left <= center && entry.right >= center && entry.right - entry.left < page.width * 0.7)
     .sort((a, b) => (b.right - b.left) - (a.right - a.left));
   const column = columns[0] ?? { left: headingLeft, right: headingRight };
-  // A centered heading is still in the same column as the wider paragraphs
-  // below it. Comparing only their left edges mislabels those as references.
-  return left > column.right + block.fontSize * 0.4 || (right >= column.left - tolerance && left <= column.right
+  // Use the column's actual horizontal span so a narrow gutter does not put
+  // the tail of the preceding column below a heading in the next one.
+  return left > column.right + block.fontSize * 0.4 || (right >= column.left && left <= column.right
     && line.baselineY < heading.lines[0].baselineY - block.fontSize * 0.3);
 }
 

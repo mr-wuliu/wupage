@@ -1,5 +1,6 @@
 import { t } from "../shared/i18n";
 import type { PdfTextItemLike } from "./model";
+import { detectPdfMathStructure, type PdfMathRule } from "./math-structure";
 
 export interface PdfFormula {
   placeholder: string;
@@ -26,11 +27,14 @@ const EXTENSION_FONT = /(?:CMEX|Maths_Extension|LMEX|MTEX)/iu;
 
 // Use font metadata and positioned runs, rather than asking a translator to
 // reconstruct a formula from PDF.js's flattened text (which loses scripts).
-export function protectPdfMath(items: ReadonlyArray<PdfTextItemLike>, measure?: PdfTextMeasure): {
+export function protectPdfMath(items: ReadonlyArray<PdfTextItemLike>, measure?: PdfTextMeasure, rules: readonly PdfMathRule[] = []): {
   items: PdfTextItemLike[];
   formulas: PdfFormula[];
 } {
-  const tokens = items.flatMap((item) => splitProseBoundary(item, measure));
+  const structure = detectPdfMathStructure(items, rules);
+  const isMathToken = (item: PdfTextItemLike): boolean => !structure.proseFragments.has(item) && (structure.math.has(item) || isMathFontItem(item));
+  const isExtension = (item: PdfTextItemLike): boolean => structure.extensions.has(item) || EXTENSION_FONT.test(item.fontName ?? "");
+  const tokens = items.flatMap((item) => structure.math.has(item) || structure.unreadable.has(item) ? [item] : splitProseBoundary(item, measure));
   const citations = new Set(tokens.filter((item, index) => {
     if (!/^\d+(?:[–,\-]\d+)*$/u.test(item.str.trim())) return false;
     return [tokens[index - 1], tokens[index + 1]].some((near) => near && isProse(near.str)
@@ -45,13 +49,13 @@ export function protectPdfMath(items: ReadonlyArray<PdfTextItemLike>, measure?: 
     while (nextIndex < tokens.length && !tokens[nextIndex].str.trim()) nextIndex += 1;
     const next = tokens[nextIndex];
     return /^[A-Za-z][A-Za-z0-9]+$/u.test(item.str.trim()) && next
-      && /^\s*\(/u.test(next.str) && (!isProse(next.str) || isMathFontItem(next))
-      && hasMathArguments(tokens, nextIndex, item.str.trim())
+      && /^\s*\(/u.test(next.str) && (!isProse(next.str) || isMathToken(next))
+      && hasMathArguments(tokens, nextIndex, item.str.trim(), isMathToken)
       && !/^\s*\(\s*[A-Za-z]\s*=\s*[\d.,]+\s*\)\s*$/u.test(next.str)
       && Math.abs(Number(item.transform[5]) - Number(next.transform[5])) < itemSize(item) * 0.5
       && Math.abs(Number(next.transform[4]) - Number(item.transform[4]) - (item.width ?? 0)) < itemSize(item);
   }));
-  const isMathItem = (item: PdfTextItemLike): boolean => isMathFontItem(item) || functionNames.has(item) || citations.has(item);
+  const isMathItem = (item: PdfTextItemLike): boolean => isMathToken(item) || functionNames.has(item) || citations.has(item);
   const prosePrefixes = new Set(tokens.filter((item, index) => {
     const next = tokens[index + 1];
     if (!next || !/^[A-Z]$/u.test(item.str) || !/^[A-Z]{2,}$/u.test(next.str)
@@ -73,11 +77,11 @@ export function protectPdfMath(items: ReadonlyArray<PdfTextItemLike>, measure?: 
       output.push(...pending);
     } else {
       const size = Math.max(...visible.map(itemSize));
-      const baseline = visible.reduce((best, item) => itemSize(item) >= itemSize(best) && !/CMEX/iu.test(item.fontName ?? "") ? item : best, visible[0]);
+      const baseline = visible.reduce((best, item) => itemSize(item) >= itemSize(best) && !isExtension(item) ? item : best, visible[0]);
       let baselineY = Number(baseline.transform[5]);
       const previous = [...output].reverse().find((item) => item.str.trim());
       const citation = visible.every((item) => citations.has(item));
-      const inline = [previous, next].some((item) => item && isProse(item.str)
+      const inline = !visible.some(item => structure.display.has(item)) && [previous, next].some((item) => item && isProse(item.str)
         && !isMathItem(item) && !/⟪WUPAGE\d+⟫/u.test(item.str)
         && Math.abs(Number(item.transform[5]) - baselineY) <= (citation ? itemSize(item) * 0.7 : size * 0.65));
       // Sentence punctuation belongs to the prose. Baking it into an inline
@@ -87,11 +91,11 @@ export function protectPdfMath(items: ReadonlyArray<PdfTextItemLike>, measure?: 
       if (inline) {
         const last = visible.at(-1)!;
         const expression = visible.map((item) => item.str).join("");
-        const parentheses = !isMathFontItem(last) ? /^[()]\s*$/u.exec(last.str) : null;
+        const parentheses = !isMathToken(last) ? /^[()]\s*$/u.exec(last.str) : null;
         const balance = (expression.match(/\(/gu)?.length ?? 0) - (expression.match(/\)/gu)?.length ?? 0);
         const proseParenthesis = parentheses && ((/^\(+\s*$/u.test(parentheses[0]) && balance > 0)
           || (/^\)+\s*$/u.test(parentheses[0]) && balance < 0)) ? parentheses : null;
-        const punctuation = EXTENSION_FONT.test(last.fontName ?? "")
+        const punctuation = isExtension(last)
           ? null : /[,.;:，。；：]+\s*$/u.exec(last.str) ?? proseParenthesis;
         if (punctuation) {
           const index = pending.indexOf(last);
@@ -121,7 +125,7 @@ export function protectPdfMath(items: ReadonlyArray<PdfTextItemLike>, measure?: 
         return {
           top: Number(item.transform[5]) + (measured ? metrics.actualBoundingBoxAscent : fontMetric(item.fontAscent, 0.9) * itemSize(item)),
           bottom: measured ? Number(item.transform[5]) - metrics.actualBoundingBoxDescent
-            : Number(item.transform[5]) + (!inline && EXTENSION_FONT.test(item.fontName ?? "")
+            : Number(item.transform[5]) + (!inline && isExtension(item)
               ? Math.min(-1.4, fontMetric(item.fontDescent, 0)) : fontMetric(item.fontDescent, -0.24)) * itemSize(item)
         };
       });
@@ -168,9 +172,9 @@ export function protectPdfMath(items: ReadonlyArray<PdfTextItemLike>, measure?: 
       output.push({ ...token, fontFamily: prose?.fontFamily ?? token.fontFamily, fontWeight: prose?.fontWeight ?? token.fontWeight });
       continue;
     }
-    if (token.preserveOriginal) {
+    if (token.preserveOriginal || structure.unreadable.has(token) && !structure.math.has(token)) {
       flush();
-      output.push(token);
+      output.push(token.preserveOriginal ? token : { ...token, preserveOriginal: true });
       continue;
     }
     if ((isProse(token.str) || prosePrefixes.has(token)) && !isMathItem(token)) {
@@ -195,10 +199,10 @@ export function protectPdfMath(items: ReadonlyArray<PdfTextItemLike>, measure?: 
       // A tall closing delimiter can be drawn last with its baseline at the
       // top of the equation. Its apparent jump must not split it off and leave
       // a tiny crop containing only the upper half of the bracket.
-      const attachedDelimiter = EXTENSION_FONT.test(token.fontName ?? "")
+      const attachedDelimiter = isExtension(token)
         && nextX >= firstX - size && nextX <= lastX + size;
       const separated = verticalJump < size * 0.5 && nextX - lastX > size * 2.5
-        && !(MATH_FONT.test(previous.fontName ?? "") && MATH_FONT.test(token.fontName ?? ""));
+        && !(isMathToken(previous) && isMathToken(token));
       if ((verticalJump > size * 2.8 || wrapped || separated) && !attachedDelimiter) flush(token);
     }
     pending.push(token);
@@ -208,10 +212,12 @@ export function protectPdfMath(items: ReadonlyArray<PdfTextItemLike>, measure?: 
 }
 
 function fontMetric(value: number | undefined, fallback: number): number {
-  return typeof value === "number" && Number.isFinite(value) ? value : fallback;
+  // Some publisher font subsets report zero ascent/descent despite containing
+  // visible glyphs. Do not crop their letters or scripts down to the baseline.
+  return typeof value === "number" && Number.isFinite(value) && value !== 0 ? value : fallback;
 }
 
-function hasMathArguments(tokens: ReadonlyArray<PdfTextItemLike>, index: number, name: string): boolean {
+function hasMathArguments(tokens: ReadonlyArray<PdfTextItemLike>, index: number, name: string, isMathToken: (item: PdfTextItemLike) => boolean): boolean {
   const opening = tokens[index];
   let argument = opening.str.replace(/^\s*\(\s*/u, "");
   let token = opening;
@@ -221,8 +227,8 @@ function hasMathArguments(tokens: ReadonlyArray<PdfTextItemLike>, index: number,
   }
   // A plain opening parenthesis before an explanation is not function syntax:
   // "annotations (fine-grained labels ...)" must remain translatable prose.
-  return Boolean(argument.trim() && (!isProse(argument) || isMathFontItem(token))
-    && (isMathFontItem(token) || MATH_SYMBOL.test(argument) || /[A-Za-zΑ-Ωα-ω]/u.test(argument) || MATH_WORD.test(name)));
+  return Boolean(argument.trim() && (!isProse(argument) || isMathToken(token))
+    && (isMathToken(token) || MATH_SYMBOL.test(argument) || /[A-Za-zΑ-Ωα-ω]/u.test(argument) || MATH_WORD.test(name)));
 }
 
 function isMiddleDotListMarker(
@@ -248,7 +254,7 @@ function isMathFontItem(item: PdfTextItemLike): boolean {
   const shortIdentifier = /^[A-Za-zΑ-Ωα-ω]{1,2}$/u.test(item.str.trim())
     && !/^(?:an|as|at|be|by|do|he|if|in|is|it|me|my|no|of|on|or|so|to|up|us|we)$/iu.test(item.str.trim());
   return MATH_FONT.test(item.fontName ?? "")
-    || (/Italic|(?:^|[-+])It$/iu.test(item.fontName ?? "") && (shortIdentifier || /^[A-Z]{2}$/u.test(item.str.trim())));
+    || (/Italic|(?:^|[-+])It$|\.I(?:\+[0-9a-f]+)?$/iu.test(item.fontName ?? "") && (shortIdentifier || /^[A-Z]{2}$/u.test(item.str.trim())));
 }
 
 function isProse(text: string): boolean {

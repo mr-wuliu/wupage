@@ -1,4 +1,5 @@
 import { protectPdfMath, type PdfFormula, type PdfTextMeasure } from "./math";
+import type { PdfMathRule } from "./math-structure";
 
 export interface PdfTextItemLike {
   str: string;
@@ -81,9 +82,10 @@ export function normalizePdfTextItems(
 export function extractTextBlocks(
   items: ReadonlyArray<PdfTextItemLike>,
   pageNumber: number,
-  measure?: PdfTextMeasure
+  measure?: PdfTextMeasure,
+  rules: readonly PdfMathRule[] = []
 ): PdfTextBlock[] {
-  const protectedMath = protectPdfMath(splitTocTextItems(repairSplitWords(items).map(preserveRotatedText), measure), measure);
+  const protectedMath = protectPdfMath(splitTocTextItems(repairSplitWords(items).map(preserveRotatedText), measure), measure, rules);
   const lines = collectLines(protectedMath.items);
   return collectParagraphs(lines)
     .map((block, index) => {
@@ -210,15 +212,20 @@ function collectLines(items: ReadonlyArray<PdfTextItemLike>): TextLine[] {
     const y = Number(item.transform[5] ?? 0);
     const width = Math.max(0, Number(item.width) || 0);
     const height = Math.max(1, Number(item.height) || Math.abs(Number(item.transform[3])) || 10);
+    // A hanging list number and its text can be emitted as separate runs
+    // with a wider gap than a word space. Keep their shared baseline intact.
+    const hangingListNumber = current && /^(?:\[\d{1,3}\]|\d{1,3}[.)])$/u.test(current.text)
+      && /^\p{L}/u.test(text) && Math.abs(current.y - y) <= Math.min(current.height, height) * 0.25
+      && x >= current.right - 1 && x - current.right <= height * 2.4;
     const separatedOnSameLine = current
-      ? isSameVisualLine(current, y, height) && hasLargeHorizontalGap(current, x, height)
+      ? !hangingListNumber && isSameVisualLine(current, y, height) && hasLargeHorizontalGap(current, x, height)
       : false;
     const movedToAnotherLine = current
       ? current.preserveOriginal || item.preserveOriginal
         || current.tocPart !== item.tocPart
         || Math.abs(current.y - y) > Math.max(2.5, Math.min(current.height, height) * 0.55)
         || x + (/^⟪WUPAGE\d+⟫$/u.test(text) ? Math.max(2, height * 0.5) : 2) < previousX
-        || previousEndedLine
+        || (previousEndedLine && !hangingListNumber)
         || separatedOnSameLine
       : false;
 

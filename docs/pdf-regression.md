@@ -17,6 +17,14 @@ npm run test:pdf -- --download
 
 `--download` 在本地缺少样本时下载公开 PDF；已有缓存后可省略。测试使用独立浏览器资料和本地模拟翻译服务。
 
+`drg` 样本逐像素检查第 8–10 页的公式和第 11 页的双栏参考文献。第 10 页分别检查式 (18)、(19)，第 11 页的检查包括第一条编号和右栏开头的续排条目。若出版方下载页要求浏览器验证，可手动下载原始英文 PDF，保存为 `.npm-cache/pdf-corpus/drg.pdf`，再运行 `npm run test:pdf -- --ids=drg`。
+
+学术 PDF 验证也支持 `--corpus=drg`，复用缓存样本和公式保留区域。例如 `npm run test:pdf:academic:firefox -- --corpus=drg` 可在 Firefox 中检查预览、公式像素及可搜索导出。
+
+增加 `--anonymize-fonts` 会再检查一份隐藏字体名称的样本，验证公式保护不依赖出版方字体名。测试只修改本地副本的字体名称，保留嵌入字体与页面内容，并核对原公式区域的渲染哈希。示例：`npm run test:pdf:academic:firefox -- --corpus=drg --anonymize-fonts`。
+
+公式识别综合使用上下标位置、相邻表达式、分数线、当前页字体的用途及异常编码证据，已知数学字体作为补充。检测到异常编码的文本片段保留原图，不尝试按字符猜测数学含义。含文字的行内分式也按排版结构保护，并检查其分子、分母没有进入翻译请求。分段公式根据左侧关系式、括号和对齐的多行分支整体保护，包括其中的函数名与条件文字。单元测试同时覆盖普通正文、连字、小型大写标题、表格和日期，防止保护范围扩散。
+
 可通过 `PLAYWRIGHT_MODULE` 指定已有 Playwright 的 `index.mjs`，通过 `PDF_TEST_BROWSER` 指定 Chromium 或 Edge 的可执行文件。
 
 ## 常用参数

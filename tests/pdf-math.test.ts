@@ -7,6 +7,104 @@ function item(str: string, x: number, y: number, size = 11, fontName = "CMR10", 
 }
 
 describe("PDF formula preservation", () => {
+  it("preserves publisher-encoded equations, including italic identifiers and their numbers", () => {
+    const roman = "BFDNNO+AdvOT1ef757c0";
+    const italic = "BFDOFP+AdvOT7d6df7ab.I";
+    const symbols = "BFDOPD+AdvMacMthSyN";
+    const blocks = extractTextBlocks([
+      item("The objectives are as follows:", 40, 220, 9, roman),
+      item("max", 143, 184, 9, roman, 15), item("F", 159.5, 184, 9, italic, 4.7),
+      item("2", 164.6, 181.5, 6.3, roman, 3), item("¼", 170.6, 184, 9, symbols, 7),
+      item("Riv", 180.1, 184, 9, italic, 11.5),
+      item("ð", 284.5, 184, 9, symbols, 3), item("2", 287.5, 184, 9, roman, 4.3),
+      item("Þ", 291.8, 184, 9, symbols, 3),
+      item("The next paragraph explains the objective.", 40, 150, 9, roman)
+    ], 8);
+    expect(blocks.filter(block => block.translatable).map(block => block.text)).toEqual([
+      "The objectives are as follows:", "The next paragraph explains the objective."
+    ]);
+    expect(blocks.filter(block => block.preserveOriginal).map(block => block.text).join(" ")).toContain("Riv");
+  });
+
+  it("keeps publisher-encoded radicals and compact script variables out of translation", () => {
+    const roman = "BFDNNO+AdvOT1ef757c0";
+    const italic = "BFDOFP+AdvOT7d6df7ab.I";
+    const symbols = "BFDOPD+AdvMacMthSyN";
+    const extension = "BFDOPE+AdvP4C4E46";
+    const blocks = extractTextBlocks([
+      item("The following expression defines the coefficient.", 40, 640, 9, roman),
+      item("cv", 50.5, 565.2, 9, italic, 7.3), item("j", 57.8, 563, 6.3, italic, 1.6),
+      item("¼", 62.4, 565.2, 9, symbols, 7), item("y", 71.9, 565.2, 9, italic, 4.1),
+      item("j", 76, 562.7, 6.3, italic, 1.6), item("\u0002", 80.1, 565.2, 9, symbols, 2.5),
+      item("ffi".repeat(45), 93.6, 595.2, 9, extension, 96.8),
+      item("zij", 137.2, 580, 9, italic, 7.2), item("ð", 144.9, 580, 9, symbols, 3),
+      item("ci", 147.9, 580, 9, italic, 5), item("\u0003", 155.5, 580, 9, symbols, 7),
+      item("ave", 164.4, 580, 9, italic, 11.6), item(":", 176, 580, 9, "BFDOPF+AdvP4C4E51", 2.4),
+      item("cj", 178.4, 580, 9, italic, 5), item("Þ", 183.9, 580, 9, symbols, 3),
+      item("2", 186.9, 583.9, 6.3, roman, 3), item("s", 84.6, 595.2, 9, extension, 9),
+      item("The coefficient must be at most one.", 40, 530, 9, roman)
+    ], 9);
+    expect(blocks.filter(block => block.translatable).map(block => block.text)).toEqual([
+      "The following expression defines the coefficient.", "The coefficient must be at most one."
+    ]);
+  });
+
+  it("keeps ordinary publisher italic words and prose punctuation translatable", () => {
+    const italic = "BFDOFP+AdvOT7d6df7ab.I";
+    const result = protectPdfMath([
+      item("The result is", 10, 100, 10, "Times-Roman", 55),
+      item("new", 70, 100, 10, italic, 18), item("and", 92, 100, 10, italic, 18),
+      item("important", 114, 100, 10, italic, 45),
+      item(".", 159, 100, 10, "Times-Roman", 3)
+    ]);
+    expect(result.formulas).toEqual([]);
+    const besideMath = protectPdfMath([
+      item("and", 20, 100, 9, italic, 11), item("x", 34, 100, 9, italic, 4),
+      item("converges", 42, 100, 9, "Times-Roman", 40)
+    ]);
+    expect(besideMath.items[0].str).toBe("and");
+    expect(besideMath.formulas.map(formula => formula.text)).toEqual(["x"]);
+  });
+
+  it("preserves compact subscripts that spell prose words and identifiers beside comparison signs", () => {
+    const italic = "BFDOFP+AdvOT7d6df7ab.I";
+    const result = extractTextBlocks([
+      item("x", 20, 100, 9, italic, 4), item("if", 24, 98, 6.3, italic, 3),
+      item("≤", 30, 100, 9, "AdvOT1ef757c0+22", 5), item("zij", 38, 100, 9, italic, 7),
+      item("≥", 48, 100, 9, "AdvOT1ef757c0+22", 5), item("0", 56, 100, 9, "Times-Roman", 4)
+    ], 1);
+    expect(result.every(block => !block.translatable && block.preserveOriginal)).toBe(true);
+    const prose = protectPdfMath([
+      item("if", 20, 100, 9, italic, 6), item("x", 30, 100, 9, italic, 4),
+      item("converges", 40, 100, 9, "Times-Roman", 40)
+    ]);
+    expect(prose.items[0].str).toBe("if");
+    expect(prose.formulas[0].text).toBe("x");
+  });
+
+  it("keeps compound italic identifiers across encoded punctuation", () => {
+    const blocks = extractTextBlocks([
+      item("ave", 20, 100, 9, "AdvOT7d6df7ab.I", 11.5),
+      item(":", 31.5, 100, 9, "AdvP4C4E51", 2.4),
+      item("cj", 34, 100, 9, "AdvOT7d6df7ab.I", 5),
+      item("¼", 42, 100, 9, "AdvMacMthSyN", 7),
+      item("1", 52, 100, 9, "Times-Roman", 4)
+    ], 1);
+    expect(blocks).toHaveLength(1);
+    expect(blocks[0]).toMatchObject({ translatable: false, preserveOriginal: true });
+  });
+
+  it("uses fallback glyph bounds for publisher subsets with zero font metrics", () => {
+    const result = protectPdfMath([
+      { ...item("x", 20, 100, 9, "AdvOT7d6df7ab.I", 4), fontAscent: 0, fontDescent: 0 },
+      { ...item("¼", 28, 100, 9, "AdvMacMthSyN", 7), fontAscent: 0, fontDescent: 0 },
+      { ...item("y", 38, 100, 9, "AdvOT7d6df7ab.I", 4), fontAscent: 0, fontDescent: 0 }
+    ]);
+    expect(result.formulas).toHaveLength(1);
+    expect(result.formulas[0].y + result.formulas[0].height).toBeGreaterThan(108);
+    expect(result.formulas[0].y).toBeLessThan(98);
+  });
+
   it("keeps an italic term before an explanatory parenthesis available for translation", () => {
     const result = protectPdfMath([
       item("task names and segment", 10, 100, 10, "Times-Roman", 98),

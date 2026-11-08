@@ -10,6 +10,7 @@ import { PDFDocument, StandardFonts, rgb, degrees } from 'pdf-lib';
 import { getDocument } from 'pdfjs-dist/legacy/build/pdf.mjs';
 import { browserTarget } from './lib/browser-target.mjs';
 import { openExtensionBrowser } from './lib/extension-browser.mjs';
+import { anonymizePdfFonts } from './lib/pdf-anonymous-fonts.mjs';
 const root = fileURLToPath(new URL('..', import.meta.url)), target = browserTarget();
 const output = path.join(root, '.npm-cache/pdf-academic', target.kind);
 await fs.mkdir(output, { recursive: true });
@@ -67,7 +68,26 @@ add(retained,'42',40,740,10);
 retained.drawRectangle({x:100,y:500,width:180,height:45,color:rgb(0.1,0.7,0.3)});
 const fixture = path.join(output, 'academic-source.pdf'); await fs.writeFile(fixture, await source.save());
 const file = process.argv.find(arg => arg.startsWith('--file='))?.slice(7);
-const documents = [{ id: 'fixture', file: fixture }, ...(file ? [{ id: 'paper', file: path.resolve(file) }] : [])];
+const corpusId = process.argv.find(arg => arg.startsWith('--corpus='))?.slice(9);
+const corpus = corpusId ? JSON.parse(await fs.readFile(path.join(root, 'tests/fixtures/pdf-corpus.json'), 'utf8')).find(entry => entry.id === corpusId) : undefined;
+assert.ok(!corpusId || corpus, 'Unknown PDF corpus id');
+const documents = [{ id: 'fixture', file: fixture }, ...(file ? [{ id: 'paper', file: path.resolve(file) }] : []),
+ ...(corpus ? [{ ...corpus, file: path.join(root, '.npm-cache/pdf-corpus', corpus.id + '.pdf') }] : [])];
+if(process.argv.includes('--anonymize-fonts')){
+ assert.ok(documents.length>1,'Supply --corpus or --file for the font anonymity test');
+ for(const document of documents.slice(1)){
+  const file=path.join(output,document.id+'-anonymous.pdf');
+  const bytes=await anonymizePdfFonts(await fs.readFile(document.file));await fs.writeFile(file,bytes);
+  const task=getDocument({data:bytes,fontExtraProperties:true}),pdf=await task.promise;
+  try{
+   for(let number=1;number<=pdf.numPages;number++){
+    const page=await pdf.getPage(number),content=await page.getTextContent();await page.getOperatorList();
+    for(const name of Object.keys(content.styles))assert.match(page.commonObjs.get(name).name,/^Opaque\d+$/u,'PDF.js must see anonymized names');
+   }
+  }finally{await task.destroy();}
+  documents.push({...document,id:document.id+'-anonymous',file,sourceId:document.id});
+ }
+}
 const words = new Map([['References','参考文献'],['Appendix','附录'],['Background','背景'],['Training','训练'],['Test','测试'],['State','状态'],
  ['Bleeding','出血'],['Mortality','死亡风险'],['Renal failure','肾功能衰竭'],['Clinical reference tool','临床参考工具'],['Features','特征'],['Prediction','预测']]);
 function translate(text) {
@@ -117,15 +137,17 @@ try{
   const result=await chrome.runtime.sendMessage({type:'SAVE_SETTINGS',settings});if(!result.ok)throw new Error(result.error);return chrome.runtime.getURL('pdf.html');`);
  const userAgent=await browser.evaluate('return navigator.userAgent;');
  for(const document of documents){
+  const requestStart=requests.length;
   await browser.navigate(base+'?url='+encodeURIComponent(origin+'/'+document.id+'.pdf')+'&translate=1');
   await wait(()=>browser.evaluate('return {status:document.querySelector("#statusToast").textContent,disabled:document.querySelector("#translateDocument").disabled};'),v=>!v.disabled&&v.status.includes('翻译完成'),document.id+' translation');
+  for(const text of document.protectedText??[])assert.ok(!requests.slice(requestStart).some(input=>input.texts.some(source=>source.includes(text))),document.id+' preserved text must not reach the translator: '+text);
   const pages=await browser.evaluate('return document.querySelectorAll(".page-row").length;');
   for(let number=1;number<=pages;number++){
    await browser.evaluate(`document.querySelector('article[data-page="${number}"]').scrollIntoView({block:'start'});`);
    await wait(()=>browser.evaluate(`return !!document.querySelector('article[data-page="${number}"] .canvas-shell.is-rendered');`),Boolean,'render page');
    await wait(()=>browser.evaluate(`return document.querySelector('article[data-page="${number}"] .translation-prompt').hidden;`),Boolean,'translated or retained page displayed');
    await new Promise(resolve=>setTimeout(resolve,100));
-   if(document.id==='fixture'||[1,3,5,6,9,10].includes(number))await browser.capture(`${document.id}-${number}.png`);
+   if(document.id==='fixture'||(document.inspect??[1,3,5,6,9,10]).includes(number))await browser.capture(`${document.id}-${number}.png`);
   }
   const layout=await browser.evaluate(`return Array.from(document.querySelectorAll('.translation-block')).map(block=>({
    id:block.dataset.blockId,text:block.querySelector('.translation-block-text').textContent,overflow:!!block.dataset.layoutOverflow,
@@ -139,6 +161,22 @@ try{
    await fs.writeFile(path.join(output,document.id+'-overflow.json'),JSON.stringify(details,null,2));
   }
   assert.equal(layout.filter(block=>block.overflow).length,0,document.id+' readable layout: '+JSON.stringify(layout.filter(block=>block.overflow)));
+  const preservedRegions = (await browser.evaluate(`return ${JSON.stringify(document.preservedRegions ?? [])}.map(region=>{
+   const row=document.querySelector('article[data-page="'+region.page+'"]');
+   const original=row.querySelector('.original-panel canvas'),translated=row.querySelector('.translated-panel > .canvas-shell > canvas');
+   const [width,height]=row.querySelector('.original-panel .canvas-shell').style.aspectRatio.split('/').map(Number),scale=original.width/width;
+   const x=Math.ceil(region.x*scale),y=Math.ceil((height-region.y-region.height)*scale),w=Math.floor(region.width*scale),h=Math.floor(region.height*scale);
+   const before=original.getContext('2d').getImageData(x,y,w,h).data,after=translated.getContext('2d').getImageData(x,y,w,h).data;
+   let differences=0;
+   for(let i=0;i<before.length;i+=4)if(Math.max(Math.abs(before[i]-after[i]),Math.abs(before[i+1]-after[i+1]),Math.abs(before[i+2]-after[i+2]))>(region.tolerance||0))differences++;
+   return {...region,differences,pixelsChecked:w*h,sourcePixels:Array.from(before)};
+  });`)).map(({sourcePixels,...region})=>({...region,sourceHash:createHash('sha256').update(Buffer.from(sourcePixels)).digest('hex')}));
+  for(const region of preservedRegions)assert.ok(region.differences<=Math.floor(region.pixelsChecked*(region.maximumDifferentRatio||0)),document.id+' preserved region on page '+region.page+': '+JSON.stringify(region));
+  if(document.sourceId){
+   const original=checks.find(check=>check.document===document.sourceId);
+   assert.deepEqual(preservedRegions.map(region=>region.sourceHash),original.preservedRegions.map(region=>region.sourceHash),'font renaming preserves source rendering in checked regions');
+  }
+  if(document.pages)assert.equal(pages,document.pages,'corpus page count');
   const start=requests.length;
   if(document.id==='fixture'){
    assert.equal(fontRequests,0,'reading and translation never download fonts');
@@ -178,12 +216,12 @@ try{
    assert.ok(!texts.join('').includes('付费观看')&&!texts.join('').includes('净现值'));
    assert.ok(texts[1].includes('Jones K. Further observations.'));
    assert.ok(texts[1].includes('附录'));
-  }else{
+  }else if(document.id==='paper'){
    assert.ok(texts[8].includes('Krittanawong'),'mixed bibliography remains searchable');
    assert.ok(texts[9].includes('Halpern'),'bibliography continuation retains original text');
   }
   await loading.destroy();
-  checks.push({document:document.id,pages,textLengths:texts.map(text=>text.length),blocks:layout.length,minimumFontRatio:Math.min(...layout.map(block=>block.size/block.preferred)),bytes:(await fs.stat(destination)).size,export:destination});
+  checks.push({document:document.id,pages,preservedRegions,textLengths:texts.map(text=>text.length),blocks:layout.length,minimumFontRatio:Math.min(...layout.map(block=>block.size/block.preferred)),bytes:(await fs.stat(destination)).size,export:destination});
  }
  assert.ok(requests.every(input=>input.context?.includes('Academic document:')));
  assert.ok(requests.every(input=>!input.texts.some(text=>/^(?:PPV|NPV|RNN)$/u.test(text))));

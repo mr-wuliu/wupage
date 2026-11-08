@@ -65,6 +65,42 @@ describe("academic PDF document boundaries", () => {
     expect(pages[0].blocks.map((block) => block.translatable)).toEqual([true, true, false, false]);
   });
 
+  it("keeps detached reference numbers with the entries on their baseline", () => {
+    const item = (str: string, x: number, y: number, width: number, height = 8) => ({
+      str, width, height, transform: [height, 0, 0, height, x, y], fontFamily: "serif"
+    });
+    const blocks = extractTextBlocks([
+      item("References", 40, 500, 55, 10),
+      item("1.", 40, 489, 6), item("Smith J. First study.", 57, 489, 170),
+      item("Journal 2020; 2: 10–20.", 57, 478, 130),
+      item("2.", 40, 467, 6), item("Jones A. Second study. 2021.", 57, 467, 180)
+    ], 1);
+    preparePdfDocument([page(blocks)], "paper.pdf");
+    expect(blocks.map(entry => entry.text)).toEqual([
+      "References", "1. Smith J. First study.", "Journal 2020; 2: 10–20.", "2. Jones A. Second study. 2021."
+    ]);
+    expect(blocks.map(entry => entry.translatable)).toEqual([true, false, false, false]);
+    expect(blocks[1].lines[0]).toMatchObject({ x: 40, baselineY: 489 });
+  });
+
+  it("ends at a joined heading in the right column without dropping left-column references", () => {
+    const heading = block("References", 40, 500);
+    heading.lines[0].width = 55;
+    const left = block("1. Smith J. First study. 2020.", 40, 130);
+    left.lines[0].width = 255;
+    const right = block("2. Jones A. Another study. 2021.", 306, 690);
+    const acknowledgements = block("Acknowledgements This work was supported by the national research foundation.", 306, 146);
+    acknowledgements.lines = [
+      { ...acknowledgements.lines[0], text: "Acknowledgements", width: 94 },
+      { ...acknowledgements.lines[0], text: "This work was supported by the national research foundation.", baselineY: 135, width: 252 }
+    ];
+    const continuation = block("Author contributions", 40, 700);
+    preparePdfDocument([page([heading, left, right, acknowledgements]), page([continuation])], "paper.pdf");
+    expect([left, right].map(entry => entry.role)).toEqual(["reference", "reference"]);
+    expect(acknowledgements.translatable).toBe(true);
+    expect(continuation.translatable).toBe(true);
+  });
+
   it("ends reference preservation at a heading centered within the left column", () => {
     const appendix = block("APPENDIX", 150, 440);
     appendix.lines[0].width = 45;

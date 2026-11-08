@@ -41,6 +41,7 @@ import { getExtensionDetailsUrl, getPdfLaunchOptions, openPdfWorkspaceInNewTab }
 import { extractTextBlocks, normalizePdfTextItems, type PdfTextBlock } from "./model";
 import { renderPageWithoutText } from "./rendering";
 import { filterVisiblePdfText } from "./visibility";
+import { readPdfMathRules } from "./math-structure";
 import { validatePdfMathTranslation } from "./math";
 import { preparePdfDocument, pdfPageTranslationContext, type PdfDocumentContext } from "./document";
 import { preparePdfDocumentTranslations, type PdfDocumentParagraphInput, type PdfPageParagraphPlan } from "./paragraph-flow";
@@ -424,12 +425,13 @@ async function loadPdf(data: ArrayBuffer, name: string, autoTranslate: boolean, 
             : 400
         }];
       });
+      const viewport = page.getViewport({ scale: 1 });
       parsedPages[pageNumber - 1] = {
         page,
-        blocks: extractTextBlocks(normalizePdfTextItems(textItems, page.getViewport({ scale: 1 })), pageNumber, measureContext ? (item, text) => {
+        blocks: extractTextBlocks(normalizePdfTextItems(textItems, viewport), pageNumber, measureContext ? (item, text) => {
           measureContext.font = `${item.height || Math.abs(Number(item.transform[3])) || 10}px "${item.fontFace}"`;
           return measureContext.measureText(text);
-        } : undefined),
+        } : undefined, readPdfMathRules(operators, OPS, viewport, optionalContent)),
         textContent: { ...textContent, items: visibleItems }
       };
       parsedCount += 1;
@@ -704,10 +706,12 @@ function renderTranslatedPdfPage(pageState: PdfPageState): void {
     if (!layout.block.translatable || translations[index] === undefined) {
       // Copy original glyphs, including scripts and equation numbers. Replacing
       // them with ordinary canvas text would lose the PDF's math typography.
+      // Italic references can paint beyond the extracted horizontal advance.
+      const glyphPadding = layout.block.role === "reference" ? layout.block.fontSize * viewport.scale * 0.15 : 0;
       for (const rect of layout.lineRects) {
-        const x = Math.max(0, Math.floor(rect.x));
+        const x = Math.max(0, Math.floor(rect.x - glyphPadding));
         const y = Math.max(0, Math.floor(rect.y));
-        const width = Math.min(target.width - x, Math.ceil(rect.x + rect.width) - x);
+        const width = Math.min(target.width - x, Math.ceil(rect.x + rect.width + glyphPadding) - x);
         const height = Math.min(target.height - y, Math.ceil(rect.y + rect.height) - y);
         if (width > 0 && height > 0) context.drawImage(pageState.canvas, x, y, width, height, x, y, width, height);
       }
