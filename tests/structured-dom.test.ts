@@ -189,12 +189,26 @@ describe("inline structure plans", () => {
 });
 
 describe("closed component roots", () => {
+  it("skips Chromium's closed-root API after the extension is reloaded", () => {
+    const readRoot = vi.fn(() => { throw new Error("Extension context invalidated."); });
+    vi.stubGlobal("chrome", { runtime: {}, dom: { openOrClosedShadowRoot: readRoot } });
+    const host = document.createElement("div");
+    const open = document.createElement("div");
+    const openRoot = open.attachShadow({ mode: "open" });
+
+    expect(componentShadowRoot(host)).toBeNull();
+    expect(componentShadowRoot(open)).toBe(openRoot);
+    expect(readRoot).not.toHaveBeenCalled();
+  });
+
   it.each(["chromium", "firefox"])("discovers and restores closed roots using the %s extension API", async api => {
     document.body.innerHTML = '<main><closed-card></closed-card></main>';
     const host = document.querySelector("closed-card")!;
     const root = host.attachShadow({ mode: "closed" });
     root.innerHTML = '<p>Read the closed component content.</p>';
-    if (api === "chromium") vi.stubGlobal("chrome", { dom: { openOrClosedShadowRoot: (element: Element) => element === host ? root : null } });
+    if (api === "chromium") vi.stubGlobal("chrome", {
+      runtime: { id: "test-extension" }, dom: { openOrClosedShadowRoot: (element: Element) => element === host ? root : null }
+    });
     else Object.defineProperty(host, "openOrClosedShadowRoot", { value: root, configurable: true });
     expect(host.shadowRoot).toBeNull();
     expect(componentShadowRoot(host)).toBe(root);

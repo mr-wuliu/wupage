@@ -1,3 +1,5 @@
+import { hasExtensionContext } from "../shared/extension-context";
+
 // Keep each component's DOM intact. Collection crosses roots; grouping and
 // insertion stay inside the original tree so slots and event handlers survive.
 const roots = new Set<ShadowRoot>();
@@ -9,10 +11,9 @@ export function componentShadowRoot(element: Element): ShadowRoot | null {
   // Extension-only APIs; ordinary page scripts cannot inspect closed roots.
   const firefoxRoot = (element as Element & { openOrClosedShadowRoot?: ShadowRoot }).openOrClosedShadowRoot;
   if (firefoxRoot) return firefoxRoot;
-  const api = (globalThis as typeof globalThis & {
-    chrome?: { dom?: { openOrClosedShadowRoot?: (element: Element) => ShadowRoot | null } };
-  }).chrome?.dom;
-  return api?.openOrClosedShadowRoot?.(element) ?? null;
+  // Chromium can keep exposing chrome.dom to old scripts after a reload.
+  if (!hasExtensionContext()) return null;
+  return chrome.dom?.openOrClosedShadowRoot?.(element) ?? null;
 }
 
 export function projectedSlot(node: Text | Element): HTMLSlotElement | null {

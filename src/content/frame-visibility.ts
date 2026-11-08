@@ -1,6 +1,7 @@
 import { t } from "../shared/i18n";
 import { createDocumentKey } from "../shared/frame-session";
 import { validVideoFrameArea, type VideoFrameArea } from "../shared/video-frame";
+import { componentShadowRoot } from "./dom-roots";
 
 const GEOMETRY_REQUEST = "wupage-video-frame-area";
 const GEOMETRY_REPLY = "wupage-video-frame-area-result";
@@ -84,8 +85,7 @@ export function installFrameVisibilityBridge(): { ready: Promise<void> } {
       if ((element as HTMLIFrameElement).contentWindow === source) return element as HTMLIFrameElement;
     }
     for (const element of root.querySelectorAll("*")) {
-      const shadow = element.shadowRoot ?? (element instanceof HTMLElement
-        ? chrome.dom?.openOrClosedShadowRoot?.(element) ?? (element as HTMLElement & { openOrClosedShadowRoot?: ShadowRoot }).openOrClosedShadowRoot : undefined);
+      const shadow = componentShadowRoot(element);
       if (shadow) { roots.add(shadow); const found = findHost(source, shadow); if (found) return found; }
     }
   };
