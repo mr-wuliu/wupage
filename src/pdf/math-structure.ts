@@ -1,6 +1,7 @@
 import type { PdfTextItemLike } from "./model";
+import { findRuledTableCells, type PdfGridEdge } from "./table-grid";
 
-export interface PdfMathRule { x: number; y: number; width: number; height: number }
+export interface PdfPageRectangle { x: number; y: number; width: number; height: number }
 export interface PdfMathEvidence {
   math: Set<PdfTextItemLike>;
   extensions: Set<PdfTextItemLike>;
@@ -31,22 +32,24 @@ interface Run {
 interface FontEvidence { runs: Run[]; opaque: number; operators: number; scripts: number; prose: number; characters: number }
 
 // PDF.js 6 constructPath supplies the painting operation and path bounds.
-// Retain only thin, painted horizontal paths; text geometry still has to prove
-// a fraction, so an underline or a table border alone is never math evidence.
-export function readPdfMathRules(
+// Text layout uses thin rules for fractions and filled rectangles for cells.
+// Neither shape is sufficient to classify the nearby text on its own.
+export function readPdfPageGeometry(
   operators: { fnArray: readonly number[]; argsArray: readonly (readonly unknown[])[] } | undefined,
   ops: Readonly<Record<string, number>>,
   viewport: { height: number; transform?: ArrayLike<number> },
   optionalContent?: { isVisible(group: unknown): boolean }
-): PdfMathRule[] {
-  if (!operators) return [];
+): { rules: PdfPageRectangle[]; cells: PdfPageRectangle[]; tableCells: PdfPageRectangle[] } {
+  const rules: PdfPageRectangle[] = [], cells: PdfPageRectangle[] = [];
+  const edges: PdfGridEdge[] = [];
+  if (!operators) return { rules, cells, tableCells: [] };
   const multiply = (a: number[], b: ArrayLike<number>): number[] => [
     a[0] * b[0] + a[2] * b[1], a[1] * b[0] + a[3] * b[1],
     a[0] * b[2] + a[2] * b[3], a[1] * b[2] + a[3] * b[3],
     a[0] * b[4] + a[2] * b[5] + a[4], a[1] * b[4] + a[3] * b[5] + a[5]
   ];
   let state = { matrix: [1, 0, 0, 1, 0, 0], lineWidth: 1, fill: 1, stroke: 1 };
-  const saved: typeof state[] = [], groups = [true], rules: PdfMathRule[] = [];
+  const saved: typeof state[] = [], groups = [true];
   operators.fnArray.forEach((op, index) => {
     const args = operators.argsArray[index] ?? [];
     if (op === ops.save || op === ops.paintFormXObjectBegin) {
@@ -78,18 +81,40 @@ export function readPdfMathRules(
       })));
       const x = Math.min(...points.map(p => p.x)), y = Math.min(...points.map(p => p.y));
       const width = Math.max(...points.map(p => p.x)) - x;
-      const height = Math.max(...points.map(p => p.y)) - y + (stroke ? state.lineWidth * Math.hypot(matrix[2], matrix[3]) : 0);
-      if ([x, y, width, height].every(Number.isFinite) && width >= 3 && height >= 0 && height <= 2 && height < width * 0.15) {
-        rules.push({ x, y, width, height });
+      const pathHeight = Math.max(...points.map(p => p.y)) - y;
+      const height = pathHeight + (stroke ? state.lineWidth * Math.hypot(matrix[2], matrix[3]) : 0);
+      if (![x, y, width, height].every(Number.isFinite)) return;
+      const path = Array.isArray(args[1]) ? args[1][0] as ArrayLike<number> | undefined : undefined;
+      if (stroke && path?.length === 6 && path[0] === 0 && path[3] === 1) {
+        if (pathHeight < 0.05 && width >= 6) edges.push({ axis: "horizontal", position: y, from: x, to: x + width });
+        if (width < 0.05 && pathHeight >= 5) edges.push({ axis: "vertical", position: x, from: y, to: y + pathHeight });
       }
+      if (width >= 3 && height >= 0 && height <= 2 && height < width * 0.15) rules.push({ x, y, width, height });
+      else if (!stroke && width >= 20 && height >= 5 && Math.abs(matrix[0] * matrix[1]) < 1e-6
+        && Math.abs(matrix[2] * matrix[3]) < 1e-6 && isRectanglePath(args[1])) cells.push({ x, y, width, height });
     }
   });
-  return rules;
+  return { rules, cells, tableCells: findRuledTableCells(edges, cells) };
+}
+
+function isRectanglePath(data: unknown): boolean {
+  const path = Array.isArray(data) ? data[0] as ArrayLike<number> | undefined : undefined;
+  // PDF.js represents filled rectangles as four corners, with an optional
+  // closePath. A curve's bounding box is not evidence of a table cell.
+  if (!path || (path.length !== 12 && !(path.length === 13 && path[12] === 4))
+    || path[0] !== 0 || path[3] !== 1 || path[6] !== 1 || path[9] !== 1) return false;
+  const corners = [1, 4, 7, 10].map(index => [path[index], path[index + 1]]);
+  return new Set(corners.map(([x, y]) => `${x},${y}`)).size === 4
+    && new Set(corners.map(([x]) => x)).size === 2 && new Set(corners.map(([, y]) => y)).size === 2
+    && corners.every(([x, y], index) => {
+      const [nextX, nextY] = corners[(index + 1) % 4];
+      return (x === nextX) !== (y === nextY);
+    });
 }
 
 // Font names are identities only. Learn their roles from the current page's
 // encoding, operators and script geometry; unknown/renamed fonts work equally.
-export function detectPdfMathStructure(items: readonly PdfTextItemLike[], rules: readonly PdfMathRule[] = []): PdfMathEvidence {
+export function detectPdfMathStructure(items: readonly PdfTextItemLike[], rules: readonly PdfPageRectangle[] = []): PdfMathEvidence {
   const math = new Set<PdfTextItemLike>(), extensions = new Set<PdfTextItemLike>(), unreadable = new Set<PdfTextItemLike>();
   const proseFragments = new Set<PdfTextItemLike>();
   const display = new Set<PdfTextItemLike>();

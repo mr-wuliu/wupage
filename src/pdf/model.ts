@@ -1,5 +1,6 @@
 import { protectPdfMath, type PdfFormula, type PdfTextMeasure } from "./math";
-import type { PdfMathRule } from "./math-structure";
+import type { PdfPageRectangle } from "./math-structure";
+import { prepareRuledTableItems, preservePdfTableRules } from "./table-rules";
 
 export interface PdfTextItemLike {
   str: string;
@@ -14,6 +15,8 @@ export interface PdfTextItemLike {
   fontAscent?: number;
   fontDescent?: number;
   preserveOriginal?: boolean;
+  sourceBounds?: PdfPageRectangle;
+  tableCell?: PdfPageRectangle;
   tocPart?: "title" | "leader";
   role?: "reference" | "identifier" | "figure-label";
 }
@@ -24,6 +27,7 @@ export interface PdfTextLine {
   baselineY: number;
   width: number;
   height: number;
+  sourceBounds?: PdfPageRectangle;
 }
 
 export interface PdfTextBlock {
@@ -37,6 +41,7 @@ export interface PdfTextBlock {
   boldPrefix?: string;
   preserveOriginal?: boolean;
   formulas?: PdfFormula[];
+  tableCell?: PdfPageRectangle;
   tocPart?: "title" | "leader";
   role?: "reference" | "identifier" | "figure-label";
 }
@@ -54,6 +59,8 @@ interface TextLine {
   tocPart?: "title" | "leader";
   families: Map<string, number>;
   weights: Map<number, number>;
+  sourceBounds?: PdfPageRectangle;
+  tableCell?: PdfPageRectangle;
 }
 
 export function normalizePdfTextItems(
@@ -83,9 +90,13 @@ export function extractTextBlocks(
   items: ReadonlyArray<PdfTextItemLike>,
   pageNumber: number,
   measure?: PdfTextMeasure,
-  rules: readonly PdfMathRule[] = []
+  rules: readonly PdfPageRectangle[] = [],
+  cells: readonly PdfPageRectangle[] = [],
+  tableCells: readonly PdfPageRectangle[] = []
 ): PdfTextBlock[] {
-  const protectedMath = protectPdfMath(splitTocTextItems(repairSplitWords(items).map(preserveRotatedText), measure), measure, rules);
+  const normalized = repairSplitWords(items).map(preserveRotatedText);
+  const tableItems = prepareRuledTableItems(preservePdfTableRules(normalized, cells), tableCells);
+  const protectedMath = protectPdfMath(splitTocTextItems(tableItems, measure), measure, rules);
   const lines = collectLines(protectedMath.items);
   return collectParagraphs(lines)
     .map((block, index) => {
@@ -223,6 +234,7 @@ function collectLines(items: ReadonlyArray<PdfTextItemLike>): TextLine[] {
     const movedToAnotherLine = current
       ? current.preserveOriginal || item.preserveOriginal
         || current.tocPart !== item.tocPart
+        || current.tableCell !== item.tableCell
         || Math.abs(current.y - y) > Math.max(2.5, Math.min(current.height, height) * 0.55)
         || x + (/^⟪WUPAGE\d+⟫$/u.test(text) ? Math.max(2, height * 0.5) : 2) < previousX
         || (previousEndedLine && !hangingListNumber)
@@ -242,6 +254,8 @@ function collectLines(items: ReadonlyArray<PdfTextItemLike>): TextLine[] {
         weights: new Map([[item.fontWeight ?? 400, text.length]]),
         ...((item.fontWeight ?? 400) >= 600 ? { boldPrefix: text } : {}),
         ...(item.preserveOriginal ? { preserveOriginal: true } : {}),
+        ...(item.sourceBounds ? { sourceBounds: item.sourceBounds } : {}),
+        ...(item.tableCell ? { tableCell: item.tableCell } : {}),
         ...(item.tocPart ? { tocPart: item.tocPart } : {})
       };
       lines.push(current);
@@ -299,7 +313,8 @@ function collectParagraphs(lines: TextLine[]): Omit<PdfTextBlock, "id" | "transl
       x: line.x,
       baselineY: line.y,
       width: Math.max(1, line.right - line.x),
-      height: line.height
+      height: line.height,
+      ...(line.sourceBounds ? { sourceBounds: line.sourceBounds } : {})
     }));
     blocks.push({
       text: joinParagraphLines(normalizedLines),
@@ -309,7 +324,8 @@ function collectParagraphs(lines: TextLine[]): Omit<PdfTextBlock, "id" | "transl
       fontSize: Math.max(...current.map((line) => line.height)),
       ...(fontWeight < 600 && current[0].boldPrefix ? { boldPrefix: current[0].boldPrefix } : {}),
       ...(current.some((line) => line.preserveOriginal) ? { preserveOriginal: true } : {}),
-      ...(current[0].tocPart ? { tocPart: current[0].tocPart } : {})
+      ...(current[0].tocPart ? { tocPart: current[0].tocPart } : {}),
+      ...(current[0].tableCell ? { tableCell: current[0].tableCell } : {})
     });
     current = [];
   };
@@ -324,7 +340,7 @@ function collectParagraphs(lines: TextLine[]): Omit<PdfTextBlock, "id" | "transl
 }
 
 function canJoinParagraph(previous: TextLine, next: TextLine, paragraph: TextLine[]): boolean {
-  if (previous.preserveOriginal || next.preserveOriginal || previous.tocPart || next.tocPart) return false;
+  if (previous.preserveOriginal || next.preserveOriginal || previous.tocPart || next.tocPart || previous.tableCell !== next.tableCell) return false;
   const verticalGap = Math.abs(previous.y - next.y);
   const averageHeight = (previous.height + next.height) / 2;
   const sameColumn = Math.abs(previous.x - next.x) <= Math.max(18, averageHeight * 1.7);
@@ -342,12 +358,13 @@ function canJoinParagraph(previous: TextLine, next: TextLine, paragraph: TextLin
   // label. Their colour markers are independent graphical objects.
   const identifierLabel = /^[A-Z][A-Z0-9-]{1,10}$/u.test(previous.text.trim());
   const referenceEntry = /^\[?\d{1,3}[\].)]?\s+[\p{L}]/u.test(next.text.trim());
+  const numberedHeading = next.fontWeight >= 600 && /^\d{1,3}(?:\.\d{1,3})+\s+\p{L}/u.test(next.text);
   return verticalGap <= averageHeight * 1.75
     && sameColumn
     && sameSize
     && sameStyle
     && !indentedParagraph && !shortLastLine && !identifierLabel
-    && !nextStartsList && !referenceEntry;
+    && !nextStartsList && !referenceEntry && !numberedHeading;
 }
 
 function joinParagraphLines(lines: PdfTextLine[]): string {

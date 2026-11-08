@@ -89,7 +89,8 @@ if(process.argv.includes('--anonymize-fonts')){
  }
 }
 const words = new Map([['References','参考文献'],['Appendix','附录'],['Background','背景'],['Training','训练'],['Test','测试'],['State','状态'],
- ['Bleeding','出血'],['Mortality','死亡风险'],['Renal failure','肾功能衰竭'],['Clinical reference tool','临床参考工具'],['Features','特征'],['Prediction','预测']]);
+ ['Bleeding','出血'],['Mortality','死亡风险'],['Renal failure','肾功能衰竭'],['Clinical reference tool','临床参考工具'],['Features','特征'],['Prediction','预测'],
+ ['MIN','最小值'],['TYP','典型值'],['MAX','最大值'],['UNIT','单位'],['FREQUENCY','频率'],['(TYP)','（典型值）']]);
 function translate(text) {
  return text.split(/(⟪WUPAGE(?:OPEN|CLOSE)?\d+⟫)/gu).map(part => {
   if (/^⟪WUPAGE(?:OPEN|CLOSE)?\d+⟫$/u.test(part) || !/\p{L}/u.test(part)) return part;
@@ -161,6 +162,22 @@ try{
    await fs.writeFile(path.join(output,document.id+'-overflow.json'),JSON.stringify(details,null,2));
   }
   assert.equal(layout.filter(block=>block.overflow).length,0,document.id+' readable layout: '+JSON.stringify(layout.filter(block=>block.overflow)));
+  const tableLabels = await browser.evaluate(`return ${JSON.stringify(document.tableLabels ?? [])}.map(label=>{
+   const row=document.querySelector('article[data-page="'+label.page+'"]');
+   const canvas=row.querySelector('.translated-panel > .canvas-shell > canvas');
+   const [width,height]=row.querySelector('.original-panel .canvas-shell').style.aspectRatio.split('/').map(Number);
+   const rect=canvas.getBoundingClientRect(),sx=rect.width/width,sy=rect.height/height,scale=canvas.width/width;
+   const top=height-label.y-label.height;
+   const bg=canvas.getContext('2d').getImageData(Math.round((label.x+label.width/2)*scale),Math.round((top+label.height/2)*scale),1,1).data;
+   return {...label,visible:[...row.querySelectorAll('.translation-block-text')].some(node=>{
+    if(node.textContent.trim()!==label.text)return false;
+    const box=node.getBoundingClientRect(),color=getComputedStyle(node).color.match(/\\d+/g).map(Number);
+    return box.width>0 && box.height>0 && (box.left-rect.left)/sx>=label.x-0.5
+     && (box.right-rect.left)/sx<=label.x+label.width+0.5 && (box.top-rect.top)/sy>=top-0.5
+     && (box.bottom-rect.top)/sy<=top+label.height+0.5 && Math.hypot(...color.slice(0,3).map((v,i)=>v-bg[i]))>80;
+   })};
+  });`);
+  assert.ok(tableLabels.every(label=>label.visible),document.id+' readable table labels: '+JSON.stringify(tableLabels.filter(label=>!label.visible)));
   const preservedRegions = (await browser.evaluate(`return ${JSON.stringify(document.preservedRegions ?? [])}.map(region=>{
    const row=document.querySelector('article[data-page="'+region.page+'"]');
    const original=row.querySelector('.original-panel canvas'),translated=row.querySelector('.translated-panel > .canvas-shell > canvas');

@@ -82,7 +82,7 @@ export function preparePdfPageTranslations(
 const CAPTION = /^(?:fig(?:ure)?\.?\s*\d+\s*[.:]|table\s+(?:\d+|[IVX]+)\s*[.:]|[图圖表]\s*\d+\s*[:：.])/iu;
 function flowText(block: PdfTextBlock, height: number): boolean {
   const region = bounds(block);
-  return block.translatable && !block.preserveOriginal && !block.role && !block.tocPart
+  return block.translatable && !block.preserveOriginal && !block.role && !block.tocPart && !block.tableCell
     && !CAPTION.test(block.text.trim()) && region.bottom >= height * 0.045 && region.top <= height * 0.94;
 }
 
@@ -152,7 +152,7 @@ function bounds(block: PdfTextBlock) {
 
 function columnContinuations(page: Pick<PdfDocumentPage, "blocks" | "height">): Map<number, number> {
   const regions = page.blocks.map(bounds);
-  const body = (block: PdfTextBlock) => block.translatable && !block.preserveOriginal && !block.role && !block.tocPart
+  const body = (block: PdfTextBlock) => block.translatable && !block.preserveOriginal && !block.role && !block.tocPart && !block.tableCell
     && block.fontWeight < 600 && block.lines.length >= 2 && block.text.length >= 40;
   const next = new Map<number, number>();
   for (const [index, block] of page.blocks.entries()) {

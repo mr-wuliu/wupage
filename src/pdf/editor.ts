@@ -17,7 +17,7 @@ export interface EditableTranslationBlockOptions extends TranslationBlockGeometr
   fontSize: number;
   fontWeight: number;
   lineHeight: number;
-  textAlign?: "left" | "center";
+  textAlign?: "left" | "center" | "right";
   hangingIndent?: number;
   fontSizeStep?: number;
   maximumAutoHeight?: number;

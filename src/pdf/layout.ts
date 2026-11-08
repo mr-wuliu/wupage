@@ -15,7 +15,7 @@ export interface TranslatedBlockLayout {
   fontFamily: string;
   fontSize: number;
   lineHeight: number;
-  textAlign: "left" | "center";
+  textAlign: "left" | "center" | "right";
   hangingIndent: number;
 }
 
@@ -93,12 +93,16 @@ export function getTranslatedBlockLayout(
   scale: number,
   availableRight?: number,
   pageWidth?: number,
-  availableLeft = 0
+  availableLeft = 0,
+  cell?: PdfLayoutRectangle
 ): TranslatedBlockLayout | undefined {
   const bounds = getBounds(rectangles);
   if (!bounds || !text.trim()) return undefined;
   const originalWidth = Math.max(4, bounds.width);
-  const height = Math.max(4, bounds.height);
+  const inset = cell ? scale * 0.75 : 0;
+  const left = cell ? Math.max(bounds.left, cell.x + inset) : bounds.left;
+  const top = cell ? Math.max(bounds.top, cell.y + inset) : bounds.top;
+  const height = Math.min(Math.max(4, bounds.height), cell ? cell.y + cell.height - inset - top : Infinity);
   const preferredSize = Math.max(1, block.fontSize * scale * 0.98);
   const family = normalizeCanvasFontFamily(block.fontFamily);
   const measure = (value: string): number => value.split(/(⟪WUPAGE(?:OPEN|CLOSE)?\d+⟫)/gu).reduce((width, part) => {
@@ -112,8 +116,9 @@ export function getTranslatedBlockLayout(
   const preferredTextWidth = block.lines.length === 1
     ? measure(text.trim()) + preferredSize * 0.25
     : originalWidth;
-  const horizontalLimit = Math.max(bounds.right, availableRight ?? bounds.right);
-  let width = Math.max(4, Math.min(Math.max(originalWidth, preferredTextWidth), horizontalLimit - bounds.left));
+  const horizontalLimit = Math.min(Math.max(bounds.right, availableRight ?? bounds.right), cell ? cell.x + cell.width - inset : Infinity);
+  let width = Math.max(4, Math.min(Math.max(originalWidth, preferredTextWidth), horizontalLimit - left));
+  if (cell) width = Math.min(width, horizontalLimit - left);
 
   const ascent = Math.max(0.9, ...(block.formulas ?? []).map((formula) =>
     (formula.y + formula.height - formula.baselineY) / formula.fontSize));
@@ -127,20 +132,30 @@ export function getTranslatedBlockLayout(
   // second line-breaking implementation that can shrink it prematurely.
   const lineHeight = preferredSize * Math.max(sourceLeading, ascent + descent);
   const listItem = /^[•●▪◦·‣⁃]\s/u.test(block.text);
-  const centered = Boolean(pageWidth && block.lines.length === 1 && !listItem && !block.tocPart && bounds.width < pageWidth * 0.75
-    && Math.abs(bounds.left + bounds.right - pageWidth) < block.fontSize * scale);
-  const center = (bounds.left + bounds.right) / 2;
+  const center = cell ? cell.x + cell.width / 2 : (bounds.left + bounds.right) / 2;
+  // A symbol and its description can share a cell without an inner border.
+  // Keep the description's left edge when the symbol occupies that space.
+  const centered = !listItem && !block.tocPart && (cell
+    ? availableLeft <= cell.x + scale * 3 && Math.abs((bounds.left + bounds.right) / 2 - center) < block.fontSize * scale * 0.5
+    : Boolean(pageWidth && block.lines.length === 1 && bounds.width < pageWidth * 0.75
+      && Math.abs(bounds.left + bounds.right - pageWidth) < block.fontSize * scale));
+  if (cell) availableLeft = Math.max(availableLeft, cell.x + inset);
+  const rightAligned = Boolean(cell && !centered && !listItem && block.lines.length === 1
+    && cell.x + cell.width - bounds.right < block.fontSize * scale * 0.65);
+  const right = Math.min(horizontalLimit, bounds.right);
+  if (rightAligned) width = Math.min(Math.max(4, originalWidth, preferredTextWidth), right - availableLeft);
   if (centered) width = Math.min(width, 2 * Math.min(center - availableLeft, horizontalLimit - center));
+  if (cell && (width <= 0 || height <= 0)) return undefined;
 
   return {
-    left: centered ? center - width / 2 : bounds.left,
-    top: bounds.top,
+    left: centered ? center - width / 2 : rightAligned ? right - width : left,
+    top,
     width,
     height,
     fontFamily: family,
     fontSize: preferredSize,
     lineHeight,
-    textAlign: centered ? "center" : "left",
+    textAlign: centered ? "center" : rightAligned ? "right" : "left",
     hangingIndent: listItem ? Math.max(block.fontSize, (block.lines[1]?.x ?? block.lines[0].x) - block.lines[0].x) * scale : 0
   };
 }

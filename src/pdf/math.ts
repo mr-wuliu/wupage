@@ -1,6 +1,6 @@
 import { t } from "../shared/i18n";
 import type { PdfTextItemLike } from "./model";
-import { detectPdfMathStructure, type PdfMathRule } from "./math-structure";
+import { detectPdfMathStructure, type PdfPageRectangle } from "./math-structure";
 
 export interface PdfFormula {
   placeholder: string;
@@ -27,7 +27,7 @@ const EXTENSION_FONT = /(?:CMEX|Maths_Extension|LMEX|MTEX)/iu;
 
 // Use font metadata and positioned runs, rather than asking a translator to
 // reconstruct a formula from PDF.js's flattened text (which loses scripts).
-export function protectPdfMath(items: ReadonlyArray<PdfTextItemLike>, measure?: PdfTextMeasure, rules: readonly PdfMathRule[] = []): {
+export function protectPdfMath(items: ReadonlyArray<PdfTextItemLike>, measure?: PdfTextMeasure, rules: readonly PdfPageRectangle[] = []): {
   items: PdfTextItemLike[];
   formulas: PdfFormula[];
 } {
@@ -37,7 +37,7 @@ export function protectPdfMath(items: ReadonlyArray<PdfTextItemLike>, measure?: 
   const tokens = items.flatMap((item) => structure.math.has(item) || structure.unreadable.has(item) ? [item] : splitProseBoundary(item, measure));
   const citations = new Set(tokens.filter((item, index) => {
     if (!/^\d+(?:[–,\-]\d+)*$/u.test(item.str.trim())) return false;
-    return [tokens[index - 1], tokens[index + 1]].some((near) => near && isProse(near.str)
+    return [tokens[index - 1], tokens[index + 1]].some((near) => near && near.tableCell === item.tableCell && isProse(near.str)
       && itemSize(item) < itemSize(near) * 0.85
       && Number(item.transform[5]) > Number(near.transform[5]) + itemSize(near) * 0.12
       && Math.abs(Number(item.transform[5]) - Number(near.transform[5])) < itemSize(near) * 0.7
@@ -48,7 +48,7 @@ export function protectPdfMath(items: ReadonlyArray<PdfTextItemLike>, measure?: 
     let nextIndex = index + 1;
     while (nextIndex < tokens.length && !tokens[nextIndex].str.trim()) nextIndex += 1;
     const next = tokens[nextIndex];
-    return /^[A-Za-z][A-Za-z0-9]+$/u.test(item.str.trim()) && next
+    return /^[A-Za-z][A-Za-z0-9]+$/u.test(item.str.trim()) && next && next.tableCell === item.tableCell
       && /^\s*\(/u.test(next.str) && (!isProse(next.str) || isMathToken(next))
       && hasMathArguments(tokens, nextIndex, item.str.trim(), isMathToken)
       && !/^\s*\(\s*[A-Za-z]\s*=\s*[\d.,]+\s*\)\s*$/u.test(next.str)
@@ -70,6 +70,7 @@ export function protectPdfMath(items: ReadonlyArray<PdfTextItemLike>, measure?: 
   const output: PdfTextItemLike[] = [];
   const formulas: PdfFormula[] = [];
   let pending: PdfTextItemLike[] = [];
+  let activeCell: PdfPageRectangle | undefined;
   const flush = (next?: PdfTextItemLike): void => {
     let visible = pending.filter((item) => item.str.trim());
     const anchored = visible.some((item) => isMathItem(item) || MATH_SYMBOL.test(item.str));
@@ -78,10 +79,11 @@ export function protectPdfMath(items: ReadonlyArray<PdfTextItemLike>, measure?: 
     } else {
       const size = Math.max(...visible.map(itemSize));
       const baseline = visible.reduce((best, item) => itemSize(item) >= itemSize(best) && !isExtension(item) ? item : best, visible[0]);
+      const cell = baseline.tableCell;
       let baselineY = Number(baseline.transform[5]);
       const previous = [...output].reverse().find((item) => item.str.trim());
       const citation = visible.every((item) => citations.has(item));
-      const inline = !visible.some(item => structure.display.has(item)) && [previous, next].some((item) => item && isProse(item.str)
+      const inline = !visible.some(item => structure.display.has(item)) && [previous, next].some((item) => item && item.tableCell === cell && isProse(item.str)
         && !isMathItem(item) && !/⟪WUPAGE\d+⟫/u.test(item.str)
         && Math.abs(Number(item.transform[5]) - baselineY) <= (citation ? itemSize(item) * 0.7 : size * 0.65));
       // Sentence punctuation belongs to the prose. Baking it into an inline
@@ -110,10 +112,11 @@ export function protectPdfMath(items: ReadonlyArray<PdfTextItemLike>, measure?: 
         }
       }
       const padding = size * (inline ? 0.08 : 0.35);
-      const left = Math.min(...visible.map((item) => Number(item.transform[4]))) - padding;
+      const left = Math.max(Math.min(...visible.map((item) => Number(item.transform[4]))) - padding, cell ? cell.x + 0.5 : -Infinity);
       const right = Math.min(
         Math.max(...visible.map((item) => Number(item.transform[4]) + (item.width ?? 0))) + padding,
-        suffix.length ? Number(suffix[0].transform[4]) : Number.POSITIVE_INFINITY
+        suffix.length ? Number(suffix[0].transform[4]) : Infinity,
+        cell ? cell.x + cell.width - 0.5 : Infinity
       );
       // Font-wide metrics include every possible glyph. CMSY's descent, for
       // example, is almost a whole em even for a minus sign. Using it for an
@@ -137,8 +140,9 @@ export function protectPdfMath(items: ReadonlyArray<PdfTextItemLike>, measure?: 
         const lowestBaseline = Math.min(...visible.map((item) => Number(item.transform[5])));
         if (nextTop < lowestBaseline) bottom = Math.max(bottom, nextTop + size * 0.08);
       }
-      const top = Math.max(...glyphBounds.map((bounds) => bounds.top)) + padding;
-      const prose = citation ? [previous, next].find((item) => item && isProse(item.str)
+      if (cell) bottom = Math.max(bottom, cell.y + 0.5);
+      const top = Math.min(Math.max(...glyphBounds.map((bounds) => bounds.top)) + padding, cell ? cell.y + cell.height - 0.5 : Infinity);
+      const prose = citation ? [previous, next].find((item) => item && item.tableCell === cell && isProse(item.str)
         && !isMathItem(item) && Math.abs(Number(item.transform[5]) - baselineY) < itemSize(item) * 0.7) : undefined;
       if (prose) baselineY = Number(prose.transform[5]);
       const fontSize = prose ? itemSize(prose) : size;
@@ -156,13 +160,18 @@ export function protectPdfMath(items: ReadonlyArray<PdfTextItemLike>, measure?: 
         height: fontSize,
         hasEOL: !inline,
         fontFamily: (inline && (previous?.fontFamily || next?.fontFamily)) || baseline.fontFamily,
-        preserveOriginal: !inline
+        preserveOriginal: !inline,
+        ...(cell ? { tableCell: cell } : {})
       });
       output.push(...suffix);
     }
     pending = [];
   };
   for (const [index, token] of tokens.entries()) {
+    if (token.str.trim() && token.tableCell !== activeCell) {
+      flush();
+      activeCell = token.tableCell;
+    }
     if (/^[•●▪◦·‣⁃]$/u.test(token.str.trim())
       && (token.str.trim() !== "·" || isMiddleDotListMarker(tokens, index, isMathItem))) {
       flush(token);
@@ -267,7 +276,7 @@ function itemSize(item: PdfTextItemLike): number {
 }
 
 function splitProseBoundary(item: PdfTextItemLike, measure?: PdfTextMeasure): PdfTextItemLike[] {
-  if (item.tocPart) return [item];
+  if (item.preserveOriginal || item.tocPart) return [item];
   if (!isProse(item.str) || isMathFontItem(item)) return [item];
   const words = [...item.str.matchAll(/\p{L}+/gu)].filter((match) => isProse(match[0]));
   const first = words[0].index!;

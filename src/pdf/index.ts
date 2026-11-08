@@ -41,7 +41,7 @@ import { getExtensionDetailsUrl, getPdfLaunchOptions, openPdfWorkspaceInNewTab }
 import { extractTextBlocks, normalizePdfTextItems, type PdfTextBlock } from "./model";
 import { renderPageWithoutText } from "./rendering";
 import { filterVisiblePdfText } from "./visibility";
-import { readPdfMathRules } from "./math-structure";
+import { readPdfPageGeometry } from "./math-structure";
 import { validatePdfMathTranslation } from "./math";
 import { preparePdfDocument, pdfPageTranslationContext, type PdfDocumentContext } from "./document";
 import { preparePdfDocumentTranslations, type PdfDocumentParagraphInput, type PdfPageParagraphPlan } from "./paragraph-flow";
@@ -426,12 +426,13 @@ async function loadPdf(data: ArrayBuffer, name: string, autoTranslate: boolean, 
         }];
       });
       const viewport = page.getViewport({ scale: 1 });
+      const geometry = readPdfPageGeometry(operators, OPS, viewport, optionalContent);
       parsedPages[pageNumber - 1] = {
         page,
         blocks: extractTextBlocks(normalizePdfTextItems(textItems, viewport), pageNumber, measureContext ? (item, text) => {
           measureContext.font = `${item.height || Math.abs(Number(item.transform[3])) || 10}px "${item.fontFace}"`;
           return measureContext.measureText(text);
-        } : undefined, readPdfMathRules(operators, OPS, viewport, optionalContent)),
+        } : undefined, geometry.rules, geometry.cells, geometry.tableCells),
         textContent: { ...textContent, items: visibleItems }
       };
       parsedCount += 1;
@@ -675,6 +676,9 @@ function renderTranslatedPdfPage(pageState: PdfPageState): void {
 
   const layouts = pageState.blocks.map((block) => ({
     block,
+    cellRect: block.tableCell ? { x: block.tableCell.x * scale,
+      y: (pageState.pdfHeight - block.tableCell.y - block.tableCell.height) * scale,
+      width: block.tableCell.width * scale, height: block.tableCell.height * scale } : undefined,
     lineRects: [
       ...block.lines.map((line) => getViewportLineRect(line, viewport)),
       ...(block.formulas ?? []).map((formula) => getFormulaViewportRect(formula, viewport))
@@ -682,7 +686,7 @@ function renderTranslatedPdfPage(pageState: PdfPageState): void {
   }));
   const rectangleGroups = layouts.map((layout) => layout.lineRects);
   const backgrounds = layouts.map((layout) => layout.lineRects.map((rectangle) =>
-    originalContext ? sampleBackgroundColor(originalContext, rectangle) : [255, 255, 255] as RgbColor
+    originalContext ? sampleBackgroundColor(originalContext, rectangle, layout.cellRect) : [255, 255, 255] as RgbColor
   ));
   const colors = layouts.map((layout, index) => originalContext
     ? sampleTextColor(originalContext, layout.lineRects, backgrounds[index])
@@ -691,9 +695,9 @@ function renderTranslatedPdfPage(pageState: PdfPageState): void {
   const titleBackgrounds: Array<{ x: number; y: number; width: number; height: number; color: RgbColor }> = [];
   // Fraction bars and some symbol outlines are vector paths, so suppressing
   // fillText alone leaves them behind at the formula's old inline position.
-  for (const formula of pageState.blocks.flatMap((block) => block.formulas ?? [])) {
+  for (const { block, cellRect } of layouts) for (const formula of block.formulas ?? []) {
     const rect = getFormulaViewportRect(formula, viewport);
-    context.fillStyle = toCssRgb(originalContext ? sampleBackgroundColor(originalContext, rect) : [255, 255, 255]);
+    context.fillStyle = toCssRgb(originalContext ? sampleBackgroundColor(originalContext, rect, cellRect) : [255, 255, 255]);
     context.fillRect(rect.x, rect.y, rect.width, rect.height);
   }
   const previousBlocks = new Map(pageState.renderedTranslationContext === pageState.translationDraft?.context
@@ -723,6 +727,7 @@ function renderTranslatedPdfPage(pageState: PdfPageState): void {
       return;
     }
     previousBlock?.remove();
+    const { cellRect } = layout;
     const blockLayout = getTranslatedBlockLayout(
       context,
       text,
@@ -733,7 +738,8 @@ function renderTranslatedPdfPage(pageState: PdfPageState): void {
         ? rectangleGroups.map((rects, position) => layouts[position].block.tocPart === "leader" ? [] : rects)
         : rectangleGroups, index, target.width),
       target.width,
-      findAvailableHorizontalLeft(rectangleGroups, index)
+      findAvailableHorizontalLeft(rectangleGroups, index),
+      cellRect
     );
     if (!blockLayout || !text.trim()) return;
     if (layout.block.tocPart === "title") {
@@ -754,7 +760,8 @@ function renderTranslatedPdfPage(pageState: PdfPageState): void {
       textAlign: blockLayout.textAlign,
       hangingIndent: blockLayout.hangingIndent * coordinateScale,
       fontSizeStep: viewport.scale * coordinateScale,
-      maximumAutoHeight: (findAvailableVerticalBottom(rectangleGroups, index, target.height) - blockLayout.top) * coordinateScale,
+      maximumAutoHeight: (Math.min(findAvailableVerticalBottom(rectangleGroups, index, target.height),
+        cellRect ? cellRect.y + cellRect.height - scale * 0.75 : Infinity) - blockLayout.top) * coordinateScale,
       formulaImages: createFormulaImages(layout.block.formulas ?? [], pageState.canvas, viewport),
       left: blockLayout.left * coordinateScale,
       top: blockLayout.top * coordinateScale,
@@ -796,12 +803,12 @@ function getViewportLineRect(
   viewport: Pick<ReturnType<PDFPageProxy["getViewport"]>, "convertToViewportPoint">
 ): { x: number; y: number; width: number; height: number } {
   const start = viewport.convertToViewportPoint(
-    line.x,
-    line.baselineY - line.height * 0.24
+    line.sourceBounds?.x ?? line.x,
+    line.sourceBounds?.y ?? line.baselineY - line.height * 0.24
   );
   const end = viewport.convertToViewportPoint(
-    line.x + line.width,
-    line.baselineY + line.height * 0.9
+    line.sourceBounds ? line.sourceBounds.x + line.sourceBounds.width : line.x + line.width,
+    line.sourceBounds ? line.sourceBounds.y + line.sourceBounds.height : line.baselineY + line.height * 0.9
   );
   const rectangle = [start[0], start[1], end[0], end[1]];
   const left = Math.min(rectangle[0], rectangle[2]);
@@ -844,12 +851,17 @@ function sampleTextColor(
 
 function sampleBackgroundColor(
   context: CanvasRenderingContext2D,
-  rectangle: { x: number; y: number; width: number; height: number }
+  rectangle: { x: number; y: number; width: number; height: number },
+  cell?: { x: number; y: number; width: number; height: number }
 ): RgbColor {
-  const left = Math.max(0, Math.floor(rectangle.x - 3));
-  const top = Math.max(0, Math.floor(rectangle.y - 3));
-  const right = Math.min(context.canvas.width - 1, Math.ceil(rectangle.x + rectangle.width + 3));
-  const bottom = Math.min(context.canvas.height - 1, Math.ceil(rectangle.y + rectangle.height + 3));
+  // Keep the sample off the grid lines and out of a differently shaded row.
+  const left = Math.max(0, Math.floor(rectangle.x - 3), cell ? Math.ceil(cell.x + 1) : 0);
+  const top = Math.max(0, Math.floor(rectangle.y - 3), cell ? Math.ceil(cell.y + 1) : 0);
+  const right = Math.min(context.canvas.width - 1, Math.ceil(rectangle.x + rectangle.width + 3),
+    cell ? Math.floor(cell.x + cell.width - 1) : Infinity);
+  const bottom = Math.min(context.canvas.height - 1, Math.ceil(rectangle.y + rectangle.height + 3),
+    cell ? Math.floor(cell.y + cell.height - 1) : Infinity);
+  if (right < left || bottom < top) return [255, 255, 255];
   const counts = new Map<string, { color: RgbColor; count: number }>();
   const regionWidth = Math.max(1, right - left + 1);
   const regionHeight = Math.max(1, bottom - top + 1);

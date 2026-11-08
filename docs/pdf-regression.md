@@ -17,7 +17,9 @@ npm run test:pdf -- --download
 
 `--download` 在本地缺少样本时下载公开 PDF；已有缓存后可省略。测试使用独立浏览器资料和本地模拟翻译服务。
 
-`drg` 样本逐像素检查第 8–10 页的公式和第 11 页的双栏参考文献。第 10 页分别检查式 (18)、(19)，第 11 页的检查包括第一条编号和右栏开头的续排条目。若出版方下载页要求浏览器验证，可手动下载原始英文 PDF，保存为 `.npm-cache/pdf-corpus/drg.pdf`，再运行 `npm run test:pdf -- --ids=drg`。
+`drg` 样本逐像素检查第 4 页表 3 的条件列和计数列、第 8–10 页的公式，以及第 11 页的双栏参考文献。表 3 检查跨行条件和相邻数值的原始位置。第 10 页分别检查式 (18)、(19)，第 11 页的检查包括第一条编号和右栏开头的续排条目。若出版方下载页要求浏览器验证，可手动下载原始英文 PDF，保存为 `.npm-cache/pdf-corpus/drg.pdf`，再运行 `npm run test:pdf -- --ids=drg`。
+
+`sn74lv1t34` 样本覆盖有格线和跨行表头的技术规格表。第 5、7 页逐像素检查数值和单位，并在学术 PDF 浏览器验证中检查中文表头的单元格位置和字色对比。运行 `npm run test:pdf -- --download --ids=sn74lv1t34` 可单独检查该样本。
 
 学术 PDF 验证也支持 `--corpus=drg`，复用缓存样本和公式保留区域。例如 `npm run test:pdf:academic:firefox -- --corpus=drg` 可在 Firefox 中检查预览、公式像素及可搜索导出。
 

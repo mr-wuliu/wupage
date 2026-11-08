@@ -55,10 +55,12 @@ export async function collectPdfExportScene(original: HTMLCanvasElement, layer: 
     scene.images.push({ bytes: new Uint8Array(await blob.arrayBuffer()), x, y, width: w, height: h });
   };
   for (const block of blocks.filter((block) => !block.translatable)) for (const line of block.lines) {
-    const left = Math.max(0, Math.floor(line.x * pixelScale));
-    const top = Math.max(0, Math.floor((height - line.baselineY - line.height * 0.9) * pixelScale));
-    const right = Math.min(original.width, Math.ceil((line.x + line.width) * pixelScale));
-    const bottom = Math.min(original.height, Math.ceil((height - line.baselineY + line.height * 0.24) * pixelScale));
+    const bounds = line.sourceBounds ?? { x: line.x, y: line.baselineY - line.height * 0.24,
+      width: line.width, height: line.height * 1.14 };
+    const left = Math.max(0, Math.floor(bounds.x * pixelScale));
+    const top = Math.max(0, Math.floor((height - bounds.y - bounds.height) * pixelScale));
+    const right = Math.min(original.width, Math.ceil((bounds.x + bounds.width) * pixelScale));
+    const bottom = Math.min(original.height, Math.ceil((height - bounds.y) * pixelScale));
     if (right <= left || bottom <= top) continue;
     const crop = document.createElement("canvas");
     crop.width = right - left; crop.height = bottom - top;
