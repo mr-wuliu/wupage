@@ -86,6 +86,15 @@ describe("floating translation interactions", () => {
     return vi.mocked(sendRuntimeRequest).mock.calls.map(([request]) => request).filter((request) => request.type === "TRANSLATE_BATCH");
   }
 
+  it("gives every floating menu dropdown a unique ID before the menu opens", () => {
+    const menu = query<HTMLElement>("#wupage-floating-menu");
+    expect(menu.hidden).toBe(true);
+    const ids = Array.from(menu.querySelectorAll("select"), select => select.id);
+    expect(ids.length).toBeGreaterThan(0);
+    expect(ids).not.toContain("");
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
   it("initializes the menu before a first translation failure reveals it without hovering", async () => {
     const menu = query<HTMLElement>("#wupage-floating-menu");
     expect(menu.hidden).toBe(true);

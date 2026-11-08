@@ -373,6 +373,7 @@ function createMenu(): void {
   menu.hidden = true;
   menu.setAttribute("role", "dialog");
   menu.setAttribute("aria-label", t("wupageTranslation"));
+  // NVIDIA's driver search reads the ID of every select in the document, including hidden ones.
   setHtmlContent(menu, `
     <div class="wupage-menu-top">
     <div class="wupage-menu-header">
@@ -385,7 +386,7 @@ function createMenu(): void {
       <div class="wupage-language-pair">
         <label class="wupage-language-select">
           <span class="wupage-visually-hidden">${htmlMessage("sourceLanguage")}</span>
-          <select data-role="source-lang">
+          <select id="wupage-floating-source-lang" data-role="source-lang">
             ${SOURCE_LANGUAGES.map((language) =>
               `<option value="${language.code}">${language.label}</option>`
             ).join("")}
@@ -396,7 +397,7 @@ function createMenu(): void {
         <span class="wupage-language-direction" aria-hidden="true">${uiIconMarkup("arrow-right")}</span>
         <label class="wupage-language-select">
           <span class="wupage-visually-hidden">${htmlMessage("targetLanguage")}</span>
-          <select data-role="target-lang">
+          <select id="wupage-floating-target-lang" data-role="target-lang">
             ${TARGET_LANGUAGES.map((language) =>
               `<option value="${language.code}">${language.label}</option>`
             ).join("")}
@@ -413,13 +414,13 @@ function createMenu(): void {
     <label class="wupage-menu-field">
       <span class="wupage-field-label">${htmlMessage("translationService")}</span>
       <span class="wupage-provider-select">
-        <select data-role="provider" aria-label="${htmlMessage("translationService")}" hidden></select>
+        <select id="wupage-floating-provider" data-role="provider" aria-label="${htmlMessage("translationService")}" hidden></select>
       </span>
     </label>
     </div>
     <label class="wupage-menu-field" data-touch-extra>
       <span class="wupage-field-label" id="wupage-display-mode-label">${htmlMessage("displayMode")}</span>
-      <select data-role="display-mode" aria-labelledby="wupage-display-mode-label">
+      <select id="wupage-floating-display-mode" data-role="display-mode" aria-labelledby="wupage-display-mode-label">
         ${TRANSLATION_DISPLAY_MODES.map((mode) =>
           `<option value="${mode.value}">${mode.label}</option>`
         ).join("")}
