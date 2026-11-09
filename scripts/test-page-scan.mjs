@@ -44,8 +44,9 @@ const origin = `http://127.0.0.1:${server.address().port}`;
 let browser;
 const reports = [];
 const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
-async function action(type) {
-  return browser.api(`const tab=(await chrome.tabs.query({})).find(tab=>tab.url?.startsWith(input[0]+'/'));return chrome.tabs.sendMessage(tab.id,{type:input[1]});`, [origin, type]);
+async function action(type, includeProgress = false) {
+  return browser.api(`const tab=(await chrome.tabs.query({})).find(tab=>tab.url?.startsWith(input[0]+'/'));return chrome.tabs.sendMessage(tab.id,input[1]);`,
+    [origin, { type, ...(includeProgress ? { includeProgress: true } : {}) }]);
 }
 async function waitFor(check, description, timeout = 15000) {
   const deadline = Date.now() + timeout;
@@ -56,6 +57,16 @@ async function open(url) {
   await browser.navigate(origin + url);
   await waitFor(async () => { try { return (await action('GET_TRANSLATION_STATE')).ok; } catch { return false; } }, 'extension ready');
   await pause(150);
+}
+async function waitForInitialTranslation(minimumTranslated) {
+  // A large initial scan may acknowledge the action while it is still working.
+  await waitFor(async () => {
+    const response = await action('GET_TRANSLATION_STATE', true);
+    assert.ok(response.ok, JSON.stringify(response));
+    const state = response.data.progress;
+    assert.ok(!state.error && !state.failed, JSON.stringify(state));
+    return state.active && !state.pending && state.translated >= minimumTranslated;
+  }, 'initial translation settled');
 }
 async function mark() { await browser.evaluate('document.documentElement.dataset.scanStart=String(performance.now());document.documentElement.dataset.scanTasks="[]";'); }
 async function metrics() {
@@ -82,7 +93,7 @@ try {
     }
     await mark();
     const result = await action('TRANSLATE_PAGE'); assert.equal(result.ok, true, JSON.stringify(result));
-    assert.equal(result.data.failed, 0); assert.ok(result.data.translated > 0);
+    await waitForInitialTranslation(1);
     const initial = await metrics();
     // A hard ceiling catches a return to multi-second synchronous scans. These
     // measurements include layout and translation rendering, not just scanning.
@@ -97,6 +108,7 @@ try {
   }
   await open('/overflow'); const before = requests.length;
   const result = await action('TRANSLATE_PAGE'); assert.equal(result.ok, true);
+  await waitForInitialTranslation(0);
   assert.equal(requests.length, before, 'hidden source must never reach the provider');
   await mark();
   await browser.evaluate(`document.querySelector('#fixture-style').sheet.insertRule('#overlay{display:none}',1);window.dispatchEvent(new Event('scroll'));`);

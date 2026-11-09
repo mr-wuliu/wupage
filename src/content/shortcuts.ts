@@ -4,7 +4,8 @@ import type { TranslationShortcut } from "../shared/shortcuts";
 import { TRANSLATION_DISPLAY_MODES } from "../shared/display-modes";
 import { hasPageTranslations } from "./dom";
 import { getParagraphMode, refreshTranslationState, setParagraphMode } from "./floating";
-import { getPageTranslationState, hidePageTranslation, setPageTranslationDisplayMode, startPageTranslation } from "./page-translation";
+import { getPageTranslationState, hidePageTranslation, setPageTranslationDisplayMode, startPageTranslation,
+  subscribePageTranslationState, type PageTranslationResult } from "./page-translation";
 import { sendRuntimeRequest } from "./runtime";
 import { translateShortcutParagraphs } from "./paragraph-shortcut";
 
@@ -12,6 +13,7 @@ let pageRevision = 0;
 let startingPage = false;
 let modeUpdate = Promise.resolve();
 let noticeTimer: number | undefined;
+let stopPageNotice: (() => void) | undefined;
 
 /** Shared actions for configurable page shortcuts and internal extension messages. */
 export async function executeTranslationShortcut(command: TranslationShortcut): Promise<void> {
@@ -37,6 +39,7 @@ export async function executeTranslationShortcut(command: TranslationShortcut): 
 
 async function togglePage(): Promise<void> {
   const revision = ++pageRevision;
+  stopPageNotice?.(); stopPageNotice = undefined;
   if (startingPage || getPageTranslationState().active || hasPageTranslations()) {
     startingPage = false;
     hidePageTranslation();
@@ -54,17 +57,28 @@ async function togglePage(): Promise<void> {
     const result = await startPageTranslation(settings);
     const state = getPageTranslationState();
     if (revision !== pageRevision || result.cancelled || !state.active) return;
-    if (result.failed) showShortcutNotice(t("someParagraphsFailedToTranslate", result.error ?? t("checkTranslationServiceSettings")), true);
-    else if (result.error) showShortcutNotice(t("translationIncomplete", result.error), true);
-    else if (state.pending) showShortcutNotice(t("translatingThisAreaNewContentWillBeTranslated"));
-    else if (result.translated) showShortcutNotice(t("paragraphsTranslated", result.translated, result.remaining ? t("scrollToContinue") : ""));
-    else showShortcutNotice(t("noTextToTranslateHereTranslationWillContinue"));
+    if (state.pending) {
+      showShortcutNotice(t("translatingThisAreaNewContentWillBeTranslated"));
+      stopPageNotice = subscribePageTranslationState(() => {
+        const current = getPageTranslationState();
+        if (current.active && current.pending) return;
+        stopPageNotice?.(); stopPageNotice = undefined;
+        if (revision === pageRevision && current.active) showPageResult(current);
+      });
+    } else showPageResult(result);
     refreshTranslationState();
   } catch (error) {
     if (revision === pageRevision) throw error;
   } finally {
     if (revision === pageRevision) startingPage = false;
   }
+}
+
+function showPageResult(result: PageTranslationResult): void {
+  if (result.failed) showShortcutNotice(t("someParagraphsFailedToTranslate", result.error ?? t("checkTranslationServiceSettings")), true);
+  else if (result.error) showShortcutNotice(t("translationIncomplete", result.error), true);
+  else if (result.translated) showShortcutNotice(t("paragraphsTranslated", result.translated, result.remaining ? t("scrollToContinue") : ""));
+  else showShortcutNotice(t("noTextToTranslateHereTranslationWillContinue"));
 }
 
 async function cycleDisplayMode(): Promise<void> {

@@ -26,8 +26,8 @@ function isInlineProseElement(element: Element): boolean {
  * share the same boundary. Move original nodes, never clone author markup; the
  * separators stay outside the boxes and clearing restores the exact tree.
  */
-export function prepareLineBreakParagraphs(root: Element, directTextOnly = false): void {
-  const candidates = new Set<Element>([root]);
+export function prepareLineBreakParagraphs(root: Element | ShadowRoot, directTextOnly = false): void {
+  const candidates = new Set<Element>(root instanceof Element ? [root] : []);
   if (!directTextOnly) {
     for (const br of root.querySelectorAll("br")) if (br.parentElement) candidates.add(br.parentElement);
   }

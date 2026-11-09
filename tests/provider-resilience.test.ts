@@ -57,7 +57,7 @@ describe("translation transport recovery", () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response(new ReadableStream<Uint8Array>({
       start(controller) { controller.enqueue(new Uint8Array(4 * 1024 * 1024 + 1)); }, cancel
     }))));
-    await expect(machine().translateBatch(request)).rejects.toMatchObject({ errorCode: "service-rejected" });
+    await expect(machine().translateBatch(request)).rejects.toMatchObject({ errorCode: "request-rejected" });
     expect(cancel).toHaveBeenCalledOnce();
   });
 
@@ -79,7 +79,7 @@ describe("translation transport recovery", () => {
     vi.stubGlobal("fetch", fetch);
 
     await expect(llm().translateBatch(request)).rejects.toMatchObject({
-      errorCode: "service-rejected", message: expect.stringContaining("响应过大")
+      errorCode: "request-rejected", message: expect.stringContaining("响应过大")
     });
     expect(downloadedBytes).toBeLessThan(16 * 1024 * 1024);
     await vi.waitFor(() => expect(cancel).toHaveBeenCalledOnce());
@@ -105,8 +105,9 @@ describe("translation transport recovery", () => {
     expect(f.fetch).toHaveBeenCalledOnce();
   });
 
-  it.each([[400, "service-rejected"], [401, "login-required"], [403, "permission-required"], [429, "rate-limited"], [500, "service-unavailable"]] as const)
-    ("classifies HTTP %s for the page-wide pause mechanism", async (status, errorCode) => {
+  it.each([[400, "request-rejected"], [401, "login-required"], [403, "permission-required"], [413, "input-too-long"],
+    [414, "input-too-long"], [422, "request-rejected"], [429, "rate-limited"], [500, "service-unavailable"]] as const)
+    ("distinguishes request and provider errors for HTTP %s", async (status, errorCode) => {
       const fetch = vi.fn(async () => new Response("unavailable", { status, headers: { "Retry-After": "120" } }));
       vi.stubGlobal("fetch", fetch);
       await expect(machine().translateBatch(request)).rejects.toMatchObject({ errorCode });

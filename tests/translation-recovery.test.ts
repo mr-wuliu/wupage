@@ -3,7 +3,7 @@ import { DEFAULT_SETTINGS } from "../src/shared/defaults";
 import type { ExtensionSettings, ProviderConfig } from "../src/shared/types";
 import { translateWithSettings } from "../src/background/translation";
 import { TranslationResponseError } from "../src/background/translation-response";
-import { translateProtectedText } from "../src/background/protected-translation";
+import { translateTextWithRecovery } from "../src/background/protected-translation";
 
 const providers: ProviderConfig[] = [
   { type: "openai-compatible", id: "openai-audit", label: "OpenAI", ollamaCompatibility: false,
@@ -96,7 +96,7 @@ describe("shared translation contracts", () => {
     const translate = vi.fn().mockResolvedValueOnce(["缺少占位符"])
       .mockRejectedValueOnce(new TranslationResponseError("响应格式不正确"))
       .mockResolvedValueOnce(["使用", "替代", "完成操作。"]);
-    await expect(translateProtectedText({ texts: ["Use ⟪WUPAGE1⟫ instead of ⟪WUPAGE0⟫ to finish."], targetLang: "zh-CN" }, translate))
+    await expect(translateTextWithRecovery({ texts: ["Use ⟪WUPAGE1⟫ instead of ⟪WUPAGE0⟫ to finish."], targetLang: "zh-CN", preservePlaceholders: true }, translate))
       .resolves.toEqual(["使用 ⟪WUPAGE1⟫ 替代 ⟪WUPAGE0⟫ 完成操作。"]);
     expect(translate).toHaveBeenCalledTimes(3);
   });
@@ -104,7 +104,7 @@ describe("shared translation contracts", () => {
   it("does not treat an arbitrary error starting with the former prefix as recoverable", async () => {
     const translate = vi.fn().mockResolvedValueOnce(["缺少占位符"])
       .mockRejectedValueOnce(new Error("LLM response connection closed"));
-    await expect(translateProtectedText({ texts: ["Use ⟪WUPAGE0⟫."], targetLang: "zh-CN" }, translate))
+    await expect(translateTextWithRecovery({ texts: ["Use ⟪WUPAGE0⟫."], targetLang: "zh-CN", preservePlaceholders: true }, translate))
       .rejects.toThrow("connection closed");
     expect(translate).toHaveBeenCalledTimes(2);
   });

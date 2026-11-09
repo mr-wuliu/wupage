@@ -325,6 +325,8 @@ export interface ValidationResult {
 export interface TranslatorProvider {
   id: string;
   label: string;
+  /** Hard limit for a single source string, distinct from the scheduling batch size. */
+  readonly maxTextLength?: number;
   translateBatch(request: TranslateBatchRequest, signal?: AbortSignal, onUsage?: (payload: unknown) => void): Promise<string[]>;
   validateConfig(): ValidationResult;
 }
@@ -351,7 +353,7 @@ export type RuntimeRequest =
   | ({ type: "TRANSLATE_VIDEO_SUBTITLES"; sessionId: string; requestId: string } & TranslateBatchRequest)
   | { type: "CANCEL_VIDEO_SUBTITLES"; sessionId: string; requestId?: string }
   | { type: "CLEAR_TRANSLATION" }
-  | { type: "GET_TRANSLATION_STATE" }
+  | { type: "GET_TRANSLATION_STATE"; includeProgress?: boolean }
   | { type: "PAGE_TRANSLATION_STATE_CHANGED" }
   | { type: "GET_PARAGRAPH_MODE" }
   | { type: "SET_PARAGRAPH_MODE"; enabled: boolean }

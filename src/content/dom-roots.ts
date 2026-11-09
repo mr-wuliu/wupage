@@ -48,6 +48,11 @@ export function composedParent(element: Element): Element | null {
   return root instanceof ShadowRoot ? root.host : null;
 }
 
+/** A bare text node in a shadow tree is laid out by its host. */
+export function textContainer(node: Text): Element | null {
+  return node.parentElement ?? (node.parentNode instanceof ShadowRoot ? node.parentNode.host : null);
+}
+
 export function composedContains(container: Node, node: Node): boolean {
   if (container.contains(node)) return true;
   let root = node.getRootNode();
@@ -59,7 +64,7 @@ export function composedContains(container: Node, node: Node): boolean {
 }
 
 /** Discover only the supplied subtree; callers budget large scans in chunks. */
-export function discoverShadowRoots(element: Element, subtree = true): ShadowRoot[] {
+export function discoverShadowRoots(element: Element | ShadowRoot, subtree = true): ShadowRoot[] {
   const found: ShadowRoot[] = [];
   const visit = (candidate: Element) => {
     const root = componentShadowRoot(candidate);
@@ -70,7 +75,7 @@ export function discoverShadowRoots(element: Element, subtree = true): ShadowRoo
       listeners.forEach(listener => listener(root));
     }
   };
-  visit(element);
+  if (element instanceof Element) visit(element);
   if (!subtree) return found;
   const walker = element.ownerDocument.createTreeWalker(element, NodeFilter.SHOW_ELEMENT);
   while (walker.nextNode()) visit(walker.currentNode as Element);
@@ -92,5 +97,6 @@ export function queryTranslationElements<T extends Element = Element>(selector: 
 }
 
 export function mutationElement(node: Node): Element | null {
-  return node instanceof Element ? node : node instanceof ShadowRoot ? node.host : node.parentElement;
+  return node instanceof Element ? node : node instanceof ShadowRoot ? node.host
+    : node instanceof Text ? textContainer(node) : node.parentElement;
 }

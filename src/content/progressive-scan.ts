@@ -4,9 +4,10 @@ import type { ProgressiveScanOptions, TextSegment } from "./text-segments";
 interface ScanDependencies {
   isCurrent: () => boolean;
   isParagraph: (element: Element) => boolean;
-  collect: (root: Element, directTextOnly: boolean) => TextSegment[];
+  collect: (root: Element | ShadowRoot, directTextOnly: boolean) => TextSegment[];
   clearHiddenCandidates: () => void;
   invalidate: (roots: Element[]) => string[];
+  uncover: (roots: Element[]) => Element[];
 }
 
 const SCAN_CHUNK_NODES = 120;
@@ -40,14 +41,14 @@ function yieldToMain(signal?: AbortSignal): Promise<void> {
 }
 
 interface ScanChunk {
-  root: Element;
+  root: Element | ShadowRoot;
   directTextOnly: boolean;
 }
 
 // Discover chunks lazily so planning a large document also yields. Keep authored
 // paragraphs intact: splitting inline runs changes grouping and line breaks.
 function* collectScanChunks(root: Element, isParagraph: (element: Element) => boolean): Generator<ScanChunk> {
-  const stack = [root];
+  const stack: Array<Element | ShadowRoot> = [root];
   while (stack.length) {
     const element = stack.pop()!;
     if (!element.isConnected) continue;
@@ -55,17 +56,13 @@ function* collectScanChunks(root: Element, isParagraph: (element: Element) => bo
     let count = 0;
     while (count <= SCAN_CHUNK_NODES && walker.nextNode()) count += 1;
     if (count <= SCAN_CHUNK_NODES || !element.firstElementChild
-      || isParagraph(element)) {
-      for (const shadow of discoverShadowRoots(element)) {
-        for (const child of Array.from(shadow.children).reverse()) stack.push(child);
-      }
+      || (element instanceof Element && isParagraph(element))) {
+      for (const shadow of discoverShadowRoots(element).reverse()) stack.push(shadow);
       yield { root: element, directTextOnly: false };
       continue;
     }
     yield { root: element, directTextOnly: true };
-    for (const shadow of discoverShadowRoots(element, false)) {
-      for (const child of Array.from(shadow.children).reverse()) stack.push(child);
-    }
+    for (const shadow of discoverShadowRoots(element, false)) stack.push(shadow);
     for (let child = element.lastElementChild; child; child = child.previousElementSibling) stack.push(child);
   }
 }
@@ -134,13 +131,13 @@ export async function scanTextRootsProgressive(
       if (!touched.size) break;
       const changed = [...touched]; touched.clear();
       for (const id of dependencies.invalidate(changed)) segments.delete(id);
-      await scan(changed);
+      await scan([...changed, ...dependencies.uncover(changed)]);
     }
     if (cancelled()) return [];
     recordMutations(observer?.takeRecords() ?? []);
     if (touched.size) {
       for (const id of dependencies.invalidate([...touched])) segments.delete(id);
-      options.onPendingRoots?.([...touched]);
+      options.onPendingRoots?.([...touched, ...dependencies.uncover([...touched])]);
     }
     return [...segments.values()];
   } finally { unsubscribe(); observer?.disconnect(); }

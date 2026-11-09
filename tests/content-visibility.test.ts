@@ -92,10 +92,28 @@ describe("render-aware text visibility", () => {
   it("rejects viewport text completely covered by an unrelated element", () => {
     const text = mountText();
     const overlay = document.body.appendChild(document.createElement("div"));
-    stubRendering(() => [rect(20, 300, 50, 20)]);
+    stubRendering(() => [rect(20, 300, 50, 20)], () => rect(0, 320, 60, 0),
+      element => ({ backgroundColor: element === overlay ? "rgb(255, 255, 255)" : "transparent" }));
     defineHitTest(() => overlay);
 
     expect(isTextNodeVisuallyRendered(text)).toBe(false);
+  });
+
+  it("keeps visible text behind an unrelated transparent pointer layer", () => {
+    const text = mountText();
+    const overlay = document.body.appendChild(document.createElement("div"));
+    stubRendering(() => [rect(20, 300, 50, 20)], undefined, () => ({ backgroundColor: "rgba(0, 0, 0, 0)" }));
+    defineHitTest(() => overlay);
+
+    expect(isTextNodeVisuallyRendered(text)).toBe(true);
+  });
+
+  it("keeps a visible child of a visibility-hidden element", () => {
+    document.body.innerHTML = `<section id="hidden"><p>Visible override</p></section>`;
+    stubRendering(() => [rect(20, 300, 50, 20)], undefined,
+      element => ({ visibility: element.id === "hidden" ? "hidden" : "visible" }));
+
+    expect(isTextNodeVisuallyRendered(document.querySelector("p")!.firstChild as Text)).toBe(true);
   });
 
   it("accepts viewport text when hit testing reaches its host", () => {

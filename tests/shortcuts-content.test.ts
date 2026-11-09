@@ -5,10 +5,12 @@ import type { ExtensionSettings, RuntimeRequest } from "../src/shared/types";
 
 const mocks = vi.hoisted(() => ({
   getState: vi.fn(), hasTranslations: vi.fn(), hide: vi.fn(), start: vi.fn(),
+  subscribe: vi.fn(),
   paragraph: vi.fn(), setParagraph: vi.fn(), refresh: vi.fn(), setMode: vi.fn(), send: vi.fn(), selection: vi.fn()
 }));
 vi.mock("../src/content/page-translation", () => ({ getPageTranslationState: mocks.getState,
-  hidePageTranslation: mocks.hide, startPageTranslation: mocks.start, setPageTranslationDisplayMode: mocks.setMode }));
+  hidePageTranslation: mocks.hide, startPageTranslation: mocks.start, setPageTranslationDisplayMode: mocks.setMode,
+  subscribePageTranslationState: mocks.subscribe }));
 vi.mock("../src/content/dom", () => ({ hasPageTranslations: mocks.hasTranslations }));
 vi.mock("../src/content/floating", () => ({ getParagraphMode: mocks.paragraph, setParagraphMode: mocks.setParagraph, refreshTranslationState: mocks.refresh }));
 vi.mock("../src/content/runtime", () => ({ sendRuntimeRequest: mocks.send }));
@@ -55,12 +57,18 @@ describe("translation shortcut actions", () => {
     expect(notice()).toContain("暂无可翻译内容");
     expect(notice()).not.toContain("已翻译 0 段");
   });
-  it("reports pending frame work before any paragraphs finish", async () => {
+  it("reports pending frame work and the eventual result", async () => {
+    const unsubscribe = vi.fn();
+    mocks.subscribe.mockReturnValue(unsubscribe);
     mocks.start.mockImplementationOnce(async () => { active = true; return { translated: 0, failed: 0, remaining: 0 }; });
     mocks.getState.mockImplementation(() => ({ active, pending: active ? 2 : 0 }));
     await execute("toggle-page-translation");
     expect(notice()).toContain("正在翻译当前区域");
     expect(notice()).not.toContain("已翻译 0 段");
+    mocks.getState.mockReturnValue({ active: true, pending: 0, translated: 2, failed: 0, remaining: 0 });
+    mocks.subscribe.mock.calls[0][0]();
+    expect(unsubscribe).toHaveBeenCalledOnce();
+    expect(notice()).toContain("已翻译 2 段");
   });
   it("does not announce a cancelled scan as successful when another session is active", async () => {
     mocks.start.mockImplementationOnce(async () => { active = true; return { translated: 0, failed: 0, remaining: 0, cancelled: true }; });

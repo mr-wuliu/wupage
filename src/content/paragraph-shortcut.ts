@@ -1,15 +1,12 @@
 import { t } from "../shared/i18n";
 import { findTranslatableParagraph } from "./dom";
 import { translateParagraph } from "./paragraph-translation";
-import { discoverShadowRoots, queryTranslationElements } from "./dom-roots";
+import { discoverShadowRoots } from "./dom-roots";
 
 const EXCLUDED = "input,textarea,select,button,[contenteditable]:not([contenteditable='false']),[role='textbox'],[role='combobox'],[role='button'],img,video,audio,canvas,svg,#wupage-selection-tools,#wupage-floating-hitbox,#wupage-floating-menu,#wupage-debug-panel,#wupage-image-tools,#wupage-shortcut-notice";
 
 function resolveParagraph(element: Element | null): Element | null {
   if (!element || element === document.body || element === document.documentElement || element.closest(EXCLUDED)) return null;
-  const targetId = element.closest(".wupage-translation")?.getAttribute("data-wupage-translation-target");
-  if (targetId) return queryTranslationElements("[data-wupage-target-id]")
-    .find(target => target.getAttribute("data-wupage-target-id") === targetId) ?? null;
   return findTranslatableParagraph(element);
 }
 

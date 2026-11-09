@@ -13,6 +13,9 @@ import { hasPageTranslations } from "./dom";
 import { frameIsRendered } from "./frame-visibility";
 import { configureElementExclusions } from "./element-exclusions";
 
+const INITIAL_RESULT_WAIT_MS = 2000;
+const REPORT_DELAYS_MS = [60, 250, 1000];
+
 export function installFrameRuntime(documentKey: string, options: { top: boolean }) {
   let snapshot: FrameSessionSnapshot | undefined;
   let appliedId: string | undefined;
@@ -34,7 +37,7 @@ export function installFrameRuntime(documentKey: string, options: { top: boolean
     if (options.top && value.topDocument && value.topDocument !== documentKey) return;
     if (!snapshot || value.revision >= snapshot.revision) { snapshot = value; if (options.top) notifyCoordinatedPageState(); }
   };
-  const report = () => {
+  const report = (attempt = 0) => {
     if (reportTimer || !appliedId) return;
     reportTimer = setTimeout(() => {
       reportTimer = undefined;
@@ -42,10 +45,16 @@ export function installFrameRuntime(documentKey: string, options: { top: boolean
       const signature = JSON.stringify([appliedId, state]);
       if (signature === lastReport) return;
       lastReport = signature;
-      void sendRuntimeRequest({ type: "FRAME_REPORT", documentKey, sessionId: appliedId!, state }).catch(() => { lastReport = ""; });
-    }, 60);
+      void sendRuntimeRequest({ type: "FRAME_REPORT", documentKey, sessionId: appliedId!, state }).catch(() => {
+        if (lastReport !== signature) return;
+        lastReport = "";
+        // The last batch may finish while the background is restarting, with
+        // no later DOM event to trigger another progress report.
+        if (attempt + 1 < REPORT_DELAYS_MS.length) report(attempt + 1);
+      });
+    }, REPORT_DELAYS_MS[attempt]);
   };
-  subscribePageTranslationState(report);
+  subscribePageTranslationState(() => report());
 
   async function apply(value: FrameSessionSnapshot, allowed = true, reuseResults = true) {
     if (value.revision < appliedRevision) return documentState();
@@ -70,16 +79,20 @@ export function installFrameRuntime(documentKey: string, options: { top: boolean
     const version = ++applyVersion;
     applyError = undefined;
     setPageRequestIdentity({ id: value.id, documentKey });
-    try {
-      await startLocalPageTranslation(value.settings, reuseResults);
-    } catch (error) {
+    const initialResult = startLocalPageTranslation(value.settings, reuseResults).then(() => report(), error => {
       if (version === applyVersion) {
         applyError = error instanceof Error ? error.message : String(error);
         report();
       }
       throw error;
-    }
-    report(); return documentState();
+    });
+    // Return early progress for slower providers. The frame message only needs
+    // to confirm the command; subsequent results arrive through FRAME_REPORT.
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      await Promise.race([initialResult, new Promise<void>(resolve => { timer = setTimeout(resolve, INITIAL_RESULT_WAIT_MS); })]);
+      report(); return documentState();
+    } finally { clearTimeout(timer); }
   }
 
   async function register() {

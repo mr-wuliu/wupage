@@ -12,6 +12,7 @@ import { elementExclusionIdentity } from "../shared/element-exclusions";
 
 const PREFIX = "wupage.frame-session.";
 class FrameConnectionError extends Error {}
+class FrameResponseTimeoutError extends Error {}
 interface Frame extends FrameDiagnostic { documentKey: string; documentId?: string }
 interface TabSession {
   id: string; revision: number; topDocument: string; topUrl: string;
@@ -373,7 +374,7 @@ export class FrameSessionManager {
   }
   private send(tabId: number, frame: Frame, request: RuntimeRequest, timeout = 25000): Promise<unknown> {
     return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => reject(new Error(t("frameResponseTimedOut"))), timeout);
+      const timer = setTimeout(() => reject(new FrameResponseTimeoutError(t("frameResponseTimedOut"))), timeout);
       this.api.tabs.sendMessage(tabId, request, frame.documentId ? { documentId: frame.documentId } : { frameId: frame.frameId })
         .catch(error => {
           const message = error instanceof Error ? error.message : String(error);
@@ -395,7 +396,7 @@ export class FrameSessionManager {
     const request = { type: "FRAME_APPLY", documentKey: frame.documentKey, snapshot, allowed, reuseResults } as const;
     try { return await this.send(tabId, frame, request) as DocumentTranslationState; }
     catch (error) {
-      if (!(error instanceof FrameConnectionError)) throw error;
+      if (!(error instanceof FrameConnectionError || error instanceof FrameResponseTimeoutError)) throw error;
       const current = () => !tab.retired && tab.id === snapshot.id && tab.frames.get(frame.frameId) === frame;
       if (!current()) return;
       const documents = await this.api.webNavigation?.getAllFrames?.({ tabId }).catch(() => undefined);
@@ -411,6 +412,12 @@ export class FrameSessionManager {
       const identity = await this.send(tabId, frame, { type: "FRAME_IDENTIFY" }, 1500)
         .catch(() => undefined) as FrameDocumentIdentity | undefined;
       if (!current()) return;
+      if (error instanceof FrameResponseTimeoutError) {
+        // A background tab can throttle the frame's progress timer. Only a
+        // live document that has applied this generation can answer for it.
+        if (identity?.documentKey === frame.documentKey && identity.sessionId === snapshot.id && identity.state) return identity.state;
+        throw error;
+      }
       if (identity?.documentKey === frame.documentKey) {
         // Recover a transient missing receiver once, after proving that this is
         // still the same document. Never retry an acknowledged translation error.

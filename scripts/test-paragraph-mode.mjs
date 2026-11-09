@@ -21,6 +21,7 @@ const server = createServer(async (request, response) => {
   } else response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }).end(`<!doctype html><html lang="en"><meta charset="utf-8">
     <title>Paragraph mode recovery</title><style>body{font:18px/1.6 Arial;padding:24px}iframe{width:600px;height:220px}</style><body><main>
     <p id="paragraph">${request.url === '/child' ? 'Embedded' : 'Main'} paragraph: A useful translation tool should preserve the original text and let readers choose each paragraph.</p>
+    <p id="rich">This paragraph keeps <strong>original inline formatting</strong> and renders its translation separately.</p>
     ${request.url === '/child' ? '' : '<iframe src="/child"></iframe>'}</main></body></html>`);
 });
 await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
@@ -90,21 +91,31 @@ try {
     const child = page.frames().find(frame => frame.url() === origin + '/child'); assert.ok(child);
     await child.waitForFunction(() => document.documentElement.classList.contains('wupage-paragraph-mode'));
     for (const frame of [page, child]) {
-      await page.keyboard.down('Control');
-      try { await frame.locator('#paragraph').click(); } finally { await page.keyboard.up('Control'); }
-      await frame.locator('#paragraph .wupage-translation').waitFor();
-      await frame.waitForFunction(() => document.querySelector('#paragraph .wupage-translation')?.textContent.includes('译文'));
-      assert.ok((await frame.locator('#paragraph .wupage-translation').textContent()).includes('译文'));
-      await page.keyboard.down('Control');
-      try { await frame.locator('#paragraph').click(); } finally { await page.keyboard.up('Control'); }
-      await frame.locator('#paragraph .wupage-translation').waitFor({ state: 'detached' });
+      for (const [source, output] of [['#paragraph', '#paragraph .wupage-translation'], ['#rich', '#rich + .wupage-translation']]) {
+        await frame.locator(source).click({ modifiers: ['Control'] });
+        const translation = frame.locator(`${output}:not(.wupage-translation-pending)`);
+        await translation.waitFor();
+        await translation.scrollIntoViewIfNeeded();
+        assert.ok((await translation.textContent()).includes('译文'));
+        const fragment = await translation.evaluate(element => {
+          const box = element.getBoundingClientRect();
+          const rect = [...element.getClientRects()].find(rect => rect.width > 0 && rect.height > 0);
+          const x = rect.left + rect.width / 2, y = rect.top + rect.height / 2;
+          return { x: x - box.left, y: y - box.top, hitsTranslation: element.contains(document.elementFromPoint(x, y)) };
+        });
+        assert.ok(fragment.hitsTranslation, 'the pointer targets the visible translation');
+        const box = await translation.boundingBox(); assert.ok(box);
+        await page.keyboard.down('Control');
+        try { await page.mouse.click(box.x + fragment.x, box.y + fragment.y); } finally { await page.keyboard.up('Control'); }
+        await frame.locator(output).waitFor({ state: 'detached', timeout: 5000 });
+      }
     }
-    assert.equal(calls.length, 2, 'only the two clicked paragraphs are sent');
+    assert.equal(calls.length, 4, 'only the clicked paragraphs are sent');
     await toggle.click();
     await page.waitForFunction(() => !document.documentElement.classList.contains('wupage-paragraph-mode'));
     await child.waitForFunction(() => !document.documentElement.classList.contains('wupage-paragraph-mode'));
     assert.equal(await mode.inputValue(), 'bilingual-accent');
-    checks.push('Ctrl-click translates/restores exactly one paragraph in top and embedded documents; exit synchronizes');
+    checks.push('Ctrl-clicking inline and sibling translations restores the correct paragraph in top and embedded documents');
     const ball = page.locator('#wupage-floating-ball');
     await ball.hover();
     const menu = page.locator('#wupage-floating-menu'); await menu.waitFor({ state: 'visible' });

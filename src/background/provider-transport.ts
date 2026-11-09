@@ -90,14 +90,15 @@ function readRetryDelay(response: Response, attempt: number): number {
   return 1000 * 2 ** attempt;
 }
 
-export function httpResponseError(response: Response, message: string): Error {
+export function httpResponseError(response: Response, message: string, errorCode?: string): Error {
   // Most providers do not consume an error body. Release it before pausing.
   if (!response.bodyUsed) void response.body?.cancel().catch(() => undefined);
-  const code = response.status === 429 ? "rate-limited"
+  const code = errorCode ?? (response.status === 429 ? "rate-limited"
     : response.status === 401 ? "login-required"
     : response.status === 403 ? "permission-required"
     : response.status >= 500 ? "service-unavailable"
-    : response.status >= 400 ? "service-rejected" : undefined;
+    : response.status === 413 || response.status === 414 ? "input-too-long"
+    : response.status >= 400 ? "request-rejected" : undefined);
   return code ? new ProviderError(message, code,
     response.status === 429 ? readRetryDelay(response, 0) : undefined) : new Error(message);
 }
@@ -167,7 +168,7 @@ async function readResponseText(response: Response): Promise<string> {
       if (done) return text + decoder.decode();
       bytes += value.byteLength;
       if (bytes > MAX_TRANSLATION_RESPONSE_BYTES) {
-        throw new ProviderError(t("responseTooLarge"), "service-rejected");
+        throw new ProviderError(t("responseTooLarge"), "request-rejected");
       }
       text += decoder.decode(value, { stream: true });
     }

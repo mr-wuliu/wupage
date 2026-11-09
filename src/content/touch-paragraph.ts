@@ -1,6 +1,5 @@
 import { t } from "../shared/i18n";
 import { findTranslatableParagraph } from "./dom";
-import { queryTranslationElements } from "./dom-roots";
 import { translateParagraph } from "./paragraph-translation";
 import { setHtmlContent } from "../shared/html";
 import { uiIconMarkup } from "../shared/ui-icons";
@@ -116,10 +115,7 @@ export class TouchParagraphController {
     if (!this.active || !start || this.moved || event.button !== 0) return;
     const element = event.composedPath().find(node => node instanceof Element) as Element | undefined;
     if (!element || excludesEvent(event) || !(element === start.target || element.contains(start.target) || start.target.contains(element))) return;
-    const translationId = element.closest(".wupage-translation")?.getAttribute("data-wupage-translation-target");
-    const paragraph = translationId
-      ? queryTranslationElements("[data-wupage-target-id]").find(target => target.getAttribute("data-wupage-target-id") === translationId)
-      : findTranslatableParagraph(element);
+    const paragraph = findTranslatableParagraph(element);
     if (!paragraph) return;
     event.preventDefault(); event.stopImmediatePropagation();
     // Only this paragraph can be consumed, including while its request is pending.

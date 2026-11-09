@@ -117,7 +117,8 @@ async function handleMessage(request: RuntimeRequest): Promise<unknown> {
   }
 
   if (request.type === "GET_TRANSLATION_STATE") {
-    return { translated: getPageTranslationState().active || hasPageTranslations() };
+    const progress = getPageTranslationState();
+    return { translated: progress.active || hasPageTranslations(), ...(request.includeProgress ? { progress } : {}) };
   }
 
   if (request.type === "GET_PARAGRAPH_MODE") {

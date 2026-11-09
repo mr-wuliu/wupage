@@ -33,20 +33,22 @@ describe("viewport page translation", () => {
   beforeEach(() => {
     scrollOffset = 0;
     Object.defineProperty(window, "innerHeight", { configurable: true, value: 800 });
-    vi.spyOn(window, "getComputedStyle").mockReturnValue({
+    vi.spyOn(window, "getComputedStyle").mockImplementation(element => ({
       display: "block",
       visibility: "visible",
-      opacity: "1"
-    } as CSSStyleDeclaration);
+      opacity: "1",
+      backgroundColor: element.id === "overlay" ? "rgb(255, 255, 255)" : "transparent"
+    }) as CSSStyleDeclaration);
     vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(function (this: Element) {
       const positioned = this.closest("[data-top]") as HTMLElement | null;
-      const top = Number(positioned?.dataset.top ?? 0) - scrollOffset;
+      const top = this.id === "overlay" ? 0 : Number(positioned?.dataset.top ?? 0) - scrollOffset;
+      const height = this.id === "overlay" ? 800 : 24;
       return {
         width: 600,
-        height: 24,
+        height,
         top,
         right: 600,
-        bottom: top + 24,
+        bottom: top + height,
         left: 0,
         x: 0,
         y: top,

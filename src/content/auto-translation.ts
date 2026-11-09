@@ -4,7 +4,7 @@ import type { ExtensionSettings } from "../shared/types";
 import { hasPageTranslations } from "./dom";
 import { getPageTranslationState, hidePageTranslation, loadPageTranslationSettings, startPageTranslation, subscribePageTranslationState } from "./page-translation";
 import { sendRuntimeRequest } from "./runtime";
-import { isNonProseElement, isTranslationOptedOut } from "./content-policy";
+import { observeDocumentSample, sampleDocumentText } from "./frame-sample";
 
 interface AutoTranslationDependencies {
   loadSettings: () => Promise<ExtensionSettings>;
@@ -16,7 +16,6 @@ interface AutoTranslationDependencies {
 }
 
 const OWNED = '.wupage-translation,.wupage-translation-pending,#wupage-floating-hitbox,#wupage-floating-menu,#wupage-debug-panel,#wupage-paragraph-highlight,[data-wupage-video],[data-wupage-video-style],[data-wupage-video-native]';
-const SKIP_TEXT = `${OWNED},script,style,noscript,pre,code,textarea,input,select,button,nav,header,footer,aside,[contenteditable="true"],[hidden],[aria-hidden="true"]`;
 
 export function initAutoTranslation(overrides: Partial<AutoTranslationDependencies> = {}): () => void {
   if (typeof document === "undefined" || typeof window === "undefined" || window.top !== window
@@ -43,6 +42,7 @@ export function initAutoTranslation(overrides: Partial<AutoTranslationDependenci
   let dirty = false;
   let disposed = false;
   let lastSample = "";
+  let stopObserving: (() => void) | undefined;
 
   const unsubscribe = deps.subscribe(event => {
     checkRoute();
@@ -106,8 +106,10 @@ export function initAutoTranslation(overrides: Partial<AutoTranslationDependenci
       if (!config.enabled || isAutoTranslationWebsiteExcluded(config, location.href)) return;
       const siteMatch = matchesAutoTranslationSite(config, location.href);
       if (!siteMatch && !config.nonTargetLanguage) return;
-      const samples = [pageText()];
-      if (!overrides.start && chrome.runtime?.id && typeof chrome.runtime.onMessage?.addListener === "function") {
+      const localSample = sampleDocumentText(true);
+      const samples = [localSample];
+      if ((!siteMatch || !localSample) && !overrides.start && chrome.runtime?.id
+        && typeof chrome.runtime.onMessage?.addListener === "function") {
         const frames = await sendRuntimeRequest<unknown>({ type: "FRAME_SESSION_SAMPLES" }).catch(() => []);
         if (Array.isArray(frames)) samples.push(...frames.filter((sample): sample is string => typeof sample === "string"));
       }
@@ -133,6 +135,12 @@ export function initAutoTranslation(overrides: Partial<AutoTranslationDependenci
         }
       }
       if (disposed || version !== generation || handled || deps.active() || document.hidden) return;
+      // Unrelated mutations (clocks, menus, animation classes) must not starve
+      // asynchronous language detection. Recheck only the sample that mattered.
+      if (dirty && localSample) {
+        const currentSample = sampleDocumentText(true);
+        if (!currentSample || (!siteMatch && currentSample !== localSample)) return;
+      }
       handled = true; owned = true;
       await deps.start(current);
     } catch { /* Leave failures to the existing translation state; never retry automatically. */ }
@@ -149,12 +157,10 @@ export function initAutoTranslation(overrides: Partial<AutoTranslationDependenci
     // Language changes must not resume a page the user explicitly restored.
     if (changed) { stopOwned(); handled = deps.active() || stopped && (initial || !rulesChanged); lastSample = ""; }
     settings = { ...value, autoTranslation: config };
-    if (config.enabled && !isAutoTranslationWebsiteExcluded(config, location.href)) observer.observe(document.documentElement, {
-      childList: true, subtree: true, characterData: true, attributes: true,
-      attributeFilter: ["lang", "hidden", "aria-hidden", "style", "class"]
-    });
-    else {
-      observer.disconnect(); dirty = false;
+    if (config.enabled && !isAutoTranslationWebsiteExcluded(config, location.href)) {
+      stopObserving ??= observeDocumentSample(observer);
+    } else {
+      stopObserving?.(); stopObserving = undefined; dirty = false;
       if (timer !== undefined) clearTimeout(timer);
       timer = undefined;
     }
@@ -164,7 +170,7 @@ export function initAutoTranslation(overrides: Partial<AutoTranslationDependenci
   const observer = new MutationObserver(records => {
     checkRoute();
     if (records.every(record => (record.target instanceof Element ? record.target : record.target.parentElement)?.closest(OWNED))) return;
-    if (!handled) { generation++; schedule(); }
+    if (!handled) schedule();
   });
   const storageChanged = (changes: Record<string, chrome.storage.StorageChange>, area: string): void => {
     if (area !== "local") return;
@@ -189,7 +195,7 @@ export function initAutoTranslation(overrides: Partial<AutoTranslationDependenci
     if (disposed) return;
     disposed = true; generation++;
     if (timer !== undefined) clearTimeout(timer);
-    observer.disconnect(); unsubscribe();
+    stopObserving?.(); unsubscribe();
     chrome.storage?.onChanged?.removeListener?.(storageChanged);
     window.removeEventListener("popstate", pageChanged);
     window.removeEventListener("hashchange", pageChanged);
@@ -203,28 +209,4 @@ export function initAutoTranslation(overrides: Partial<AutoTranslationDependenci
 function routeKey(): string {
   const url = new URL(location.href);
   return url.origin + url.pathname + url.search + url.hash;
-}
-
-function pageText(): string {
-  const roots = Array.from(document.querySelectorAll("main,article,[role='main']")).filter(textVisible);
-  const root = roots.sort((a, b) => (b.textContent?.length ?? 0) - (a.textContent?.length ?? 0))[0] ?? document.body;
-  if (!root) return "";
-  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
-  let output = "";
-  while (walker.nextNode() && output.length < 6000) {
-    const node = walker.currentNode;
-    const parent = node.parentElement;
-    if (!parent || parent.closest(SKIP_TEXT) || isNonProseElement(parent) || isTranslationOptedOut(parent) || !node.textContent?.trim()) continue;
-    if (textVisible(parent)) output += `${node.textContent}\n`;
-  }
-  return output.slice(0, 6000).trim();
-}
-
-function textVisible(element: Element): boolean {
-  if (element.closest("[hidden],[aria-hidden='true']")) return false;
-  for (let current: Element | null = element; current; current = current.parentElement) {
-    const style = getComputedStyle(current);
-    if (style.display === "none" || style.visibility === "hidden") return false;
-  }
-  return true;
 }

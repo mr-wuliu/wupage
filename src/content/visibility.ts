@@ -1,4 +1,4 @@
-import { composedContains, composedParent } from "./dom-roots";
+import { composedContains, composedParent, textContainer } from "./dom-roots";
 const MIN_RENDERED_SIZE = 1;
 const SAMPLE_INSET = 1;
 
@@ -17,6 +17,7 @@ interface AncestorClip {
 }
 
 export interface RenderVisibilitySnapshot {
+  isElementStyleVisible(element: Element): boolean;
   isTextNodeVisuallyRendered(node: Text): boolean;
   isElementVisuallyRendered(element: Element): boolean;
   /**
@@ -42,19 +43,36 @@ export function isElementVisuallyRendered(element: Element): boolean {
   return createRenderVisibilitySnapshot().isElementVisuallyRendered(element);
 }
 
-export function createRenderVisibilitySnapshot(): RenderVisibilitySnapshot {
-  const renderedElements = new WeakMap<Element, boolean>();
+export function createRenderVisibilitySnapshot(onOccluded?: (blockers: Set<Element>) => void): RenderVisibilitySnapshot {
+  const styles = new WeakMap<Element, CSSStyleDeclaration>();
+  const paintedTrees = new WeakMap<Element, boolean>();
   const elementRects = new WeakMap<Element, RectLike[]>();
   const textRects = new WeakMap<Text, RectLike[]>();
   const ancestorClips = new WeakMap<Element, AncestorClip>();
   const decisions = new WeakMap<Element, boolean>();
 
-  const isRendered = (element: Element): boolean => {
-    const cached = renderedElements.get(element);
+  const readStyle = (element: Element): CSSStyleDeclaration | undefined => {
+    const cached = styles.get(element);
+    if (cached) return cached;
+    const style = element.ownerDocument.defaultView?.getComputedStyle(element);
+    if (style) styles.set(element, style);
+    return style;
+  };
+  const paintsDescendants = (element: Element): boolean => {
+    const cached = paintedTrees.get(element);
     if (cached !== undefined) return cached;
-    const rendered = isElementTreeRendered(element, renderedElements);
-    renderedElements.set(element, rendered);
-    return rendered;
+    const style = readStyle(element);
+    const parent = composedParent(element);
+    const paints = Boolean(style && style.display !== "none" && style.contentVisibility !== "hidden"
+      && parseOpacity(style.opacity) > 0 && (!parent || paintsDescendants(parent)));
+    paintedTrees.set(element, paints);
+    return paints;
+  };
+  // Computed visibility already includes inheritance. A visible child can
+  // override a hidden parent, unlike display:none or zero ancestor opacity.
+  const isRendered = (element: Element): boolean => {
+    const style = readStyle(element);
+    return Boolean(style && style.visibility !== "hidden" && style.visibility !== "collapse" && paintsDescendants(element));
   };
 
   const readElementRects = (element: Element): RectLike[] => {
@@ -78,7 +96,7 @@ export function createRenderVisibilitySnapshot(): RenderVisibilitySnapshot {
   const readAncestorClip = (element: Element): AncestorClip => {
     const cached = ancestorClips.get(element);
     if (cached) return cached;
-    const style = element.ownerDocument.defaultView?.getComputedStyle(element);
+    const style = readStyle(element);
     const clip: AncestorClip = style
       ? { x: clipsOverflow(style.overflowX || style.overflow), y: clipsOverflow(style.overflowY || style.overflow) }
       : { x: false, y: false };
@@ -86,50 +104,31 @@ export function createRenderVisibilitySnapshot(): RenderVisibilitySnapshot {
     return clip;
   };
 
-  const isRectVisible = (rect: RectLike, host: Element): boolean =>
-    isRenderedRectVisible(rect, host, readElementRects, readAncestorClip);
+  const anyVisible = (rects: RectLike[], host: Element, root = host.getRootNode()): boolean => {
+    let blockers: Set<Element> | undefined;
+    for (const rect of rects) {
+      const clipped = clipToHiddenAncestors(rect, host, readElementRects, readAncestorClip);
+      if (!clipped || !hasRenderedArea(clipped)) continue;
+      const coveredBy = occlusionAtSamplePoints(clipped, host, root as Document | ShadowRoot, readStyle);
+      if (!coveredBy) return true;
+      blockers ??= new Set();
+      for (const blocker of coveredBy) blockers.add(blocker);
+    }
+    if (blockers) onOccluded?.(blockers);
+    return false;
+  };
 
   return {
     decisions,
+    isElementStyleVisible: isRendered,
     isTextNodeVisuallyRendered(node: Text): boolean {
-      const host = node.parentElement;
-      return Boolean(
-        host &&
-        isRendered(host) &&
-        readTextRects(node).some((rect) => isRectVisible(rect, host))
-      );
+      const host = textContainer(node);
+      return Boolean(host && isRendered(host) && anyVisible(readTextRects(node), host, node.getRootNode()));
     },
     isElementVisuallyRendered(element: Element): boolean {
-      return isRendered(element) && readElementRects(element).some(
-        (rect) => isRectVisible(rect, element)
-      );
+      return isRendered(element) && anyVisible(readElementRects(element), element);
     }
   };
-}
-
-function isElementTreeRendered(
-  element: Element,
-  cache?: WeakMap<Element, boolean>
-): boolean {
-  const view = element.ownerDocument.defaultView;
-  if (!view) return false;
-  const style = view.getComputedStyle(element);
-  if (
-    style.display === "none" ||
-    style.visibility === "hidden" ||
-    style.visibility === "collapse" ||
-    style.contentVisibility === "hidden" ||
-    parseOpacity(style.opacity) <= 0
-  ) {
-    return false;
-  }
-  const parent = composedParent(element);
-  if (!parent) return true;
-  const cachedParent = cache?.get(parent);
-  if (cachedParent !== undefined) return cachedParent;
-  const parentRendered = isElementTreeRendered(parent, cache);
-  cache?.set(parent, parentRendered);
-  return parentRendered;
 }
 
 function getTextRects(
@@ -150,7 +149,8 @@ function getTextRects(
   }
 
   range.detach?.();
-  return node.parentElement ? readElementRects(node.parentElement) : [];
+  const host = textContainer(node);
+  return host ? readElementRects(host) : [];
 }
 
 function getElementRects(element: Element): RectLike[] {
@@ -158,27 +158,6 @@ function getElementRects(element: Element): RectLike[] {
   if (rects.length) return rects;
   const boundingRect = element.getBoundingClientRect();
   return hasRenderedArea(boundingRect) ? [boundingRect] : [];
-}
-
-function isRenderedRectVisible(
-  rect: RectLike,
-  host: Element,
-  readElementRects: (element: Element) => RectLike[],
-  readAncestorClip: (element: Element) => AncestorClip
-): boolean {
-  const clipped = clipToHiddenAncestors(rect, host, readElementRects, readAncestorClip);
-  if (!clipped || !hasRenderedArea(clipped)) return false;
-
-  const view = host.ownerDocument.defaultView;
-  if (!view) return false;
-  const viewportWidth = view.innerWidth;
-  const viewportHeight = view.innerHeight;
-  if (viewportWidth <= 0 || viewportHeight <= 0) return true;
-
-  const viewportRect = makeRect(0, viewportWidth, viewportHeight, 0);
-  const inViewport = intersectRects(clipped, viewportRect);
-  if (!inViewport) return true;
-  return isVisibleAtSamplePoint(inViewport, host);
 }
 
 function clipToHiddenAncestors(
@@ -204,14 +183,18 @@ function clipToHiddenAncestors(
   return visibleRect;
 }
 
-function isVisibleAtSamplePoint(rect: RectLike, host: Element): boolean {
+function occlusionAtSamplePoints(
+  bounds: RectLike, host: Element, root: Document | ShadowRoot,
+  readStyle: (element: Element) => CSSStyleDeclaration | undefined
+): Set<Element> | undefined {
   const document = host.ownerDocument;
-  if (document.defaultView?.getComputedStyle(host).pointerEvents === "none") {
-    return true;
-  }
-  const root = host.getRootNode() as Document | ShadowRoot;
+  const view = document.defaultView;
+  if (!view || readStyle(host)?.pointerEvents === "none") return;
+  const rect = intersectRects(bounds, makeRect(0, view.innerWidth, view.innerHeight, 0));
+  if (!rect) return;
   const hitTest = root.elementFromPoint?.bind(root) ?? document.elementFromPoint?.bind(document);
-  if (!hitTest) return true;
+  if (!hitTest) return;
+  const hitStack = root.elementsFromPoint?.bind(root);
 
   const left = Math.min(rect.right, rect.left + SAMPLE_INSET);
   const right = Math.max(rect.left, rect.right - SAMPLE_INSET);
@@ -227,16 +210,41 @@ function isVisibleAtSamplePoint(rect: RectLike, host: Element): boolean {
     [centerX, bottom]
   ];
 
-  let producedHit = false;
+  const bareShadowText = root instanceof ShadowRoot && root.host === host;
+  const related = (hit: Element) => composedContains(hit, host) || (!bareShadowText && composedContains(host, hit));
+  let blockers: Set<Element> | undefined;
   for (const [x, y] of points) {
     const hit = hitTest(x, y);
-    if (!hit) continue;
-    producedHit = true;
-    if (hit === host || composedContains(host, hit) || composedContains(hit, host)) return true;
+    if (!hit || related(hit)) return;
+    let blocker = opaqueCover(hit, host, x, y, readStyle);
+    if (!blocker && hitStack) {
+      // Hit testing reports pointer targets, including invisible overlays.
+      // An underlying opaque surface can still cover the source.
+      for (const layer of hitStack(x, y)) {
+        if (related(layer)) break;
+        if (layer !== hit && (blocker = opaqueCover(layer, host, x, y, readStyle))) break;
+      }
+    }
+    if (!blocker) return;
+    (blockers ??= new Set()).add(blocker);
   }
-  // Some embedded documents return null from hit testing while still laying
-  // out text. Do not turn that browser limitation into missing translations.
-  return !producedHit;
+  return blockers;
+}
+
+function opaqueCover(
+  hit: Element, host: Element, x: number, y: number, readStyle: (element: Element) => CSSStyleDeclaration | undefined
+): Element | undefined {
+  let cover: Element | undefined;
+  for (let layer: Element | null = hit; layer; layer = composedParent(layer)) {
+    const style = readStyle(layer);
+    if (!style || parseOpacity(style.opacity) < 1 || (style.filter && style.filter !== "none")
+      || (style.maskImage && style.maskImage !== "none") || (style.mixBlendMode && style.mixBlendMode !== "normal")) return;
+    if (cover || composedContains(layer, host) || style.visibility === "hidden" || style.visibility === "collapse"
+      || !/^rgb\(/u.test(style.backgroundColor) || (style.backgroundClip && style.backgroundClip !== "border-box")) continue;
+    const bounds = layer.getBoundingClientRect();
+    if (x > bounds.left && x < bounds.right && y > bounds.top && y < bounds.bottom) cover = layer;
+  }
+  return cover;
 }
 
 function clipsOverflow(value: string): boolean {

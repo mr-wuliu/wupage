@@ -42,7 +42,8 @@ async function state() {
     page:await chrome.tabs.sendMessage(tab.id,{type:'GET_TRANSLATION_STATE'})};`, [origin]);
 }
 async function translated(number) {
-  return browser.evaluate(`return [...document.querySelectorAll('.wupage-translation:not(.wupage-translation-pending)')].some(node=>node.textContent.includes('帖子 ${number}：'));`);
+  // Replace mode can write into the original span without inserting a wrapper.
+  return browser.evaluate(`return [...document.querySelectorAll('[data-testid="tweetText"]')].some(node=>node.textContent.includes('帖子 ${number}：'));`);
 }
 async function navigate(number, wait = 40) {
   await browser.evaluate(`history.pushState({},'', '/post/${number}');setTimeout(()=>{document.querySelector('main').innerHTML=${JSON.stringify(post(number))}},${wait});`);
@@ -94,7 +95,7 @@ try {
   }
   await waitFor(() => translated(25), 'last post after rapid navigation');
   await pause(800);
-  assert.equal(await browser.evaluate(`return [...document.querySelectorAll('.wupage-translation')].some(node=>/帖子 (21|22|23|24)：/.test(node.textContent));`), false,
+  assert.equal(await browser.evaluate(`return [...document.querySelectorAll('[data-testid="tweetText"]')].some(node=>/帖子 (21|22|23|24)：/.test(node.textContent));`), false,
     'late responses painted a previous post');
   delay = 40;
   checks.push('rapid navigation with delayed translation replies');

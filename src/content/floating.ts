@@ -74,6 +74,7 @@ let activePointerId: number | undefined;
 let longPressTriggered = false;
 let touchInteraction = false;
 let pageActionPending = false;
+let followingPageResult = false;
 let pageActionVersion = 0;
 let menuError: string | null = null;
 let menuErrorCode: string | undefined;
@@ -254,7 +255,7 @@ function subscribeToPositionChanges(button: HTMLElement): void {
 function handleParagraphPreview(event: MouseEvent): void {
   if (!paragraphMode || !shortcutEnabled["paragraph-click"]) return;
   const target = event.composedPath().find(node => node instanceof Element) as Element | undefined;
-  if (!target || target.closest(`#${FLOATING_ID}, #${FLOATING_HITBOX_ID}, #wupage-floating-menu, .wupage-translation`)) {
+  if (!target || target.closest(`#${FLOATING_ID}, #${FLOATING_HITBOX_ID}, #wupage-floating-menu`)) {
     return;
   }
 
@@ -283,8 +284,7 @@ async function translateActiveParagraph(): Promise<void> {
 function handleDocumentClick(event: MouseEvent): void {
   if (!paragraphMode || !shortcutEnabled["paragraph-click"] || !matchesParagraphClick(event, localShortcuts["paragraph-click"])) return;
   const target = event.composedPath().find(node => node instanceof Element) as Element | undefined;
-  if (!target || target.closest(`#${FLOATING_ID}, #${FLOATING_HITBOX_ID}, .wupage-translation`)) return;
-  if (target.closest("#wupage-floating-menu")) return;
+  if (!target || target.closest(`#${FLOATING_ID}, #${FLOATING_HITBOX_ID}, #wupage-floating-menu`)) return;
 
   const paragraph = findTranslatableParagraph(target);
   if (!paragraph) return;
@@ -928,6 +928,7 @@ async function togglePageTranslationFromFloating(force = false): Promise<void> {
   if (!force && (busy || state.active || hasPageTranslations())) {
     pageActionVersion += 1;
     pageActionPending = false;
+    followingPageResult = false;
     clearPageFromFloating();
     refreshTranslationState();
     return;
@@ -936,6 +937,7 @@ async function togglePageTranslationFromFloating(force = false): Promise<void> {
 
   const actionVersion = ++pageActionVersion;
   pageActionPending = true;
+  followingPageResult = false;
   refreshTranslationState();
   try {
     await settingsSave;
@@ -944,7 +946,8 @@ async function togglePageTranslationFromFloating(force = false): Promise<void> {
     if (actionVersion !== pageActionVersion) return;
     const result = await startPageTranslation(settings, !force);
     if (actionVersion !== pageActionVersion) return;
-    if (result.failed > 0) revealMenu();
+    if (result.failed > 0 || result.error) revealMenu();
+    else followingPageResult = !result.cancelled;
   } catch (error) {
     if (actionVersion === pageActionVersion) showMenuError(error);
   } finally {
@@ -958,6 +961,10 @@ async function togglePageTranslationFromFloating(force = false): Promise<void> {
 export function refreshTranslationState(): void {
   clearTimeout(retryStatusTimer);
   const state = getPageTranslationState();
+  if (followingPageResult && (!state.active || !state.pending || state.error)) {
+    followingPageResult = false;
+    if (state.active && (state.failed > 0 || state.error)) revealMenu();
+  }
   const busy = pageActionPending || state.pending > 0;
   const translated = hasPageTranslations();
   const translationEnabled = state.active || translated;
