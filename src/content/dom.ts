@@ -167,6 +167,8 @@ const SKIP_SELECTORS = [
   ".gh-header-actions",
   ".tabnav",
   ".UnderlineNav",
+  // Primer moves tabs into its overflow menu based on their rendered widths.
+  "nav[data-overflow-mode][class*='prc-UnderlineNav-UnderlineWrapper-']",
   ".js-repo-nav"
 ];
 const SKIP_SELECTOR = SKIP_SELECTORS.join(",");

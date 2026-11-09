@@ -1501,6 +1501,29 @@ describe("content DOM translation extraction", () => {
       .toBe("inline");
   });
 
+  it("leaves GitHub's width-measured repository tabs and overflow button untouched", async () => {
+    document.body.innerHTML = `<main>
+      <nav class="prc-UnderlineNav-UnderlineWrapper-GWONT UnderlineNav__9sm8Cc" data-overflow-mode="wrap" aria-label="Repository files">
+        <ul><li><a href="#license"><svg aria-hidden="true"></svg><span data-component="text">MIT license</span></a></li></ul>
+        <button data-component="overflow-menu-button"><span>More items</span></button>
+      </nav>
+      <nav><a href="#guide">User guide</a></nav>
+      <p>Install the GitHub CLI.</p>
+    </main>`;
+    stubLayout();
+    const nav = document.querySelector("nav")!;
+    const segments = await collectTextSegmentsProgressive();
+    expect(segments.map(segment => segment.text)).toEqual(["User guide", "Install the GitHub CLI."]);
+
+    // Primer can remount a tab when the available width changes.
+    const label = nav.querySelector("a span")!;
+    const remounted = label.cloneNode(true) as Element;
+    label.replaceWith(remounted);
+    expect(await collectAdditionalTextSegmentsProgressive([nav])).toEqual([]);
+    expect(collectParagraphTextSegments(remounted)).toEqual([]);
+    expect(collectParagraphTextSegments(nav.querySelector("button")!)).toEqual([]);
+  });
+
   it("translates document text in article headers, asides, captions, tables, and footers", async () => {
     document.body.innerHTML = `
       <header>
