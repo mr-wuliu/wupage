@@ -7,14 +7,14 @@ import type { RuntimeRequest } from "../src/shared/types";
 
 const f = vi.hoisted(() => ({
   local: { active: false },
-  configure: vi.fn(), start: vi.fn(), hide: vi.fn(), notify: vi.fn(), send: vi.fn()
+  configure: vi.fn(), start: vi.fn(), hide: vi.fn(), notify: vi.fn(), send: vi.fn(), state: vi.fn()
 }));
 vi.mock("../src/content/runtime", () => ({ sendRuntimeRequest: f.send }));
 vi.mock("../src/content/dom", () => ({ hasPageTranslations: () => false }));
 vi.mock("../src/content/frame-visibility", () => ({ frameIsRendered: () => true }));
 vi.mock("../src/content/page-translation", () => ({
   configurePageTranslationCoordinator: f.configure,
-  getLocalPageTranslationState: () => ({ active: f.local.active }),
+  getLocalPageTranslationState: f.state,
   hideLocalPageTranslation: f.hide, startLocalPageTranslation: f.start,
   notifyCoordinatedPageState: f.notify, setLocalPageTranslationDisplayMode: vi.fn(),
   setPageRequestIdentity: vi.fn(), subscribePageTranslationState: vi.fn()
@@ -34,6 +34,7 @@ const deferred = <T>() => {
 describe("document session control ordering", () => {
   beforeEach(() => {
     vi.useFakeTimers(); f.local.active = false;
+    f.state.mockImplementation(() => ({ active: f.local.active }));
     f.hide.mockImplementation(() => { f.local.active = false; });
     f.start.mockImplementation(async () => { f.local.active = true; return { ...emptyDocumentState(), translated: 1 }; });
     f.send.mockImplementation(async (request: RuntimeRequest) => request.type === "FRAME_REGISTER" ? snapshot(1, false) : snapshot(2, true));
@@ -61,6 +62,34 @@ describe("document session control ordering", () => {
     await expect(runtime.apply(snapshot(2, true))).rejects.toThrow("Document initialization failed");
     expect(runtime.identify()).toMatchObject({ documentKey: "embedded", sessionId: "session-2",
       state: { error: "Document initialization failed" } });
+  });
+
+  it("acknowledges a slow start with progress and reports the eventual result", async () => {
+    const runtime = installFrameRuntime("embedded", { top: false });
+    const waiting = { ...emptyDocumentState(), active: true, pending: 1 };
+    const done = { ...emptyDocumentState(), active: true, translated: 1 };
+    const response = deferred<typeof done>();
+    f.state.mockReturnValue(waiting);
+    f.start.mockReturnValueOnce(response.promise);
+    const start = runtime.apply(snapshot(2, true));
+    await vi.advanceTimersByTimeAsync(2000);
+    await expect(start).resolves.toMatchObject(waiting);
+
+    f.state.mockReturnValue(done);
+    response.resolve(done);
+    await vi.advanceTimersByTimeAsync(60);
+    expect(f.send).toHaveBeenLastCalledWith(expect.objectContaining({ type: "FRAME_REPORT", state: { ...done, documentHidden: false } }));
+  });
+
+  it("retries a final progress report if the background is temporarily unreachable", async () => {
+    const runtime = installFrameRuntime("embedded", { top: false });
+    await runtime.apply(snapshot(2, true));
+    f.send.mockRejectedValueOnce(new Error("Background unavailable"));
+    await vi.advanceTimersByTimeAsync(60);
+    expect(f.send).toHaveBeenCalledOnce();
+    await vi.advanceTimersByTimeAsync(250);
+    expect(f.send).toHaveBeenCalledTimes(2);
+    expect(f.send.mock.calls[1][0]).toEqual(f.send.mock.calls[0][0]);
   });
 
   it("clears pending activity after registration fails and permits a later retry", async () => {

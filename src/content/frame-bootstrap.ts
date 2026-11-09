@@ -2,7 +2,7 @@ import { initializeInterfaceLanguage, t } from "../shared/i18n";
 import type { RuntimeRequest, RuntimeResponse } from "../shared/types";
 import type { FrameDocumentIdentity, FrameSessionSnapshot } from "../shared/frame-session";
 import { createDocumentKey, frameExclusion } from "../shared/frame-session";
-import { sampleDocumentText } from "./frame-sample";
+import { observeDocumentSample, sampleDocumentText } from "./frame-sample";
 import { initKeyboardShortcuts } from "./keyboard-shortcuts";
 import { sendRuntimeRequest } from "./runtime";
 import { frameIsRendered, installFrameVisibilityBridge } from "./frame-visibility";
@@ -24,7 +24,7 @@ if (window !== window.top && supportsHtmlContent() && !scope.__wupageFrameBootst
   let current: FrameSessionSnapshot | undefined;
   let frameId: number | undefined;
   let worker: ReturnType<typeof import("./frame-content").activateFrameContent> | undefined;
-  let candidateObserver: MutationObserver | undefined;
+  let stopObservingCandidates: (() => void) | undefined;
   let candidateTimer: ReturnType<typeof setTimeout> | undefined;
   let lastSample = "";
   let paragraphMode = false;
@@ -73,10 +73,11 @@ if (window !== window.top && supportsHtmlContent() && !scope.__wupageFrameBootst
   };
   const configureCandidates = () => {
     if (current?.settings.autoTranslation?.enabled && !current.active && document.body && supported()) {
-      candidateObserver ??= new MutationObserver(scheduleCandidate);
-      candidateObserver.observe(document.body, { childList: true, subtree: true, characterData: true,
-        attributes: true, attributeFilter: ["class", "style", "hidden", "aria-hidden"] });
-    } else { candidateObserver?.disconnect(); clearTimeout(candidateTimer); candidateTimer = undefined; }
+      stopObservingCandidates ??= observeDocumentSample(new MutationObserver(scheduleCandidate));
+    } else {
+      stopObservingCandidates?.(); stopObservingCandidates = undefined;
+      clearTimeout(candidateTimer); candidateTimer = undefined;
+    }
   };
   document.addEventListener("wupage:frame-visibility", scheduleCandidate);
   chrome.storage.onChanged.addListener((changes, area) => {

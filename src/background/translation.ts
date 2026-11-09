@@ -13,7 +13,8 @@ import type {
 } from "../shared/types";
 import { createProvider } from "./providers";
 import { normalizeProtectedText } from "../shared/protected-text";
-import { translateProtectedText } from "./protected-translation";
+import { translateTextWithRecovery } from "./protected-translation";
+import { ProviderError } from "../shared/errors";
 import { assertTranslationResponse, TranslationResponseError } from "./translation-response";
 import { LOCAL_MODELS } from "../local/models";
 import { DOUBAO_PROTOCOL_VERSION } from "../shared/doubao";
@@ -406,26 +407,40 @@ async function translateProviderTexts(
   statistics?: StatisticsRecorder
 ): Promise<string[]> {
   signal?.throwIfAborted();
-  const translate = (part: TranslateBatchRequest) => statistics
-    ? statistics.call(providerConfig, part.texts, onUsage => provider.translateBatch(part, signal, onUsage))
-    : signal ? provider.translateBatch(part, signal) : provider.translateBatch(part);
-  if (request.preservePlaceholders) {
-    return translateProtectedText({ ...request, texts }, (part) =>
-      translateProviderTexts(providerConfig, provider, { ...part, preservePlaceholders: false }, part.texts, signal, statistics)
-    );
-  }
+  const translate = (part: TranslateBatchRequest) => {
+    signal?.throwIfAborted();
+    return statistics
+      ? statistics.call(providerConfig, part.texts, onUsage => provider.translateBatch(part, signal, onUsage))
+      : signal ? provider.translateBatch(part, signal) : provider.translateBatch(part);
+  };
+  const maxChars = provider.maxTextLength ?? Number.POSITIVE_INFINITY;
+  const send = (part: TranslateBatchRequest) =>
+    translateProviderInput(providerConfig, part.preservePlaceholders ? { ...part, preservePlaceholders: false } : part, maxChars, translate);
+  const batch = { ...request, texts };
+  return request.preservePlaceholders || texts.some(text => text.length > maxChars)
+    ? translateTextWithRecovery(batch, send, maxChars) : send(batch);
+}
+
+async function translateProviderInput(
+  providerConfig: ProviderConfig, request: TranslateBatchRequest, maxChars: number,
+  translate: (part: TranslateBatchRequest) => Promise<string[]>
+): Promise<string[]> {
+  const { texts } = request;
   // DeepL consumes context separately, without translating or billing it as source text.
   if (providerConfig.type === "doubao-web" || providerConfig.type === "firefox-local" || providerConfig.type === "deepl"
     || (providerConfig.type === "google-web-translate" && providerConfig.serviceMode !== "api")
     || isLlmProvider(providerConfig) || !request.context || !texts.length) {
-    return translate({ ...request, texts });
+    return translate(request);
   }
 
   const contextualSource = buildContextualSource(request.context, texts);
-  const contextualResult = await translate({
-    ...request,
-    texts: [contextualSource]
-  });
+  if (contextualSource.length > maxChars) return translate(request);
+  let contextualResult: string[];
+  try { contextualResult = await translate({ ...request, texts: [contextualSource] }); }
+  catch (error) {
+    if (error instanceof ProviderError && error.errorCode === "input-too-long") return translate(request);
+    throw error;
+  }
   const translations = contextualResult.length === 1
     ? parseContextualTranslation(contextualResult[0], texts.length)
     : null;
@@ -446,7 +461,7 @@ async function translateProviderTexts(
 
   // Some machine-translation endpoints rewrite unusual delimiters. Fall back
   // to their ordinary batch mode rather than failing the whole page.
-  return translate({ ...request, texts });
+  return translate(request);
 }
 
 function buildContextualSource(context: string, texts: string[]): string {

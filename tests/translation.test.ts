@@ -25,6 +25,33 @@ describe("contextual machine translation", () => {
     vi.unstubAllGlobals();
   });
 
+  it.each([true, false])("fits an oversized paragraph into the Volcengine API limit (protected=%s)", async preservePlaceholders => {
+    const providerId = "volcengine";
+    const settings = { ...createLlmSettings(providerId, 1), chunkSize: 200 };
+    settings.providers = [{ id: providerId, type: "volcengine-web-translate", label: "Volcengine",
+      serviceMode: "api", api: { accessKeyId: "fixture-ak", secretAccessKey: "fixture-sk" } }];
+    const prose = "English example with an emoji 🐈 and a sentence boundary. ".repeat(110).trim();
+    const source = preservePlaceholders ? `Read ⟪WUPAGEOPEN0⟫${prose}⟪WUPAGECLOSE0⟫ with ⟪WUPAGE1⟫.` : prose;
+    const batches: string[][] = [];
+    vi.stubGlobal("fetch", vi.fn(async (_url: string, init: RequestInit) => {
+      const texts = JSON.parse(String(init.body)).TextList as string[];
+      batches.push(texts);
+      return new Response(JSON.stringify({ TranslationList: texts.map(text => ({
+        Translation: text.replaceAll("English", "译文")
+      })) }));
+    }));
+
+    const result = await translateWithSettings(settings, { texts: [source], sourceLang: "en",
+      targetLang: "zh-CN", context: "Page title: " + "A".repeat(240), preservePlaceholders });
+    expect(result.translations).toEqual([source.replaceAll("English", "译文")]);
+    expect(batches.length).toBeGreaterThan(1);
+    for (const texts of batches) {
+      expect(texts.reduce((size, text) => size + text.length, 0)).toBeLessThanOrEqual(5000);
+      expect(texts.join("")).not.toMatch(/⟪WUPAGE(?:OPEN|CLOSE)?\d+⟫/u);
+      expect(texts.every(text => !/[\uD800-\uDFFF]/u.test(text))).toBe(true);
+    }
+  });
+
   it.each([undefined, "auto"])("retries unchanged mixed-language items separately with source language %s", async (sourceLang) => {
     const translations = new Map([
       ["游戏版本", "游戏版本"],

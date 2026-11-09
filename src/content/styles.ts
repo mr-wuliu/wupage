@@ -5,6 +5,10 @@ const styles = new WeakMap<Document | ShadowRoot, HTMLStyleElement>();
 const observers = new WeakMap<Document | ShadowRoot, MutationObserver>();
 let subscribed = false;
 
+const PAGE_ACTIONS = "a[href],area[href],button,input,select,textarea,label,summary,"
+  + "[role='button'],[role='link'],[role='tab'],[role^='menuitem'],[role='option'],[role='combobox'],"
+  + "[role='checkbox'],[role='radio'],[role='switch'],[role='slider'],[role='treeitem']";
+
 export function injectContentStyles(): void {
   if (!subscribed) { subscribed = true; onTranslationRoot(ensureRootStyles); }
   for (const root of translationRoots()) ensureRootStyles(root);
@@ -63,7 +67,21 @@ const CONTENT_CSS = `
       white-space: normal;
       overflow-wrap: break-word;
       word-break: break-word;
-      pointer-events: none;
+    }
+
+    .wupage-translation:not(.wupage-translation-pending) {
+      pointer-events: auto;
+      -webkit-user-select: text !important;
+      user-select: text !important;
+    }
+
+    /* Let the browser start selections on rendered text. Keep original action
+       targets and presentation-only copies of actions out of the hit path. */
+    :where(${PAGE_ACTIONS}) .wupage-translation,
+    .wupage-translation :where(${PAGE_ACTIONS},[onclick]),
+    .wupage-translation :where(${PAGE_ACTIONS},[onclick]) *,
+    .wupage-translation-pending {
+      pointer-events: none !important;
     }
 
     .wupage-translation[data-wupage-mode="block"] {
@@ -200,7 +218,6 @@ const CONTENT_CSS = `
       background: transparent;
       text-align: center;
       white-space: normal;
-      pointer-events: auto;
     }
 
     .wupage-image-text-row {
@@ -242,6 +259,8 @@ const CONTENT_CSS = `
     .wupage-translation-pending {
       min-width: 1.25em;
       min-height: 1.25em;
+      -webkit-user-select: none;
+      user-select: none;
     }
 
     .wupage-translation-pending > span {

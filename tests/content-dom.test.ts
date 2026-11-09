@@ -1971,8 +1971,9 @@ describe("content DOM translation extraction", () => {
   it.each([399, 400, 401, 1000])("keeps every one of %i covered paragraphs reachable", async (count) => {
     document.body.innerHTML = `<main>${Array.from({ length: count }, (_, index) =>
       `<p>Covered paragraph ${index}.</p>`).join("")}</main>`;
-    stubLayout();
+    stubLayout("", { style: element => ({ backgroundColor: element.id === "overlay" ? "rgb(255, 255, 255)" : "transparent" }) });
     const overlay = document.createElement("div");
+    overlay.id = "overlay";
     document.body.append(overlay);
     Object.defineProperty(document, "elementFromPoint", { configurable: true, value: () => overlay });
     try {
@@ -2005,7 +2006,8 @@ describe("content DOM translation extraction", () => {
     document.body.innerHTML = `<main>${Array.from({ length: 4097 }, (_, index) =>
       `<p id="pending-${index}">Hidden paragraph number ${index}.</p>`).join("")}</main><div id="overlay"></div>`;
     stubLayout("", { style: (element) => ({
-      display: element.matches("p") && element.id !== "pending-4096" ? "none" : "block"
+      display: element.matches("p") && element.id !== "pending-4096" ? "none" : "block",
+      backgroundColor: element.id === "overlay" ? "rgb(255, 255, 255)" : "transparent"
     }) });
     const overlay = document.querySelector("#overlay")!;
     let covered = true;

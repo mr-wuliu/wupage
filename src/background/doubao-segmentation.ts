@@ -1,5 +1,6 @@
 import { t } from "../shared/i18n";
 import { ProviderError } from "../shared/errors";
+import { splitTranslationText } from "./text-segmentation";
 
 export interface DoubaoSegment {
   sourceIndex: number;
@@ -8,7 +9,6 @@ export interface DoubaoSegment {
 }
 
 const PROTECTED_TOKEN = /⟪WUPAGE(?:OPEN|CLOSE)?\d+⟫/gu;
-const ATOM = /⟪WUPAGE(?:OPEN|CLOSE)?\d+⟫|[\s\S]/gu;
 
 function validateLimit(value: number): void {
   if (!Number.isInteger(value) || value < 1) throw new RangeError("Expected a positive integer.");
@@ -40,32 +40,9 @@ export function segmentDoubaoTexts(texts: string[], maxChars = 2000): DoubaoSegm
   validateLimit(maxChars);
   const output: DoubaoSegment[] = [];
   for (const [sourceIndex, source] of texts.entries()) {
-    const atoms = source.match(ATOM) ?? [];
-    let start = 0;
-    while (start < atoms.length) {
-      let end = start;
-      let size = 0;
-      let sentenceEnd = start;
-      let whitespaceEnd = start;
-      while (end < atoms.length && size + atoms[end].length <= maxChars) {
-        const atom = atoms[end];
-        size += atom.length;
-        end++;
-        if (/^\s$/u.test(atom)) {
-          whitespaceEnd = end;
-          if (atom === "\n" || atom === "\r") sentenceEnd = end;
-        } else if (/^[。！？；]$/u.test(atom)
-          || (/^[.!?;]$/u.test(atom) && (end === atoms.length || /^\s$/u.test(atoms[end])))) {
-          sentenceEnd = end;
-        }
-      }
-      if (end === start) throw tooLong();
-      if (end < atoms.length) {
-        end = sentenceEnd > start ? sentenceEnd : whitespaceEnd > start ? whitespaceEnd : end;
-      }
-      appendChunk(output, sourceIndex, atoms.slice(start, end).join(""));
-      start = end;
-    }
+    const chunks = splitTranslationText(source, maxChars);
+    if (!chunks) throw tooLong();
+    for (const chunk of chunks) appendChunk(output, sourceIndex, chunk);
   }
   return output;
 }

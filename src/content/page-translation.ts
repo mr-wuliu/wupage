@@ -6,6 +6,7 @@ import {
   collectAdditionalTextSegmentsProgressive,
   collectTextSegmentsProgressive,
   takeHiddenScanRoots,
+  takeUncoveredScanRoots,
   hideTranslations,
   invalidateStaleSegments,
   isTranslationMutation,
@@ -19,7 +20,7 @@ import { sendRuntimeRequest } from "./runtime";
 import { buildTranslationContext } from "./translation-context";
 import { getEffectiveProviderPerformance, isLlmProvider } from "../shared/performance";
 import { ProviderError } from "../shared/errors";
-import { DocumentViewport } from "./document-viewport";
+import { DocumentViewport, segmentViewportRect } from "./document-viewport";
 import { invalidatePendingDocumentTranslations } from "./translation-lifecycle";
 import { composedParent, mutationElement, onTranslationRoot, translationRoots } from "./dom-roots";
 import { configureElementExclusions, exclusionObservedAttributes } from "./element-exclusions";
@@ -32,6 +33,7 @@ const MAX_PROGRESSIVE_CHUNK_SIZE = 4000;
 const MAX_LLM_BATCH_ITEMS = 16;
 const VIEWPORT_DEBOUNCE_MS = 100;
 const DYNAMIC_CONTENT_DEBOUNCE_MS = 160;
+const PAINT_EVENTS = ["transitionend", "transitioncancel", "animationend", "animationcancel"];
 const EXTENSION_OWNED_SELECTOR = [
   "[data-wupage-video]",
   "[data-wupage-video-style]",
@@ -151,7 +153,7 @@ export function getLocalPageTranslationState(): PageTranslationState {
     return {
       ...getResult(session),
       active: true,
-      pending: [...session.entries.values()].filter((entry) => entry.status === "queued" || entry.status === "running").length
+      pending: session.initializing ? 1 : [...session.entries.values()].filter((entry) => entry.status === "queued" || entry.status === "running").length
     };
   }
   // The initial scan yields to the browser, so a start request is pending work
@@ -286,6 +288,7 @@ export async function startLocalPageTranslation(settings: ExtensionSettings, reu
   window.addEventListener("resize", handleViewportResize, { passive: true });
   document.addEventListener("wupage:frame-visibility", handleViewportChange);
   document.addEventListener("load", handleImageLoad, true);
+  for (const event of PAINT_EVENTS) document.addEventListener(event, handleOccluderPaint, true);
   const begin = () => {
     if (!isActive(session)) return;
     session.initializing = false;
@@ -405,8 +408,8 @@ function scheduleNearbySegments(session: TranslationSession, initial = false): v
   if (session.viewport.deferred) session.viewport.update(entries.map(entry => entry.segment.element));
   const nearby = entries
     .filter((entry) => entry.status === "idle" || entry.status === "queued")
-    .map((entry) => ({ entry, priority: session.viewport.priority(entry.segment.element) ??
-      (window === window.top || typeof IntersectionObserver === "undefined" ? getViewportPriority(entry.segment.element) : null) }))
+    .map((entry) => ({ entry, priority: session.viewport.priority(entry.segment) ??
+      (window === window.top || typeof IntersectionObserver === "undefined" ? getViewportPriority(entry.segment) : null) }))
     .filter((candidate): candidate is { entry: SegmentEntry; priority: number } => candidate.priority !== null)
     .sort((left, right) => left.priority - right.priority);
   const nearbyIds = new Set(nearby.map(({ entry }) => entry.segment.id));
@@ -550,6 +553,15 @@ function handleViewportResize(): void {
   scheduleViewportRefresh("full");
 }
 
+function handleOccluderPaint(event: Event): void {
+  const session = activeSession;
+  if (!session || !(event.target instanceof Element)) return;
+  const uncovered = takeUncoveredScanRoots([event.target]);
+  if (!uncovered.length) return;
+  for (const root of uncovered) session.dynamicRoots.add(root);
+  refreshSegments(session);
+}
+
 /**
  * Scrolling and resizing never change the DOM, they only change what is on
  * screen. Rescanning every text node on each of those events costs a full
@@ -573,6 +585,7 @@ function scheduleViewportRefresh(scope: ViewportRescanScope): void {
 
 function handleDynamicContent(session: TranslationSession, mutations: MutationRecord[]): void {
   if (!isActive(session) && suspendedSession !== session) return;
+  const visualChanges = new Set<Element>();
   for (const mutation of mutations) {
     if (isTranslationMutation(mutation)) continue;
     const target = mutationElement(mutation.target);
@@ -585,6 +598,7 @@ function handleDynamicContent(session: TranslationSession, mutations: MutationRe
     if (mutation.type === "attributes") {
       const root = mutation.target instanceof Element ? mutation.target : null;
       if (root && !isExtensionOwned(root)) {
+        visualChanges.add(root);
         session.dynamicRoots.add(root);
         if (suspendedSession === session) session.changedRoots.add(root);
       }
@@ -594,6 +608,7 @@ function handleDynamicContent(session: TranslationSession, mutations: MutationRe
       !(node instanceof Element && isExtensionOwned(node))
     );
     if (sourceChanged) {
+      visualChanges.add(target);
       session.changedRoots.add(target);
       session.dynamicRoots.add(target);
     }
@@ -604,6 +619,9 @@ function handleDynamicContent(session: TranslationSession, mutations: MutationRe
       if (!root || isExtensionOwned(root)) continue;
       session.dynamicRoots.add(root);
     }
+  }
+  if (isActive(session)) {
+    for (const root of takeUncoveredScanRoots([...visualChanges])) session.dynamicRoots.add(root);
   }
   if (suspendedSession === session || !session.dynamicRoots.size || session.dynamicTimer !== undefined) return;
   session.dynamicTimer = window.setTimeout(() => {
@@ -702,10 +720,9 @@ function preserveViewportPosition(mutate: () => void, segments: TextSegment[] = 
   }
 }
 
-function getViewportPriority(element: Element): number | null {
-  if (!element.isConnected) return null;
-  const rect = element.getBoundingClientRect();
-  if (rect.width <= 0 || rect.height <= 0) return null;
+function getViewportPriority(segment: TextSegment): number | null {
+  const rect = segmentViewportRect(segment);
+  if (!rect) return null;
   const viewportHeight = Math.max(1, window.innerHeight);
   const margin = Math.max(MIN_VIEWPORT_MARGIN, viewportHeight * VIEWPORT_MARGIN_RATIO);
   if (rect.bottom < -margin || rect.top > viewportHeight + margin) return null;
@@ -772,6 +789,7 @@ function cancelActiveSession(): void {
   window.removeEventListener("resize", handleViewportResize);
   document.removeEventListener("wupage:frame-visibility", handleViewportChange);
   document.removeEventListener("load", handleImageLoad, true);
+  for (const event of PAINT_EVENTS) document.removeEventListener(event, handleOccluderPaint, true);
   if (!session) return;
   session.scanController.abort();
   session.refreshRoots.clear();

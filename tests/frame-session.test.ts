@@ -114,6 +114,22 @@ describe("tab-wide document sessions", () => {
     expect(result.topDocument).toBe("key-0");
   });
 
+  it("recovers progress when a live document cannot return its timed acknowledgement", async () => {
+    vi.useFakeTimers();
+    try {
+      const f = await fixture(); await f.register(0);
+      const progress = { ...emptyDocumentState(), active: true, pending: 1 };
+      f.sendMessage.mockImplementationOnce(async (_tab, request) => {
+        if (request.type !== "FRAME_APPLY") throw new Error("Expected frame start");
+        f.live.set(0, { documentKey: request.documentKey, sessionId: request.snapshot.id, state: progress });
+        return new Promise(() => {});
+      });
+      const action = f.action("start");
+      await vi.advanceTimersByTimeAsync(25000);
+      await expect(action).resolves.toEqual(progress);
+    } finally { vi.useRealTimers(); }
+  });
+
   it("does not restore a saved active generation into a replacement top document", async () => {
     const f = await fixture(); await f.register(0); await f.register(1); await f.action("start"); f.discovery();
     f.live.set(0, { documentKey: "replacement-top" });

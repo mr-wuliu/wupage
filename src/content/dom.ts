@@ -22,8 +22,8 @@ import {
 import { videoPlatform } from "../video/platforms";
 import { clearTranslationTypography, linkTranslationTypography } from "./translation-typography";
 import { isNonProseElement, isTranslationOptedOut, NON_PROSE_SELECTOR } from "./content-policy";
-import { componentShadowRoot, composedContains, projectedSlot, queryTranslationElements,
-  sameTranslationNodePath, translationNodePath } from "./dom-roots";
+import { componentShadowRoot, composedContains, composedParent, projectedSlot, queryTranslationElements,
+  sameTranslationNodePath, textContainer, translationNodePath } from "./dom-roots";
 import { constrainTranslationOwner, translationOwner } from "./translation-boundaries";
 import { InlineTranslationPlan } from "./inline-translation";
 import { injectContentStyles } from "./styles";
@@ -35,6 +35,7 @@ interface TrackedNode {
   node: Text;
   mode: RenderMode;
   sourceValue: string;
+  /** The containing element, or the host of a root-level shadow text node. */
   sourceParent: Element;
   sourcePath: Node[];
   sourceOwner?: Element | null;
@@ -286,6 +287,8 @@ let nodeTrackingEpoch = 0;
  * now will stay covered, and the next scroll may uncover it.
  */
 const hiddenScanRoots = new Set<Element>();
+const occluders = new Set<Element>();
+let untrackedOccluders = false;
 /**
  * One scroll can uncover hundreds of subtrees, and rescanning every one of them
  * on the same event made a scroll cost as much as a full scan. A viewport event
@@ -305,7 +308,7 @@ let hiddenScanOverflowRoot: Element | null = null;
 let hiddenScanRootsBeforeOverflow = 0;
 
 function noteHiddenScanCandidate(element: Element | null): void {
-  if (!element || hiddenScanRoots.has(element) || hiddenScanOverflowRoot?.contains(element)) return;
+  if (!element || hiddenScanRoots.has(element) || (hiddenScanOverflowRoot && composedContains(hiddenScanOverflowRoot, element))) return;
   // Disconnected candidates are removed when taking a snapshot. Walking the
   // entire queue for every overflowing text node makes collection quadratic.
   if (hiddenScanRoots.size < HIDDEN_SCAN_ROOT_BUDGET) {
@@ -318,17 +321,38 @@ function noteHiddenScanCandidate(element: Element | null): void {
 
 function commonHiddenScanAncestor(current: Element | null, element: Element): Element {
   if (!current || !current.isConnected) return element;
-  if (current.contains(element)) return current;
-  for (let ancestor = element.parentElement; ancestor; ancestor = ancestor.parentElement) {
-    if (ancestor.contains(current)) return ancestor;
+  for (let ancestor: Element | null = element; ancestor; ancestor = composedParent(ancestor)) {
+    if (composedContains(ancestor, current)) return ancestor;
   }
   return element;
 }
 
 function clearHiddenScanCandidates(): void {
   hiddenScanRoots.clear();
+  occluders.clear();
+  untrackedOccluders = false;
   hiddenScanOverflowRoot = null;
   hiddenScanRootsBeforeOverflow = 0;
+}
+
+function noteOccluders(blockers: Set<Element>): void {
+  for (const blocker of blockers) {
+    if (occluders.size < HIDDEN_SCAN_ROOT_BUDGET || occluders.has(blocker)) occluders.add(blocker);
+    else untrackedOccluders = true;
+  }
+}
+
+/** An overlay may be removed from a different subtree than the text it hid. */
+export function takeUncoveredScanRoots(changed: Element[]): Element[] {
+  if (!changed.length || (!occluders.size && !untrackedOccluders)) return [];
+  let changedOcclusion = untrackedOccluders;
+  untrackedOccluders = false;
+  for (const blocker of occluders) {
+    if (blocker.isConnected && !changed.some(root => composedContains(root, blocker))) continue;
+    occluders.delete(blocker);
+    changedOcclusion = true;
+  }
+  return changedOcclusion ? takeHiddenScanRoots(Number.POSITIVE_INFINITY) : [];
 }
 
 interface DeferredBlockText {
@@ -447,7 +471,8 @@ function scanTrackedTextRoots(
     isParagraph: element => element.matches(PARAGRAPH_SELECTOR + ",[data-wupage-scientific-source]"),
     collect: (root, directTextOnly) => collectTextSegmentsFromRoot(root, translateCodeComments, directTextOnly),
     clearHiddenCandidates: clearHiddenScanCandidates,
-    invalidate: invalidateStaleSegments
+    invalidate: invalidateStaleSegments,
+    uncover: takeUncoveredScanRoots
   });
 }
 
@@ -494,14 +519,14 @@ export function invalidateStaleSegments(changedRoots: Element[] = []): string[] 
     if (!recovered.has(id)) stale.add(id);
   }
   const changed = (tracked: TrackedNode): boolean => !tracked.node.isConnected
-    || tracked.node.parentElement !== tracked.sourceParent
+    || textContainer(tracked.node) !== tracked.sourceParent
     || !sameTranslationNodePath(tracked.node, tracked.sourcePath)
     || translationOwner(tracked.sourceParent) !== (tracked.sourceOwner ?? null)
     || isNonProseElement(tracked.sourceParent) || isTranslationOptedOut(tracked.sourceParent)
     || tracked.node.data !== (tracked.replaced ? tracked.replacementValue ?? "" : tracked.sourceValue);
   for (const tracked of trackedNodes) {
     if (recovered.has(tracked.id)) continue;
-    if (changed(tracked) || changedRoots.includes(tracked.node.parentElement!)) stale.add(tracked.id);
+    if (changed(tracked) || changedRoots.includes(tracked.sourceParent)) stale.add(tracked.id);
   }
   for (const [id, output] of renderedById) {
     if (!output.isConnected) stale.add(id);
@@ -583,6 +608,7 @@ function stableReplacementSource(nodes: TrackedNode[]): HTMLElement | undefined 
   if (parents.size !== 1) return undefined;
   const source = parents.values().next().value;
   if (!(source instanceof HTMLElement) || !source.isConnected || !source.matches("span,p,div")) return undefined;
+  if (nodes.some(({ sourcePath }) => sourcePath[1] instanceof ShadowRoot)) return undefined;
   if (source.matches("[role],[tabindex],[contenteditable],[slot]")
     || [...source.attributes].some((attribute) => attribute.name.startsWith("on"))) return undefined;
   if ([...source.childNodes].some((node) => node instanceof Element && !node.matches(`.${TRANSLATION_CLASS}`))) {
@@ -718,6 +744,18 @@ function restoreStableReplacement(id: string): void {
 }
 
 export function findTranslatableParagraph(start: Element | null): Element | null {
+  const output = start?.closest(`.${TRANSLATION_CLASS}`);
+  if (output) {
+    // Block translations can sit beside the source or in another layout slot.
+    const id = output.getAttribute(TRANSLATION_TARGET_ATTR);
+    if (id) {
+      const root = output.getRootNode() as Document | ShadowRoot;
+      const escaped = globalThis.CSS?.escape?.(id);
+      return escaped ? root.querySelector(`[${TARGET_ATTR}="${escaped}"]`)
+        : [...root.querySelectorAll(`[${TARGET_ATTR}]`)].find(element => element.getAttribute(TARGET_ATTR) === id) ?? null;
+    }
+    start = composedParent(output);
+  }
   if (start?.closest(CODE_SELECTOR) && !isInlineCodeInReadableText(start)) {
     return findCodeCommentBlock(start);
   }
@@ -809,7 +847,7 @@ export function ensureTranslationTarget(element: Element): string {
 const NON_BLANK_TEXT = /\S/;
 
 function collectTextSegmentsFromRoot(
-  root: Element,
+  root: Element | ShadowRoot,
   translateCodeComments: boolean,
   directTextOnly = false
 ): TextSegment[] {
@@ -827,15 +865,15 @@ function collectTextSegmentsFromRoot(
   // descends into its children, so rich paragraphs cannot straddle scan chunks.
   prepareLineBreakParagraphs(root, directTextOnly);
   if (!directTextOnly) {
-    prepareLegacyScientificParagraphs(root);
+    if (root instanceof Element) prepareLegacyScientificParagraphs(root);
     splitAuthoredLineBreakTextNodes(root, POST_TEXT_SELECTOR);
     splitAuthoredLineBreakTextNodes(root, YOUTUBE_DESCRIPTION_SELECTOR, true);
   }
   const alreadyTracked = new Set(trackedNodes.map((tracked) => tracked.node));
-  const visibility = createRenderVisibilitySnapshot();
+  const visibility = createRenderVisibilitySnapshot(noteOccluders);
   const acceptsText = (text: Text): boolean => {
     if (!NON_BLANK_TEXT.test(text.data) || alreadyTracked.has(text)) return false;
-    const parent = text.parentElement;
+    const parent = textContainer(text);
     if (!parent || shouldSkipElement(parent, true, visibility) || isStructuredListMetadata(parent)) return false;
     if (!visibility.isTextNodeVisuallyRendered(text)) {
       noteHiddenScanCandidate(parent);
@@ -858,6 +896,7 @@ function collectTextSegmentsFromRoot(
   const segments: TextSegment[] = [];
   const textNodes: TrackedNode[] = [];
   for (const node of candidates) {
+    const parent = textContainer(node)!;
     const codeComment = translateCodeComments ? getCodeComment(node) : null;
     if (isInsideCodeBlock(node.parentElement) && !codeComment) continue;
     const text = normalizeText(node.textContent ?? "");
@@ -873,13 +912,13 @@ function collectTextSegmentsFromRoot(
       node,
       mode: codeComment ? "code-comment" : getRenderMode(node.parentElement),
       sourceValue: node.data,
-      sourceParent: node.parentElement!,
+      sourceParent: parent,
       sourcePath: translationNodePath(node),
       commentPrefix: codeComment?.prefix
     };
     trackTextNodes(tracked);
     textNodes.push(tracked);
-    segments.push({ id, text: sourceText, element: node.parentElement! });
+    segments.push({ id, text: sourceText, element: parent, anchor: node });
   }
 
   const groupedSegments = groupTextSegments(textNodes, segments, visibility);
@@ -1002,7 +1041,7 @@ export function renderTranslations(
   for (const tracked of trackedNodes) {
     if (trackedGroups.some((group) => group.nodes.includes(tracked))) continue;
     const translation = translationById.get(tracked.id);
-    const parent = tracked.node.parentElement;
+    const parent = textContainer(tracked.node);
     if (!translation || !parent || parent.closest(`.${TRANSLATION_CLASS}`)) continue;
 
     removePendingForId(tracked.id);
@@ -1124,7 +1163,7 @@ export function renderTranslationPlaceholders(segments: TextSegment[]): void {
   for (const tracked of trackedNodes) {
     if (!pendingIds.has(tracked.id)) continue;
     if (trackedGroups.some((group) => group.nodes.includes(tracked))) continue;
-    const parent = tracked.node.parentElement;
+    const parent = textContainer(tracked.node);
     if (!parent || parent.closest(`.${TRANSLATION_CLASS}`)) continue;
     insertPending(tracked.node, tracked.id, tracked.mode);
     parent.setAttribute(TRANSLATED_ATTR, "true");
@@ -1164,7 +1203,7 @@ export function hideTranslations(): void {
   // global stop must restore those rows too, before tracking can be discarded.
   for (const output of renderedById.values()) if (output instanceof Element) output.remove();
   const detached = new Set<Node>([
-    ...trackedNodes.map(tracked => tracked.sourceParent.getRootNode()),
+    ...trackedNodes.map(tracked => tracked.node.getRootNode()),
     ...trackedGroups.map(group => group.block.getRootNode()),
     ...trackedAttributes.map(tracked => tracked.element.getRootNode()),
     ...trackedImageTexts.map(tracked => tracked.image.getRootNode())
@@ -1215,12 +1254,12 @@ function pruneTranslationResults(): void {
 }
 
 function collectImageTextSegments(
-  root: Element,
+  root: Element | ShadowRoot,
   visibility: RenderVisibilitySnapshot
 ): TextSegment[] {
   const trackedImages = new Set(trackedImageTexts.map((tracked) => tracked.image));
   const candidates = [
-    ...(root.matches("img[alt]") ? [root] : []),
+    ...(root instanceof Element && root.matches("img[alt]") ? [root] : []),
     ...root.querySelectorAll("img[alt]")
   ];
   const segments: TextSegment[] = [];
@@ -1327,12 +1366,12 @@ function restoreImageTextSource(tracked: TrackedImageText): void {
 }
 
 function collectAttributeSegments(
-  root: Element,
+  root: Element | ShadowRoot,
   visibility: RenderVisibilitySnapshot
 ): TextSegment[] {
   const trackedElements = new Set(trackedAttributes.map((tracked) => tracked.element));
   const candidates = [
-    ...(root.matches("input[placeholder],textarea[placeholder]") ? [root] : []),
+    ...(root instanceof Element && root.matches("input[placeholder],textarea[placeholder]") ? [root] : []),
     ...root.querySelectorAll("input[placeholder],textarea[placeholder]")
   ];
   const segments: TextSegment[] = [];
@@ -1388,8 +1427,9 @@ function renderBoundTextReplacement(id: string, nodes: TrackedNode[], source: El
   const item = source.closest("[role='listitem']");
   const prepared = preparedIds.has(id) && (translationOwner(source) || isCompactControlText(source))
     && nodes.every(node => node.sourceParent === source);
+  const shadowText = nodes.length === 1 && nodes[0].node.parentNode instanceof ShadowRoot;
   if (protectedTokensById.has(id) || nodes.some(node => node.mode !== "inline")
-    || (!prepared && (!item?.localName.includes("-") || !isCompactNavigationText(source)))) return false;
+    || (!prepared && !shadowText && (!item?.localName.includes("-") || !isCompactNavigationText(source)))) return false;
   const first = nodes.find(node => node.sourceValue.trim());
   if (!first) return false;
   removeRenderedTranslation(id);
@@ -1407,7 +1447,7 @@ function isTranslationBindingCurrent(id: string, groups: Map<string, TrackedGrou
   if (inlinePlans.has(id) && !inlinePlans.get(id)!.isCurrent()) return false;
   const group = groups.get(id);
   const nodes = group?.nodes ?? standalone.get(id) ?? [];
-  if (nodes.some(entry => !entry.node.isConnected || entry.node.parentElement !== entry.sourceParent
+  if (nodes.some(entry => !entry.node.isConnected || textContainer(entry.node) !== entry.sourceParent
     || !sameTranslationNodePath(entry.node, entry.sourcePath)
     || translationOwner(entry.sourceParent) !== (entry.sourceOwner ?? null)
     || entry.node.data !== (entry.replaced ? entry.replacementValue ?? "" : entry.sourceValue)
@@ -1485,7 +1525,7 @@ function restoreReplacedSourcesIn(root: Element): void {
   }
   for (const tracked of trackedNodes) {
     if (!tracked.replaced) continue;
-    if (!all && (!tracked.node.parentElement || (tracked.node.parentElement !== root && !composedContains(root, tracked.node.parentElement)))) continue;
+    if (!all && !composedContains(root, tracked.node)) continue;
     if (tracked.node.data === (tracked.replacementValue ?? "")) tracked.node.data = tracked.sourceValue;
     tracked.replaced = false;
     tracked.replacementValue = undefined;
@@ -1512,7 +1552,8 @@ function findTargetTranslations(targetId: string): Element[] {
 function insertPending(anchor: Text, id: string, mode: RenderMode): void {
   removePendingForId(id);
   const pending = createPendingElement(id, mode);
-  if (anchor.parentElement) applyTranslationTextAppearance(pending, anchor.parentElement, "bilingual");
+  const parent = textContainer(anchor);
+  if (parent) applyTranslationTextAppearance(pending, parent, "bilingual");
   if (mode === "block" && anchor.parentElement?.matches(HEADING_SELECTOR)) insertBlockTranslation(anchor.parentElement, pending);
   else anchor.after(pending);
 }
@@ -1780,9 +1821,9 @@ interface PostParagraphGroup {
 // Description runs contain literal newlines, with links in separate siblings.
 // Track each authored line so providers cannot flatten the description and so
 // translations stay beside their source rather than at the end of the host.
-function splitAuthoredLineBreakTextNodes(root: Element, selector: string, skipLinks = false): void {
+function splitAuthoredLineBreakTextNodes(root: Element | ShadowRoot, selector: string, skipLinks = false): void {
   const descriptions = [
-    ...(root.matches(selector) ? [root] : []),
+    ...(root instanceof Element && root.matches(selector) ? [root] : []),
     ...root.querySelectorAll(selector)
   ];
   for (const description of descriptions) {

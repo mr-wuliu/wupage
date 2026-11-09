@@ -13,6 +13,7 @@ const target = browserTarget();
 const output = path.join(root, '.npm-cache/resilience', target.kind);
 const calls = [], checks = [];
 let behavior = 'normal', bodyCancelled = false;
+let slowResponse = Promise.resolve(), releaseSlow = () => {};
 const fixture = `<!doctype html><html><head><meta charset="utf-8"><title>Resilience regression</title>
   <style>body{font:16px/1.5 sans-serif;margin:20px}main{max-width:680px}button{min-height:32px}pre{white-space:pre-wrap}</style>
   </head><body><main><p id="prose">Install <span translate="no">PrivateProduct</span> before continuing.</p>
@@ -28,12 +29,48 @@ const server = createServer(async (request, response) => {
     if (request.method !== 'POST') {
       const headers = { 'content-type': 'text/html; charset=utf-8' };
       if (request.url === '/trusted-types') headers['Content-Security-Policy'] = "script-src 'nonce-resilience-fixture'; require-trusted-types-for 'script'; trusted-types 'none'";
+      if (request.url === '/rejected-input') {
+        response.writeHead(200, headers).end('<!doctype html><main><p>Only this fixture paragraph is rejected by the service.</p></main>');
+        return;
+      }
+      if (request.url === '/automatic-component') {
+        response.writeHead(200, headers).end(`<!doctype html><main><div id="component"></div></main>
+          <script>document.querySelector('#component').attachShadow({mode:'open'});</script>`);
+        return;
+      }
+      if (request.url === '/visible-layouts') {
+        response.writeHead(200, headers).end(`<!doctype html><main>
+          <div id="boxless" style="display:contents">Visible prose without an element box.</div>
+          <section style="visibility:hidden"><p id="override" style="visibility:visible">Visible prose with a visibility override.</p></section>
+          <div id="bare"></div>
+          <iframe title="Embedded prose" srcdoc='<div style="display:contents">Visible boxless prose inside a frame.</div>'></iframe>
+          </main><div style="position:fixed;inset:0;z-index:100;background:transparent"></div>
+          <script>window.fixtureText=document.createTextNode('Visible prose directly inside a shadow root.');
+          document.querySelector('#bare').attachShadow({mode:'open'}).append(window.fixtureText);</script>`);
+        return;
+      }
+      if (request.url === '/selectable-translation') {
+        response.writeHead(200, headers).end(`<!doctype html><meta charset="utf-8">
+          <style>body{font:20px/1.6 sans-serif;margin:24px}main{max-width:680px}
+          #restricted{-webkit-user-select:none;user-select:none}</style>
+          <main><p id="plain">These selectable words are in a complete sentence.</p>
+          <p id="restricted">Read the selectable words in this paragraph too.</p>
+          <p id="rich">Keep <strong>selectable formatting</strong> around the <a href="#destination">original link</a> in a longer sentence.</p>
+          <button id="native">Continue reading</button></main>
+          <script>const button=document.querySelector('#native');button.addEventListener('click',event=>{
+          if(event.target===button)button.dataset.clicked='true';});</script>`);
+        return;
+      }
       response.writeHead(200, headers).end(fixture); return;
     }
     let body = ''; for await (const part of request) body += part;
     const data = JSON.parse(JSON.parse(body).messages.at(-1).content);
     calls.push(data);
     if (behavior === 'limited') { response.writeHead(429, { 'Retry-After': '3600' }).end('Local test rate limit'); return; }
+    if (data.texts.some(text => text.includes('Only this fixture paragraph is rejected'))) {
+      response.writeHead(413).end('Rejected fixture input'); return;
+    }
+    if (behavior === 'slow') await slowResponse;
     response.writeHead(200, { 'content-type': 'application/json' });
     if (behavior === 'stalled') {
       response.flushHeaders(); response.write('{"choices":[');
@@ -57,8 +94,8 @@ try {
     const response = await browser.api('return chrome.runtime.sendMessage(input[0]);', [request]);
     assert.equal(response?.ok, true, JSON.stringify(response)); return response.data;
   };
-  const send = async request => {
-    const response = await browser.api('const tab=(await chrome.tabs.query({})).find(t=>t.url===input[0]);return chrome.tabs.sendMessage(tab.id,input[1],{frameId:0});', [currentUrl, request]);
+  const send = async (request, url = currentUrl) => {
+    const response = await browser.api('const tab=(await chrome.tabs.query({})).find(t=>t.url===input[0]);return chrome.tabs.sendMessage(tab.id,input[1],{frameId:0});', [url, request]);
     assert.equal(response?.ok, true, JSON.stringify(response)); return response.data;
   };
   const settings = await runtime({ type: 'GET_SETTINGS' });
@@ -180,8 +217,112 @@ try {
   behavior = 'normal'; await send({ type: 'TRANSLATE_PAGE' });
   await waitFor(inspect, value => value.translations >= 4, 'queue usable after body cancellation');
   checks.push('stalled response body cancelled; translation queue recovers');
+
+  settings.translationDisplayMode = 'bilingual';
+  await runtime({ type: 'SAVE_SETTINGS', settings });
+  await open('visible-layouts');
+  await send({ type: 'TRANSLATE_PAGE' });
+  await waitFor(() => browser.evaluate(`return {
+    boxless:document.querySelector('#boxless')?.textContent.includes('译文：'),
+    override:document.querySelector('#override')?.textContent.includes('译文：'),
+    shadow:(window.wrappedJSObject||window).fixtureText.nextSibling?.textContent.includes('译文：'),
+    frame:document.querySelector('iframe')?.contentDocument?.body?.textContent.includes('译文：')
+  };`), value => Object.values(value).every(Boolean), 'translation of visible layouts in the document, component and frame');
+  await send({ type: 'CLEAR_TRANSLATION' });
+  assert.equal(await browser.evaluate(`const source=(window.wrappedJSObject||window).fixtureText;
+    return source.getRootNode()===source.ownerDocument.querySelector('#bare').shadowRoot
+      && source.data==='Visible prose directly inside a shadow root.';`), true);
+  checks.push('transparent pointer layer, visibility override, boxless text including a frame, and bare shadow text');
+
+  await open('opaque-occlusion');
+  await browser.evaluate(`document.querySelector('main').innerHTML='<p>Only revealed after the dialog closes.</p>';
+    const holder=document.createElement('div'); holder.id='dialog-holder';
+    holder.innerHTML='<div style="position:fixed;inset:0;z-index:100;background:white"></div>';document.body.append(holder);`);
+  const beforeOverlay = calls.length;
+  await send({ type: 'TRANSLATE_PAGE' });
+  assert.equal(calls.length, beforeOverlay, 'opaque dialog still prevents covered text from being sent');
+  await browser.evaluate('document.querySelector("#dialog-holder").replaceChildren();');
+  await waitFor(inspect, value => value.text?.includes('译文：Only revealed'), 'revealed text translated without scrolling or resizing');
+  checks.push('removal of an opaque overlay wakes covered text in another subtree');
+
+  await open('healthy-tab');
+  await send({ type: 'TRANSLATE_PAGE' });
+  await waitFor(inspect, value => value.translations >= 4, 'healthy tab translating');
+  const rejectedUrl = origin + '/rejected-input';
+  const rejectedId = await browser.api('return (await chrome.tabs.create({url:input[0],active:false})).id;', [rejectedUrl]);
+  await waitFor(() => send({ type: 'GET_TRANSLATION_STATE' }, rejectedUrl).catch(() => null), Boolean, 'second tab ready');
+  const rejected = await send({ type: 'TRANSLATE_PAGE' }, rejectedUrl);
+  assert.equal(rejected.errorCode, 'input-too-long');
+  await browser.evaluate('document.querySelector("main").insertAdjacentHTML("beforeend","<p>New valid text in the healthy tab.</p>");');
+  await waitFor(inspect, value => value.text?.includes('译文：New valid text'), 'healthy tab continues after the other input fails');
+  await browser.api('await chrome.tabs.remove(input[0]);', [rejectedId]);
+  checks.push('request rejection stays local to the affected batch');
+
+  behavior = 'slow'; slowResponse = new Promise(resolve => { releaseSlow = resolve; });
+  await open('slow-response');
+  const progress = await send({ type: 'TRANSLATE_PAGE' });
+  assert.ok(progress.pending > 0 && !progress.error, JSON.stringify(progress));
+  assert.equal(await browser.evaluate('return getComputedStyle(document.querySelector(".wupage-translation-pending")).pointerEvents;'), 'none');
+  releaseSlow(); behavior = 'normal';
+  await waitFor(() => send({ type: 'GET_TRANSLATION_STATE', includeProgress: true }),
+    result => result.progress?.translated > 0 && !result.progress.pending && !result.progress.error, 'completed slow request');
+  checks.push('slow translation returns progress and later reports completion');
+
+  async function selectText(selector, phrase) {
+    const bounds = await browser.evaluate(`const element=document.querySelector(${JSON.stringify(selector)});
+      const phrase=${JSON.stringify(phrase)};
+      window.getSelection().removeAllRanges();
+      const walker=document.createTreeWalker(element,NodeFilter.SHOW_TEXT);
+      let node;while(walker.nextNode())if(walker.currentNode.data.includes(phrase)){node=walker.currentNode;break;}
+      const start=node.data.indexOf(phrase),range=document.createRange();
+      const edge=(offset,fraction)=>{range.setStart(node,offset);range.setEnd(node,offset+1);
+        const rect=range.getBoundingClientRect();return {x:rect.left+rect.width*fraction,y:rect.top+rect.height/2};};
+      return [edge(start,0.15),edge(start+phrase.length-1,0.85)];`);
+    await browser.pointer([{ type: 'move', ...bounds[0] }, { type: 'down' }, { type: 'move', ...bounds[1] }, { type: 'up' }]);
+    assert.deepEqual(await browser.evaluate(`const element=document.querySelector(${JSON.stringify(selector)}),selection=window.getSelection();
+      return {text:selection.toString(),inside:element.contains(selection.anchorNode)&&element.contains(selection.focusNode)};`),
+      { text: phrase, inside: true }, selector);
+  }
+  for (const mode of ['replace', 'bilingual', 'bilingual-accent']) {
+    settings.translationDisplayMode = mode; await runtime({ type: 'SAVE_SETTINGS', settings });
+    await open('selectable-translation');
+    const original = await browser.evaluate('return document.querySelector("main").innerHTML;');
+    await send({ type: 'TRANSLATE_PAGE' });
+    const plain = '#plain .wupage-translation:not(.wupage-translation-pending)';
+    await waitFor(() => browser.evaluate(`return Boolean(document.querySelector(${JSON.stringify(plain)}));`), Boolean, 'plain translation');
+    assert.equal(await browser.evaluate(`return getComputedStyle(document.querySelector(${JSON.stringify(plain)})).pointerEvents;`), 'auto');
+    await selectText(plain, 'selectable words');
+    await selectText('#restricted .wupage-translation:not(.wupage-translation-pending)', 'selectable words');
+    await selectText(mode === 'replace' ? '#rich strong' : '#rich + .wupage-translation strong', 'selectable formatting');
+    if (mode !== 'replace') {
+      await selectText('#rich + .wupage-translation a', 'original link');
+      const click = async selector => {
+        const point = await browser.evaluate(`const rect=document.querySelector(${JSON.stringify(selector)}).getBoundingClientRect();
+          return {x:rect.left+rect.width/2,y:rect.top+rect.height/2};`);
+        await browser.pointer([{ type: 'move', ...point }, { type: 'down' }, { type: 'up' }]);
+      };
+      await click('#native .wupage-translation');
+      assert.equal(await browser.evaluate('return document.querySelector("#native").dataset.clicked;'), 'true');
+      await click('#rich + .wupage-translation a');
+      assert.equal(await browser.evaluate('return location.hash;'), '', 'the presentation copy must not navigate');
+      await browser.evaluate('delete document.querySelector("#native").dataset.clicked;');
+    }
+    await send({ type: 'CLEAR_TRANSLATION' });
+    assert.equal(await browser.evaluate('return document.querySelector("main").innerHTML;'), original);
+    checks.push(`${mode}: native drag selects prose and formatted text while preserving controls and original markup`);
+  }
+
+  settings.autoTranslation = { enabled: true, nonTargetLanguage: false, presetSites: [],
+    customSites: [{ id: 'component', pattern: origin + '/automatic-component', enabled: true }] };
+  await runtime({ type: 'SAVE_SETTINGS', settings });
+  await open('automatic-component'); await delay(550);
+  await browser.evaluate('document.querySelector("#component").shadowRoot.append(document.createTextNode("Foreign prose loaded inside a component."));');
+  await waitFor(() => browser.evaluate('return document.querySelector("#component").shadowRoot.querySelector(".wupage-translation:not(.wupage-translation-pending)")?.textContent;'),
+    value => value?.includes('译文：Foreign prose'), 'automatic translation samples newly populated shadow content');
+  checks.push('automatic translation discovers content loaded inside a shadow tree');
+
   await fs.writeFile(path.join(output, 'report.json'), JSON.stringify({ ...identity, checks, requests: calls.length }, null, 2));
   console.log(JSON.stringify({ ...identity, checks, output }, null, 2));
 } finally {
-  await browser?.close(); server.closeAllConnections(); await new Promise(resolve => server.close(resolve));
+  releaseSlow(); await browser?.close(); server.closeAllConnections(); await new Promise(resolve => server.close(resolve));
 }

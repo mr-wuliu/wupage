@@ -149,11 +149,21 @@ describe("popup translation interactions", () => {
     await vi.waitFor(() => expect(document.querySelector("#status")?.textContent).toBe("当前区域暂无可翻译内容，滚动页面将继续翻译。"));
   });
 
-  it("reports a running batch instead of claiming zero completed segments", async () => {
-    translate.mockResolvedValue({ translated: 0, cached: 0, pending: 2 });
+  it("reports a running batch and follows its eventual result", async () => {
+    const running = { active: true, translated: 0, cached: 0, failed: 0, remaining: 0, pending: 2 };
+    translate.mockResolvedValue(running);
+    let progress = running;
+    vi.mocked(chrome.tabs.sendMessage).mockImplementation(async (_tab, message) => {
+      const request = message as RuntimeRequest;
+      if (request.type === "GET_TRANSLATION_STATE") return { ok: true, data: { translated: true, progress } };
+      if (request.type === "TRANSLATE_PAGE") return { ok: true, data: await translate() };
+      return { ok: true };
+    });
     button().click();
     await vi.waitFor(() => expect(document.querySelector("#status")?.textContent).toContain("正在翻译当前区域"));
     expect(button().textContent).toBe("显示全文");
+    progress = { ...running, pending: 0, translated: 2 };
+    await vi.waitFor(() => expect(document.querySelector("#status")?.textContent).toContain("已翻译 2 段"));
   });
 
   it("does not let a cancelled action's delayed state read overwrite a newer restore", async () => {

@@ -60,7 +60,7 @@ export class DeepLProvider implements TranslatorProvider {
           : response.status === 456 ? t("deepLQuotaExceeded")
           : response.status === 400 ? t("deepLInvalidRequest")
           : t("httpRequestFailed", response.status);
-        throw httpResponseError(response, message);
+        throw httpResponseError(response, message, response.status === 456 ? "service-rejected" : undefined);
       }
       const payload = await readJsonResponse<{ translations?: { text?: unknown }[] }>(response, "DeepL", onUsage);
       const result = payload?.translations;

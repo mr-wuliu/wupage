@@ -3,6 +3,7 @@ import { sendRuntimeMessage, sendTabMessage } from "../shared/messaging";
 import { SOURCE_LANGUAGES, TARGET_LANGUAGES } from "../shared/languages";
 import { TRANSLATION_DISPLAY_MODES } from "../shared/display-modes";
 import type { ExtensionSettings } from "../shared/types";
+import type { DocumentTranslationState } from "../shared/frame-session";
 import "./styles.css";
 import "../shared/appearance.css";
 import { setupAppearance } from "../shared/appearance-runtime";
@@ -61,6 +62,7 @@ let paragraphModeAvailable = true;
 let paragraphModeError: string | undefined;
 let autoTranslationNotice: string | undefined;
 let pageTranslated = false;
+let followingPageProgress = false;
 let pageActionVersion = 0;
 let floatingBallEnabled = true;
 let activeTabIsPdf = false;
@@ -223,9 +225,13 @@ async function init(): Promise<void> {
       if (syncing || pageToggleButton.getAttribute("aria-busy") === "true") return;
       syncing = true;
       const version = pageActionVersion;
-      void sendTabMessage<{ translated: boolean }>(activeTab.id!, { type: "GET_TRANSLATION_STATE" }).then(result => {
+      void sendTabMessage<PageStatus>(activeTab.id!, { type: "GET_TRANSLATION_STATE", includeProgress: followingPageProgress }).then(result => {
         if (version !== pageActionVersion || pageToggleButton.getAttribute("aria-busy") === "true") return;
         if (pageTranslated !== result.translated) { pageTranslated = result.translated; updatePageToggleButton(); }
+        if (followingPageProgress && result.progress) {
+          if (result.progress.active) showPageTranslationStatus(result.progress);
+          else setStatus(t("originalTextRestored"));
+        }
       }).catch(() => {}).finally(() => { syncing = false; });
     }, 500) : undefined;
   window.addEventListener("pagehide", () => {
@@ -374,13 +380,7 @@ async function togglePageTranslation(): Promise<void> {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (version !== pageActionVersion) return;
     if (!tab.id) throw new Error(t("noActiveTab"));
-    const result = await sendTabMessage<{
-      translated?: number;
-      cached?: number;
-      failed?: number;
-      error?: string;
-      remaining?: number;
-      pending?: number;
+    const result = await sendTabMessage<Partial<DocumentTranslationState> & {
       cancelled?: boolean;
       cleared?: boolean;
     }>(
@@ -393,18 +393,7 @@ async function togglePageTranslation(): Promise<void> {
     } else if (result.cancelled) {
       setStatus(t("pageOrTranslationStateChangedTranslationCanceled"));
       await loadTranslationState();
-    } else {
-      const failed = result.failed ?? 0;
-      const success = result.remaining
-        ? result.translated ? t("paragraphsTranslatedInThisAreaScrollToContinue", result.translated) : t("noTextToTranslateInThisAreaScroll")
-        : result.translated ? t("paragraphsTranslatedCacheHits", result.translated, result.cached ?? 0) : t("noTranslatableTextInThisAreaNewContent");
-      setStatus(
-        failed > 0
-          ? t("paragraphsTranslatedFailed", result.translated ?? 0, failed, result.error ?? "")
-          : result.error ? t("translationIncomplete", result.error)
-            : result.pending ? t("translatingThisAreaNewContentWillBeTranslated") : success
-      );
-    }
+    } else showPageTranslationStatus(result);
   } catch (error) {
     if (version !== pageActionVersion) return;
     pageTranslated = previous;
@@ -449,8 +438,22 @@ function setPageToggleBusy(value: boolean, cancellable = false): void {
   pageToggleButton.setAttribute("aria-busy", String(value));
 }
 
-function setStatus(value: string): void {
-  status.textContent = value;
+function setStatus(value: string, followPage = false): void {
+  followingPageProgress = followPage;
+  if (status.textContent !== value) status.textContent = value;
+}
+
+function showPageTranslationStatus(result: Partial<DocumentTranslationState>): void {
+  const failed = result.failed ?? 0;
+  const success = result.remaining
+    ? result.translated ? t("paragraphsTranslatedInThisAreaScrollToContinue", result.translated) : t("noTextToTranslateInThisAreaScroll")
+    : result.translated ? t("paragraphsTranslatedCacheHits", result.translated, result.cached ?? 0) : t("noTranslatableTextInThisAreaNewContent");
+  setStatus(
+    failed > 0 ? t("paragraphsTranslatedFailed", result.translated ?? 0, failed, result.error ?? "")
+      : result.error ? t("translationIncomplete", result.error)
+        : result.pending ? t("translatingThisAreaNewContentWillBeTranslated") : success,
+    Boolean(result.pending)
+  );
 }
 
 function query<T extends Element>(selector: string): T {
@@ -492,17 +495,23 @@ async function loadParagraphMode(): Promise<void> {
   }
 }
 
+interface PageStatus {
+  translated: boolean;
+  progress?: DocumentTranslationState;
+}
+
 async function loadTranslationState(): Promise<void> {
   const version = pageActionVersion;
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (!tab.id) return;
-    const result = await sendTabMessage<{ translated: boolean }>(tab.id, {
-      type: "GET_TRANSLATION_STATE"
+    const result = await sendTabMessage<PageStatus>(tab.id, {
+      type: "GET_TRANSLATION_STATE", includeProgress: true
     });
     if (version !== pageActionVersion) return;
     pageTranslated = result.translated;
     updatePageToggleButton();
+    if (result.progress?.active && !status.textContent) showPageTranslationStatus(result.progress);
   } catch {
     if (version !== pageActionVersion) return;
     pageTranslated = false;

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { normalizeProtectedText, protectedTextTokens } from "../src/shared/protected-text";
-import { translateProtectedText } from "../src/background/protected-translation";
+import { translateTextWithRecovery } from "../src/background/protected-translation";
 import type { TranslateBatchRequest } from "../src/shared/types";
 
 describe("protected formula token normalization", () => {
@@ -26,7 +26,7 @@ describe("protected text translation recovery", () => {
     const translate = vi.fn(async (part: TranslateBatchRequest) => part.texts.map(text => text.includes("WUPAGE")
       ? "⟪WUPAGEOPEN0⟫⟪WUPAGEOPEN1⟫⟪WUPAGECLOSE1⟫⟪WUPAGECLOSE0⟫"
       : `译文：${text}`));
-    const [result] = await translateProtectedText({ ...request, texts: [source] }, translate);
+    const [result] = await translateTextWithRecovery({ ...request, texts: [source] }, translate);
     expect(normalizeProtectedText(source, result)).toBe(result);
     expect(result).toContain("⟪WUPAGEOPEN1⟫译文：complete⟪WUPAGECLOSE1⟫");
     expect(translate).toHaveBeenCalledTimes(3);
@@ -34,7 +34,7 @@ describe("protected text translation recovery", () => {
 
   it("normalizes harmless typography changes without additional provider calls", async () => {
     const translate = vi.fn(async () => ["设 《 wupage 0 》 为常数。"]);
-    await expect(translateProtectedText({ ...request, texts: ["Let ⟪WUPAGE0⟫ be fixed."] }, translate))
+    await expect(translateTextWithRecovery({ ...request, texts: ["Let ⟪WUPAGE0⟫ be fixed."] }, translate))
       .resolves.toEqual(["设 ⟪WUPAGE0⟫ 为常数。"]);
     expect(translate).toHaveBeenCalledTimes(1);
   });
@@ -43,7 +43,7 @@ describe("protected text translation recovery", () => {
     const translate = vi.fn()
       .mockResolvedValueOnce(["完好的 ⟪WUPAGE0⟫。", "标记丢失"])
       .mockResolvedValueOnce(["恢复的 ⟪WUPAGE1⟫。"]);
-    await expect(translateProtectedText({ ...request, texts: ["Good ⟪WUPAGE0⟫.", "Bad ⟪WUPAGE1⟫."] }, translate))
+    await expect(translateTextWithRecovery({ ...request, texts: ["Good ⟪WUPAGE0⟫.", "Bad ⟪WUPAGE1⟫."] }, translate))
       .resolves.toEqual(["完好的 ⟪WUPAGE0⟫。", "恢复的 ⟪WUPAGE1⟫。"]);
     expect(translate).toHaveBeenCalledTimes(2);
     expect(translate.mock.calls[1][0].texts).toEqual(["Bad ⟪WUPAGE1⟫."]);
@@ -60,7 +60,7 @@ describe("protected text translation recovery", () => {
       return ["设", "为常数且", "为正数。"];
     });
     const source = "Let ⟪WUPAGE20⟫ be fixed and ⟪WUPAGE21⟫ be positive.";
-    await expect(translateProtectedText({ ...request, texts: [source], context: "Definition using ⟪WUPAGE20⟫" }, translate))
+    await expect(translateTextWithRecovery({ ...request, texts: [source], context: "Definition using ⟪WUPAGE20⟫" }, translate))
       .resolves.toEqual(["设 ⟪WUPAGE20⟫ 为常数且 ⟪WUPAGE21⟫ 为正数。"]);
     expect(seen).toHaveLength(3);
   });
@@ -74,7 +74,7 @@ describe("protected text translation recovery", () => {
       .mockResolvedValueOnce(["大于"])
       .mockResolvedValueOnce(["成立。"]);
     const source = "Let ⟪WUPAGE0⟫ exceed ⟪WUPAGE1⟫ as required.";
-    const [result] = await translateProtectedText({ ...request, texts: [source] }, translate);
+    const [result] = await translateTextWithRecovery({ ...request, texts: [source] }, translate);
     expect(result).toBe("设 ⟪WUPAGE0⟫ 大于 ⟪WUPAGE1⟫ 成立。");
     expect(protectedTextTokens(result)).toEqual(protectedTextTokens(source));
     expect(translate).toHaveBeenCalledTimes(6);
@@ -85,14 +85,14 @@ describe("protected text translation recovery", () => {
     const translate = vi.fn(async (part: TranslateBatchRequest) => part.texts.some((text) => text.includes("WUPAGE"))
       ? part.texts.map(() => "丢失标记")
       : part.texts.map(() => "译文"));
-    const [result] = await translateProtectedText({ ...request, texts: [source] }, translate);
+    const [result] = await translateTextWithRecovery({ ...request, texts: [source] }, translate);
     expect(protectedTextTokens(result)).toEqual(protectedTextTokens(source));
     expect(translate.mock.calls.slice(2).map(([part]) => part.texts.length)).toEqual([16, 16, 4]);
   });
 
   it("does not retry authentication or network failures as prose fragments", async () => {
     const translate = vi.fn().mockResolvedValueOnce(["丢失标记"]).mockRejectedValueOnce(new Error("LLM request failed: 403"));
-    await expect(translateProtectedText({ ...request, texts: ["Let ⟪WUPAGE0⟫ be fixed."] }, translate))
+    await expect(translateTextWithRecovery({ ...request, texts: ["Let ⟪WUPAGE0⟫ be fixed."] }, translate))
       .rejects.toThrow("403");
     expect(translate).toHaveBeenCalledTimes(2);
   });

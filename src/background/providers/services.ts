@@ -135,6 +135,10 @@ export class CloudTranslationProvider implements TranslatorProvider {
   constructor(private readonly config: DualServiceProviderConfig) {}
   get id(): string { return this.config.id; }
   get label(): string { return this.config.label; }
+  get maxTextLength(): number | undefined {
+    if (this.config.type === "volcengine-web-translate") return 5000;
+    if (this.config.type === "yandex-web-translate") return 10000;
+  }
 
   validateConfig(): ValidationResult {
     const api = translationApiOptions(this.config);
@@ -171,7 +175,7 @@ export class CloudTranslationProvider implements TranslatorProvider {
       });
     }
     const result: string[] = [];
-    const limit = this.config.type === "volcengine-web-translate" ? 5000 : 10000;
+    const limit = this.maxTextLength ?? Number.POSITIVE_INFINITY;
     // Respect both the item count and character limit of the official batch endpoints.
     for (let cursor = 0; cursor < request.texts.length;) {
       const texts: string[] = []; let length = 0;
