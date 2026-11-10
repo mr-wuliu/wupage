@@ -4,7 +4,7 @@ import { assertTranslationResponse, TranslationResponseError } from "./translati
 import { splitTranslationText } from "./text-segmentation";
 
 type Translate = (request: TranslateBatchRequest) => Promise<string[]>;
-const MARKER = /^⟪WUPAGE(?:OPEN|CLOSE)?\d+⟫$/u;
+const MARKER = /^⟪WUPAGE(?:OPEN|CLOSE|BREAK)?\d+⟫$/u;
 
 export async function translateTextWithRecovery(
   request: TranslateBatchRequest, translate: Translate, maxChars = Number.POSITIVE_INFINITY
@@ -35,7 +35,7 @@ async function translateProseFragments(
   source: string, request: TranslateBatchRequest, translate: Translate, maxChars: number
 ): Promise<string> {
   const protect = request.preservePlaceholders === true;
-  const fragments = protect ? source.split(/(⟪WUPAGE(?:OPEN|CLOSE)?\d+⟫)/gu) : [source];
+  const fragments = protect ? source.split(/(⟪WUPAGE(?:OPEN|CLOSE|BREAK)?\d+⟫)/gu) : [source];
   const parts = fragments.flatMap(part => {
     if (protect && MARKER.test(part)) return [part];
     const chunks = splitTranslationText(part, maxChars);
@@ -43,7 +43,8 @@ async function translateProseFragments(
     return chunks;
   });
   const indexes = parts.flatMap((part, index) => (protect && MARKER.test(part)) || !/\p{L}/u.test(part) ? [] : [index]);
-  const redact = (text: string) => text.replace(/⟪WUPAGE(?:OPEN|CLOSE)?\d+⟫/gu, "[protected content]");
+  const redact = (text: string) => text.replace(/⟪WUPAGE(?:OPEN|CLOSE|BREAK)?\d+⟫/gu, token =>
+    token.startsWith("⟪WUPAGEBREAK") ? "\n" : "[protected content]");
   const context = protect
     ? [request.context && redact(request.context), source.length <= maxChars && `Source paragraph (protected content withheld): ${redact(source)}`]
       .filter(Boolean).join("\n") || undefined

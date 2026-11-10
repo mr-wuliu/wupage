@@ -16,11 +16,35 @@ describe("protected formula token normalization", () => {
       expect(normalizeProtectedText(source, value)).toBeUndefined();
     }
   });
+
+  it("preserves the order and placement of line breaks, including a blank line", () => {
+    const source = "First line. ⟪WUPAGEBREAK0⟫ ⟪WUPAGEBREAK1⟫ Second line.";
+    expect(normalizeProtectedText(source, "第一行。\n《 WUPAGE BREAK 0 》《 WUPAGE BREAK 1 》第二行。"))
+      .toBe("第一行。 ⟪WUPAGEBREAK0⟫⟪WUPAGEBREAK1⟫第二行。");
+    for (const translation of [
+      "第一行。第二行。",
+      "第一行。⟪WUPAGEBREAK1⟫⟪WUPAGEBREAK0⟫第二行。",
+      "第一行。⟪WUPAGEBREAK0⟫第二行。⟪WUPAGEBREAK1⟫"
+    ]) expect(normalizeProtectedText(source, translation)).toBeUndefined();
+  });
 });
 
 const request: TranslateBatchRequest = { texts: [], targetLang: "zh-CN", preservePlaceholders: true };
 
 describe("protected text translation recovery", () => {
+  it("restores a dropped line break using both source lines as context", async () => {
+    const source = "From a ⟪WUPAGEBREAK0⟫ sketchboard";
+    const translate = vi.fn(async (part: TranslateBatchRequest) => {
+      if (part.texts.includes(source)) return ["来自一个草图板"];
+      expect(part.texts).toEqual(["From a", "sketchboard"]);
+      expect(part.context).toContain("From a \n sketchboard");
+      return ["来自一个", "草图板"];
+    });
+    await expect(translateTextWithRecovery({ ...request, texts: [source] }, translate))
+      .resolves.toEqual(["来自一个 ⟪WUPAGEBREAK0⟫ 草图板"]);
+    expect(translate).toHaveBeenCalledTimes(3);
+  });
+
   it("recovers missing, empty and incorrectly nested format scopes without losing their original structure", async () => {
     const source = "Read ⟪WUPAGEOPEN0⟫the ⟪WUPAGEOPEN1⟫complete⟪WUPAGECLOSE1⟫ guide⟪WUPAGECLOSE0⟫ now.";
     const translate = vi.fn(async (part: TranslateBatchRequest) => part.texts.map(text => text.includes("WUPAGE")

@@ -16,20 +16,25 @@ const calls = [], reports = [], checks = [];
 const fixture = `<!doctype html><html lang="en"><meta charset="utf-8"><title>Paragraph typography</title><style>
 body{margin:32px;font:16px/1.5 Arial;color:#183d36}main{max-width:1080px;margin:auto}
 h2{font:700 42px/1.25 Georgia}#hero{font-weight:400}#rich{font:italic 500 28px/1.4 Georgia;letter-spacing:.4px}
-#lines{font:600 24px/1.5 Georgia}#lines span{display:inline-block}#single{font-size:26px}
+#lines{font:600 24px/1.5 Georgia}#lines span{display:inline-block}#single{font-size:26px}#literal{white-space:pre-line}
 @media(max-width:750px){h2{font-size:30px}#rich{font-size:22px}#lines{font-size:20px}#single{font-size:19px}}
 </style><body><main><h2 id="hero" data-typography>A language empowering everyone<br>to build reliable and efficient software.</h2>
 <h2 id="simple" data-typography>Why choose this language?</h2>
 <p id="rich" data-typography>A complete <em>paragraph with emphasis</em> should keep its own typography.</p>
 <div><span id="lines" data-typography>First authored sentence with enough text.<br>Second authored sentence on its own line.<br></span></div>
+<div id="literal" data-typography>First authored line.\n\nSecond authored line after a blank line.</div>
 <p id="single" data-typography>A plain paragraph should have the same font size as its translation.</p>
 <h2 id="anchor" data-typography>Review <em>this heading</em><a class="anchor" href="#anchor">§</a></h2></main></body></html>`;
 const server = createServer(async (request, response) => {
   if (request.method !== 'POST') { response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }).end(fixture); return; }
   let raw = ''; for await (const part of request) raw += part;
   const { texts } = JSON.parse(raw); calls.push(...texts);
-  const translate = text => text.includes('A language empowering') ? '一门赋能所有人构建可靠且高效软件的语言。'
-    : text.replace(/(⟪WUPAGESEGMENT\d+⟫\n)/gu, '$1译文：').replace(/^([^⟪])/u, '译文：$1');
+  const translate = text => {
+    const hero = /^(?:[\s\S]*(⟪WUPAGESEGMENT\d+⟫\n))?A language empowering/u.exec(text);
+    if (hero) return (hero[1] ?? '') + (text.includes('⟪WUPAGEBREAK0⟫')
+      ? '一门赋能所有人的语言，⟪WUPAGEBREAK0⟫用来构建可靠而高效的软件。' : '一门赋能所有人构建可靠且高效软件的语言。');
+    return text.replace(/(⟪WUPAGESEGMENT\d+⟫\n)/gu, '$1译文：').replace(/^([^⟪])/u, '译文：$1');
+  };
   response.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ translations: texts.map(translate) }));
 });
 await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
@@ -63,7 +68,7 @@ try {
       const output=source.querySelector('.wupage-translation')||[...document.querySelectorAll('.wupage-translation')].find(e=>id&&e.getAttribute('data-wupage-translation-target')===id)||(inline?source:null);
       const read=e=>Object.fromEntries(props.map(p=>[p,getComputedStyle(e)[p]]));
       const anchor=source.querySelector('a.anchor');
-      return {id:source.id,source:read(source),output:output&&read(output),text:output?.textContent,
+      return {id:source.id,source:read(source),output:output&&read(output),text:output?.textContent,lineBreaks:output?.querySelectorAll('br').length,
         contained:output&&source.contains(output),mode:output===source?'replace':output?.dataset.wupageDisplayMode,
         anchorBeforeResult:!anchor||!output||output===source||output.dataset.wupageDisplayMode==='replace'||anchor.getBoundingClientRect().bottom<=output.getBoundingClientRect().top+1};});`);
   for (const live of process.argv.includes('--live') ? [false, true] : [false]) {
@@ -86,6 +91,9 @@ try {
       await browser.capture(`${baseline ? 'baseline-' : ''}${label}-1400-${mode}.png`);
       let measured = await inspect(); reports.push({ label, width: 1400, mode, rows: measured });
       if (baseline) continue;
+      if (!live) {
+        assert.deepEqual(['hero', 'lines', 'literal'].map(id => measured.find(row => row.id === id)?.lineBreaks), [1, 2, 2]);
+      }
       await delay(250);
       const count = calls.length;
       for (const width of [1400, 680]) {

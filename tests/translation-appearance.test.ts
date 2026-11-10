@@ -2,6 +2,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { clearTranslations, collectParagraphTextSegments, refreshTranslationColors, renderTranslations } from "../src/content/dom";
 import { mapTranslationTextColor } from "../src/shared/translation-colors";
+import { structuredTranslation } from "./helpers/structured-translation";
 
 afterEach(() => {
   clearTranslations();
@@ -16,7 +17,7 @@ describe("paragraph typography", () => {
       bottom: 80, right: 600, x: 0, y: 0, toJSON: () => ({}) });
     const source = document.querySelector<HTMLElement>("#source")!;
     const segments = collectParagraphTextSegments(source);
-    renderTranslations(segments.map(({ id }) => ({ id, text: "完整的段落译文应保留原文的字号。" })));
+    renderTranslations(segments.map(({ id, text }) => ({ id, text: structuredTranslation(text, "完整的段落译文应保留原文的字号。") })));
     return { source, output: document.querySelector<HTMLElement>(".wupage-translation")! };
   };
 

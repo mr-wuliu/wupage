@@ -11,7 +11,7 @@ import type { RenderVisibilitySnapshot } from "./visibility";
 import type { TranslationDisplayMode } from "../shared/types";
 import { readImageTextLayout } from "./image-text-layout";
 import { normalizeProtectedText } from "../shared/protected-text";
-import { isDivProseBlock, READABLE_ROOT_SELECTOR } from "./readable-content";
+import { isDivProseBlock, isUnmarkedProseBlock, READABLE_ROOT_SELECTOR } from "./readable-content";
 import {
   clearLineBreakParagraphs, isLineBreakParagraphMutation, LINE_BREAK_SOURCE_SELECTOR, prepareLineBreakParagraphs
 } from "./line-break-paragraphs";
@@ -27,8 +27,8 @@ import { componentShadowRoot, composedContains, composedParent, projectedSlot, q
 import { constrainTranslationOwner, translationOwner } from "./translation-boundaries";
 import { InlineTranslationPlan } from "./inline-translation";
 import { injectContentStyles } from "./styles";
-import { isSteamCommunity, isSteamContentCard, steamItemTitle, steamTextBlock } from "./steam-content";
-import { containsElementRuleBoundary, forcedTextRoot, isElementExcluded } from "./element-exclusions";
+import { isSteamContentCard, steamItemTitle, steamTextBlock } from "./steam-content";
+import { containsElementRuleBoundary, forcedTextRoot } from "./element-exclusions";
 
 interface TrackedNode {
   id: string;
@@ -88,9 +88,9 @@ type RenderMode = "block" | "inline" | "code-comment";
 interface ProtectedToken {
   marker: string;
   node: Element;
-  sourceNode: Element;
+  sourceNode: Element | Text;
   sourceHidden?: { hadClassAttribute: boolean };
-  sourceSignature: string;
+  sourceSignature?: string;
 }
 
 const TRANSLATION_CLASS = "wupage-translation";
@@ -396,7 +396,6 @@ function resolveDeferredBlockText(id: string): string {
     const { text, tokens } = getReadableBlockText(
       pending.block,
       createRenderVisibilitySnapshot(),
-      pending.accepted.size,
       pending.accepted
     );
     pending.text = text;
@@ -482,7 +481,8 @@ function scanTrackedTextRoots(
   const epoch = nodeTrackingEpoch;
   return scanTextRootsProgressive(roots, { ...options, observeChanges }, {
     isCurrent: () => epoch === nodeTrackingEpoch,
-    isParagraph: element => element.matches(PARAGRAPH_SELECTOR + ",[data-wupage-scientific-source]"),
+    isParagraph: element => element.matches(PARAGRAPH_SELECTOR + ",[data-wupage-scientific-source]")
+      || isDivProseBlock(element) || (element.matches("span") && isUnmarkedProseBlock(element)),
     collect: (root, directTextOnly) => collectTextSegmentsFromRoot(root, translateCodeComments, directTextOnly),
     clearHiddenCandidates: clearHiddenScanCandidates,
     invalidate: invalidateStaleSegments,
@@ -523,8 +523,7 @@ export function invalidateStaleSegments(changedRoots: Element[] = []): string[] 
   const stale = new Set<string>();
   for (const [id, plan] of inlinePlans) if (!plan.isCurrent()) stale.add(id);
   for (const [id, tokens] of protectedTokensById) {
-    if (tokens.some(token => !token.sourceNode.isConnected
-      || protectedSourceSignature(token.sourceNode, Boolean(token.sourceHidden)) !== token.sourceSignature)) stale.add(id);
+    if (tokens.some(token => !isProtectedSourceCurrent(token))) stale.add(id);
   }
   const recovered = recoverRewrittenReplacementSegments();
   // The host may move an intact source or add another control beside it. Its
@@ -783,8 +782,7 @@ export function findTranslatableParagraph(start: Element | null): Element | null
   while (current && current !== document.body) {
     if (!shouldSkipElement(current) && current.matches(PARAGRAPH_SELECTOR)) {
       const text = normalizeText(current.textContent ?? "");
-      if (forcedTextRoot(current) ? !isNonTranslatableFragment(text, true)
-        : text.length >= 2 && (isIssueMetadataValue(current) || !isLikelyUiToken(text, current))) return current;
+      if (!isNonTranslatableFragment(text, forcedTextRoot(current) !== null)) return current;
     }
     current = current.parentElement;
   }
@@ -913,11 +911,9 @@ function collectTextSegmentsFromRoot(
     const text = normalizeText(node.textContent ?? "");
     const sourceText = codeComment?.text ?? text;
     const forced = !codeComment && forcedTextRoot(parent) !== null;
-    if (!forced && sourceText.length < 2) continue;
-    if (!codeComment && isNonTranslatableFragment(sourceText, forced)) continue;
+    if (codeComment ? sourceText.length < 2 : isNonTranslatableFragment(sourceText, forced)) continue;
     if (node.parentElement?.closest(YOUTUBE_DESCRIPTION_SELECTOR)
       && /^https?:\/\/\S+$/i.test(sourceText)) continue;
-    if (!codeComment && !forced && isLikelyUiToken(sourceText, node.parentElement)) continue;
     const id = `seg-${Date.now()}-${segmentIdCounter++}`;
     const tracked: TrackedNode = {
       id,
@@ -945,9 +941,10 @@ function collectTextSegmentsFromRoot(
         readSourceText(segment.id);
         preparedIds.add(segment.id);
         const group = trackedGroups.find(entry => entry.id === segment.id);
-        if (group && !group.authoredLines
+        const tokens = protectedTokensById.get(segment.id);
+        if (group && !group.authoredLines && !tokens?.some(token => token.sourceNode instanceof Text)
           && !group.insertionBefore && !group.insertionAfter) {
-          const plan = InlineTranslationPlan.create(group.block, new Set(group.nodes.map(entry => entry.node)), protectedTokensById.get(segment.id));
+          const plan = InlineTranslationPlan.create(group.block, new Set(group.nodes.map(entry => entry.node)), tokens);
           if (plan) { inlinePlans.set(segment.id, plan); inlinePlansByBlock.set(group.block, { id: segment.id, plan }); }
         }
       }
@@ -1427,7 +1424,7 @@ function replaceTrackedSource(nodes: TrackedNode[], protectedTokenId?: string): 
   }
   if (!protectedTokenId) return;
   for (const token of protectedTokensById.get(protectedTokenId) ?? []) {
-    if (token.sourceNode.classList.contains(REPLACED_SOURCE_CLASS)) continue;
+    if (!(token.sourceNode instanceof Element) || token.sourceNode.classList.contains(REPLACED_SOURCE_CLASS)) continue;
     token.sourceHidden = { hadClassAttribute: token.sourceNode.hasAttribute("class") };
     token.sourceNode.classList.add(REPLACED_SOURCE_CLASS);
   }
@@ -1467,8 +1464,7 @@ function isTranslationBindingCurrent(id: string, groups: Map<string, TrackedGrou
   if (group && (!group.block.isConnected || nodes.some(entry => !group.block.contains(entry.node)))) return false;
   if (group?.insertionBefore && !group.block.contains(group.insertionBefore)) return false;
   if (group?.insertionAfter && !group.block.contains(group.insertionAfter)) return false;
-  if ((protectedTokensById.get(id) ?? []).some(token => !token.sourceNode.isConnected
-    || protectedSourceSignature(token.sourceNode, Boolean(token.sourceHidden)) !== token.sourceSignature)) return false;
+  if (protectedTokensById.get(id)?.some(token => !isProtectedSourceCurrent(token))) return false;
   const attribute = trackedAttributes.find(entry => entry.id === id);
   if (attribute && (!attribute.element.isConnected || isTranslationOptedOut(attribute.element)
     || !sameTranslationNodePath(attribute.element, attribute.sourcePath)
@@ -1511,7 +1507,7 @@ function restoreGroupedSource(group: TrackedGroup): void {
 }
 
 function restoreProtectedSource(token: ProtectedToken): void {
-  if (!token.sourceHidden) return;
+  if (!token.sourceHidden || !(token.sourceNode instanceof Element)) return;
   token.sourceNode.classList.remove(REPLACED_SOURCE_CLASS);
   if (!token.sourceHidden.hadClassAttribute && token.sourceNode.getAttribute("class") === "") {
     token.sourceNode.removeAttribute("class");
@@ -1745,27 +1741,32 @@ function groupTextSegments(
       continue;
     }
 
-    const nodeText = normalizeText(groupNodes.map((tracked) => tracked.node.textContent ?? "").join(" "));
     const id = groupNodes[0].id;
+    const sourceNodes = completeGroupedSourceNodes(block, groupNodes, visibility, trackedSourceNodes);
+    const accepted = new Set(sourceNodes.map((tracked) => tracked.node));
     // A block whose text lives in one node is cheap and decides its own grouping
     // from that text, so it is read now. Multi-node blocks are the expensive ones
     // and their text is only needed once the segment reaches a batch.
     const singleNodeBlock = groupNodes.length < 2;
     const readable = singleNodeBlock
-      ? getReadableBlockText(block, visibility, groupNodes.length)
+      ? getReadableBlockText(block, visibility, accepted)
       : undefined;
     if (
       singleNodeBlock &&
-      readable!.text === nodeText &&
+      readable!.text === normalizeText(groupNodes[0].node.data) &&
       !block.matches(LINE_BREAK_SOURCE_SELECTOR) &&
       !isLegacyScientificProseBlock(block) &&
       !block.matches(`summary, label, li, ${POST_TEXT_SELECTOR}, ${YOUTUBE_COMMENT_SELECTOR}`)
     ) continue;
     if (singleNodeBlock && !readable!.text) continue;
     const authoredLines = isAuthoredLineTextBlock(block);
-    const sourceNodes = completeGroupedSourceNodes(block, groupNodes, visibility, trackedSourceNodes);
+    const hasLineBreak = block.querySelector("br") || sourceNodes.some(({ node }) => hasPreservedLineBreak(node));
+    for (const extra of sourceNodes.slice(groupNodes.length)) {
+      trackTextNodes(extra);
+      trackedSourceNodes.add(extra.node);
+    }
     trackedGroups.push({
-      id, nodes: sourceNodes, block, mode: authoredLines ? "block" : getRenderMode(block), authoredLines,
+      id, nodes: sourceNodes, block, mode: authoredLines || hasLineBreak ? "block" : getRenderMode(block), authoredLines,
       preserveWhitespace: block.matches(YOUTUBE_COMMENT_SELECTOR)
     });
     if (singleNodeBlock) {
@@ -1774,7 +1775,7 @@ function groupTextSegments(
     } else {
       // Every accepted node is non-blank, so a multi-node block always resolves
       // to a non-empty text and needs no empty-text fallback here.
-      deferredBlockTexts.set(id, { block, accepted: new Set(sourceNodes.map((tracked) => tracked.node)) });
+      deferredBlockTexts.set(id, { block, accepted });
       groupedSegments.push({
         id,
         element: block,
@@ -1809,15 +1810,17 @@ function completeGroupedSourceNodes(
     if (citation && isScientificCitation(citation)) continue;
     if (tracked.has(node) || !parent || findGroupingBlock(parent) !== block
       || hasSkippedAncestor(parent, "code,kbd,samp,button,input,textarea,select,option,[role='button']")
-      || shouldSkipElement(parent, true, visibility) || !visibility.isTextNodeVisuallyRendered(node)) continue;
+      || shouldSkipElement(parent, true, visibility)) continue;
+    // A separator can have no layout rectangle when its line wraps. Preserve
+    // its authored space so the two adjacent words still reach the same request.
+    if (NON_BLANK_TEXT.test(node.data) ? !visibility.isTextNodeVisuallyRendered(node)
+      : !visibility.isElementStyleVisible(parent)) continue;
     // Short words, punctuation and whitespace can be in the complete paragraph
     // even when they were unsuitable as standalone translation requests.
     const entry: TrackedNode = {
       id: nodes[0].id, node, mode: nodes[0].mode, sourceValue: node.data, sourceParent: parent,
       sourcePath: translationNodePath(node)
     };
-    trackTextNodes(entry);
-    tracked.add(node);
     complete.push(entry);
   }
   return complete;
@@ -2034,7 +2037,14 @@ function computeGroupingBlock(element: Element): Element | null {
   const div = element.closest("div");
   if (div && isDivProseBlock(div)) return constrainGroupingToLayoutSlot(element, div);
 
-  if (!listItem) return null;
+  if (!listItem) {
+    // An inline-only widget or comment may have no block wrapper of its own.
+    let prose: Element | null = null;
+    for (let span = element.closest("span"); span; span = span.parentElement?.closest("span") ?? null) {
+      if (isUnmarkedProseBlock(span)) prose = span;
+    }
+    return prose ?? (element !== document.body && hasDirectPreservedLineBreak(element) ? element : null);
+  }
   const slot = constrainGroupingToLayoutSlot(element, listItem);
   if (slot !== listItem) return slot;
   if (isStructuredListItem(listItem)) return null;
@@ -2266,7 +2276,7 @@ function isInlineCodeInReadableText(element: Element): boolean {
 }
 
 // Anything here changes what the plain text of a block means: code and math
-// become protected tokens, <br> becomes a space, and the rest are stripped from
+// and line breaks become protected tokens, and the rest are stripped from
 // the clone. A block carrying none of them can be read without cloning it.
 const PLAIN_TEXT_BLOCKER_SELECTOR = [
   IMMUTABLE_INLINE_SELECTOR,
@@ -2289,32 +2299,32 @@ const PLAIN_TEXT_BLOCKER_SELECTOR = [
  * text node already accepted for this very block (so nothing would be stripped
  * from the clone).
  */
-function canReadPlainBlockText(block: Element, acceptedNodes: number): boolean {
+function canReadPlainBlockText(block: Element, acceptedText: Set<Text>): boolean {
   if (block.querySelector(PLAIN_TEXT_BLOCKER_SELECTOR)) return false;
   for (const link of block.querySelectorAll("a[href]")) {
     if (isScientificCitation(link)) return false;
   }
-  let total = 0;
   const walker = block.ownerDocument.createTreeWalker(block, NodeFilter.SHOW_TEXT);
   while (walker.nextNode()) {
-    if (NON_BLANK_TEXT.test((walker.currentNode as Text).data)) total += 1;
+    const node = walker.currentNode as Text;
+    if (NON_BLANK_TEXT.test(node.data) && !acceptedText.has(node)) return false;
+    if (acceptedText.has(node) && hasPreservedLineBreak(node)) return false;
   }
-  return total === acceptedNodes;
+  return true;
 }
 
 function getReadableBlockText(
   block: Element,
   visibility: RenderVisibilitySnapshot,
-  acceptedNodes?: number,
-  acceptedText?: Set<Text>
+  acceptedText: Set<Text>
 ): { text: string; tokens: ProtectedToken[] } {
-  if (acceptedNodes !== undefined && canReadPlainBlockText(block, acceptedNodes)) {
+  if (canReadPlainBlockText(block, acceptedText)) {
     return { text: normalizeText(block.textContent ?? ""), tokens: [] };
   }
   const clone = block.cloneNode(true) as Element;
   // A clone has the same element order as its source, so candidates pair up by
   // index. Walking an ancestor path for every candidate was pure overhead.
-  const protectedSelector = `code,kbd,samp,.MATH,a[href],${IMMUTABLE_INLINE_SELECTOR}`;
+  const protectedSelector = `br,code,kbd,samp,.MATH,a[href],${IMMUTABLE_INLINE_SELECTOR}`;
   const sourceCandidates = Array.from(block.querySelectorAll(protectedSelector));
   const protectedCandidates = Array.from(clone.querySelectorAll(protectedSelector)).map((
     node,
@@ -2323,10 +2333,7 @@ function getReadableBlockText(
     element: node as Element,
     sourceElement: sourceCandidates[index] ?? null
   }));
-  removeUnrenderedCloneText(block, clone, visibility, acceptedText);
-  clone.querySelectorAll("br").forEach((node) => {
-    node.replaceWith(document.createTextNode(" "));
-  });
+  const textWithBreaks = prepareReadableCloneText(block, clone, acceptedText);
   clone
     .querySelectorAll(
       [
@@ -2354,9 +2361,30 @@ function getReadableBlockText(
     .forEach((node) => node.remove());
 
   const tokens: ProtectedToken[] = [];
+  const protectBreak = (sourceNode: Element | Text): string => {
+    const marker = `⟪WUPAGEBREAK${tokens.length}⟫`;
+    const node = sourceNode instanceof Element ? sourceNode.cloneNode(false) as Element : document.createElement("br");
+    // Keep author styling, including responsive break classes, on the copy.
+    node.removeAttribute("id");
+    node.removeAttribute("name");
+    for (const attribute of node.getAttributeNames()) if (attribute.startsWith("on")) node.removeAttribute(attribute);
+    tokens.push({ marker, node, sourceNode,
+      sourceSignature: sourceNode instanceof Element ? protectedSourceSignature(sourceNode) : undefined });
+    return ` ${marker} `;
+  };
   protectedCandidates.forEach(({ element, sourceElement }) => {
     if (!clone.contains(element)) return;
     if (!sourceElement) return;
+    if (sourceElement.matches("br")) {
+      const parent = sourceElement.parentElement;
+      // A stylesheet can hide this break at the current width. Keep it in
+      // the translation so widening the page can reveal both copies together.
+      if (parent && findGroupingBlock(parent) === block && !shouldSkipElement(sourceElement, true, visibility)
+        && visibility.isElementStyleVisible(parent)) {
+        element.replaceWith(document.createTextNode(protectBreak(sourceElement)));
+      } else element.remove();
+      return;
+    }
     const immutable = sourceElement.matches("math") || isTextTranslationOptedOut(sourceElement);
     if (!sourceElement.matches("code,kbd,samp") && !immutable
       && !isScientificMathImage(sourceElement) && !isScientificCitation(sourceElement)) return;
@@ -2376,11 +2404,30 @@ function getReadableBlockText(
     });
     element.replaceWith(document.createTextNode(` ${marker} `));
   });
+  for (const { source, copy } of textWithBreaks) {
+    if (clone.contains(copy)) copy.data = source.data.replace(/\r\n?|\n/gu, () => protectBreak(source));
+  }
 
   return {
     text: normalizeText(clone.textContent ?? ""),
     tokens
   };
+}
+
+function hasPreservedLineBreak(node: Text): boolean {
+  if (!/[\r\n]/u.test(node.data) || !node.parentElement) return false;
+  const style = window.getComputedStyle(node.parentElement);
+  return /^(?:pre|pre-wrap|pre-line|break-spaces)$/u.test(style.whiteSpace)
+    || /^(?:preserve|preserve-breaks|break-spaces)$/u.test(style.whiteSpaceCollapse);
+}
+
+function hasDirectPreservedLineBreak(element: Element): boolean {
+  return [...element.childNodes].some(node => node instanceof Text && hasPreservedLineBreak(node));
+}
+
+function isProtectedSourceCurrent(token: ProtectedToken): boolean {
+  return token.sourceNode.isConnected && (!(token.sourceNode instanceof Element)
+    || protectedSourceSignature(token.sourceNode, Boolean(token.sourceHidden)) === token.sourceSignature);
 }
 
 function protectedSourceSignature(element: Element, hiddenByExtension = false): string {
@@ -2396,34 +2443,27 @@ function protectedSourceSignature(element: Element, hiddenByExtension = false): 
   return JSON.stringify([normalizeText(element.textContent ?? ""), markup]);
 }
 
-function removeUnrenderedCloneText(
+function prepareReadableCloneText(
   source: Element,
   clone: Element,
-  visibility: RenderVisibilitySnapshot,
-  acceptedText?: Set<Text>
-): void {
+  acceptedText: Set<Text>
+): Array<{ source: Text; copy: Text }> {
   const sourceWalker = source.ownerDocument.createTreeWalker(source, NodeFilter.SHOW_TEXT);
   const cloneWalker = clone.ownerDocument.createTreeWalker(clone, NodeFilter.SHOW_TEXT);
   // Walk both trees in lockstep. Removed nodes are collected instead of deleted
   // in place: detaching the walker's current node strands it, and the rest of the
   // block would then keep text that was supposed to be dropped.
   const hidden: Text[] = [];
+  const withBreaks: Array<{ source: Text; copy: Text }> = [];
   while (sourceWalker.nextNode() && cloneWalker.nextNode()) {
-    const sourceText = sourceWalker.currentNode as Text;
-    // A deferred read replays the decision made during the scan, so a block read
-    // after the user scrolled still yields the same text.
-    const keep = acceptedText
-      ? acceptedText.has(sourceText)
-      : visibility.isTextNodeVisuallyRendered(sourceText);
-    // A descendant may belong to its own label, control or paragraph. Its
-    // text must never also appear in an ancestor's translation request.
-    const parent = sourceText.parentElement;
-    if (!keep || (parent && (isElementExcluded(parent) || isNonProseElement(parent)
-      || (forcedTextRoot(parent) && hasForcedTextSkipAncestor(parent)))) || findGroupingBlock(parent) !== source) {
-      hidden.push(cloneWalker.currentNode as Text);
-    }
+    const node = sourceWalker.currentNode as Text;
+    const copy = cloneWalker.currentNode as Text;
+    // Replay the exact source nodes accepted by the scan, even after scrolling.
+    if (!acceptedText.has(node)) hidden.push(copy);
+    else if (hasPreservedLineBreak(node)) withBreaks.push({ source: node, copy });
   }
   for (const node of hidden) node.remove();
+  return withBreaks;
 }
 
 function renderProtectedText(container: Element, id: string, text: string): void {
@@ -2571,31 +2611,6 @@ function isCompactUiElement(element: Element): boolean {
   return false;
 }
 
-function isLikelyUiToken(text: string, element: Element | null): boolean {
-  if (!element) return false;
-  if (element.closest(LINE_BREAK_SOURCE_SELECTOR)) return false;
-  if (translationOwner(element)) return false;
-  // Steam's generated div/link UI also carries short headings, filters and
-  // mod names. Keep these readable labels; normal content exclusions still apply.
-  if (isSteamCommunity(element)) return false;
-  if (legacyScientificProseBlock(element)) return false;
-  if (element.closest(YOUTUBE_DESCRIPTION_SELECTOR)) return false;
-  if (element.closest(YOUTUBE_COMMENT_SELECTOR)) return false;
-  if (isCompactNavigationText(element)) return false;
-  if (isCompactControlText(element)) return false;
-  if (text.length > 28) return false;
-  if (element.closest("p")) return false;
-  if (element.closest("figcaption,caption,dt,dd,th,td")) return false;
-  if (isReadableHeading(element)) return false;
-  const heading = element.closest(HEADING_SELECTOR);
-  if (heading && isReadableHeading(heading)) return false;
-  if (element.closest("article, main .markdown-body, .markdown-body")) return false;
-  if (element.closest("[role='main']")) return false;
-  if (/^[A-Z][A-Za-z]+(?:[-_/][A-Za-z0-9]+)+$/.test(text)) return true;
-  if (/^[A-Z][A-Za-z\s]{1,24}$/.test(text) && isCompactUiElement(element)) return true;
-  return false;
-}
-
 function isNonTranslatableFragment(text: string, forced = false): boolean {
   // Standalone counts/dates carry no language. Numbers inside prose are
   // recovered by completeGroupedSourceNodes and remain in that sentence.
@@ -2722,10 +2737,10 @@ function findCodeCommentBlock(start: Element): Element | null {
 function isTextBlockCandidate(element: Element): boolean {
   if (element === document.body || element.matches("main, article, section")) return false;
   const forced = forcedTextRoot(element);
-  if (!forced && element.matches("div") && !element.closest(".docblock, .methods, .impl-items")) return false;
+  if (!forced && element.matches("div") && !isDivProseBlock(element)
+    && !element.closest(".docblock, .methods, .impl-items") && !hasDirectPreservedLineBreak(element)) return false;
   const text = normalizeText(element.textContent ?? "");
-  if ((forced ? isNonTranslatableFragment(text, true) : text.length < 2) || text.length > 320) return false;
-  if (!forced && !isIssueMetadataValue(element) && isLikelyUiToken(text, element)) return false;
+  if (isNonTranslatableFragment(text, forced !== null) || text.length > 320) return false;
   if (element.querySelector("button,input,select,textarea,[role='button']")) return false;
   const rect = element.getBoundingClientRect();
   if (rect.width <= 0 || rect.height <= 0 || rect.height > 140) return false;
@@ -2733,10 +2748,6 @@ function isTextBlockCandidate(element: Element): boolean {
     normalizeText(child.textContent ?? "")
   );
   return childTextElements.length <= 2;
-}
-
-function isIssueMetadataValue(element: Element): boolean {
-  return element.matches("[class*='IssueMetadata-module__metadataValue__']");
 }
 
 function getCodeComment(node: Text): { text: string; prefix: string } | null {

@@ -1,4 +1,4 @@
-const ATOM = /⟪WUPAGE(?:OPEN|CLOSE)?\d+⟫|[\s\S]/gu;
+const ATOM = /⟪WUPAGE(?:OPEN|CLOSE|BREAK)?\d+⟫|[\s\S]/gu;
 const WHITESPACE = /^\s$/u;
 
 /** Keep exact source boundaries, preferring sentences and then whitespace. */
