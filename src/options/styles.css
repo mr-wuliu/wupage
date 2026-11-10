@@ -1151,7 +1151,8 @@ button[data-settings-feedback]:active {
 .exclusion-rule-remove { display: grid; place-items: center; min-height: 32px; width: 32px; padding: 0; color: var(--wp-muted, #526068); background: transparent; }
 .exclusion-rule-remove svg { width: 16px; height: 16px; }
 .exclusion-rule textarea { font: 13px/1.6 ui-monospace, monospace; resize: vertical; }
-.exclusion-rule input[aria-invalid="true"], .exclusion-rule textarea[aria-invalid="true"] { border-color: var(--wp-danger, #ad3737); }
+.exclusion-rule [aria-invalid="true"] { border-color: var(--wp-danger, #ad3737); }
+.region-rule-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .exclusion-rule-add { display: inline-flex; align-items: center; gap: 8px; justify-self: start; }
 .exclusion-rule-add svg { width: 16px; height: 16px; }
 #elementExclusionStatus:not(:empty) { color: var(--wp-danger, #ad3737); }

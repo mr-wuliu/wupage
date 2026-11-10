@@ -21,6 +21,7 @@ function fixture(): ExtensionSettings {
   Object.assign(settings.providers[0], { serviceMode: "api", api: { apiKey: "azure-key", endpoint: "https://api.example.com", region: "eastasia", secretAccessKey: "signing-key" } });
   settings.autoTranslation = { enabled: true, nonTargetLanguage: true, presetSites: ["github.com"], customSites: [{ id: "site-1", pattern: "*.example.com/docs/*", enabled: true }] };
   settings.elementExclusions = [{ id: "exclude-1", name: "菜单", pattern: "example.com", selectors: ["nav"], enabled: true }];
+  settings.elementInclusions = [{ id: "include-1", name: "设置弹窗", pattern: "example.com", selectors: [".settings-dialog"], enabled: true }];
   settings.appearance!.customSchemes = [{ ...structuredClone(BUILT_IN_SCHEMES[0]), id: "custom-backup", name: "自定义",
     opacities: { "floating-background": 45, "translation-dark": 0 } }];
   settings.appearance!.lightSchemeId = "custom-backup";
@@ -107,7 +108,7 @@ describe("settings backup format", () => {
     const restored = parseSettingsBackup(text).settings;
     expect(restored.providers.map(p => [p.id, p.label, "model" in p ? p.model : ""]))
       .toEqual(settings.providers.map(p => [p.id, p.label, "model" in p ? p.model : ""]));
-    for (const key of ["appearance", "autoTranslation", "shortcuts", "localShortcuts", "videoTranslation", "elementExclusions"] as const) {
+    for (const key of ["appearance", "autoTranslation", "shortcuts", "localShortcuts", "videoTranslation", "elementExclusions", "elementInclusions"] as const) {
       expect(restored[key]).toEqual(settings[key]);
     }
     expect(restored.providers.find(p => p.type === "deepseek")).toMatchObject({ apiKey: "", baseURL: "https://api.deepseek.com" });

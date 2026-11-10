@@ -10,19 +10,53 @@ import {
   invalidateStaleSegments,
   renderTranslations
 } from "../src/content/dom";
-import { configureElementExclusions, isElementExcluded } from "../src/content/element-exclusions";
+import { configureElementRules, isElementExcluded } from "../src/content/element-exclusions";
 import { buildTranslationContext } from "../src/content/translation-context";
 
 const rule = (selectors: string[], pattern = "x.com") => [{ id: "custom", name: "Custom", pattern, selectors, enabled: true }];
 beforeEach(() => {
-  history.replaceState(null, "", "/home"); configureElementExclusions(undefined);
+  history.replaceState(null, "", "/home"); configureElementRules({});
   document.body.innerHTML = `<header role="banner"><nav><a href="/home">Home</a><a href="/explore">Explore</a></nav>
     <button>Post</button></header><main><article><p id="post">Read this complete post before continuing.</p></article></main>
     <aside><p>Keep this unrelated sidebar readable.</p></aside>`;
   vi.spyOn(window, "getComputedStyle").mockReturnValue({ display: "block", visibility: "visible", opacity: "1" } as CSSStyleDeclaration);
   vi.spyOn(Element.prototype, "getBoundingClientRect").mockReturnValue(new DOMRect(0, 0, 600, 30));
 });
-afterEach(() => { clearTranslations(); configureElementExclusions(undefined); vi.restoreAllMocks(); document.body.replaceChildren(); });
+
+it("forces only visible text in a matching region and leaves inputs and exclusions untouched", async () => {
+  const main = document.querySelector("main")!;
+  main.innerHTML = `<aside role="dialog" translate="no" data-test="settings">
+    <h2><span>Media Downloader Settings</span></h2>
+    <label for="filename"><span>Filename Format</span></label>
+    <input id="filename" value="{userId}-{postId}">
+    <label>開</label><span>12345</span>
+    <button type="button">Export</button>
+    <p class="private notranslate">Private account name</p>
+    <p hidden>Hidden dialog copy</p>
+    <p contenteditable>Editable source value</p>
+    <div role="textbox">Custom editor value</div>
+    <pre>const internalValue = 2;</pre>
+  </aside><p translate="no">Outside dialog</p>`;
+  const dialog = main.querySelector("[role='dialog']")!;
+  const elementInclusions = rule(["[data-test='settings']"], "x.com/settings/*");
+  const elementExclusions = rule([".private", "header[role='banner']"]);
+  configureElementRules({ elementInclusions, elementExclusions });
+  expect(collectParagraphTextSegments(dialog)).toEqual([]);
+  history.replaceState(null, "", "/settings/media");
+  configureElementRules({ elementInclusions, elementExclusions });
+  const segments = await collectTextSegmentsProgressive();
+  expect(segments.map(segment => segment.requestText ?? segment.text).sort())
+    .toEqual(["Export", "Filename Format", "Keep this unrelated sidebar readable.", "Media Downloader Settings", "開"]);
+  renderTranslations(segments.map(segment => ({ id: segment.id, text: `译文：${segment.text}` })), "replace");
+  const input = main.querySelector("input")!;
+  expect(input.value).toBe("{userId}-{postId}");
+  expect(main.querySelector(".private")!.textContent).toBe("Private account name");
+  expect(dialog.querySelector("label")!.textContent).toContain("译文：Filename Format");
+  clearTranslations();
+  expect(dialog.querySelector("label")!.textContent).toBe("Filename Format");
+  expect(collectParagraphTextSegments(dialog.querySelector("label")!).map(segment => segment.text)).toEqual(["Filename Format"]);
+});
+afterEach(() => { clearTranslations(); configureElementRules({}); vi.restoreAllMocks(); document.body.replaceChildren(); });
 
 describe("configured element exclusions", () => {
   it.each(["bilingual", "bilingual-accent", "replace"] as const)("keeps the X navigation intact while translating posts in %s mode", async mode => {
@@ -36,22 +70,22 @@ describe("configured element exclusions", () => {
   });
 
   it("allows deleting or disabling the preset without excluding other regions", async () => {
-    configureElementExclusions([]);
+    configureElementRules({ elementExclusions: [] });
     expect((await collectTextSegmentsProgressive()).map(segment => segment.text)).toContain("Home");
   });
 
   it("scopes custom exclusions to the configured host and path", () => {
-    configureElementExclusions(rule(["#post"], "x.com/settings/*"));
+    configureElementRules({ elementExclusions: rule(["#post"], "x.com/settings/*") });
     expect(isElementExcluded(document.querySelector("#post")!)).toBe(false);
     history.replaceState(null, "", "/settings/privacy");
-    expect(configureElementExclusions(rule(["#post"], "x.com/settings/*"))).toBe(true);
+    expect(configureElementRules({ elementExclusions: rule(["#post"], "x.com/settings/*") })).toBe(true);
     expect(isElementExcluded(document.querySelector("#post")!)).toBe(true);
-    configureElementExclusions(rule(["#post"], "example.com"));
+    configureElementRules({ elementExclusions: rule(["#post"], "example.com") });
     expect(isElementExcluded(document.querySelector("#post")!)).toBe(false);
   });
 
   it("preserves an excluded inline subtree and keeps it out of source and context", async () => {
-    configureElementExclusions(rule([".private"]));
+    configureElementRules({ elementExclusions: rule([".private"]) });
     document.querySelector("main")!.innerHTML = '<p id="post">Read the article <span class="private" translate="yes"><b>Private account label</b></span> before continuing.</p>';
     const excluded = document.querySelector(".private")!, original = excluded.outerHTML;
     const segments = (await collectTextSegmentsProgressive());
@@ -64,7 +98,7 @@ describe("configured element exclusions", () => {
   });
 
   it("applies to future nodes and restores a source that becomes excluded", async () => {
-    configureElementExclusions(rule(["[data-region='ads']"]));
+    configureElementRules({ elementExclusions: rule(["[data-region='ads']"]) });
     const segments = (await collectTextSegmentsProgressive());
     renderTranslations(segments.map(segment => ({ id: segment.id, text: `译文：${segment.text}` })), "replace");
     const post = document.querySelector("#post")!; post.setAttribute("data-region", "ads");
@@ -77,7 +111,7 @@ describe("configured element exclusions", () => {
   });
 
   it("crosses open component boundaries and ignores invalid imported selectors", async () => {
-    configureElementExclusions(rule([".private", "[invalid"]));
+    configureElementRules({ elementExclusions: rule([".private", "[invalid"]) });
     const host = document.createElement("custom-card"); host.className = "private";
     const shadow = host.attachShadow({ mode: "open" }); shadow.innerHTML = '<p translate="yes">Excluded component text.</p>';
     document.querySelector("main")!.append(host);

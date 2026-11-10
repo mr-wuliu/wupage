@@ -192,7 +192,7 @@ describe("tab-wide document sessions", () => {
       .every(item => item.request.type === "FRAME_APPLY" && !item.request.snapshot.active)).toBe(true);
   });
 
-  it("cancels pending work only in documents whose exclusion rules change", async () => {
+  it.each(["elementExclusions", "elementInclusions"] as const)("cancels pending work only in documents affected by %s", async key => {
     const f = await fixture();
     let changed!: (changes: Record<string, chrome.storage.StorageChange>, area: string) => void;
     Object.assign(f.api.storage, { onChanged: { addListener: (listener: typeof changed) => { changed = listener; } } });
@@ -203,13 +203,13 @@ describe("tab-wide document sessions", () => {
     let finishChild!: (value: string) => void;
     const top = f.manager.translate({ texts: ["top"], targetLang: "zh-CN", pageSession: { id, documentKey: "key-0" } }, f.sender(0),
       signal => new Promise<string>((_resolve, reject) => {
-        topSignal = signal!; signal!.addEventListener("abort", () => reject(new Error("cancelled excluded document")));
+        topSignal = signal!; signal!.addEventListener("abort", () => reject(new Error("cancelled affected document")));
       })).catch(error => error);
     const child = f.manager.translate({ texts: ["child"], targetLang: "zh-CN", pageSession: { id, documentKey: "key-1" } }, f.sender(1),
       signal => { childSignal = signal!; return new Promise<string>(resolve => { finishChild = resolve; }); });
     await vi.waitFor(() => expect(topSignal && childSignal).toBeDefined());
-    const settings = { ...f.settings(), elementExclusions: [{ id: "top", name: "Top region", pattern: "site.example",
-      selectors: [".excluded"], enabled: true }] };
+    const settings = { ...f.settings(), [key]: [{ id: "top", name: "Top region", pattern: "site.example",
+      selectors: [".region"], enabled: true }] };
     changed({ "wupage.settings": { newValue: settings } }, "local");
     await vi.waitFor(() => expect(topSignal.aborted).toBe(true));
     expect(childSignal.aborted).toBe(false);

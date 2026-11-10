@@ -1,4 +1,5 @@
 import { mutationElement, discoverShadowRoots, onTranslationRoot, translationRoots } from "./dom-roots";
+import { observedTranslationAttributes } from "./element-exclusions";
 import type { ProgressiveScanOptions, TextSegment } from "./text-segments";
 
 interface ScanDependencies {
@@ -92,7 +93,7 @@ export async function scanTextRootsProgressive(
   };
   const observer = options.observeChanges !== false ? new MutationObserver(recordMutations) : undefined;
   const observerOptions = { childList: true, characterData: true, subtree: true, attributes: true,
-    attributeFilter: ["class", "style", "hidden", "aria-hidden", "placeholder", "alt", "open", "translate", "contenteditable", "role"] };
+    attributeFilter: observedTranslationAttributes(document) };
   for (const root of translationRoots()) observer?.observe(root, observerOptions);
   const unsubscribe = onTranslationRoot(root => observer?.observe(root, observerOptions));
   let sliceStarted = performance.now();

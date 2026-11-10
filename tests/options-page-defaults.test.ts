@@ -22,6 +22,7 @@ beforeEach(async () => {
     selectionTranslation: { enabled: true, provider: "bing", style: "underline" },
     autoTranslation: { enabled: true, nonTargetLanguage: true, presetSites: ["github.com"], customSites: [] },
     elementExclusions: [{ id: "private-rule", enabled: true, pattern: "example.com", selectors: [".sidebar"] }],
+    elementInclusions: [{ id: "dialog-rule", enabled: true, pattern: "example.com", selectors: [".settings-dialog"] }],
     shortcuts: { ...DEFAULT_SETTINGS.shortcuts, "toggle-page-translation": "Alt+Shift+J" },
     localShortcuts: { ...DEFAULT_SETTINGS.localShortcuts, "paragraph-click": "Alt" },
     shortcutEnabled: { ...DEFAULT_SETTINGS.shortcutEnabled, "translate-selection": false },
@@ -63,7 +64,7 @@ it.each<[string, (keyof ExtensionSettings)[]]>([
   ["generalSettings", ["sourceLang", "targetLang", "translationDisplayMode", "imageTranslationEnabled", "cacheEnabled", "floatingBallEnabled", "translateCodeComments", "frameTranslation"]],
   ["selectionTranslationSettings", ["selectionTranslation"]],
   ["autoTranslationSettings", ["autoTranslation"]],
-  ["elementExclusionSettings", ["elementExclusions"]],
+  ["elementExclusionSettings", ["elementExclusions", "elementInclusions"]],
   ["shortcutSettings", ["shortcuts", "localShortcuts", "shortcutEnabled"]],
   ["appearanceSettings", ["appearance"]],
   ["statisticsSettings", ["statisticsEnabled"]]

@@ -173,8 +173,8 @@
   "general": {
     "message": "General"
   },
-  "translationExclusions": {
-    "message": "Translation exclusions"
+  "regionTranslation": {
+    "message": "Region translation"
   },
   "keyboardShortcuts": {
     "message": "Keyboard shortcuts"
@@ -293,11 +293,11 @@
   "exampleComIncludesSubdomainsExampleComMatchesOnly": {
     "message": "example.com includes subdomains. *.example.com matches only subdomains. Use https://example.com/docs/* to limit the protocol and path."
   },
-  "keepNavigationSidebarsOrOtherAreasInTheir": {
-    "message": "Keep navigation, sidebars or other areas in their original language on specific sites."
+  "regionTranslationIntro": {
+    "message": "Keep specific areas in their original language or translate headings, buttons, and labels the page scan skipped."
   },
-  "translationExclusionRules": {
-    "message": "Translation exclusion rules"
+  "regionTranslationRules": {
+    "message": "Region translation rules"
   },
   "addRule": {
     "message": "Add rule"
@@ -305,8 +305,8 @@
   "enterADomainOrUrlPatternExampleCom": {
     "message": "Enter a domain or URL pattern. example.com includes subdomains. Use https://example.com/docs/* to limit a rule to specific pages."
   },
-  "enterOneCssSelectorPerLineSuchAs": {
-    "message": "Enter one CSS selector per line, such as .sidebar or [data-region=\"recommendations\"]. Matching elements and their descendants are skipped during page and paragraph translation, including content loaded later."
+  "regionRuleSelectorHelp": {
+    "message": "Enter one CSS selector per line, such as .sidebar or [role=\"dialog\"]. Rules cover matching areas and their descendants, including content loaded later. Keep original takes priority when rules overlap."
   },
   "chooseSaveBelowToApplyPagesBeingTranslated": {
     "message": "Choose Save below to apply. Pages being translated will use the new rules."
@@ -2614,8 +2614,8 @@
       }
     }
   },
-  "noExclusionRulesYet": {
-    "message": "No exclusion rules yet."
+  "noRegionRulesYet": {
+    "message": "No region rules yet."
   },
   "collapseRule": {
     "message": "Collapse rule"
@@ -2623,8 +2623,8 @@
   "expandRule": {
     "message": "Expand rule"
   },
-  "enableExclusionRule": {
-    "message": "Enable exclusion rule $ARG1$",
+  "enableRegionRule": {
+    "message": "Enable region rule $ARG1$",
     "placeholders": {
       "arg1": {
         "content": "$1"
@@ -2637,8 +2637,8 @@
   "deleteRule": {
     "message": "Delete rule"
   },
-  "deleteExclusionRule": {
-    "message": "Delete exclusion rule $ARG1$",
+  "deleteRegionRule": {
+    "message": "Delete region rule $ARG1$",
     "placeholders": {
       "arg1": {
         "content": "$1"
@@ -2659,22 +2659,32 @@
   "name": {
     "message": "Name"
   },
-  "forExampleSidebarNavigation": {
-    "message": "For example, sidebar navigation"
-  },
   "site": {
     "message": "Site"
   },
-  "excludedElements": {
-    "message": "Excluded elements"
+  "regionRuleForceHelp": {
+    "message": "Force translation applies during page or paragraph translation. It includes visible text that a site marks as non-translatable. Input values, editable areas, and hidden text are skipped."
   },
-  "excludedElementsForRule": {
-    "message": "Excluded elements for rule $ARG1$",
-    "placeholders": {
-      "arg1": {
-        "content": "$1"
-      }
-    }
+  "keepRegionOriginal": {
+    "message": "Keep original"
+  },
+  "forceRegionTranslation": {
+    "message": "Force translation"
+  },
+  "regionRuleAction": {
+    "message": "Action"
+  },
+  "addRegionExclusion": {
+    "message": "Add keep-original rule"
+  },
+  "addRegionInclusion": {
+    "message": "Add force-translation rule"
+  },
+  "tooManyRegionRulesForAction": {
+    "message": "Each action supports up to 100 rules."
+  },
+  "regionRuleSelectors": {
+    "message": "CSS selectors"
   },
   "newRule": {
     "message": "New rule"
@@ -2682,8 +2692,8 @@
   "siteNotEntered": {
     "message": "Site not entered"
   },
-  "ruleEnterAtLeastOneCssSelectorTo": {
-    "message": "Rule $ARG1$: enter at least one CSS selector to exclude.",
+  "ruleEnterAtLeastOneCssSelector": {
+    "message": "Rule $ARG1$. Enter at least one CSS selector.",
     "placeholders": {
       "arg1": {
         "content": "$1"
@@ -2699,7 +2709,7 @@
     }
   },
   "ruleCssSelectorIsInvalidCheckItAnd": {
-    "message": "Rule $ARG1$: CSS selector $ARG2$ is invalid. Check it and try again.",
+    "message": "CSS selector $ARG2$ in rule $ARG1$ is invalid. Check it and try again.",
     "placeholders": {
       "arg1": {
         "content": "$1"

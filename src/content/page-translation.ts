@@ -23,8 +23,8 @@ import { ProviderError } from "../shared/errors";
 import { DocumentViewport, segmentViewportRect } from "./document-viewport";
 import { invalidatePendingDocumentTranslations } from "./translation-lifecycle";
 import { composedParent, mutationElement, onTranslationRoot, translationRoots } from "./dom-roots";
-import { configureElementExclusions, exclusionObservedAttributes } from "./element-exclusions";
-import { elementExclusionIdentity } from "../shared/element-exclusions";
+import { configureElementRules, observedTranslationAttributes } from "./element-exclusions";
+import { elementRuleIdentity } from "../shared/element-exclusions";
 
 const VIEWPORT_MARGIN_RATIO = 0.75;
 const MIN_VIEWPORT_MARGIN = 240;
@@ -176,14 +176,14 @@ export async function loadPageTranslationSettings(): Promise<ExtensionSettings> 
   // A language change can arrive while the initial settings read is pending,
   // before there is an active session for the storage listener to restart.
   const current = revision !== settingsRevision && latestSettings ? latestSettings : settings;
-  if (configureElementExclusions(current.elementExclusions)) clearPageTranslation();
+  if (configureElementRules(current)) clearPageTranslation();
   return current;
 }
 
 export function updatePageTranslationSettings(settings: ExtensionSettings): void {
   settingsRevision += 1;
   latestSettings = settings;
-  if (configureElementExclusions(settings.elementExclusions)) {
+  if (configureElementRules(settings)) {
     const restart = !coordinator && Boolean(activeSession || pendingScan);
     clearPageTranslation();
     if (restart) void startPageTranslation(settings, false);
@@ -214,7 +214,7 @@ export function startPageTranslation(settings: ExtensionSettings, reuseResults =
 }
 
 export async function startLocalPageTranslation(settings: ExtensionSettings, reuseResults = true): Promise<PageTranslationResult> {
-  configureElementExclusions(settings.elementExclusions);
+  configureElementRules(settings);
   cancelPendingScan();
   const saved = suspendedSession;
   const canRestore = reuseResults && saved && saved.pageUrl === location.href
@@ -356,7 +356,7 @@ function getTranslationIdentity(settings: ExtensionSettings): string {
     activeProviderId: settings.activeProviderId,
     provider: settings.providers.find((provider) => provider.id === settings.activeProviderId),
     translateCodeComments: settings.translateCodeComments,
-    elementExclusions: elementExclusionIdentity(settings.elementExclusions)
+    elementRules: elementRuleIdentity(settings, location.href)
   });
 }
 
@@ -366,8 +366,7 @@ function observePage(session: TranslationSession): void {
     subtree: true,
     characterData: true,
     attributes: true,
-    attributeFilter: [...new Set(["class", "style", "hidden", "aria-hidden", "placeholder", "alt", "open", "translate", "contenteditable", "role",
-      ...exclusionObservedAttributes(document)])]
+    attributeFilter: observedTranslationAttributes(document)
   };
   for (const root of translationRoots()) session.observer.observe(root, options);
   session.unobserveRoots?.();

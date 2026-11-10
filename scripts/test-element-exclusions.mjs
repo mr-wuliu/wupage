@@ -90,20 +90,59 @@ try {
     while (Date.now() < deadline) { if (await read()) return; await new Promise(resolve => setTimeout(resolve, 100)); }
     throw new Error('Timed out waiting for fixture state');
   };
+  const translated = (frame, selector) => frame.locator(selector).filter({ hasText: '译文：' }).first().waitFor();
   await wait(async () => { try { await action('GET_TRANSLATION_STATE'); return true; } catch { return false; } });
   const originalNav = await page.locator('header[role="banner"]').innerHTML();
   await action('TRANSLATE_PAGE');
-  await page.locator('#public .wupage-translation').first().waitFor();
+  await translated(page, '#public');
   assert.equal(await page.locator('header[role="banner"]').innerHTML(), originalNav);
   assert.equal(requests.some(request => request.texts.some(text => /Home|Explore|Notifications/.test(text))), false);
   await page.screenshot({ path: path.join(output, 'x-preset.png') });
   const preset = options.locator('.exclusion-rule input[type="checkbox"]');
   await options.locator('.exclusion-rule .setting-toggle').click(); assert.equal(await preset.isChecked(), false); await options.locator('#save').click();
   assert.equal(await options.locator('.exclusion-rule-details').isHidden(), true);
-  await page.locator('header[role="banner"] .wupage-translation').first().waitFor();
+  await translated(page, 'header[role="banner"]');
   await options.locator('.exclusion-rule .setting-toggle').click(); assert.equal(await preset.isChecked(), true); await options.locator('#save').click();
   await wait(async () => await page.locator('header[role="banner"]').innerHTML() === originalNav);
   checks.push('X navigation remains original; disabling and enabling the preset updates an active page');
+
+  await options.locator('#addElementInclusion').click();
+  const inclusion = options.locator('.exclusion-rule').nth(1);
+  await inclusion.locator('[data-field="name"]').fill('媒体下载器设置');
+  await inclusion.locator('[data-field="pattern"]').fill('x.com');
+  await inclusion.locator('[data-field="selectors"]').fill('[data-dialog="media"]');
+  assert.equal(await inclusion.locator('[data-field="action"]').inputValue(), 'include');
+  await options.locator('#save').click();
+  await wait(async () => (await runtime({ type: 'GET_SETTINGS' })).elementInclusions.length === 1);
+  await page.evaluate(() => {
+    const dialog = document.createElement('aside');
+    dialog.id = 'media-dialog';
+    dialog.setAttribute('role', 'dialog');
+    dialog.setAttribute('translate', 'no');
+    dialog.innerHTML = `<div id="media-title">Media Downloader Settings</div>
+      <label id="filename-label" for="filename">Filename Format</label>
+      <input id="filename" value="{userId}-{postId}">
+      <div hidden>Hidden media configuration.</div>
+      <div contenteditable>Private editable data.</div>`;
+    document.querySelector('main').append(dialog);
+    dialog.setAttribute('data-dialog', 'media');
+  });
+  await translated(page, '#media-title');
+  await translated(page, '#filename-label');
+  assert.equal(await page.locator('#filename').inputValue(), '{userId}-{postId}');
+  assert.equal(await page.locator('header[role="banner"]').innerHTML(), originalNav);
+  for (const text of ['Hidden media configuration.', 'Private editable data.', '{userId}-{postId}']) {
+    assert.equal(JSON.stringify(requests).includes(text), false, text);
+  }
+  await page.screenshot({ path: path.join(output, 'force-dialog.png') });
+  await page.locator('#media-dialog').evaluate(dialog => dialog.removeAttribute('data-dialog'));
+  await wait(async () => await page.locator('#media-title').textContent() === 'Media Downloader Settings');
+  await page.locator('#media-dialog').evaluate(dialog => dialog.setAttribute('data-dialog', 'media'));
+  await translated(page, '#media-title');
+  await inclusion.locator('.exclusion-rule-remove').click();
+  await options.locator('#save').click();
+  await wait(async () => await page.locator('#media-title').textContent() === 'Media Downloader Settings');
+  checks.push('region rule translates a late dialog title and label, leaves fields untouched, and restores source on unmatch or removal');
 
   await options.locator('#addElementExclusion').click();
   const custom = options.locator('.exclusion-rule').nth(1);
@@ -117,23 +156,23 @@ try {
   await wait(async () => { try { await action('GET_TRANSLATION_STATE'); return true; } catch { return false; } });
   await new Promise(resolve => setTimeout(resolve, 450));
   await action('TRANSLATE_PAGE');
-  await page.locator('#public .wupage-translation').first().waitFor();
-  await page.locator('header[role="banner"] .wupage-translation').first().waitFor();
+  await translated(page, '#public');
+  await translated(page, 'header[role="banner"]');
   const child = page.frames().find(frame => frame.url().endsWith('/articles/frame')); assert.ok(child);
-  await child.locator('#framePublic .wupage-translation').waitFor();
+  await translated(child, '#framePublic');
   assert.equal(await page.locator('.sponsored .wupage-translation').count(), 0);
   assert.equal(await child.locator('.sponsored .wupage-translation').count(), 0);
   assert.equal(await page.locator('#public .sponsored').textContent(), 'Excluded inline label.');
   const sent = JSON.stringify(requests.slice(start));
   for (const text of ['Excluded recommendation text.', 'Excluded inline label.', 'Embedded excluded recommendation.']) assert.equal(sent.includes(text), false, text);
-  await page.locator('#dynamic .wupage-translation').waitFor();
+  await translated(page, '#dynamic');
   await page.evaluate(() => document.querySelector('#dynamic').setAttribute('data-region', 'ads'));
   await wait(async () => await page.locator('#dynamic').textContent() === 'Dynamic public article content.');
   await page.evaluate(() => {
     const node = document.createElement('p'); node.className = 'sponsored'; node.textContent = 'Late excluded recommendation.'; document.querySelector('main').append(node);
     const publicNode = document.createElement('p'); publicNode.id = 'late-public'; publicNode.textContent = 'Late public reading content.'; document.querySelector('main').append(publicNode);
   });
-  await page.locator('#late-public .wupage-translation').waitFor();
+  await translated(page, '#late-public');
   assert.equal(JSON.stringify(requests.slice(start)).includes('Late excluded recommendation.'), false);
   await page.screenshot({ path: path.join(output, 'custom-regions.png') });
   checks.push('custom rules apply to matching paths and iframe documents; excluded regions stay out of texts and context; attribute changes and late content are handled');

@@ -11,7 +11,7 @@ import { normalizeVideoTranslation } from "./video";
 import { normalizeRequestTemplate, supportsRequestTemplate } from "./request-template";
 import type { ExtensionSettings, ProviderConfig } from "./types";
 import { normalizeFrameTranslation } from "./frame-session";
-import { normalizeElementExclusions } from "./element-exclusions";
+import { normalizeElementExclusions, normalizeElementInclusions } from "./element-exclusions";
 
 export async function getSettings(): Promise<ExtensionSettings> {
   const result = await chrome.storage.local.get(SETTINGS_KEY);
@@ -61,6 +61,7 @@ export function normalizeSettings(value: unknown): ExtensionSettings {
     ...(input.videoTranslation !== undefined ? { videoTranslation: normalizeVideoTranslation(input.videoTranslation) } : {}),
     providers,
     elementExclusions: normalizeElementExclusions(input.elementExclusions),
+    elementInclusions: normalizeElementInclusions(input.elementInclusions),
     shortcuts: normalizeShortcuts(input.shortcuts),
     localShortcuts: normalizeLocalShortcuts(input.localShortcuts),
     shortcutEnabled: normalizeShortcutEnabled(input.shortcutEnabled, input.shortcuts, input.localShortcuts),

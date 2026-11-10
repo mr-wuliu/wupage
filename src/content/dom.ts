@@ -21,14 +21,14 @@ import {
 } from "./legacy-scientific";
 import { videoPlatform } from "../video/platforms";
 import { clearTranslationTypography, linkTranslationTypography } from "./translation-typography";
-import { isNonProseElement, isTranslationOptedOut, NON_PROSE_SELECTOR } from "./content-policy";
+import { isNonProseElement, isTextTranslationOptedOut, isTranslationOptedOut, NON_PROSE_SELECTOR } from "./content-policy";
 import { componentShadowRoot, composedContains, composedParent, projectedSlot, queryTranslationElements,
   sameTranslationNodePath, textContainer, translationNodePath } from "./dom-roots";
 import { constrainTranslationOwner, translationOwner } from "./translation-boundaries";
 import { InlineTranslationPlan } from "./inline-translation";
 import { injectContentStyles } from "./styles";
 import { isSteamCommunity, isSteamContentCard, steamItemTitle, steamTextBlock } from "./steam-content";
-import { containsExcludedElement, isElementExcluded } from "./element-exclusions";
+import { containsElementRuleBoundary, forcedTextRoot, isElementExcluded } from "./element-exclusions";
 
 interface TrackedNode {
   id: string;
@@ -39,6 +39,7 @@ interface TrackedNode {
   sourceParent: Element;
   sourcePath: Node[];
   sourceOwner?: Element | null;
+  forceRoot?: Element;
   replaced?: boolean;
   replacementValue?: string;
   commentPrefix?: string;
@@ -120,7 +121,7 @@ const SKIP_TAGS = new Set([
   "SVG",
   "CANVAS"
 ]);
-const SKIP_SELECTORS = [
+const EXTENSION_UI_SELECTORS = [
   "[data-wupage-video]",
   "[data-wupage-video-native]",
   "#wupage-video-panel",
@@ -129,7 +130,17 @@ const SKIP_SELECTORS = [
   "#wupage-floating-hitbox",
   "#wupage-floating-menu",
   "#wupage-debug-panel",
-  "#wupage-paragraph-highlight",
+  "#wupage-paragraph-highlight"
+];
+const FORCE_TEXT_SKIP_SELECTOR = [
+  ...EXTENSION_UI_SELECTORS, `.${TRANSLATION_CLASS}`, "[data-wupage-video-toolbar]",
+  "#wupage-image-tools", "#wupage-image-context-notice", "#wupage-shortcut-notice",
+  "#wupage-touch-hint", "#wupage-touch-paragraph", "[hidden]", ".sr-only",
+  "[class*='hiddenVisually']", "math", ".MATH", "svg", "canvas", "kbd", "samp",
+  VIDEO_CONTROL_SELECTOR, NON_PROSE_SELECTOR
+].join(",");
+const SKIP_SELECTORS = [
+  ...EXTENSION_UI_SELECTORS,
   "header",
   "nav",
   "footer",
@@ -261,6 +272,7 @@ let trackedByText = new WeakMap<Text, TrackedNode>();
 function trackTextNodes(...nodes: TrackedNode[]): void {
   for (const node of nodes) {
     node.sourceOwner = translationOwner(node.sourceParent);
+    node.forceRoot = forcedTextRoot(node.sourceParent) ?? undefined;
     trackedByText.set(node.node, node);
     trackedNodes.push(node);
   }
@@ -524,7 +536,7 @@ export function invalidateStaleSegments(changedRoots: Element[] = []): string[] 
     || textContainer(tracked.node) !== tracked.sourceParent
     || !sameTranslationNodePath(tracked.node, tracked.sourcePath)
     || translationOwner(tracked.sourceParent) !== (tracked.sourceOwner ?? null)
-    || isNonProseElement(tracked.sourceParent) || isTranslationOptedOut(tracked.sourceParent)
+    || !isTextPolicyCurrent(tracked)
     || tracked.node.data !== (tracked.replaced ? tracked.replacementValue ?? "" : tracked.sourceValue);
   for (const tracked of trackedNodes) {
     if (recovered.has(tracked.id)) continue;
@@ -653,7 +665,6 @@ function recoverRewrittenReplacementSegments(): Set<string> {
     if (!groupedNodes.has(node)) candidates.set(node.id, [node]);
   }
   for (const [id, oldNodes] of candidates) {
-    if (oldNodes.some(node => isElementExcluded(node.sourceParent))) continue;
     const output = renderedById.get(id);
     if (output instanceof Text) continue;
     const translation = translatedTextById.get(id);
@@ -665,6 +676,7 @@ function recoverRewrittenReplacementSegments(): Set<string> {
       || (output.isConnected && output.parentElement !== stable.container))) continue;
     if (protectedTokensById.has(id) || group?.authoredLines || group?.insertionBefore || group?.insertionAfter
       || oldNodes.some((node) => node.mode === "code-comment")) continue;
+    if (oldNodes.some(node => !isTextPolicyCurrent(node))) continue;
     const source = stableReplacementSource(oldNodes);
     if (!source) continue;
     // The page scheduler retains the original group element as its viewport
@@ -771,12 +783,8 @@ export function findTranslatableParagraph(start: Element | null): Element | null
   while (current && current !== document.body) {
     if (!shouldSkipElement(current) && current.matches(PARAGRAPH_SELECTOR)) {
       const text = normalizeText(current.textContent ?? "");
-      if (
-        text.length >= 2 &&
-        (isIssueMetadataValue(current) || !isLikelyUiToken(text, current))
-      ) {
-        return current;
-      }
+      if (forcedTextRoot(current) ? !isNonTranslatableFragment(text, true)
+        : text.length >= 2 && (isIssueMetadataValue(current) || !isLikelyUiToken(text, current))) return current;
     }
     current = current.parentElement;
   }
@@ -876,7 +884,8 @@ function collectTextSegmentsFromRoot(
   const acceptsText = (text: Text): boolean => {
     if (!NON_BLANK_TEXT.test(text.data) || alreadyTracked.has(text)) return false;
     const parent = textContainer(text);
-    if (!parent || shouldSkipElement(parent, true, visibility) || isStructuredListMetadata(parent)) return false;
+    if (!parent || shouldSkipElement(parent, true, visibility)
+      || (!forcedTextRoot(parent) && isStructuredListMetadata(parent))) return false;
     if (!visibility.isTextNodeVisuallyRendered(text)) {
       noteHiddenScanCandidate(parent);
       return false;
@@ -903,11 +912,12 @@ function collectTextSegmentsFromRoot(
     if (isInsideCodeBlock(node.parentElement) && !codeComment) continue;
     const text = normalizeText(node.textContent ?? "");
     const sourceText = codeComment?.text ?? text;
-    if (!sourceText || sourceText.length < 2) continue;
-    if (!codeComment && isNonTranslatableFragment(sourceText)) continue;
+    const forced = !codeComment && forcedTextRoot(parent) !== null;
+    if (!forced && sourceText.length < 2) continue;
+    if (!codeComment && isNonTranslatableFragment(sourceText, forced)) continue;
     if (node.parentElement?.closest(YOUTUBE_DESCRIPTION_SELECTOR)
       && /^https?:\/\/\S+$/i.test(sourceText)) continue;
-    if (!codeComment && isLikelyUiToken(sourceText, node.parentElement)) continue;
+    if (!codeComment && !forced && isLikelyUiToken(sourceText, node.parentElement)) continue;
     const id = `seg-${Date.now()}-${segmentIdCounter++}`;
     const tracked: TrackedNode = {
       id,
@@ -1453,7 +1463,7 @@ function isTranslationBindingCurrent(id: string, groups: Map<string, TrackedGrou
     || !sameTranslationNodePath(entry.node, entry.sourcePath)
     || translationOwner(entry.sourceParent) !== (entry.sourceOwner ?? null)
     || entry.node.data !== (entry.replaced ? entry.replacementValue ?? "" : entry.sourceValue)
-    || isNonProseElement(entry.sourceParent) || isTranslationOptedOut(entry.sourceParent))) return false;
+    || !isTextPolicyCurrent(entry))) return false;
   if (group && (!group.block.isConnected || nodes.some(entry => !group.block.contains(entry.node)))) return false;
   if (group?.insertionBefore && !group.block.contains(group.insertionBefore)) return false;
   if (group?.insertionAfter && !group.block.contains(group.insertionAfter)) return false;
@@ -1685,16 +1695,15 @@ function groupTextSegments(
 ): TextSegment[] {
   const groups = new Map<Element, TrackedNode[]>();
   const standalone = new Set(fallback.map((segment) => segment.id));
-  const exclusionBoundaries = new Map<Element, boolean>();
+  const ruleBoundaries = new Map<Element, boolean>();
 
   for (const tracked of nodes) {
     if (tracked.mode === "code-comment") continue;
     const block = findGroupingBlock(tracked.node.parentElement);
     if (!block) continue;
-    // Keep excluded inline regions in place instead of merging their content
-    // into a larger paragraph or hiding them during replacement.
-    if (!exclusionBoundaries.has(block)) exclusionBoundaries.set(block, containsExcludedElement(block));
-    if (exclusionBoundaries.get(block)) continue;
+    // Keep inline rule boundaries intact when translating or replacing text.
+    if (!ruleBoundaries.has(block)) ruleBoundaries.set(block, containsElementRuleBoundary(block));
+    if (ruleBoundaries.get(block)) continue;
     if (block.querySelector(`.${TRANSLATION_CLASS}`) && !block.matches(YOUTUBE_DESCRIPTION_SELECTOR)) continue;
     const group = groups.get(block) ?? [];
     group.push(tracked);
@@ -1974,7 +1983,9 @@ function findGroupingBlock(element: Element | null): Element | null {
   const candidate = constrainTranslationOwner(element, computeGroupingBlock(element));
   // An explicitly re-enabled child of translate=no owns its own text. Never
   // aggregate it into an opted-out paragraph and replace that paragraph.
-  const block = candidate && !isTranslationOptedOut(candidate) ? candidate : null;
+  const forceRoot = forcedTextRoot(element);
+  const block = candidate && forcedTextRoot(candidate) === forceRoot && !isTextTranslationOptedOut(candidate, forceRoot)
+    ? candidate : null;
   groupingBlockCache.set(element, block);
   return block;
 }
@@ -2150,11 +2161,13 @@ function decideSkipElement(
   includeNavigation: boolean,
   visibility?: RenderVisibilitySnapshot
 ): boolean {
-  if (isNonProseElement(element) || isTranslationOptedOut(element)) return true;
+  const forceRoot = forcedTextRoot(element);
+  if (isNonProseElement(element) || isTextTranslationOptedOut(element, forceRoot)) return true;
   if (isLegacyScientificEquation(element)) return true;
   if (element.closest(`.${TRANSLATION_CLASS},kbd,samp`)) return true;
   if (element.closest(VIDEO_CONTROL_SELECTOR)) return true;
   if (element.closest(videoPlatform()?.captions ?? ".vjs-text-track-display,.plyr__captions,.jw-captions")) return true;
+  if (forceRoot) return hasForcedTextSkipAncestor(element);
   if (element.closest(REDDIT_METADATA_SELECTOR)) return true;
   if (isInsideCodeBlock(element)) return false;
   if (isCompactControlText(element)) {
@@ -2178,6 +2191,20 @@ function decideSkipElement(
     ? VISIBLE_ARIA_HIDDEN_SKIP_SELECTOR
     : SKIP_SELECTOR;
   return hasSkippedAncestor(element, skipSelector);
+}
+
+function hasForcedTextSkipAncestor(element: Element): boolean {
+  for (let current: Element | null = element; current; current = composedParent(current)) {
+    if (current.matches(FORCE_TEXT_SKIP_SELECTOR)) return true;
+  }
+  return false;
+}
+
+function isTextPolicyCurrent(entry: TrackedNode): boolean {
+  const element = entry.sourceParent;
+  const forceRoot = forcedTextRoot(element);
+  return forceRoot === (entry.forceRoot ?? null) && !isNonProseElement(element)
+    && !isTextTranslationOptedOut(element, forceRoot) && (!forceRoot || !hasForcedTextSkipAncestor(element));
 }
 
 function hasSkippedAncestor(element: Element, selector: string): boolean {
@@ -2330,7 +2357,7 @@ function getReadableBlockText(
   protectedCandidates.forEach(({ element, sourceElement }) => {
     if (!clone.contains(element)) return;
     if (!sourceElement) return;
-    const immutable = sourceElement.matches("math") || isTranslationOptedOut(sourceElement);
+    const immutable = sourceElement.matches("math") || isTextTranslationOptedOut(sourceElement);
     if (!sourceElement.matches("code,kbd,samp") && !immutable
       && !isScientificMathImage(sourceElement) && !isScientificCitation(sourceElement)) return;
     if (sourceElement.closest(NON_PROSE_SELECTOR)) return;
@@ -2390,8 +2417,9 @@ function removeUnrenderedCloneText(
       : visibility.isTextNodeVisuallyRendered(sourceText);
     // A descendant may belong to its own label, control or paragraph. Its
     // text must never also appear in an ancestor's translation request.
-    if (!keep || (sourceText.parentElement && isElementExcluded(sourceText.parentElement))
-      || findGroupingBlock(sourceText.parentElement) !== source) {
+    const parent = sourceText.parentElement;
+    if (!keep || (parent && (isElementExcluded(parent) || isNonProseElement(parent)
+      || (forcedTextRoot(parent) && hasForcedTextSkipAncestor(parent)))) || findGroupingBlock(parent) !== source) {
       hidden.push(cloneWalker.currentNode as Text);
     }
   }
@@ -2568,11 +2596,11 @@ function isLikelyUiToken(text: string, element: Element | null): boolean {
   return false;
 }
 
-function isNonTranslatableFragment(text: string): boolean {
-  if (!text.trim()) return true;
+function isNonTranslatableFragment(text: string, forced = false): boolean {
   // Standalone counts/dates carry no language. Numbers inside prose are
   // recovered by completeGroupedSourceNodes and remain in that sentence.
   if (!/\p{L}/u.test(text)) return true;
+  if (forced) return false;
   if (/^<?'?[a-zA-Z]>?$/.test(text)) return true;
   if (/^(::|->|=>|for|of)$/i.test(text)) return true;
   if (/^impl(?:<[^>]+>)?$/i.test(text)) return true;
@@ -2693,10 +2721,11 @@ function findCodeCommentBlock(start: Element): Element | null {
 
 function isTextBlockCandidate(element: Element): boolean {
   if (element === document.body || element.matches("main, article, section")) return false;
-  if (element.matches("div") && !element.closest(".docblock, .methods, .impl-items")) return false;
+  const forced = forcedTextRoot(element);
+  if (!forced && element.matches("div") && !element.closest(".docblock, .methods, .impl-items")) return false;
   const text = normalizeText(element.textContent ?? "");
-  if (text.length < 2 || text.length > 320) return false;
-  if (!isIssueMetadataValue(element) && isLikelyUiToken(text, element)) return false;
+  if ((forced ? isNonTranslatableFragment(text, true) : text.length < 2) || text.length > 320) return false;
+  if (!forced && !isIssueMetadataValue(element) && isLikelyUiToken(text, element)) return false;
   if (element.querySelector("button,input,select,textarea,[role='button']")) return false;
   const rect = element.getBoundingClientRect();
   if (rect.width <= 0 || rect.height <= 0 || rect.height > 140) return false;

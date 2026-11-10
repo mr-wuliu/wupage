@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { elementExclusionIdentity, normalizeElementExclusions } from "../src/shared/element-exclusions";
+import { elementRuleIdentity, normalizeElementExclusions } from "../src/shared/element-exclusions";
 import { normalizeSettings } from "../src/shared/settings";
 import { matchesSitePattern } from "../src/shared/auto-translation";
 
@@ -31,7 +31,10 @@ describe("element exclusion settings", () => {
 
   it("does not restart translations for renamed or disabled entries", () => {
     const rules = normalizeElementExclusions(undefined);
-    expect(elementExclusionIdentity(rules)).toBe(elementExclusionIdentity([{ ...rules[0], id: "renamed", name: "Custom label" }]));
-    expect(elementExclusionIdentity([{ ...rules[0], enabled: false }])).toBe(elementExclusionIdentity([]));
+    expect(elementRuleIdentity({ elementExclusions: rules })).toBe(elementRuleIdentity({ elementExclusions: [{ ...rules[0], id: "renamed", name: "Custom label" }] }));
+    expect(elementRuleIdentity({ elementExclusions: [{ ...rules[0], enabled: false }] })).toBe(elementRuleIdentity({ elementExclusions: [] }));
+    const includes = { elementInclusions: rules };
+    expect(elementRuleIdentity(includes, "https://example.com/")).toBe(elementRuleIdentity({}, "https://example.com/"));
+    expect(elementRuleIdentity(includes, "https://x.com/home")).not.toBe(elementRuleIdentity({}, "https://x.com/home"));
   });
 });

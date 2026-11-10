@@ -1,5 +1,5 @@
 import { isNonProseElement, isTranslationOptedOut } from "./content-policy";
-import { containsExcludedElement } from "./element-exclusions";
+import { containsElementRuleBoundary } from "./element-exclusions";
 
 export const LINE_BREAK_SOURCE_SELECTOR = "[data-wupage-prose-source]";
 const sources = new Set<Element>();
@@ -35,7 +35,7 @@ export function prepareLineBreakParagraphs(root: Element | ShadowRoot, directTex
     if (!element.matches("div,p,span,section,article,blockquote,td,dd")
       || !Array.from(element.children).some(child => child.matches("br"))
       || element.closest(EXCLUDED) || isNonProseElement(element) || isTranslationOptedOut(element)
-      || containsExcludedElement(element)) continue;
+      || containsElementRuleBoundary(element)) continue;
     const display = element.ownerDocument.defaultView?.getComputedStyle(element).display ?? "";
     if (/^(?:inline-)?(?:flex|grid)$/u.test(display)) continue;
 

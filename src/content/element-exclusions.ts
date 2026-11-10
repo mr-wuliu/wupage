@@ -1,37 +1,41 @@
-import { normalizeElementExclusions, type ElementExclusionRule } from "../shared/element-exclusions";
+import { normalizeElementExclusions, normalizeElementInclusions, type ElementRule, type ElementRuleSettings } from "../shared/element-exclusions";
 import { matchesSitePattern } from "../shared/auto-translation";
 import { composedParent } from "./dom-roots";
 
-let rules = normalizeElementExclusions(undefined);
+let rules = { exclude: normalizeElementExclusions(undefined), include: normalizeElementInclusions(undefined) };
 let signature = JSON.stringify(rules);
-let documents = new WeakMap<Document, { address: string; selectors: string[] }>();
+type RegionSelectors = Record<keyof typeof rules, string[]>;
+let documents = new WeakMap<Document, { address: string; selectors: RegionSelectors }>();
 let appliedSelectors: string | undefined;
 
-function selectorsFor(document: Document): string[] {
+function selectorsFor(document: Document): RegionSelectors {
   const address = document.URL;
   const cached = documents.get(document);
   if (cached?.address === address) return cached.selectors;
   const probe = document.createElement("div");
-  const selectors = [...new Set(rules.filter(rule => rule.enabled && matchesSitePattern(rule.pattern, address))
+  const matching = (entries: ElementRule[]): string[] => [...new Set(entries.filter(rule => rule.enabled && matchesSitePattern(rule.pattern, address))
     .flatMap(rule => rule.selectors))].filter(selector => {
       try { probe.matches(selector); return true; } catch { return false; }
     });
+  const selectors = { exclude: matching(rules.exclude), include: matching(rules.include) };
   documents.set(document, { address, selectors });
   return selectors;
 }
 
-/** Return whether the current document's effective exclusions changed. */
-export function configureElementExclusions(value: ElementExclusionRule[] | undefined): boolean {
-  const before = appliedSelectors ?? (typeof document !== "undefined" ? JSON.stringify(selectorsFor(document)) : "[]");
-  const normalized = normalizeElementExclusions(value);
+/** Return whether the current document's effective region rules changed. */
+export function configureElementRules(settings: ElementRuleSettings): boolean {
+  const current = () => typeof document !== "undefined" ? JSON.stringify(selectorsFor(document)) : "";
+  const before = appliedSelectors ?? current();
+  const normalized = { exclude: normalizeElementExclusions(settings.elementExclusions),
+    include: normalizeElementInclusions(settings.elementInclusions) };
   const next = JSON.stringify(normalized);
   if (signature !== next) { rules = normalized; signature = next; documents = new WeakMap(); }
-  appliedSelectors = typeof document !== "undefined" ? JSON.stringify(selectorsFor(document)) : "[]";
+  appliedSelectors = current();
   return before !== appliedSelectors;
 }
 
 export function matchesElementExclusion(element: Element): boolean {
-  return selectorsFor(element.ownerDocument).some(selector => element.matches(selector));
+  return selectorsFor(element.ownerDocument).exclude.some(selector => element.matches(selector));
 }
 
 export function isElementExcluded(element: Element): boolean {
@@ -41,14 +45,26 @@ export function isElementExcluded(element: Element): boolean {
   return false;
 }
 
-export function containsExcludedElement(element: Element): boolean {
-  return selectorsFor(element.ownerDocument).some(selector => element.querySelector(selector));
+export function containsElementRuleBoundary(element: Element): boolean {
+  const { exclude, include } = selectorsFor(element.ownerDocument);
+  return exclude.some(selector => element.querySelector(selector)) || include.some(selector => element.querySelector(selector));
 }
 
-/** Observe selector attributes too, including arbitrary data-* attributes. */
-export function exclusionObservedAttributes(document: Document): string[] {
-  const attributes = new Set<string>(["id"]);
-  for (const selector of selectorsFor(document)) {
+/** Find the nearest region whose visible text can bypass automatic filters. */
+export function forcedTextRoot(element: Element): Element | null {
+  const { include } = selectorsFor(element.ownerDocument);
+  if (!include.length) return null;
+  for (let current: Element | null = element; current; current = composedParent(current)) {
+    for (const selector of include) if (current.matches(selector)) return current;
+  }
+  return null;
+}
+
+/** Observe both rendering changes and attributes used by region rules. */
+export function observedTranslationAttributes(document: Document): string[] {
+  const attributes = new Set(["id", "class", "style", "hidden", "aria-hidden", "placeholder", "alt", "open", "translate", "contenteditable", "role"]);
+  const { exclude, include } = selectorsFor(document);
+  for (const selector of [...exclude, ...include]) {
     for (const match of selector.matchAll(/\[\s*([\w:-]+)/gu)) attributes.add(match[1]);
   }
   return [...attributes];
