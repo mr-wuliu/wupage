@@ -27,7 +27,7 @@
           </a>
           <a href="#elementExclusionSettings" aria-controls="elementExclusionSettings">
             <span data-wupage-icon="adjustment" aria-hidden="true"></span>
-            <span data-i18n="translationExclusions">翻译排除</span>
+            <span data-i18n="regionTranslation">区域翻译</span>
           </a>
           <a href="#shortcutSettings" aria-controls="shortcutSettings">
             <span data-wupage-icon="keyboard" aria-hidden="true"></span>
@@ -207,13 +207,17 @@
 
           <section id="elementExclusionSettings" class="settings-panel" aria-labelledby="elementExclusionSettingsTitle" hidden>
             <div class="settings-panel-heading">
-              <h2 id="elementExclusionSettingsTitle" data-i18n="translationExclusions">翻译排除</h2>
-              <p data-i18n="keepNavigationSidebarsOrOtherAreasInTheir">让指定网站的导航、侧栏或其他区域保留原文。</p>
+              <h2 id="elementExclusionSettingsTitle" data-i18n="regionTranslation">区域翻译</h2>
+              <p data-i18n="regionTranslationIntro">在指定网站上保留区域原文，或补译被跳过的标题、按钮和标签。</p>
             </div>
-            <div id="elementExclusionRules" class="exclusion-rules" aria-label="翻译排除规则" data-i18n-aria-label="translationExclusionRules"></div>
-            <button id="addElementExclusion" type="button" class="secondary exclusion-rule-add" data-i18n="addRule"><span data-wupage-icon="plus" aria-hidden="true"></span>添加规则</button>
+            <div id="elementExclusionRules" class="exclusion-rules" aria-label="区域翻译规则" data-i18n-aria-label="regionTranslationRules"></div>
+            <div class="region-rule-actions">
+              <button id="addElementExclusion" type="button" class="secondary exclusion-rule-add"><span data-wupage-icon="plus" aria-hidden="true"></span><span data-i18n="addRegionExclusion">添加保留原文规则</span></button>
+              <button id="addElementInclusion" type="button" class="secondary exclusion-rule-add"><span data-wupage-icon="plus" aria-hidden="true"></span><span data-i18n="addRegionInclusion">添加补译规则</span></button>
+            </div>
             <p class="hint" data-i18n="enterADomainOrUrlPatternExampleCom">网站可填写域名或网址路径。example.com 包含子域名，https://example.com/docs/* 可限定页面范围。</p>
-            <p id="elementExclusionSelectorHelp" class="hint" data-i18n="enterOneCssSelectorPerLineSuchAs">排除元素使用 CSS 选择器，每行一个，例如 .sidebar 或 [data-region="recommendations"]。匹配元素及其子元素会跳过网页和段落翻译；动态加载的内容同样生效。</p>
+            <p id="elementExclusionSelectorHelp" class="hint" data-i18n="regionRuleSelectorHelp">每行填写一个 CSS 选择器，例如 .sidebar 或 [role="dialog"]。规则作用于匹配区域及其子元素，包括后续加载的内容。两种规则重叠时，保留原文优先。</p>
+            <p class="hint" data-i18n="regionRuleForceHelp">补译在网页或段落翻译时生效，可处理网站标记为不翻译的可见文字。输入值、编辑区和隐藏文字仍会跳过。</p>
             <p class="hint" data-i18n="chooseSaveBelowToApplyPagesBeingTranslated">修改后点击页面底部「保存」。正在翻译的页面会按新规则重新处理。</p>
             <p id="elementExclusionStatus" class="hint" role="status" aria-live="polite"></p>
           </section>

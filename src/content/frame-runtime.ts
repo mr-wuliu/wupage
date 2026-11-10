@@ -11,7 +11,7 @@ import { sendRuntimeRequest } from "./runtime";
 import { sampleDocumentText } from "./frame-sample";
 import { hasPageTranslations } from "./dom";
 import { frameIsRendered } from "./frame-visibility";
-import { configureElementExclusions } from "./element-exclusions";
+import { configureElementRules } from "./element-exclusions";
 
 const INITIAL_RESULT_WAIT_MS = 2000;
 const REPORT_DELAYS_MS = [60, 250, 1000];
@@ -60,7 +60,7 @@ export function installFrameRuntime(documentKey: string, options: { top: boolean
     if (value.revision < appliedRevision) return documentState();
     appliedRevision = value.revision;
     updateSnapshot(value);
-    if (configureElementExclusions(value.settings.elementExclusions)) clearPageTranslation();
+    if (configureElementRules(value.settings)) clearPageTranslation();
     // An earlier route update can reach this document after a local stop.
     // Wait for that stop's acknowledgement instead of reviving its old work.
     if (desiredActive === false && value.active) return documentState();

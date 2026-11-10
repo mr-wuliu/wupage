@@ -167,6 +167,8 @@ const provider: Rule = (v, p, s) => {
   return object({ type: oneOf(type), ...providerShapes[type] })(v, p, s);
 };
 
+const elementRules = optional(array(object({ id: string, name: string, pattern: string, enabled: boolean, selectors: strings }), 100));
+
 const settingsShape = {
   targetLang: string, sourceLang: string, activeProviderId: string, chunkSize: number(200, 4000), concurrency: number(1, 8),
   pdfTranslationPageRadius: (v, p, s) => v === null ? null : number(0, 1000)(v, p, s),
@@ -181,7 +183,7 @@ const settingsShape = {
   autoTranslation: optional(object({ enabled: boolean, nonTargetLanguage: boolean, presetSites: strings,
     customSites: array(object({ id: string, pattern: string, enabled: boolean })),
     removedPresetSites: optional(strings), excludedSites: optional(strings) })),
-  elementExclusions: optional(array(object({ id: string, name: string, pattern: string, enabled: boolean, selectors: strings }), 100)),
+  elementExclusions: elementRules, elementInclusions: elementRules,
   videoTranslation: optional(object({ enabled: boolean, showOriginal: boolean, fontSize: oneOf(18, 22, 26),
     background: oneOf("soft", "none"), preferredSource: string, enabledSites: strings,
     originalPosition: optional(oneOf("above", "below")),
@@ -213,7 +215,7 @@ function readSettings(value: unknown, strict: boolean): ExtensionSettings {
   const normalized = normalizeSettings(parsed);
   // Reject malformed rules and shortcuts rather than silently replacing them
   // with defaults. New built-in providers may still be added by normalization.
-  for (const key of ["autoTranslation", "elementExclusions", "shortcuts", "localShortcuts", "appearance", "frameTranslation", "videoTranslation"] as const) {
+  for (const key of ["autoTranslation", "elementExclusions", "elementInclusions", "shortcuts", "localShortcuts", "appearance", "frameTranslation", "videoTranslation"] as const) {
     if (parsed[key] !== undefined && !sameValue(parsed[key], normalized[key])) invalid(`settings.${key}`);
   }
   return normalized;

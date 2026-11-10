@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DEFAULT_SETTINGS } from "../src/shared/defaults";
 import type { ExtensionSettings, TranslateBatchResponse } from "../src/shared/types";
 import { clearPageTranslation, startPageTranslation, updatePageTranslationSettings } from "../src/content/page-translation";
-import { configureElementExclusions } from "../src/content/element-exclusions";
+import { configureElementRules } from "../src/content/element-exclusions";
 import { sendRuntimeRequest } from "../src/content/runtime";
 
 vi.mock("../src/content/runtime", () => ({ sendRuntimeRequest: vi.fn() }));
@@ -13,7 +13,7 @@ const excludedSettings = (): ExtensionSettings => ({ ...settings, elementExclusi
   pattern: "example.com/articles/*", selectors: ["#excluded", "[data-region='ads']"], enabled: true }] });
 const output = (id: string) => document.querySelector(`#${id} .wupage-translation`);
 beforeEach(() => {
-  configureElementExclusions(undefined);
+  configureElementRules({});
   settings = { ...structuredClone(DEFAULT_SETTINGS), translationDisplayMode: "replace" };
   document.body.innerHTML = '<main><p id="public">Readable public article.</p><p id="excluded">Excluded recommendation text.</p></main>';
   vi.spyOn(window, "getComputedStyle").mockReturnValue({ display: "block", visibility: "visible", opacity: "1" } as CSSStyleDeclaration);
@@ -21,7 +21,7 @@ beforeEach(() => {
   vi.mocked(sendRuntimeRequest).mockImplementation(async request => request.type === "TRANSLATE_BATCH"
     ? { translations: request.texts.map(text => `译文：${text}`), cached: 0 } : settings);
 });
-afterEach(() => { clearPageTranslation(); configureElementExclusions(undefined); vi.restoreAllMocks(); vi.mocked(sendRuntimeRequest).mockReset(); document.body.replaceChildren(); });
+afterEach(() => { clearPageTranslation(); configureElementRules({}); vi.restoreAllMocks(); vi.mocked(sendRuntimeRequest).mockReset(); document.body.replaceChildren(); });
 
 describe("live exclusion settings", () => {
   it("restores newly excluded output and continues translating permitted content", async () => {
@@ -62,4 +62,19 @@ describe("live exclusion settings", () => {
     expect(batches[0].texts).toEqual(["Readable public article."]);
     expect(batches[0].context).not.toContain("Excluded recommendation text.");
   });
+});
+
+it("translates a late-matching region and restores it when the selector stops matching", async () => {
+  await startPageTranslation({ ...settings, elementInclusions: [{ id: "dialog", name: "Settings dialog",
+    pattern: "example.com/articles/*", selectors: ["[data-dialog='media']"], enabled: true }] });
+  const dialog = document.createElement("aside");
+  dialog.className = "notranslate";
+  dialog.innerHTML = '<p id="dialog-label">Filename Format</p>';
+  document.body.append(dialog);
+  dialog.setAttribute("data-dialog", "media");
+  await vi.waitFor(() => expect(output("dialog-label")).not.toBeNull());
+  dialog.removeAttribute("data-dialog");
+  await vi.waitFor(() => expect(output("dialog-label")).toBeNull());
+  expect(dialog.textContent).toBe("Filename Format");
+  expect(output("public")).not.toBeNull();
 });

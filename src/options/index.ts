@@ -11,7 +11,7 @@ import { setImageTranslationToggle, setupOcrControl } from "../shared/ocr-contro
 import { setupLocalModelControl } from "../local/control";
 import { ensureProviderIconStyles, providerIconMarkup } from "../shared/provider-icons";
 import { setupAutoTranslationControls } from "./auto-translation";
-import { setupElementExclusionControls } from "./element-exclusions";
+import { setupElementRuleControls } from "./element-exclusions";
 import { renderProviderUsage, updateProviderScheduling } from "./provider-usage";
 import { setupSettingsNavigation } from "./navigation";
 import { setupStatisticsControls } from "./statistics";
@@ -84,7 +84,7 @@ const autoTranslationControls = setupAutoTranslationControls(
   }
 );
 const frameTranslationEnabled = query<HTMLInputElement>("#frameTranslationEnabled");
-const elementExclusionControls = setupElementExclusionControls(query<HTMLElement>("#elementExclusionSettings"), field => {
+const elementRuleControls = setupElementRuleControls(query<HTMLElement>("#elementExclusionSettings"), field => {
   settingsNavigation.reveal(field); field.scrollIntoView?.({ block: "center" });
 });
 const frameTranslationExcluded = query<HTMLTextAreaElement>("#frameTranslationExcluded");
@@ -228,7 +228,7 @@ function renderGeneralSettings(): void {
   shortcutControls.render(settings.shortcuts, settings.shortcutEnabled, settings.localShortcuts);
   appearanceControls.render(settings.appearance);
   autoTranslationControls.render(settings.autoTranslation);
-  elementExclusionControls.render(settings.elementExclusions);
+  elementRuleControls.render(settings);
   renderGeneralPageSettings(settings);
   renderSelectionSettings(settings);
   renderPerformanceSettings(settings);
@@ -984,7 +984,7 @@ function restorePageDefaults(): void {
       break;
     case "selectionTranslationSettings": renderSelectionSettings(DEFAULT_SETTINGS); break;
     case "autoTranslationSettings": autoTranslationControls.render(DEFAULT_SETTINGS.autoTranslation); break;
-    case "elementExclusionSettings": elementExclusionControls.render(DEFAULT_SETTINGS.elementExclusions); break;
+    case "elementExclusionSettings": elementRuleControls.render(DEFAULT_SETTINGS); break;
     case "shortcutSettings": shortcutControls.reset(); break;
     case "appearanceSettings": appearanceControls.render(DEFAULT_SETTINGS.appearance); break;
     case "statisticsSettings": statisticsControls.reset(); break;
@@ -1076,7 +1076,7 @@ function readSettingsFromForm(): ExtensionSettings {
     localShortcuts: shortcutControls.readLocal(),
     shortcutEnabled: shortcutControls.readEnabled(),
     autoTranslation: autoTranslationControls.read(),
-    elementExclusions: elementExclusionControls.read(),
+    ...elementRuleControls.read(),
     frameTranslation: normalizeFrameTranslation({ enabled: frameTranslationEnabled.checked,
       excludeMatches: frameTranslationExcluded.value.split(/\r?\n/u) }),
     targetLang: targetLang.value.trim() || "zh-CN",

@@ -1,7 +1,7 @@
 import { t } from "./i18n";
 import { matchesSitePattern, normalizeSitePattern } from "./auto-translation";
 
-export interface ElementExclusionRule {
+export interface ElementRule {
   id: string;
   name: string;
   pattern: string;
@@ -9,13 +9,26 @@ export interface ElementExclusionRule {
   enabled: boolean;
 }
 
-export const DEFAULT_ELEMENT_EXCLUSIONS: ElementExclusionRule[] = [{
+export const DEFAULT_ELEMENT_EXCLUSIONS: ElementRule[] = [{
   id: "x-sidebar", get name() { return t("xSidebarNavigation"); }, pattern: "x.com", selectors: ['header[role="banner"]'], enabled: true
 }];
 
-export function normalizeElementExclusions(value: unknown): ElementExclusionRule[] {
-  const entries = Array.isArray(value) ? value : DEFAULT_ELEMENT_EXCLUSIONS;
-  const rules: ElementExclusionRule[] = [];
+export interface ElementRuleSettings {
+  elementExclusions?: ElementRule[];
+  elementInclusions?: ElementRule[];
+}
+
+export function normalizeElementExclusions(value: unknown): ElementRule[] {
+  return normalizeRules(value, DEFAULT_ELEMENT_EXCLUSIONS, "exclusion");
+}
+
+export function normalizeElementInclusions(value: unknown): ElementRule[] {
+  return normalizeRules(value, [], "inclusion");
+}
+
+function normalizeRules(value: unknown, defaults: ElementRule[], prefix: string): ElementRule[] {
+  const entries = Array.isArray(value) ? value : defaults;
+  const rules: ElementRule[] = [];
   const ids = new Set<string>();
   for (const entry of entries.slice(0, 100)) {
     if (!entry || typeof entry !== "object" || typeof entry.pattern !== "string" || !Array.isArray(entry.selectors)) continue;
@@ -24,7 +37,7 @@ export function normalizeElementExclusions(value: unknown): ElementExclusionRule
       const selectors = [...new Set<string>(entry.selectors.filter((selector: unknown): selector is string => typeof selector === "string")
         .map((selector: string) => selector.trim()).filter((selector: string) => selector.length > 0 && selector.length <= 4096))].slice(0, 100);
       if (!selectors.length) continue;
-      let id = typeof entry.id === "string" && entry.id.trim() ? entry.id.trim().slice(0, 100) : `exclusion-${rules.length}`;
+      let id = typeof entry.id === "string" && entry.id.trim() ? entry.id.trim().slice(0, 100) : `${prefix}-${rules.length}`;
       while (ids.has(id)) id += "-1";
       ids.add(id);
       rules.push({ id, name: typeof entry.name === "string" && entry.name.trim() ? entry.name.trim().slice(0, 80) : pattern,
@@ -35,7 +48,12 @@ export function normalizeElementExclusions(value: unknown): ElementExclusionRule
 }
 
 /** Names and rule IDs do not change which content is translated. */
-export function elementExclusionIdentity(value: unknown, address?: string): string {
-  return JSON.stringify(normalizeElementExclusions(value).filter(rule => rule.enabled && (address === undefined || matchesSitePattern(rule.pattern, address)))
-    .map(rule => [rule.pattern, rule.selectors]));
+export function elementRuleIdentity(settings: ElementRuleSettings, address?: string): string {
+  return JSON.stringify([enabledRules(normalizeElementExclusions(settings.elementExclusions), address),
+    enabledRules(normalizeElementInclusions(settings.elementInclusions), address)]);
+}
+
+function enabledRules(rules: ElementRule[], address?: string): Array<[string, string[]]> {
+  return rules.filter(rule => rule.enabled && (address === undefined || matchesSitePattern(rule.pattern, address)))
+    .map(rule => [rule.pattern, rule.selectors]);
 }

@@ -8,7 +8,7 @@ import { clearPageTranslation, getPageTranslationDisplayMode } from "./page-tran
 import { sendRuntimeRequest } from "./runtime";
 import { buildTranslationContext } from "./translation-context";
 import { documentTranslationRevision } from "./translation-lifecycle";
-import { configureElementExclusions } from "./element-exclusions";
+import { configureElementRules } from "./element-exclusions";
 
 const pending = new WeakMap<Element, object>();
 
@@ -27,7 +27,7 @@ export async function translateParagraph(target: Element, action: "toggle" | "tr
   try {
     const settings = await sendRuntimeRequest<ExtensionSettings>({ type: "GET_SETTINGS" });
     if (pending.get(target) !== task || revision !== documentTranslationRevision() || !target.isConnected) return;
-    if (configureElementExclusions(settings.elementExclusions)) { clearPageTranslation(); revision = documentTranslationRevision(); }
+    if (configureElementRules(settings)) { clearPageTranslation(); revision = documentTranslationRevision(); }
     if (!target.isConnected) return;
     const segments = collectParagraphTextSegments(target, settings.translateCodeComments);
     if (!segments.length) throw new Error(t("noTranslatableParagraphHere"));

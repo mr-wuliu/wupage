@@ -1,5 +1,5 @@
 import { composedParent } from "./dom-roots";
-import { matchesElementExclusion } from "./element-exclusions";
+import { forcedTextRoot, isElementExcluded, matchesElementExclusion } from "./element-exclusions";
 const HTML_NAMESPACE = "http://www.w3.org/1999/xhtml";
 
 // These are source documents or application state, rather than readable prose.
@@ -17,6 +17,10 @@ export function isTranslationOptedOut(element: Element): boolean {
     if (translate === undefined && (value === "yes" || value === "")) translate = true;
   }
   return translate === false;
+}
+
+export function isTextTranslationOptedOut(element: Element, forceRoot = forcedTextRoot(element)): boolean {
+  return forceRoot ? isElementExcluded(element) : isTranslationOptedOut(element);
 }
 
 export function isNonProseElement(element: Element): boolean {

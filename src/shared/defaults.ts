@@ -8,6 +8,7 @@ import { normalizeElementExclusions } from "./element-exclusions";
 
 export const DEFAULT_SETTINGS: ExtensionSettings = {
   elementExclusions: normalizeElementExclusions(undefined),
+  elementInclusions: [],
   shortcuts: { ...DEFAULT_SHORTCUTS },
   localShortcuts: { ...DEFAULT_LOCAL_SHORTCUTS },
   shortcutEnabled: { ...DEFAULT_SHORTCUT_ENABLED },
