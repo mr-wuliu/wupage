@@ -19,6 +19,7 @@ import {
   takeHiddenScanRoots
 } from "../src/content/dom";
 import { injectContentStyles } from "../src/content/styles";
+import { structuredTranslation } from "./helpers/structured-translation";
 
 describe("host content boundaries", () => {
   it.each([[false, false], [true, false], [false, true], [true, true]])("restores temporarily detached rows before forgetting their source, pending=%s, fragment=%s", async (pending, fragment) => {
@@ -292,8 +293,8 @@ describe("content DOM translation extraction", () => {
     const breaks = [...authored.querySelectorAll("br")];
     const segments = (await collectTextSegmentsProgressive());
     expect(segments).toHaveLength(4);
-    renderTranslations(segments.map((segment) => ({ id: segment.id, text: segment.text.includes("WUPAGE")
-      ? "今天阅读 ⟪WUPAGE0⟫。" : "保留的译文" })));
+    renderTranslations(segments.map(({ id, text }) => ({ id, text: text.includes("⟪WUPAGE0⟫")
+      ? "今天阅读 ⟪WUPAGE0⟫。" : structuredTranslation(text, "保留的译文") })));
     for (const mode of ["replace", "bilingual-accent", "bilingual", "replace", "bilingual"] as const) {
       setTranslationDisplayMode(mode);
       const outputs = [...document.querySelectorAll<HTMLElement>(".wupage-translation")];
@@ -337,14 +338,16 @@ describe("content DOM translation extraction", () => {
     const breaks = [...source.querySelectorAll("br")];
     const segments = (await collectTextSegmentsProgressive());
     expect(segments).toHaveLength(1);
-    expect(segments[0].text).toContain("願い 「円環の理」");
+    expect(segments[0].text).toContain("願い ⟪WUPAGEBREAK0⟫ 「円環の理」");
     renderTranslationPlaceholders(segments);
     expect(source.nextElementSibling?.getAttribute("data-wupage-container")).toBe("authored-lines");
-    renderTranslations([{ id: segments[0].id, text: "她希望拯救所有魔法少女，成为被称作圆环之理的存在。" }], mode);
+    renderTranslations([{ id: segments[0].id,
+      text: "她希望拯救所有魔法少女，⟪WUPAGEBREAK0⟫成为被称作圆环之理的⟪WUPAGEBREAK1⟫存在。⟪WUPAGEBREAK2⟫" }], mode);
     const output = source.nextElementSibling!;
     expect(output.getAttribute("data-wupage-mode")).toBe("block");
     expect(output.getAttribute("data-wupage-display-mode")).toBe(mode);
     expect(output.parentElement?.id).toBe("profile");
+    expect(output.querySelectorAll("br")).toHaveLength(3);
     expect(source.querySelector(".wupage-translation")).toBeNull();
     expect(source.innerHTML).toBe(original);
     clearTranslations();
@@ -360,9 +363,9 @@ describe("content DOM translation extraction", () => {
     const original = source.innerHTML;
     const originalElement = source.outerHTML;
     const [segment] = (await collectTextSegmentsProgressive());
-    renderTranslations([{ id: segment.id, text: "合并为完整段落的译文。" }], "replace");
+    renderTranslations([{ id: segment.id, text: "第一行译文。⟪WUPAGEBREAK0⟫第二行译文。⟪WUPAGEBREAK1⟫" }], "replace");
     expect(source.classList.contains("wupage-replaced-source")).toBe(true);
-    expect(source.nextElementSibling?.textContent).toBe("合并为完整段落的译文。");
+    expect(source.nextElementSibling?.innerHTML).toBe("第一行译文。<br>第二行译文。<br>");
     clearTranslations();
     expect(source.classList.contains("wupage-replaced-source")).toBe(false);
     expect(source.innerHTML).toBe(original);
@@ -382,7 +385,7 @@ describe("content DOM translation extraction", () => {
     stubLayout();
     const source = document.querySelector<HTMLElement>("#source")!;
     const [segment] = (await collectTextSegmentsProgressive());
-    renderTranslations([{ id: segment.id, text: "旧译文。" }], "replace");
+    renderTranslations([{ id: segment.id, text: "旧的第一行。⟪WUPAGEBREAK0⟫旧的第二行。" }], "replace");
     source.firstChild!.textContent = "The page supplied an updated opening sentence.";
     source.classList.add("host-updated");
     expect(invalidateStaleSegments()).toContain(segment.id);
@@ -939,6 +942,78 @@ describe("content DOM translation extraction", () => {
     expect(segments.map((segment) => segment.text)).toEqual([
       "If this mentions any specific language, keep it together."
     ]);
+  });
+
+  it.each(["div", "span"])("preserves a line break and a link while translating a complete phrase in a plain %s", async tag => {
+    document.body.innerHTML = `<${tag} id="prose">A<br><a href="/sketchboard">sketchboard</a></${tag}>`;
+    stubLayout("", { style: element => ({ display: element.matches("a,span,br") ? "inline" : "block" }) });
+    const source = document.querySelector("#prose")!;
+    const original = source.innerHTML;
+    const sourceBreak = source.querySelector("br");
+    const sourceLink = source.querySelector("a");
+    expect(findTranslatableParagraph(sourceLink)).toBe(source);
+    const segments = await collectTextSegmentsProgressive();
+    expect(segments.map(segment => segment.requestText)).toEqual(["A ⟪WUPAGEBREAK0⟫ ⟪WUPAGEOPEN0⟫sketchboard⟪WUPAGECLOSE0⟫"]);
+    expect(segments[0].element).toBe(source);
+    expect(renderTranslations([{ id: segments[0].id, text: "一个⟪WUPAGEBREAK0⟫⟪WUPAGEOPEN0⟫草图板⟪WUPAGECLOSE0⟫" }]))
+      .toEqual([segments[0].id]);
+    expect(source.nextElementSibling?.innerHTML).toBe('一个<br><a href="/sketchboard">草图板</a>');
+    setTranslationDisplayMode("replace");
+    expect(source.innerHTML).toBe('一个<br><a href="/sketchboard">草图板</a>');
+    expect(source.querySelector("br")).toBe(sourceBreak);
+    expect(source.querySelector("a")).toBe(sourceLink);
+    clearTranslations();
+    expect(source.innerHTML).toBe(original);
+  });
+
+  it.each(["normal", "pre-line", "pre-wrap"])("follows the source white-space rule %s for literal line breaks", async whiteSpace => {
+    document.body.innerHTML = '<div id="source">First line.\n\nSecond line.</div>';
+    stubLayout("", { style: () => ({ whiteSpace }) });
+    const [segment] = await collectTextSegmentsProgressive();
+    if (whiteSpace === "normal") {
+      expect(segment.requestText).toBe("First line. Second line.");
+      return;
+    }
+    expect(segment.requestText).toBe("First line. ⟪WUPAGEBREAK0⟫ ⟪WUPAGEBREAK1⟫ Second line.");
+    const translation = { id: segment.id, text: "第一行。⟪WUPAGEBREAK0⟫⟪WUPAGEBREAK1⟫第二行。" };
+    renderTranslations([translation]);
+    expect(document.querySelector("#source + .wupage-translation")?.innerHTML).toBe("第一行。<br><br>第二行。");
+    setTranslationDisplayMode("replace");
+    expect(document.querySelector("#source .wupage-translation")?.innerHTML).toBe("第一行。<br><br>第二行。");
+    clearTranslations();
+    expect(document.querySelector("#source")?.textContent).toBe("First line.\n\nSecond line.");
+  });
+
+  it("retains the styling of a responsive break even when it starts hidden", async () => {
+    document.body.innerHTML = '<h2>First line.<br id="source-break" class="wide-only">Second line.<span hidden><br class="hidden-child"></span></h2>';
+    stubLayout("", { style: element => ({ display: element.matches("br.wide-only,span[hidden]") ? "none" : "block" }) });
+    const [segment] = await collectTextSegmentsProgressive();
+    expect(segment.requestText).toBe("First line. ⟪WUPAGEBREAK0⟫ Second line.");
+    renderTranslations([{ id: segment.id, text: "第一行。⟪WUPAGEBREAK0⟫第二行。" }]);
+    expect(document.querySelector(".wupage-translation")?.innerHTML).toBe('第一行。<br class="wide-only">第二行。');
+  });
+
+  it("keeps visible short labels eligible outside marked reading regions", async () => {
+    document.body.innerHTML = `<div><span>Project Overview</span><span>Read-only</span><span>雨</span>
+      <span hidden>Hidden Label</span><span translate="no">Protected Label</span><span>42</span></div>`;
+    stubLayout();
+    expect((await collectTextSegmentsProgressive()).map(segment => segment.text))
+      .toEqual(["Project Overview", "Read-only", "雨"]);
+  });
+
+  it("retains the space at a visual wrap while excluding hidden text from the same sentence", async () => {
+    document.body.innerHTML = `<div id="prose"><span>from a</span> <a href="/sketchboard">sketchboard</a><span hidden>Hidden source</span></div>`;
+    stubLayout("", { style: element => ({ display: element.matches("a,span") ? "inline" : "block" }) });
+    const separator = document.querySelector("#prose")!.childNodes[1];
+    const createRange = document.createRange.bind(document);
+    vi.spyOn(document, "createRange").mockImplementation(() => {
+      const range = createRange();
+      Object.defineProperty(range, "getClientRects", {
+        value: () => range.startContainer === separator ? [] : [new DOMRect(0, 0, 600, 20)]
+      });
+      return range;
+    });
+    expect((await collectTextSegmentsProgressive()).map(segment => segment.requestText)).toEqual(["from a sketchboard"]);
   });
 
   it("renders ordinary list prose consistently with and without paragraph wrappers", async () => {
@@ -1907,10 +1982,10 @@ describe("content DOM translation extraction", () => {
     expect(segments).toHaveLength(3);
     renderTranslationPlaceholders(segments);
     for (const text of ["初次译文", "更新后的译文", "更新后的译文"]) {
-      renderTranslations(segments.map(segment => ({ id: segment.id, text })), mode);
+      renderTranslations(segments.map(segment => ({ id: segment.id, text: structuredTranslation(segment.text, text) })), mode);
       const outputs = [...document.querySelectorAll(".wupage-translation")];
       expect(outputs).toHaveLength(3);
-      expect(outputs.every(output => output.textContent === text)).toBe(true);
+      expect(outputs.map(output => output.textContent)).toEqual([text, text, `${text}${text}`]);
       expect(document.querySelector(".wupage-translation-pending")).toBeNull();
     }
     clearTranslations();

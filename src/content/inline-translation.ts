@@ -13,7 +13,7 @@ interface Snapshot {
   attributes: string;
 }
 interface Piece { text?: string; id?: number; atom?: number; children?: Piece[] }
-interface ProtectedInlineNode { marker: string; sourceNode: Element }
+interface ProtectedInlineNode { marker: string; sourceNode: Node }
 
 /** A closed set of original nodes. Translator output never supplies DOM or attributes. */
 export class InlineTranslationPlan {
@@ -44,7 +44,7 @@ export class InlineTranslationPlan {
           const marker = protectedByNode.get(node)!;
           this.atoms.set(Number(/\d+/u.exec(marker)![0]), node);
           this.atomMarkup.set(node, node.outerHTML);
-          return marker;
+          return node.matches("br") ? ` ${marker} ` : marker;
         }
         if (node instanceof Text) {
           if (node.data.trim() && !accepted.has(node)) throw new Error("Text belongs to another translation unit");
@@ -85,9 +85,9 @@ export class InlineTranslationPlan {
     if (text === undefined) return undefined;
     const root: Piece[] = [], stack = [root];
     let cursor = 0;
-    for (const match of text.matchAll(/⟪WUPAGE(OPEN|CLOSE)?(\d+)⟫/gu)) {
+    for (const match of text.matchAll(/⟪WUPAGE(OPEN|CLOSE|BREAK)?(\d+)⟫/gu)) {
       if (match.index! > cursor) stack.at(-1)!.push({ text: text.slice(cursor, match.index) });
-      if (!match[1]) {
+      if (!match[1] || match[1] === "BREAK") {
         if (!this.atoms.has(Number(match[2]))) return undefined;
         stack.at(-1)!.push({ atom: Number(match[2]) });
       } else if (match[1] === "OPEN") {
