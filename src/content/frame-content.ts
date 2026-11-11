@@ -4,6 +4,7 @@ import { injectContentStyles } from "./styles";
 import { initSelectionTranslation } from "./selection-translation";
 import { translateShortcutParagraphs } from "./paragraph-shortcut";
 import { findTranslatableParagraph } from "./dom";
+import { textNodeAtPoint } from "./text-flow";
 import { translateParagraph } from "./paragraph-translation";
 import { sendRuntimeRequest } from "./runtime";
 import type { ExtensionSettings } from "../shared/types";
@@ -34,7 +35,7 @@ export async function activateFrameContent(documentKey: string, initialSettings?
     if (!paragraph || !shortcutEnabled["paragraph-click"] || !matchesParagraphClick(event, localShortcuts["paragraph-click"]) || pending) return;
     const element = event.composedPath().find(node => node instanceof Element) as Element | undefined;
     if (element?.closest("input,textarea,select,[contenteditable]:not([contenteditable='false'])")) return;
-    const target = findTranslatableParagraph(element ?? null);
+    const target = findTranslatableParagraph(element ?? null, textNodeAtPoint(document, event.clientX, event.clientY) ?? undefined);
     if (!target) return;
     event.preventDefault(); event.stopPropagation(); pending = true;
     void translateParagraph(target)

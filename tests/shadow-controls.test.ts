@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { layoutDisplay } from "./helpers/layout-display";
 import {
   clearTranslations,
   collectTextSegmentsProgressive,
@@ -9,8 +10,8 @@ import {
 } from "../src/content/dom";
 
 beforeEach(() => {
-  vi.spyOn(window, "getComputedStyle").mockImplementation(() => ({
-    display: "block", visibility: "visible", opacity: "1", color: "rgb(0, 0, 0)"
+  vi.spyOn(window, "getComputedStyle").mockImplementation(element => ({
+    display: layoutDisplay(element), visibility: "visible", opacity: "1", color: "rgb(0, 0, 0)"
   }) as CSSStyleDeclaration);
   vi.spyOn(Element.prototype, "getBoundingClientRect").mockReturnValue({
     width: 200, height: 40, top: 0, right: 200, bottom: 40, left: 0

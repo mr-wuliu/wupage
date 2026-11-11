@@ -6,17 +6,17 @@ import type { PageTranslationCoordinator } from "../src/content/page-translation
 import type { RuntimeRequest } from "../src/shared/types";
 
 const f = vi.hoisted(() => ({
-  local: { active: false },
-  configure: vi.fn(), start: vi.fn(), hide: vi.fn(), notify: vi.fn(), send: vi.fn(), state: vi.fn()
+  local: { active: false }, visible: false,
+  configure: vi.fn(), start: vi.fn(), hide: vi.fn(), notify: vi.fn(), send: vi.fn(), state: vi.fn(), mode: vi.fn()
 }));
 vi.mock("../src/content/runtime", () => ({ sendRuntimeRequest: f.send }));
-vi.mock("../src/content/dom", () => ({ hasPageTranslations: () => false }));
+vi.mock("../src/content/dom", () => ({ hasPageTranslations: () => f.visible }));
 vi.mock("../src/content/frame-visibility", () => ({ frameIsRendered: () => true }));
 vi.mock("../src/content/page-translation", () => ({
   configurePageTranslationCoordinator: f.configure,
   getLocalPageTranslationState: f.state,
   hideLocalPageTranslation: f.hide, startLocalPageTranslation: f.start,
-  notifyCoordinatedPageState: f.notify, setLocalPageTranslationDisplayMode: vi.fn(),
+  notifyCoordinatedPageState: f.notify, setLocalPageTranslationDisplayMode: f.mode,
   setPageRequestIdentity: vi.fn(), subscribePageTranslationState: vi.fn()
 }));
 import { installFrameRuntime } from "../src/content/frame-runtime";
@@ -33,9 +33,9 @@ const deferred = <T>() => {
 
 describe("document session control ordering", () => {
   beforeEach(() => {
-    vi.useFakeTimers(); f.local.active = false;
+    vi.useFakeTimers(); f.local.active = false; f.visible = false;
     f.state.mockImplementation(() => ({ active: f.local.active }));
-    f.hide.mockImplementation(() => { f.local.active = false; });
+    f.hide.mockImplementation(() => { f.local.active = false; f.visible = false; });
     f.start.mockImplementation(async () => { f.local.active = true; return { ...emptyDocumentState(), translated: 1 }; });
     f.send.mockImplementation(async (request: RuntimeRequest) => request.type === "FRAME_REGISTER" ? snapshot(1, false) : snapshot(2, true));
     vi.spyOn(window, "addEventListener").mockImplementation(() => {});
@@ -43,6 +43,33 @@ describe("document session control ordering", () => {
   });
   afterEach(() => { vi.clearAllTimers(); vi.useRealTimers(); vi.restoreAllMocks(); vi.resetAllMocks(); vi.unstubAllGlobals(); });
   const controls = () => f.configure.mock.calls.at(-1)![0] as PageTranslationCoordinator;
+
+  it("updates visible paragraph translations when the inactive page session changes display mode", async () => {
+    const runtime = installFrameRuntime("embedded", { top: false });
+    const initial = snapshot(2, false);
+    await runtime.apply(initial);
+    f.visible = true;
+    await runtime.apply({ ...initial, revision: 3,
+      settings: { ...initial.settings, translationDisplayMode: "bilingual-accent" } });
+    expect(f.hide).not.toHaveBeenCalled();
+    expect(f.mode).toHaveBeenLastCalledWith("bilingual-accent");
+    expect(f.start).not.toHaveBeenCalled();
+  });
+
+  it.each(["stop", "exclude", "refresh"] as const)("still hides paragraph translations on %s", async action => {
+    const runtime = installFrameRuntime("embedded", { top: false });
+    const initial = snapshot(2, false);
+    await runtime.apply(initial);
+    f.visible = true;
+    await runtime.apply({ ...initial, revision: 3, id: action === "stop" ? "stopped-generation" : initial.id },
+      action !== "exclude", action !== "refresh");
+    expect(f.hide).toHaveBeenCalledOnce();
+    f.mode.mockClear();
+    await runtime.apply({ ...initial, revision: 4, id: action === "stop" ? "stopped-generation" : initial.id,
+      settings: { ...initial.settings, translationDisplayMode: "replace" } });
+    expect(f.mode).not.toHaveBeenCalled();
+    expect(f.start).not.toHaveBeenCalled();
+  });
 
   it("identifies the live document without waiting for its pending background registration", () => {
     f.send.mockReturnValueOnce(new Promise(() => {}));

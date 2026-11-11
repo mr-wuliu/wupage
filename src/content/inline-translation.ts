@@ -1,6 +1,6 @@
 import { normalizeProtectedText } from "../shared/protected-text";
+import { TextFlowSnapshot } from "./text-flow";
 
-const FORMATTING = "a,b,strong,i,em,u,s,del,ins,mark,small,sub,sup,span,q,abbr,time";
 const owned = (node: Node) => node instanceof Element && node.classList.contains("wupage-translation");
 const children = (element: Element) => [...element.childNodes].filter(node => !owned(node));
 const attributes = (element: Element) => JSON.stringify([...element.attributes]
@@ -36,6 +36,7 @@ export class InlineTranslationPlan {
 
   private constructor(readonly block: Element, accepted: Set<Text>, protectedNodes: ProtectedInlineNode[]) {
     const protectedByNode = new Map(protectedNodes.map(entry => [entry.sourceNode, entry.marker]));
+    const flows = new TextFlowSnapshot();
     const read = (element: Element): string => {
       const nodes = children(element);
       this.snapshots.push({ element, children: nodes, expected: nodes, attributes: attributes(element) });
@@ -54,8 +55,8 @@ export class InlineTranslationPlan {
         }
         // Framework comment anchors can carry hydration/region identity.
         if (node.nodeType === Node.COMMENT_NODE) throw new Error("Framework anchor");
-        if (!(node instanceof Element) || !node.matches(FORMATTING)
-          || /^(?:block|inline-block|(?:inline-)?(?:flex|grid))$/u.test(getComputedStyle(node).display)
+        if (!(node instanceof Element) || node.namespaceURI !== "http://www.w3.org/1999/xhtml"
+          || node.matches("img,svg,math,br,wbr,code,kbd,samp") || !flows.isInlineTree(node)
           || node.matches("[role],[tabindex],[onclick],[slot],[translate],[hidden],[aria-hidden],.notranslate")) {
           throw new Error("Independent or protected content");
         }

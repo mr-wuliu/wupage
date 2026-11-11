@@ -65,10 +65,15 @@ export function installFrameRuntime(documentKey: string, options: { top: boolean
     // Wait for that stop's acknowledgement instead of reviving its old work.
     if (desiredActive === false && value.active) return documentState();
     if (!allowed || !value.active) {
+      // Standalone paragraph results can remain visible while page translation
+      // is inactive. Presentation updates in the same generation are not stops.
+      const stop = !allowed || !reuseResults || (appliedId !== undefined && appliedId !== value.id);
+      const visible = hasPageTranslations();
       appliedId = value.id;
       applyVersion++;
       applyError = undefined;
-      if (getLocalPageTranslationState().active || hasPageTranslations()) hideLocalPageTranslation(false);
+      if (getLocalPageTranslationState().active || (stop && visible)) hideLocalPageTranslation(false);
+      else if (visible) setLocalPageTranslationDisplayMode(value.settings.translationDisplayMode);
       setPageRequestIdentity(undefined); report();
       return documentState();
     }

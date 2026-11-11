@@ -12,9 +12,10 @@ import {
 } from "../src/content/dom";
 import { buildTranslationContext } from "../src/content/translation-context";
 import { injectContentStyles } from "../src/content/styles";
+import { layoutDisplay } from "./helpers/layout-display";
 
 beforeEach(() => {
-  vi.spyOn(window, "getComputedStyle").mockImplementation(element => ({ display: "block", visibility: "visible", opacity: "1",
+  vi.spyOn(window, "getComputedStyle").mockImplementation(element => ({ display: layoutDisplay(element), visibility: "visible", opacity: "1",
     ...(element.hasAttribute("hidden") ? { display: "none" } : {}) }) as CSSStyleDeclaration);
   vi.spyOn(Element.prototype, "getBoundingClientRect").mockReturnValue({ width: 600, height: 20, top: 0, right: 600, bottom: 20, left: 0 } as DOMRect);
 });

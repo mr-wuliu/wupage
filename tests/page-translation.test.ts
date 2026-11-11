@@ -12,6 +12,7 @@ import { sendRuntimeRequest } from "../src/content/runtime";
 import { collectParagraphTextSegments, renderTranslations } from "../src/content/dom";
 import { ProviderError } from "../src/shared/errors";
 import { injectContentStyles } from "../src/content/styles";
+import { layoutDisplay } from "./helpers/layout-display";
 
 const settings: ExtensionSettings = {
   targetLang: "zh-CN",
@@ -34,7 +35,7 @@ describe("viewport page translation", () => {
     scrollOffset = 0;
     Object.defineProperty(window, "innerHeight", { configurable: true, value: 800 });
     vi.spyOn(window, "getComputedStyle").mockImplementation(element => ({
-      display: "block",
+      display: layoutDisplay(element),
       visibility: "visible",
       opacity: "1",
       backgroundColor: element.id === "overlay" ? "rgb(255, 255, 255)" : "transparent"

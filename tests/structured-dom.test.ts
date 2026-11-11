@@ -7,8 +7,9 @@ import {
 import { componentShadowRoot } from "../src/content/dom-roots";
 
 beforeEach(() => {
+  const computedStyle = window.getComputedStyle.bind(window);
   vi.spyOn(window, "getComputedStyle").mockImplementation(element => ({
-    display: (element as HTMLElement).style.display || (element.matches("a,b,strong,i,em,span") ? "inline" : "block"), visibility: "visible", opacity: "1", color: "rgb(0, 0, 0)"
+    display: computedStyle(element).display || "inline", visibility: "visible", opacity: "1", color: "rgb(0, 0, 0)"
   }) as CSSStyleDeclaration);
   vi.spyOn(Element.prototype, "getBoundingClientRect").mockReturnValue({
     width: 300, height: 25, top: 0, right: 300, bottom: 25, left: 0
@@ -35,11 +36,12 @@ describe("bound translation writes", () => {
   it("never absorbs an unknown component into surrounding paragraph prose", async () => {
     document.body.innerHTML = '<p>Before the action. <unknown-action>Update</unknown-action> After the action.</p>';
     const segments = await collectTextSegmentsProgressive();
-    expect(segments.map(segment => segment.text)).toEqual(["Before the action. After the action.", "Update"]);
+    expect(segments.map(segment => segment.text)).toEqual(["Before the action.", "Update", "After the action."]);
     expect(segments.map(segment => segment.requestText)).toEqual(segments.map(segment => segment.text));
     renderTranslations(segments.map(({ id, text }) => ({ id, text: text === "Update" ? "更新" : "前后说明。" })), "replace");
     expect(document.querySelector("unknown-action")!.textContent).toBe("更新");
-    expect(document.querySelector("p > .wupage-translation")!.textContent).toBe("前后说明。");
+    expect(document.querySelectorAll("p > [data-wupage-prose-source] .wupage-translation")).toHaveLength(2);
+    expect(document.querySelector("unknown-action")!.previousElementSibling?.textContent).toBe("前后说明。");
   });
 
   it("does not merge unknown component fields through an outer layout table", async () => {

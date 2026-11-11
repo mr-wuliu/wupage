@@ -102,8 +102,6 @@ describe("legacy prose separated by blank lines", () => {
     '<div contenteditable="true">An unsent draft.<br><br>Another private paragraph.</div>',
     '<div translate="no">Untranslated passage.<br><br>Another passage.</div>',
     '<button>First control.<br><br>Second control.</button>',
-    '<div>First field.<br><br><button>Action</button></div>',
-    '<div>First field.<br><br><p>Independent paragraph.</p></div>',
     '<div>First line.<br>Second line.</div>'
   ])("leaves code, editors, opted-out content and layout boundaries intact: %s", async html => {
     document.body.innerHTML = html;
@@ -119,7 +117,9 @@ describe("legacy prose separated by blank lines", () => {
       display: element.matches(".fields") ? "grid" : element.matches("span") ? "inline" : "block",
       visibility: "visible", opacity: "1"
     }) as CSSStyleDeclaration);
-    await collectTextSegmentsProgressive();
+    const segments = await collectTextSegmentsProgressive();
+    expect(segments.some(segment => segment.text.includes("First label") && /Subject|Author/u.test(segment.text))).toBe(false);
+    clearTranslations();
     expect(document.body.innerHTML).toBe(original);
   });
 });

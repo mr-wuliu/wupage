@@ -10,13 +10,14 @@ import {
 
 describe("translation layout boundaries", () => {
   beforeEach(() => {
+    const computedStyle = window.getComputedStyle.bind(window);
     const inheritedWhiteSpace = (element: Element): string => {
       const value = (element as HTMLElement).style.whiteSpace;
       if (value && value !== "inherit") return value;
       return element.parentElement ? inheritedWhiteSpace(element.parentElement) : "normal";
     };
     vi.spyOn(window, "getComputedStyle").mockImplementation(element => ({
-      display: (element as HTMLElement).style.display || "block", visibility: "visible", opacity: "1", color: "rgb(0, 0, 0)",
+      display: computedStyle(element).display || "inline", visibility: "visible", opacity: "1", color: "rgb(0, 0, 0)",
       whiteSpace: inheritedWhiteSpace(element),
       overflow: (element as HTMLElement).style.overflow,
       overflowX: (element as HTMLElement).style.overflowX,
@@ -59,6 +60,16 @@ describe("translation layout boundaries", () => {
   it("keeps a clipped rich sentence together when it has authored text around emphasis", async () => {
     document.body.innerHTML = `<main><div style="overflow:hidden;white-space:nowrap">A complete <em>rich sentence</em> in one line.</div></main>`;
     expect((await collectTextSegmentsProgressive()).map(s => s.text)).toEqual(["A complete rich sentence in one line."]);
+  });
+
+  it("keeps pending sender text inside its clipped inbox line", async () => {
+    document.body.innerHTML = '<table><tr><td><div id="sender" style="white-space:nowrap;overflow:hidden">Build <strong>service</strong></div></td></tr></table>';
+    const segments = await collectTextSegmentsProgressive();
+    expect(segments.map(segment => segment.text)).toEqual(["Build service"]);
+    renderTranslationPlaceholders(segments);
+    const pending = document.querySelector("#sender .wupage-translation-pending")!;
+    expect(pending.getAttribute("data-wupage-mode")).toBe("inline");
+    expect(getComputedStyle(pending).whiteSpace).toBe("nowrap");
   });
 
   it("keeps unclipped compact timestamps on one line across pending and display modes", async () => {

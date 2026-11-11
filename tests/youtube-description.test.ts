@@ -43,9 +43,9 @@ describe("YouTube description layout", () => {
       "🖨️ Try it yourself",
       "PrusaSlicer fork by Steven McCulloch:",
       "The CNC Kitchen video:",
+      "Arc Overhangs make Supports Obsolete!",
       "Tools used",
-      "Animations made with Manim.",
-      "Arc Overhangs make Supports Obsolete!"
+      "Animations made with Manim."
     ]);
     renderTranslationPlaceholders(segments);
     expect(host.querySelectorAll(".wupage-translation-pending")).toHaveLength(8);
@@ -72,7 +72,7 @@ describe("YouTube description layout", () => {
     const originalHtml = host.innerHTML;
     const segments = (await collectTextSegmentsProgressive());
     renderTranslations(segments.map(({ id }, index) => ({ id, text: `译文${index}` })), "replace");
-    expect(host.textContent).toBe("译文0\n\n译文1\nhttps://doi.org/paper\n\n译文2\n译文3\nhttps://github.com/example/slicer\n译文4\n译文7\n\n译文5\n译文6");
+    expect(host.textContent).toBe("译文0\n\n译文1\nhttps://doi.org/paper\n\n译文2\n译文3\nhttps://github.com/example/slicer\n译文4\n译文5\n\n译文6\n译文7");
     expect(invalidateStaleSegments()).toEqual([]);
     clearTranslations();
     expect(host.innerHTML).toBe(originalHtml);
