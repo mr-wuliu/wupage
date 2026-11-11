@@ -1,4 +1,5 @@
 import { t, htmlMessage } from "../shared/i18n";
+import { textNodeAtPoint } from "./text-flow";
 import { uiIconMarkup } from "../shared/ui-icons";
 import { setHtmlContent } from "../shared/html";
 import type {
@@ -259,7 +260,7 @@ function handleParagraphPreview(event: MouseEvent): void {
     return;
   }
 
-  const paragraph = findTranslatableParagraph(target);
+  const paragraph = findTranslatableParagraph(target, textNodeAtPoint(document, event.clientX, event.clientY) ?? undefined);
   if (paragraph === activeParagraph) return;
 
   setActiveParagraph(paragraph);
@@ -286,7 +287,7 @@ function handleDocumentClick(event: MouseEvent): void {
   const target = event.composedPath().find(node => node instanceof Element) as Element | undefined;
   if (!target || target.closest(`#${FLOATING_ID}, #${FLOATING_HITBOX_ID}, #wupage-floating-menu`)) return;
 
-  const paragraph = findTranslatableParagraph(target);
+  const paragraph = findTranslatableParagraph(target, textNodeAtPoint(document, event.clientX, event.clientY) ?? undefined);
   if (!paragraph) return;
   event.preventDefault();
   event.stopPropagation();

@@ -20,6 +20,7 @@ import {
 } from "../src/content/dom";
 import { injectContentStyles } from "../src/content/styles";
 import { structuredTranslation } from "./helpers/structured-translation";
+import { layoutDisplay } from "./helpers/layout-display";
 
 describe("host content boundaries", () => {
   it.each([[false, false], [true, false], [false, true], [true, true]])("restores temporarily detached rows before forgetting their source, pending=%s, fragment=%s", async (pending, fragment) => {
@@ -204,7 +205,7 @@ describe("content DOM translation extraction", () => {
     renderTranslations(segments.map(({ id, text }) => ({ id, text: `译文：${text}` })), "replace");
     expect(document.querySelector("#fields > .wupage-translation")).toBeNull();
     expect(document.querySelector("#title .wupage-translation")?.textContent).toBe("译文：A modular library for game extensions");
-    expect(document.querySelector("#author > .wupage-translation")?.textContent).toBe("译文：by");
+    expect(document.querySelector("#author [data-wupage-prose-source] .wupage-translation")?.textContent).toBe("译文：by");
     expect(authorLink?.querySelector(".wupage-translation")?.textContent).toBe("译文：developer");
     expect(authorLink?.getAttribute("href")).toBe("/user/developer");
     for (const mode of ["bilingual", "bilingual-accent", "replace"] as const) {
@@ -219,9 +220,8 @@ describe("content DOM translation extraction", () => {
   it.each(["inline-block", "inline-flex", "block", "grid"])("keeps a self-contained %s list link inside its layout box", async (display) => {
     document.body.innerHTML = `<div id="sidebar"><ul><li><div class="favicon" title="Site"></div><a href="/question">Lower your <em>expectations</em> for this puzzle</a></li></ul>
       <ul><li><a href="/tag/stream" rel="tag">stream</a></li></ul></div>`;
-    stubLayout("rgb(0, 102, 204)", { style: element => ({
-      display: element.matches("a") ? display : element.matches("li") ? "list-item" : "block"
-    }) });
+    stubLayout("rgb(0, 102, 204)", { style: element => element.matches("a") ? { display }
+      : element.matches("li") ? { display: "list-item" } : {} });
     const original = document.querySelector("#sidebar")!.innerHTML;
     const links = [...document.querySelectorAll("a")];
     const icon = document.querySelector(".favicon");
@@ -503,7 +503,7 @@ describe("content DOM translation extraction", () => {
       const source = mount();
       source.replaceChildren(document.createTextNode(original), document.createTextNode("..."));
       const [segment] = (await collectTextSegmentsProgressive());
-      expect(segment.element).toBe(source.parentElement);
+      expect(segment.element).toBe(source);
       renderTranslations([{ id: segment.id, text: translated }], "replace");
       source.replaceChildren(document.createTextNode(original), document.createTextNode("..."));
       expect(invalidateStaleSegments([source])).not.toContain(segment.id);
@@ -515,7 +515,7 @@ describe("content DOM translation extraction", () => {
       expect(window.getComputedStyle(source).visibility).toBe("visible");
       const [fresh] = (await collectAdditionalTextSegmentsProgressive([document.body]));
       expect(fresh.id).not.toBe(segment.id);
-      expect(fresh.element).toBe(destination);
+      expect(fresh.element).toBe(source);
       expect(fresh.text).toBe(original + "...");
     });
 
@@ -573,9 +573,11 @@ describe("content DOM translation extraction", () => {
     stubLayout("rgb(34, 34, 34)", { style: (element) => element.id === "layout" ? { display: "flex" } : {} });
     const column = document.querySelector("#column")!;
     const segments = (await collectTextSegmentsProgressive());
-    renderTranslations(segments.map(segment => ({ id: segment.id, text: "文字栏内的译文。" })));
+    renderTranslations(segments.map(segment => ({ id: segment.id,
+      text: structuredTranslation(segment.requestText ?? segment.text, "文字栏内的译文。") })));
     const outputs = [...document.querySelectorAll(".wupage-translation")];
-    expect(outputs).toHaveLength(2);
+    expect(outputs).toHaveLength(1);
+    expect(outputs[0].querySelector("br")).not.toBeNull();
     expect(outputs.every(output => column.contains(output))).toBe(true);
     expect(document.querySelector("#layout")!.children).toHaveLength(2);
   });
@@ -994,7 +996,7 @@ describe("content DOM translation extraction", () => {
   });
 
   it("keeps visible short labels eligible outside marked reading regions", async () => {
-    document.body.innerHTML = `<div><span>Project Overview</span><span>Read-only</span><span>雨</span>
+    document.body.innerHTML = `<div style="display:flex"><span>Project Overview</span><span>Read-only</span><span>雨</span>
       <span hidden>Hidden Label</span><span translate="no">Protected Label</span><span>42</span></div>`;
     stubLayout();
     expect((await collectTextSegmentsProgressive()).map(segment => segment.text))
@@ -2055,7 +2057,7 @@ describe("content DOM translation extraction", () => {
 
   it("drops every hidden inline run from a grouped block", async () => {
     document.body.innerHTML = `<main><p id="prose">Visible prose <span class="hidden">HIDDEN_ONE</span> continues with <em>readable words</em><span class="hidden">HIDDEN_TWO</span> at the end.</p></main>`;
-    stubLayout("", { style: (element) => ({ display: element.closest(".hidden") ? "none" : "block" }) });
+    stubLayout("", { style: element => element.closest(".hidden") ? { display: "none" } : {} });
 
     const [segment] = (await collectTextSegmentsProgressive());
 
@@ -2163,7 +2165,7 @@ function stubLayout(
   } = {}
 ): void {
   vi.spyOn(window, "getComputedStyle").mockImplementation((element) => ({
-    display: "block",
+    display: layoutDisplay(element),
     visibility: "visible",
     opacity: "1",
     color,

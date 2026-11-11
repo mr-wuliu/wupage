@@ -59,7 +59,9 @@ PDF 的参考文献边界由 `src/pdf/document.ts` 按标题所属栏及上下�
 
 DeepL 适配位于 `src/background/providers/deepl.ts`，负责语言代码、按条数与 UTF-8 请求体大小分批、结果顺序及错误状态；空接口地址按密钥选择官方 Free / Pro 服务。上下文通过独立参数传递，不拼入计费原文；请求复用现有的临时来源请求头兼容规则，仅作用于扩展自身的目标 POST 地址。Index-Translate 复用 OpenAI 兼容请求链路，提供本地桥接预设、关闭思考的请求参数及前置思考块过滤。两项服务纳入设置规范化、性能参数、请求模板（Index-Translate）和备份恢复。`tests/deepl-provider.test.ts`、`tests/index-translate-provider.test.ts` 通过模拟接口验证协议和异常，`tests/options-provider-state.test.ts` 检查界面保存。构建后运行 `npm run test:translation-providers` 可检查实际扩展请求和窄屏设置页，支持 `-- --edge`、`-- --firefox`；报告位于 `.npm-cache/translation-providers/`。这些测试不使用真实密钥、不访问在线翻译服务或安装模型。
 
-`src/content/line-break-paragraphs.ts` 将连续 `<br>` 分隔的旧式正文识别为独立段落，供采集、视口调度和译文定位共用。临时行内容器保留原节点与段间换行，清除翻译时移除；代码、编辑区及独立控件不参与该归一化。`tests/line-break-paragraphs.test.ts` 和 `tests/page-translation.test.ts` 覆盖长篇正文、内联格式、滚动加载、动态更新与精确恢复。
+`src/content/text-flow.ts` 根据计算样式和交互归属，将连续文本识别为共享范围。鼠标和触屏通过原生文字命中定位具体节点；悬停、快捷键和整页采集共用同一套边界，首尾裸文本无需 `<p>` 包裹。行内链接与格式保持在同一范围，独立块及布局字段分别处理，连续 `<br>` 分段，单个显式换行使用受保护标记传输。`text-flow-sources.ts` 在需要时为匿名范围建立可撤销的源容器，保留原始节点；`inline-translation.ts` 使用相同的排版判断复用原始格式节点。返回译文前再次校验范围，布局已变化时丢弃旧结果。站点适配只补充正文政策或专有内容读取方式。
+
+`tests/text-flow.test.ts`、`tests/line-break-paragraphs.test.ts` 和 `tests/page-translation.test.ts` 覆盖标签与包装变化、CSS 行内/块级切换、长段落、显式换行、动态更新和精确恢复。构建后运行 `node scripts/test-text-flow.mjs --edge` 或 `--firefox`，用独立浏览器及本地模拟服务检查原生点选、首尾裸段、三种显示模式、链接与按钮、整页及增量翻译；结果保存在 `.npm-cache/text-flow/`。
 
 网页翻译使用绑定到原节点的写入计划。`translation-boundaries.ts` 将自定义组件、插槽和交互元素作为独立范围；`dom-roots.ts` 通过扩展接口发现开放及封闭的 Shadow DOM，并记录实际插槽路径。`TextSegment.text` 保留可读原文，`requestText` 按需生成用于传输的格式标记。`inline-translation.ts` 只接纳已确认的句内格式，替换模式复用原文本和格式节点，双语模式生成展示副本。共享校验器检查标记数量、配对、嵌套和非空内容；失效结果不写入页面，后台对损坏标记执行有界重试和保留结构的分片回退。本地引擎将这些格式标记转换为受限 HTML，利用 Bergamot 对齐后再还原标记；其他服务继续使用受保护的文本协议。
 

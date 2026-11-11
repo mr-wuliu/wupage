@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { layoutDisplay } from "./helpers/layout-display";
 import {
   clearTranslations,
   collectAdditionalTextSegmentsProgressive,
@@ -18,7 +19,7 @@ describe("LaTeX2HTML article translation", () => {
   beforeEach(() => {
     document.head.innerHTML = '<meta name="Generator" content="LaTeX2HTML v2002-2-1">';
     vi.spyOn(window, "getComputedStyle").mockImplementation((element) => ({
-      display: (element as HTMLElement).style.display || "block", visibility: "visible", opacity: "1", color: "rgb(0, 0, 0)"
+      display: layoutDisplay(element), visibility: "visible", opacity: "1", color: "rgb(0, 0, 0)"
     }) as CSSStyleDeclaration);
     vi.spyOn(Element.prototype, "getBoundingClientRect").mockReturnValue({
       width: 600, height: 20, top: 0, right: 600, bottom: 20, left: 0, x: 0, y: 0, toJSON: () => ({})

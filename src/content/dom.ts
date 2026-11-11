@@ -13,8 +13,10 @@ import { readImageTextLayout } from "./image-text-layout";
 import { normalizeProtectedText } from "../shared/protected-text";
 import { isDivProseBlock, isUnmarkedProseBlock, READABLE_ROOT_SELECTOR } from "./readable-content";
 import {
-  clearLineBreakParagraphs, isLineBreakParagraphMutation, LINE_BREAK_SOURCE_SELECTOR, prepareLineBreakParagraphs
-} from "./line-break-paragraphs";
+  clearTextFlowSources, isTextFlowMutation,
+  materializeTextFlow, prepareTextFlowParagraphs
+} from "./text-flow-sources";
+import { TEXT_FLOW_SOURCE_SELECTOR, TextFlowSnapshot } from "./text-flow";
 import {
   clearLegacyScientificParagraphs, isLegacyScientificEquation, isLegacyScientificProseBlock,
   isScientificCitation, isScientificMathImage, legacyScientificProseBlock, prepareLegacyScientificParagraphs
@@ -29,6 +31,7 @@ import { InlineTranslationPlan } from "./inline-translation";
 import { injectContentStyles } from "./styles";
 import { isSteamContentCard, steamItemTitle, steamTextBlock } from "./steam-content";
 import { containsElementRuleBoundary, forcedTextRoot } from "./element-exclusions";
+import { isHackerNewsCommentChrome } from "./hacker-news-content";
 
 interface TrackedNode {
   id: string;
@@ -54,6 +57,8 @@ interface TrackedGroup {
   insertionAfter?: ChildNode;
   preserveWhitespace?: boolean;
   authoredLines?: boolean;
+  /** Validate layout boundaries again when a response arrives or styles change. */
+  flow?: boolean;
   sourceHidden?: { hadClassAttribute: boolean };
 }
 
@@ -415,7 +420,7 @@ function readSourceText(id: string): string {
 }
 
 const PARAGRAPH_SELECTOR = [
-  LINE_BREAK_SOURCE_SELECTOR,
+  TEXT_FLOW_SOURCE_SELECTOR,
   "p",
   "li",
   "blockquote",
@@ -482,7 +487,8 @@ function scanTrackedTextRoots(
   return scanTextRootsProgressive(roots, { ...options, observeChanges }, {
     isCurrent: () => epoch === nodeTrackingEpoch,
     isParagraph: element => element.matches(PARAGRAPH_SELECTOR + ",[data-wupage-scientific-source]")
-      || isDivProseBlock(element) || (element.matches("span") && isUnmarkedProseBlock(element)),
+      || isDivProseBlock(element) || (element.matches("span") && isUnmarkedProseBlock(element))
+      || new TextFlowSnapshot().isWhole(element),
     collect: (root, directTextOnly) => collectTextSegmentsFromRoot(root, translateCodeComments, directTextOnly),
     clearHiddenCandidates: clearHiddenScanCandidates,
     invalidate: invalidateStaleSegments,
@@ -544,9 +550,11 @@ export function invalidateStaleSegments(changedRoots: Element[] = []): string[] 
   for (const [id, output] of renderedById) {
     if (!output.isConnected) stale.add(id);
   }
+  const currentFlows = new TextFlowSnapshot();
   for (const group of trackedGroups) {
     if (recovered.has(group.id)) continue;
     if (!group.block.isConnected || group.nodes.some((node) => !group.block.contains(node.node))
+      || (group.flow && !currentFlows.isWhole(group.block, true))
       || stale.has(group.id) || group.nodes.some((node) => stale.has(node.id))
       || changedRoots.some((root) => group.block === root || group.block.contains(root))) {
       stale.add(group.id);
@@ -756,7 +764,7 @@ function restoreStableReplacement(id: string): void {
   stableReplacementsById.delete(id);
 }
 
-export function findTranslatableParagraph(start: Element | null): Element | null {
+export function findTranslatableParagraph(start: Element | null, anchor?: Node): Element | null {
   const output = start?.closest(`.${TRANSLATION_CLASS}`);
   if (output) {
     // Block translations can sit beside the source or in another layout slot.
@@ -772,10 +780,25 @@ export function findTranslatableParagraph(start: Element | null): Element | null
   if (start?.closest(CODE_SELECTOR) && !isInlineCodeInReadableText(start)) {
     return findCodeCommentBlock(start);
   }
+  if (start && shouldSkipElement(start)) return null;
+
+  if (start && isHackerNewsCommentChrome(start) && !forcedTextRoot(start)) return null;
 
   if (start && !shouldSkipElement(start)) {
     const steamBlock = steamTextBlock(start);
     if (steamBlock && !shouldSkipElement(steamBlock)) return steamBlock;
+    const specialized = start.closest(`${POST_TEXT_SELECTOR},${YOUTUBE_DESCRIPTION_SELECTOR},${YOUTUBE_COMMENT_SELECTOR},[data-wupage-scientific-source]`);
+    if (specialized && !shouldSkipElement(specialized)) return specialized;
+    const flow = new TextFlowSnapshot().containing(anchor && start.contains(anchor) ? anchor : start);
+    const source = flow && materializeTextFlow(flow);
+    if (source && !shouldSkipElement(source)) {
+      textFlows = new TextFlowSnapshot();
+      const node = anchor ?? flow!.nodes[0];
+      if (!node) return null;
+      const element = node instanceof Element ? node : node.parentElement;
+      const candidate = element && computeGroupingBlock(element);
+      return candidate && source.contains(candidate) ? candidate : source;
+    }
   }
 
   let current: Element | null = start;
@@ -871,12 +894,13 @@ function collectTextSegmentsFromRoot(
   groupingBlockCache = new WeakMap();
   // Also prepare a large container's direct text before the progressive walker
   // descends into its children, so rich paragraphs cannot straddle scan chunks.
-  prepareLineBreakParagraphs(root, directTextOnly);
   if (!directTextOnly) {
     if (root instanceof Element) prepareLegacyScientificParagraphs(root);
     splitAuthoredLineBreakTextNodes(root, POST_TEXT_SELECTOR);
     splitAuthoredLineBreakTextNodes(root, YOUTUBE_DESCRIPTION_SELECTOR, true);
   }
+  prepareTextFlowParagraphs(root, directTextOnly);
+  textFlows = new TextFlowSnapshot();
   const alreadyTracked = new Set(trackedNodes.map((tracked) => tracked.node));
   const visibility = createRenderVisibilitySnapshot(noteOccluders);
   const acceptsText = (text: Text): boolean => {
@@ -962,6 +986,7 @@ export function renderTranslations(
   displayMode: TranslationDisplayMode = "bilingual"
 ): string[] {
   injectContentStyles();
+  const currentFlows = new TextFlowSnapshot();
   const counts = new Map<string, number>();
   translations.forEach(({ id }) => counts.set(id, (counts.get(id) ?? 0) + 1));
   const groupsById = new Map(trackedGroups.map(group => [group.id, group]));
@@ -973,7 +998,7 @@ export function renderTranslations(
   }
   translations = translations.flatMap(({ id, text }) => {
     if (counts.get(id) !== 1 || typeof text !== "string" || !text.trim()
-      || (!sourceTextById.has(id) && !deferredBlockTexts.has(id)) || !isTranslationBindingCurrent(id, groupsById, nodesById)) {
+      || (!sourceTextById.has(id) && !deferredBlockTexts.has(id)) || !isTranslationBindingCurrent(id, groupsById, nodesById, currentFlows)) {
       removePendingForId(id);
       return [];
     }
@@ -1240,7 +1265,7 @@ function clearNodeTracking(): void {
   nodeTrackingEpoch += 1;
   for (const id of stableReplacementsById.keys()) restoreStableReplacement(id);
   clearLegacyScientificParagraphs();
-  clearLineBreakParagraphs();
+  clearTextFlowSources();
   trackedNodes = [];
   trackedByText = new WeakMap();
   trackedGroups = [];
@@ -1452,9 +1477,10 @@ function renderBoundTextReplacement(id: string, nodes: TrackedNode[], source: El
   return true;
 }
 
-function isTranslationBindingCurrent(id: string, groups: Map<string, TrackedGroup>, standalone: Map<string, TrackedNode[]>): boolean {
+function isTranslationBindingCurrent(id: string, groups: Map<string, TrackedGroup>, standalone: Map<string, TrackedNode[]>, flows: TextFlowSnapshot): boolean {
   if (inlinePlans.has(id) && !inlinePlans.get(id)!.isCurrent()) return false;
   const group = groups.get(id);
+  if (group?.flow && !flows.isWhole(group.block, true)) return false;
   const nodes = group?.nodes ?? standalone.get(id) ?? [];
   if (nodes.some(entry => !entry.node.isConnected || textContainer(entry.node) !== entry.sourceParent
     || !sameTranslationNodePath(entry.node, entry.sourcePath)
@@ -1478,7 +1504,7 @@ function isTranslationBindingCurrent(id: string, groups: Map<string, TrackedGrou
 
 /** Recognize our completed writes by their current bindings, not by a timer. */
 export function isTranslationMutation(record: MutationRecord): boolean {
-  if (isLineBreakParagraphMutation(record)) return true;
+  if (isTextFlowMutation(record)) return true;
   const tracked = record.target instanceof Text ? trackedByText.get(record.target) : undefined;
   if (tracked?.replaced && tracked.node.data === (tracked.replacementValue ?? "")) return true;
   let element = record.target instanceof Element ? record.target : record.target.parentElement;
@@ -1619,7 +1645,7 @@ function applyTranslationWrapping(translation: HTMLElement, source: Element): vo
   const flowingDiv = div && isDivProseBlock(div)
     && (!div.parentElement || !isLayoutContainer(div.parentElement));
   const prose = paragraph || flowingDiv || source.closest(HEADING_SELECTOR)
-    || source.matches(`li,dt,dd,article,[role='article'],${LINE_BREAK_SOURCE_SELECTOR},${POST_TEXT_SELECTOR},${YOUTUBE_COMMENT_SELECTOR}`)
+    || source.matches(`li,dt,dd,article,[role='article'],${TEXT_FLOW_SOURCE_SELECTOR},${POST_TEXT_SELECTOR},${YOUTUBE_COMMENT_SELECTOR}`)
     || isLegacyScientificProseBlock(source);
   translation.style.setProperty("white-space", prose ? "normal" : "inherit");
 }
@@ -1754,7 +1780,7 @@ function groupTextSegments(
     if (
       singleNodeBlock &&
       readable!.text === normalizeText(groupNodes[0].node.data) &&
-      !block.matches(LINE_BREAK_SOURCE_SELECTOR) &&
+      !block.matches(TEXT_FLOW_SOURCE_SELECTOR) &&
       !isLegacyScientificProseBlock(block) &&
       !block.matches(`summary, label, li, ${POST_TEXT_SELECTOR}, ${YOUTUBE_COMMENT_SELECTOR}`)
     ) continue;
@@ -1767,6 +1793,7 @@ function groupTextSegments(
     }
     trackedGroups.push({
       id, nodes: sourceNodes, block, mode: authoredLines || hasLineBreak ? "block" : getRenderMode(block), authoredLines,
+      flow: !authoredLines && !isLegacyScientificProseBlock(block) && textFlows.isWhole(block),
       preserveWhitespace: block.matches(YOUTUBE_COMMENT_SELECTOR)
     });
     if (singleNodeBlock) {
@@ -1787,10 +1814,11 @@ function groupTextSegments(
     groupNodes.forEach((tracked) => standalone.delete(tracked.id));
   }
 
+  const order = new Map(nodes.map((node, index) => [node.id, index]));
   return [
     ...groupedSegments,
     ...fallback.filter((segment) => standalone.has(segment.id))
-  ];
+  ].sort((left, right) => order.get(left.id)! - order.get(right.id)!);
 }
 
 function completeGroupedSourceNodes(
@@ -1979,6 +2007,7 @@ function getPostParagraphGroups(
 }
 
 let groupingBlockCache = new WeakMap<Element, Element | null>();
+let textFlows = new TextFlowSnapshot();
 
 function findGroupingBlock(element: Element | null): Element | null {
   if (!element) return null;
@@ -1994,8 +2023,10 @@ function findGroupingBlock(element: Element | null): Element | null {
 }
 
 function computeGroupingBlock(element: Element): Element | null {
-  const lineBreakParagraph = element.closest(LINE_BREAK_SOURCE_SELECTOR);
+  const lineBreakParagraph = element.closest(TEXT_FLOW_SOURCE_SELECTOR);
   if (lineBreakParagraph) return lineBreakParagraph;
+  const post = element.closest(POST_TEXT_SELECTOR);
+  if (post) return post;
   const description = element.closest(YOUTUBE_DESCRIPTION_SELECTOR);
   if (description) return element.closest("a") ? null : description;
   const comment = element.closest(YOUTUBE_COMMENT_SELECTOR);
@@ -2008,6 +2039,10 @@ function computeGroupingBlock(element: Element): Element | null {
   if (compactNavigationTarget) return compactNavigationTarget;
   const singleLineTarget = getSingleLineTextTarget(element);
   if (singleLineTarget) return constrainGroupingToLayoutSlot(element, singleLineTarget);
+  const scientific = element.closest("[data-wupage-scientific-source]");
+  if (scientific) return scientific;
+  const flow = textFlows.block(element);
+  if (flow) return constrainGroupingToLayoutSlot(element, flow);
 
   const listItem = element.closest("li");
   const readableBlock = element.closest(
@@ -2104,7 +2139,7 @@ function constrainGroupingToLayoutSlot(element: Element, block: Element, respect
       && !current.matches("code,kbd,samp,.MATH")
       && !current.querySelector(`${SEMANTIC_TEXT_BLOCK_SELECTOR},div,ul,ol,dl`)) return current;
     const parent = current.parentElement;
-    if (isLayoutContainer(parent)
+    if (textFlows.hasIndependentItems(parent)
       && (respectLinkLayout || !(parent.matches("a") && !parent.querySelector(SEMANTIC_TEXT_BLOCK_SELECTOR)))) {
       return current.querySelector(`${SEMANTIC_TEXT_BLOCK_SELECTOR},div,ul,ol,dl,button,input,select,textarea`)
         ? null : current;
@@ -2115,6 +2150,9 @@ function constrainGroupingToLayoutSlot(element: Element, block: Element, respect
 }
 
 function isAuthoredLineTextBlock(element: Element): boolean {
+  // A generated range is already a precise source boundary. Its BRs use the
+  // inline plan, which can retain the author's linked/formatted text in place.
+  if (element.matches(TEXT_FLOW_SOURCE_SELECTOR)) return false;
   if (!element.matches("span") || !element.querySelector("br")) return false;
   if (hasSkippedAncestor(element, "a,button,nav,[role='navigation'],[role='button'],[role='tab']")) return false;
   if (element.querySelector("div,p,ul,ol,table,img,picture,video,iframe,input,textarea,select,button,[contenteditable]")) return false;
@@ -2178,6 +2216,7 @@ function decideSkipElement(
   if (element.closest(VIDEO_CONTROL_SELECTOR)) return true;
   if (element.closest(videoPlatform()?.captions ?? ".vjs-text-track-display,.plyr__captions,.jw-captions")) return true;
   if (forceRoot) return hasForcedTextSkipAncestor(element);
+  if (isHackerNewsCommentChrome(element)) return true;
   if (element.closest(REDDIT_METADATA_SELECTOR)) return true;
   if (isInsideCodeBlock(element)) return false;
   if (isCompactControlText(element)) {
@@ -2571,7 +2610,7 @@ function insertGroupedTranslation(
 
 function getRenderMode(element: Element | null): RenderMode {
   if (!element) return "inline";
-  if (element.matches(LINE_BREAK_SOURCE_SELECTOR)) return "block";
+  if (element.matches(TEXT_FLOW_SOURCE_SELECTOR)) return "block";
   if (isLegacyScientificProseBlock(element)) return "block";
   if (element.matches(POST_TEXT_SELECTOR)) return "block";
   if (element.matches(YOUTUBE_COMMENT_SELECTOR)) return "block";
@@ -2579,6 +2618,9 @@ function getRenderMode(element: Element | null): RenderMode {
   if (element.matches("summary")) return "inline";
   if (isCompactNavigationText(element)) return "inline";
   if (isCompactControlText(element)) return "inline";
+  if (getSingleLineTextTarget(element)) return "inline";
+  if (element.matches("div,section,article") && new TextFlowSnapshot().isWhole(element)
+    && [...element.childNodes].some(node => node instanceof Text && /\p{L}/u.test(node.data))) return "block";
   if (isReadableHeading(element)) return "block";
   if (isCompactUiElement(element)) return "inline";
   return "block";
