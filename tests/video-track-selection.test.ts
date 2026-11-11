@@ -41,7 +41,14 @@ it('follows a changed site catalogue selection in automatic mode', async () => {
   vi.mocked(pageSubtitleCatalogue).mockResolvedValue({key:mediaKey(),selected:'chinese',tracks:[
     {id:'chinese',label:'中文',language:'zh-CN'},{id:'english',label:'English',language:'en-US'}
   ]});
-  await vi.advanceTimersByTimeAsync(20500); await flush();
+  // Jump to either side of the refresh deadline without rendering 170 idle ticks.
+  const started = Date.now();
+  vi.setSystemTime(started + 19000);
+  await vi.advanceTimersByTimeAsync(120); await flush();
+  expect(pageSubtitleCatalogue).toHaveBeenCalledTimes(1);
+  vi.setSystemTime(started + 20500);
+  await vi.advanceTimersByTimeAsync(120); await flush();
+  expect(pageSubtitleCatalogue).toHaveBeenCalledTimes(2);
   expect(loadPageSubtitles).toHaveBeenLastCalledWith('chinese', expect.any(AbortSignal));
   expect(document.querySelector('[data-wupage-video]')!.shadowRoot!.querySelector('.translation span')?.textContent).toBe('你好');
 });

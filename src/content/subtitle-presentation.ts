@@ -1,4 +1,5 @@
 import { subtitlePagePair, subtitlePages } from "../video/subtitle-display";
+import { DEFAULT_VIDEO_LAYOUT } from "../shared/video";
 
 /** Owns measured screen pages only. Source intervals and translation caches
  * remain in the playback layer, so resizing never triggers another request. */
@@ -11,7 +12,7 @@ export class SubtitlePresentation {
 
   current(source: string, translation: string, progress: number, progressive = false): { source: string; translation: string } {
     const width = this.caption.clientWidth || (parseFloat(this.host.style.getPropertyValue("--wp-layer-width")) || 640)
-      * (parseFloat(this.caption.style.width) || 90) / 100;
+      * (parseFloat(this.caption.style.width) || DEFAULT_VIDEO_LAYOUT.width) / 100;
     const height = parseFloat(this.host.style.getPropertyValue("--wp-layer-height")) || 360;
     const cap = `${Math.max(14, height * .08)}px`;
     if (this.host.style.getPropertyValue("--wp-caption-font-cap") !== cap) this.host.style.setProperty("--wp-caption-font-cap", cap);

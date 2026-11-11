@@ -371,6 +371,12 @@
   "paragraphHighlight": {
     "message": "段落翻译高亮"
   },
+  "showParagraphHighlights": {
+    "message": "显示段落高亮"
+  },
+  "paragraphHighlightHint": {
+    "message": "关闭后隐藏段落的边框和底色，段落翻译仍可正常使用。"
+  },
   "selectionShortcut": {
     "message": "划词入口"
   },

@@ -163,12 +163,12 @@ describe("player subtitle controls", () => {
     const update = () => settingsListener({ [SETTINGS_KEY]: { newValue: structuredClone(settings) } }, "local");
     try {
       toggle().click(); await flush(); fullscreen(video);
-      expect(native.cues).toMatchObject([{ text: "Hello\n你好", align: "center" }]);
+      expect(native.cues).toMatchObject([{ text: "Hello\n你好", align: "center", size: 70 }]);
       track.mode = "disabled";
       await vi.advanceTimersByTimeAsync(120);
       expect(track.mode).toBe("hidden");
       settings.videoTranslation!.displayMode = "western"; update();
-      expect(native.cues).toMatchObject([{ text: "Hello\n你好", align: "left", position: 5, size: 90 }]);
+      expect(native.cues).toMatchObject([{ text: "Hello\n你好", align: "left", position: 15, size: 70 }]);
       settings.videoTranslation!.originalPosition = "below"; update();
       expect(native.cues).toMatchObject([{ text: "你好\nHello", align: "left" }]);
       fullscreen(null); expect(native.mode).toBe("disabled");

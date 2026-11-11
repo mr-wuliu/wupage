@@ -9,6 +9,7 @@ import { stringify as stringifyToml } from "smol-toml";
 const now = new Date("2026-11-03T01:02:03.456Z");
 function fixture(): ExtensionSettings {
   const settings = structuredClone(DEFAULT_SETTINGS);
+  settings.appearance!.paragraphHighlightEnabled = false;
   settings.videoTranslation = { enabled: false, showOriginal: false, fontSize: 26, background: "none", preferredSource: "en", enabledSites: ["youtube.com"],
     originalPosition: "below", displayMode: "western", sourceStyle: { fontSize: 18, fontFamily: "serif", fontWeight: 400 },
     translationStyle: { fontSize: 26, fontFamily: "sans-serif", fontWeight: 700 },
@@ -55,6 +56,13 @@ describe("settings backup format", () => {
     expect(parseSettingsBackup("\uFEFF" + serializeSettingsBackup(backup)).settings.appearance).toEqual(normalizeSettings({}).appearance);
   });
 
+  it("accepts older appearance backups without paragraph highlight visibility", () => {
+    const backup = createSettingsBackup(fixture(), "1.20.0", now);
+    const text = serializeSettingsBackup(backup).replace(/^paragraphHighlightEnabled = false\r?\n/mu, "");
+    expect(parseSettingsBackup(text).settings.appearance?.paragraphHighlightEnabled).toBe(true);
+    expect(parseSettingsBackup(serializeSettingsBackup(backup)).settings.appearance?.paragraphHighlightEnabled).toBe(false);
+  });
+
   it.each([
     ["unclosed TOML string", (b: any) => serializeSettingsBackup(b) + '\nbroken = "saved-key'],
     ["raw settings", (b: any) => stringifyToml(b.settings)],
@@ -66,6 +74,7 @@ describe("settings backup format", () => {
     ["missing core setting", (b: any) => { delete b.settings.targetLang; return serializeSettingsBackup(b); }],
     ["wrong nested type", (b: any) => { b.settings.providers[0].api.apiKey = {}; return serializeSettingsBackup(b); }],
     ["invalid color opacity", (b: any) => { b.settings.appearance.customSchemes[0].opacities.accent = 101; return serializeSettingsBackup(b); }],
+    ["invalid paragraph highlight visibility", (b: any) => { b.settings.appearance.paragraphHighlightEnabled = "false"; return serializeSettingsBackup(b); }],
     ["unknown provider", (b: any) => { b.settings.providers[0].type = "unknown"; return serializeSettingsBackup(b); }],
     ["duplicate provider ID", (b: any) => { b.settings.providers.push(b.settings.providers[0]); return serializeSettingsBackup(b); }],
     ["retyped built-in", (b: any) => { b.settings.providers[0].type = "firefox-local"; return serializeSettingsBackup(b); }],

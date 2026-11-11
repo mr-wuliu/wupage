@@ -710,6 +710,33 @@ describe("floating translation interactions", () => {
     expect(second.hasAttribute("class")).toBe(false);
   });
 
+  it("removes both highlight layers live while keeping paragraph translation and restore available", async () => {
+    await setParagraphMode(true);
+    const paragraph = query("main p");
+    paragraph.dispatchEvent(new MouseEvent("mousemove", { bubbles: true }));
+    expect(paragraph.getAttribute("data-wupage-paragraph-active")).toBe("true");
+    expect(query<HTMLElement>("#wupage-paragraph-highlight").hidden).toBe(false);
+    stored.appearance!.paragraphHighlightEnabled = false;
+    storageChanged({ [SETTINGS_KEY]: { newValue: structuredClone(stored) } }, "local");
+    expect(document.querySelector("[data-wupage-paragraph-active]")).toBeNull();
+    expect(document.getElementById("wupage-paragraph-highlight")).toBeNull();
+    paragraph.dispatchEvent(new MouseEvent("mousemove", { bubbles: true }));
+    paragraph.dispatchEvent(new MouseEvent("click", { bubbles: true, ctrlKey: true }));
+    await vi.waitFor(() => expect(paragraph.querySelector(".wupage-translation")?.textContent).toContain("继续之前"));
+    expect(getParagraphMode()).toBe(true);
+    expect(document.querySelector("[data-wupage-paragraph-active]")).toBeNull();
+    window.dispatchEvent(new Event("scroll"));
+    expect(document.getElementById("wupage-paragraph-highlight")).toBeNull();
+    paragraph.dispatchEvent(new MouseEvent("click", { bubbles: true, ctrlKey: true }));
+    await vi.waitFor(() => expect(paragraph.querySelector(".wupage-translation")).toBeNull());
+    stored.appearance!.paragraphHighlightEnabled = true;
+    storageChanged({ [SETTINGS_KEY]: { newValue: structuredClone(stored) } }, "local");
+    expect(paragraph.getAttribute("data-wupage-paragraph-active")).toBe("true");
+    expect(query<HTMLElement>("#wupage-paragraph-highlight").hidden).toBe(false);
+    expect(translationRequests()).toHaveLength(1);
+    await setParagraphMode(false);
+  });
+
   it("follows paragraph mode changes from other tabs without clearing existing translations", async () => {
     await setParagraphMode(true);
     query("main p").dispatchEvent(new MouseEvent("click", { bubbles: true, ctrlKey: true }));

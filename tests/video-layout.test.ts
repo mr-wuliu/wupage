@@ -37,6 +37,21 @@ beforeEach(() => {
 afterEach(() => { view.dispose(); vi.restoreAllMocks(); document.body.replaceChildren(); });
 
 describe("subtitle layout editing", () => {
+  it("uses 70% width for unsaved layouts and keeps a previously saved wider layout", () => {
+    expect(query(".captions").style.width).toBe("70%");
+    open();
+    expect(query<HTMLInputElement>(".layout-width").value).toBe("70");
+    expect(query(".layout-preview").style.width).toBe("70%");
+    click(".layout-cancel");
+    view.settings({ ...DEFAULT_SETTINGS, videoTranslation: normalizeVideoTranslation({ siteLayouts: [
+      { id: location.hostname, x: 50, bottom: 10, width: 90, fontSize: 22 }
+    ] }) }, "fixture");
+    expect(query(".captions").style.width).toBe("90%");
+    open();
+    expect(query<HTMLInputElement>(".layout-width").value).toBe("90");
+    expect(actions.layout).not.toHaveBeenCalled();
+  });
+
   it("rolls long Western originals while translated pages keep following media time", () => {
     const preferences = normalizeVideoTranslation({ displayMode: "western" });
     view.settings({ ...DEFAULT_SETTINGS, videoTranslation: preferences }, "fixture");
@@ -179,7 +194,7 @@ describe("subtitle layout settings", () => {
       { id: "[::1]", x: 50, bottom: 10, width: 90, fontSize: 22 }
     ] }).siteLayouts).toEqual([
       { id: "example.com", x: 2, bottom: 10, width: 96, fontSize: 14 },
-      { id: "[::1]", ...DEFAULT_VIDEO_LAYOUT }
+      { id: "[::1]", x: 50, bottom: 10, width: 90, fontSize: 22 }
     ]);
   });
 

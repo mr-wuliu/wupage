@@ -8,7 +8,7 @@ import { SETTINGS_KEY } from "../shared/defaults";
 import { TARGET_LANGUAGES } from "../shared/languages";
 import { createSettingsSnapshot } from "../shared/settings-snapshot";
 import type { ExtensionSettings } from "../shared/types";
-import { normalizeVideoTranslation, sameVideoLanguage, type VideoSubtitleLayout, type VideoTranslationSettings } from "../shared/video";
+import { DEFAULT_VIDEO_LAYOUT, normalizeVideoTranslation, sameVideoLanguage, type VideoSubtitleLayout, type VideoTranslationSettings } from "../shared/video";
 import { loadPageSubtitles, pageSubtitleCatalogue } from "../video/bridge-client";
 import { captionElements, mediaKey, renderedCaption, selectedNativeTrack, type VideoPlatform } from "../video/platforms";
 import type { PageSubtitleCatalogue } from "../video/site-cues";
@@ -373,7 +373,7 @@ export class PlayerSubtitleController {
     this.nativeFullscreenCue = undefined;
     if (text) {
       const cue = new VTTCue(Math.max(0, this.video.currentTime - .05), this.video.currentTime + 1, text);
-      cue.align = align; cue.position = align === "left" ? 5 : 50; cue.size = 90;
+      cue.align = align; cue.position = align === "left" ? (100 - DEFAULT_VIDEO_LAYOUT.width) / 2 : 50; cue.size = DEFAULT_VIDEO_LAYOUT.width;
       if ("positionAlign" in cue) cue.positionAlign = align === "left" ? "line-left" : "center";
       track.addCue(cue); this.nativeFullscreenCue = cue; track.mode = "showing";
     }

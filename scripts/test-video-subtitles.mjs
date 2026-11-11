@@ -111,6 +111,7 @@ try {
   assert.deepEqual(requests.flatMap(request => request.texts), [...translations.keys()].slice(0,3));
   checks.push('persistent feature toggle, full-width placement in the feature grid, three popup widths; native WebVTT and compact player controls');
   const caption = await view.locator('.captions').boundingBox(); const video = await page.locator('video').boundingBox();
+  assert.ok(Math.abs(caption.width / video.width - .7) < .01, 'default captions occupy 70% of the video width');
   assert.ok(caption.x >= video.x && caption.x + caption.width <= video.x + video.width);
   assert.ok(caption.y >= video.y && caption.y + caption.height <= video.y + video.height);
   await page.screenshot({ path: path.join(output, 'bilingual.png') });
@@ -169,7 +170,7 @@ try {
   const sourceAfterLayout = await view.locator('.captions').boundingBox();
   await view.locator('.settings').evaluate(button => button.click()); await view.locator('.layout-open').click();
   await view.locator('.layout-reset').click();
-  assert.equal(await view.locator('.layout-width').inputValue(), '90');
+  assert.equal(await view.locator('.layout-width').inputValue(), '70');
   await view.locator('.layout-font').press('Escape');
   assert.deepEqual(await view.locator('.captions').boundingBox(), sourceAfterLayout, 'reset remains a draft until Done');
   checks.push('layout preview, cancel, real pointer movement and width handles, site persistence, reset draft, Escape, click-through and no retransmission');
@@ -201,7 +202,7 @@ try {
   await page.waitForFunction(() => [...document.querySelector('video').textTracks].some(track => track.label === 'WuPage 双语' && track.mode === 'showing' && track.cues?.length));
   const nativeCues = await page.evaluate(() => [...[...document.querySelector('video').textTracks].find(track => track.label === 'WuPage 双语').cues]
     .map(cue => ({ text: cue.text, align: cue.align, line: cue.line, position: cue.position, size: cue.size })));
-  assert.deepEqual(nativeCues, [{ text: 'Seek\n跳转到另一个时间。', align: 'left', line: 'auto', position: 5, size: 90 }]);
+  assert.deepEqual(nativeCues, [{ text: 'Seek\n跳转到另一个时间。', align: 'left', line: 'auto', position: 15, size: 70 }]);
   await page.screenshot({ path: path.join(output, 'alignment-native-fullscreen.png') });
   await page.evaluate(() => document.exitFullscreen()); checks.push('container and native video fullscreen');
   await page.locator('#pageFullscreen').click();

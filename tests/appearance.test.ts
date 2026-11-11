@@ -13,6 +13,13 @@ afterEach(() => {
 });
 
 describe("appearance settings", () => {
+  it("keeps paragraph highlights enabled for old settings and preserves an explicit opt-out", () => {
+    for (const value of [undefined, null, "false", 0, true]) {
+      expect(normalizeAppearance({ paragraphHighlightEnabled: value }).paragraphHighlightEnabled).toBe(true);
+    }
+    expect(normalizeSettings({ appearance: { paragraphHighlightEnabled: false } }).appearance?.paragraphHighlightEnabled).toBe(false);
+  });
+
   it("adds independent defaults to older settings", () => {
     const first = normalizeSettings({});
     expect(first.appearance).toEqual(DEFAULT_APPEARANCE);

@@ -42,6 +42,7 @@ import { SOURCE_LANGUAGES, TARGET_LANGUAGES } from "../shared/languages";
 import { hasTouchInput, TOUCH_INPUT_QUERY, visibleViewport } from "../shared/touch";
 import { startTouchParagraph } from "./touch-paragraph";
 import { showTouchHint } from "./touch-hint";
+import { normalizeAppearance } from "../shared/appearance";
 
 const FLOATING_ID = "wupage-floating-ball";
 const FLOATING_HITBOX_ID = "wupage-floating-hitbox";
@@ -85,6 +86,7 @@ let settingsSave: Promise<void> = Promise.resolve();
 let menuOcr: ReturnType<typeof setupOcrControl> | undefined;
 let unsubscribeTranslationState: (() => void) | undefined;
 let paragraphMode = false;
+let paragraphHighlightEnabled = true;
 let paragraphModeRevision = 0;
 let unsubscribeParagraphMode: (() => void) | undefined;
 let floatingBallEnabled = true;
@@ -241,6 +243,7 @@ function subscribeToPositionChanges(button: HTMLElement): void {
       settingsSnapshot.receive(settings);
       localShortcuts = normalizeLocalShortcuts(settings.localShortcuts);
       shortcutEnabled = normalizeShortcutEnabled(settings.shortcutEnabled, settings.shortcuts, localShortcuts);
+      syncParagraphHighlight(settings);
       if (!shortcutEnabled["paragraph-click"]) setActiveParagraph(null);
       floatingBallEnabled = settings.floatingBallEnabled;
       applyFloatingBallVisibility();
@@ -543,11 +546,21 @@ function createHighlight(): void {
 function setActiveParagraph(paragraph: Element | null): void {
   activeParagraph?.removeAttribute(ACTIVE_ATTRIBUTE);
   activeParagraph = paragraph;
-  activeParagraph?.setAttribute(ACTIVE_ATTRIBUTE, "true");
+  if (paragraphHighlightEnabled) activeParagraph?.setAttribute(ACTIVE_ATTRIBUTE, "true");
   updateHighlight();
 }
 
+function syncParagraphHighlight(settings: ExtensionSettings): void {
+  paragraphHighlightEnabled = normalizeAppearance(settings.appearance).paragraphHighlightEnabled;
+  setActiveParagraph(activeParagraph);
+}
+
 function updateHighlight(): void {
+  if (!paragraphHighlightEnabled) {
+    document.getElementById(HIGHLIGHT_ID)?.remove();
+    return;
+  }
+  createHighlight();
   const highlight = document.getElementById(HIGHLIGHT_ID);
   if (!highlight) return;
 
@@ -1374,6 +1387,7 @@ export async function setParagraphMode(enabled: boolean, broadcast = true): Prom
 
 async function syncFloatingBallFromSettings(): Promise<void> {
   const settings = await getSettings();
+  syncParagraphHighlight(settings);
   localShortcuts = normalizeLocalShortcuts(settings.localShortcuts);
   shortcutEnabled = normalizeShortcutEnabled(settings.shortcutEnabled, settings.shortcuts, localShortcuts);
   floatingBallEnabled = settings.floatingBallEnabled;

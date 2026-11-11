@@ -1,7 +1,7 @@
 import { t } from "./i18n";
 import { normalizeSettings } from "./settings";
 import { BUILT_IN_PROVIDER_IDS, DEFAULT_SETTINGS } from "./defaults";
-import { COLOR_FIELDS } from "./appearance";
+import { COLOR_FIELDS, DEFAULT_APPEARANCE } from "./appearance";
 import { LOCAL_BINDINGS } from "./local-shortcuts";
 import { LOCAL_SHORTCUTS, TRANSLATION_SHORTCUTS } from "./shortcuts";
 import type { ExtensionSettings, ProviderConfig } from "./types";
@@ -192,6 +192,7 @@ const settingsShape = {
     translationStyle: optional(object({ fontSize: optional(number(14, 48)), fontFamily: oneOf("sans-serif", "serif", "monospace"), fontWeight: oneOf(400, 600, 700) })),
     siteLayouts: optional(array(object({ id: string, x: number(2, 98), bottom: number(2, 98), width: number(20, 96), fontSize: number(14, 48) }), 100)) })),
   appearance: optional(object({ mode: oneOf("system", "light", "dark"), floatingOpacity: number(0, 100),
+    paragraphHighlightEnabled: (v, p, s) => v === undefined ? DEFAULT_APPEARANCE.paragraphHighlightEnabled : boolean(v, p, s),
     lightSchemeId: string, darkSchemeId: string,
     popupMenu: object({ order: strings, hidden: strings, rows: array(strings) }),
     customSchemes: array(object({ id: string, name: string, tone: oneOf("light", "dark"),
