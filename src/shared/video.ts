@@ -35,7 +35,7 @@ function normalizeSubtitleStyle(value: unknown): VideoSubtitleStyle {
   };
 }
 
-export const DEFAULT_VIDEO_LAYOUT: Readonly<VideoSubtitleLayout> = { x: 50, bottom: 10, width: 90, fontSize: 22 };
+export const DEFAULT_VIDEO_LAYOUT: Readonly<VideoSubtitleLayout> = { x: 50, bottom: 10, width: 70, fontSize: 22 };
 
 export function normalizeVideoLayout(value: unknown): VideoSubtitleLayout {
   const data = value && typeof value === "object" ? value as Record<string, unknown> : {};

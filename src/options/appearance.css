@@ -97,6 +97,7 @@ button.appearance-delete { color: var(--wp-danger); background: var(--wp-danger-
 .appearance-preview-page > span { font-size: 10px; opacity: .7; }
 .appearance-preview-page p { margin: 5px 0 0; line-height: 1.5; font-size: 12px; }
 .appearance-preview-paragraph { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 12px; padding: 8px 10px; border: 1px dashed var(--wp-paragraph-highlight); border-radius: 4px; background: color-mix(in srgb, var(--wp-paragraph-highlight) 5%, var(--wp-background)); font-size: 11px; }
+.appearance-preview-paragraph[data-highlight="false"] { border-color: transparent; background: transparent; }
 .appearance-preview-selection-trigger { width: 10px; height: 10px; border-radius: 50%; background: var(--wp-selection-trigger); }
 .appearance-preview-image-button { margin-left: auto; padding: 2px 5px; border-radius: 4px; background: var(--wp-image-button-background); color: var(--wp-image-button-foreground); font-size: 10px; }
 @container settings (max-width: 680px) {

@@ -371,6 +371,12 @@
   "paragraphHighlight": {
     "message": "Paragraph highlight"
   },
+  "showParagraphHighlights": {
+    "message": "Show paragraph highlights"
+  },
+  "paragraphHighlightHint": {
+    "message": "Hide paragraph borders and backgrounds while keeping paragraph translation available."
+  },
   "selectionShortcut": {
     "message": "Selection shortcut"
   },

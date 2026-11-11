@@ -50,6 +50,7 @@ export function setupAppearanceControls(root: HTMLElement): {
     const preview = query<HTMLElement>("#appearancePreview");
     applyColorScheme(preview, scheme);
     preview.style.colorScheme = tone;
+    query<HTMLElement>(".appearance-preview-paragraph").dataset.highlight = String(draft.paragraphHighlightEnabled);
     query<HTMLElement>("#appearancePreviewTone").textContent = tone === "light" ? t("light") : t("dark");
     const palette = { light: schemeColor(scheme, "translation-light"), dark: schemeColor(scheme, "translation-dark") };
     query<HTMLElement>(".appearance-preview-translation-light").style.color = mapTranslationTextColor("rgb(39, 49, 58)", "rgb(255, 255, 255)", palette)!;
@@ -219,6 +220,22 @@ export function setupAppearanceControls(root: HTMLElement): {
       }
       groups.get(group)!.append(row);
     }
+    const highlightToggle = document.createElement("label"); highlightToggle.className = "setting-toggle";
+    const highlightLabel = document.createElement("span"); highlightLabel.textContent = t("showParagraphHighlights");
+    const highlightInput = document.createElement("input");
+    highlightInput.id = "paragraphHighlightEnabled"; highlightInput.type = "checkbox"; highlightInput.setAttribute("role", "switch");
+    highlightInput.checked = draft.paragraphHighlightEnabled;
+    const highlightControl = document.createElement("span"); highlightControl.className = "setting-toggle-control";
+    highlightControl.setAttribute("aria-hidden", "true");
+    const highlightHint = document.createElement("p"); highlightHint.id = "paragraphHighlightHint";
+    highlightHint.className = "field-description"; highlightHint.textContent = t("paragraphHighlightHint");
+    highlightInput.setAttribute("aria-describedby", highlightHint.id);
+    highlightInput.addEventListener("change", () => {
+      draft.paragraphHighlightEnabled = highlightInput.checked;
+      status.textContent = ""; paint();
+    });
+    highlightToggle.append(highlightLabel, highlightInput, highlightControl);
+    groups.get("translation")!.prepend(highlightToggle, highlightHint);
     const opacityRow = document.createElement("div"); opacityRow.className = "appearance-opacity-row";
     const opacityLabel = document.createElement("label"); opacityLabel.htmlFor = "floatingOpacityRange"; opacityLabel.textContent = t("overallOpacity");
     const opacityRange = document.createElement("input");

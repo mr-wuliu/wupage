@@ -261,6 +261,47 @@ try {
     await options.screenshot({ path: path.join(output, `width-${width}.png`), fullPage: true });
   }
   checks.push('no document overflow at desktop, tablet and narrow widths');
+
+  await options.setViewportSize({ width: 1440, height: 1040 });
+  await options.evaluate(async () => {
+    const result = await chrome.runtime.sendMessage({ type: 'SET_PARAGRAPH_MODE', enabled: true });
+    if (!result.ok) throw new Error(result.error);
+  });
+  // Simulate a dark-mode extension rewriting transparent highlight colors.
+  await site.addStyleTag({ content: '[data-wupage-paragraph-active="true"]{outline:2px solid #aabbcc!important}#wupage-paragraph-highlight{border-color:#aabbcc!important;background:#aabbcc44!important}' });
+  await site.locator('#dark').hover({ position: { x: 20, y: 20 } });
+  await site.locator('#wupage-paragraph-highlight').waitFor({ state: 'visible' });
+  const highlightSwitch = options.locator('label').filter({ has: options.locator('#paragraphHighlightEnabled') });
+  await highlightSwitch.click();
+  assert.equal(await options.locator('#paragraphHighlightEnabled').isChecked(), false);
+  assert.equal(await options.locator('.appearance-preview-paragraph').evaluate(el => getComputedStyle(el).borderTopColor), 'rgba(0, 0, 0, 0)');
+  await options.locator('#save').click();
+  await site.locator('#wupage-paragraph-highlight').waitFor({ state: 'detached' });
+  assert.equal(await site.locator('[data-wupage-paragraph-active]').count(), 0);
+  assert.equal(await site.locator('#dark').evaluate(el => getComputedStyle(el).outlineStyle), 'none');
+  await site.locator('#dark').click({ modifiers: ['Control'], position: { x: 20, y: 20 } });
+  await site.locator('#dark .wupage-translation').waitFor({ state: 'detached' });
+  await site.locator('#dark').click({ modifiers: ['Control'], position: { x: 20, y: 20 } });
+  await site.locator('#dark .wupage-translation').waitFor();
+  assert.equal(await site.locator('#wupage-paragraph-highlight').count(), 0);
+  await site.screenshot({ path: path.join(output, 'paragraph-highlight-disabled.png') });
+  await options.reload();
+  await options.waitForFunction(() => document.querySelector('#appearanceScheme').options.length > 0);
+  assert.equal(await options.locator('#paragraphHighlightEnabled').isChecked(), false);
+  await site.reload();
+  await site.locator('#wupage-floating-ball').waitFor();
+  await site.waitForFunction(() => document.documentElement.classList.contains('wupage-paragraph-mode'));
+  await site.locator('#dark').hover({ position: { x: 20, y: 20 } });
+  assert.equal(await site.locator('#wupage-paragraph-highlight').count(), 0);
+  assert.equal(await site.locator('[data-wupage-paragraph-active]').count(), 0);
+  await site.locator('#dark').click({ modifiers: ['Control'], position: { x: 20, y: 20 } });
+  await site.locator('#dark .wupage-translation').waitFor();
+  await highlightSwitch.click();
+  await options.locator('#save').click();
+  await site.locator('#dark').hover({ position: { x: 20, y: 20 } });
+  await site.locator('#wupage-paragraph-highlight').waitFor({ state: 'visible' });
+  assert.equal(await site.locator('#dark .wupage-translation').count(), 1);
+  checks.push('paragraph highlight switch removes both layers despite dark-mode color overrides, persists on reload, and preserves translation and restoration');
   assert.deepEqual(errors, []);
   await fs.writeFile(path.join(output, 'report.json'), JSON.stringify({ passed: true, checks, errors }, null, 2));
   console.log(JSON.stringify({ passed: true, checks, output }, null, 2));

@@ -1,7 +1,7 @@
 import { t, htmlMessage } from "../shared/i18n";
 import { TARGET_LANGUAGES } from "../shared/languages";
 import type { ExtensionSettings } from "../shared/types";
-import { normalizeVideoTranslation, type VideoSubtitleLayout, type VideoTranslationSettings } from "../shared/video";
+import { DEFAULT_VIDEO_LAYOUT, normalizeVideoTranslation, type VideoSubtitleLayout, type VideoTranslationSettings } from "../shared/video";
 import { VideoLayoutEditor, VIDEO_LAYOUT_STYLES } from "./video-layout";
 import { uiIconMarkup } from "../shared/ui-icons";
 import { setHtmlContent } from "../shared/html";
@@ -33,7 +33,7 @@ const styles = `
   :host([data-enabled]) .mark { color: #172024; background: #a9ead3; border-color: #a9ead3; }
   .settings { display: grid; place-items: center; border-left: 1px solid #ffffff1c !important; border-radius: 0 8px 8px 0; } .settings svg { width: 15px; height: 15px; }
   button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid #a9ead3; outline-offset: 2px; }
-  .captions,.layout-preview { position: absolute; left: 50%; bottom: max(10%, 46px); transform: translateX(-50%); width: 90%; text-align: center; color: #fff; font: 600 clamp(14px,3cqw,var(--wp-video-font,22px))/1.4 system-ui,sans-serif; text-shadow: 0 1px 3px #000,0 0 2px #000; }
+  .captions,.layout-preview { position: absolute; left: 50%; bottom: max(10%, 46px); transform: translateX(-50%); width: ${DEFAULT_VIDEO_LAYOUT.width}%; text-align: center; color: #fff; font: 600 clamp(14px,3cqw,var(--wp-video-font,22px))/1.4 system-ui,sans-serif; text-shadow: 0 1px 3px #000,0 0 2px #000; }
   .captions,.layout-preview { display: flex; flex-direction: column; gap: 5px; }
   :host([data-original-below]) .source { order: 1; }
   .source,.translation { white-space: pre-line; overflow-wrap: anywhere; line-height: 1.4; }

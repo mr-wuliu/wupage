@@ -41,6 +41,28 @@ describe("appearance editor", () => {
     await vi.waitFor(() => expect(query("#providerTriggerLabel").textContent).toBe("Microsoft 翻译"));
   }
 
+  it("previews and saves paragraph highlight visibility across built-in schemes without copying a palette", async () => {
+    await mount();
+    const highlight = query<HTMLInputElement>("#paragraphHighlightEnabled");
+    expect(highlight.checked).toBe(true);
+    expect(highlight.disabled).toBe(false);
+    highlight.click();
+    expect(query<HTMLElement>(".appearance-preview-paragraph").dataset.highlight).toBe("false");
+    expect(sendMessage.mock.calls.some(([request]) => request.type === "SAVE_SETTINGS")).toBe(false);
+    query<HTMLButtonElement>("[data-appearance-tone='dark']").click();
+    expect(query<HTMLInputElement>("#paragraphHighlightEnabled").checked).toBe(false);
+    query<HTMLSelectElement>("#appearanceScheme").value = "midnight";
+    query("#appearanceScheme").dispatchEvent(new Event("change"));
+    expect(query<HTMLInputElement>("#paragraphHighlightEnabled").checked).toBe(false);
+    query<HTMLButtonElement>("#save").click();
+    await vi.waitFor(() => expect(stored.appearance?.paragraphHighlightEnabled).toBe(false));
+    expect(stored.appearance?.customSchemes).toEqual([]);
+    query<HTMLButtonElement>("#restore").click();
+    query<HTMLButtonElement>("#confirmSettingsReset").click();
+    await vi.waitFor(() => expect(query<HTMLInputElement>("#paragraphHighlightEnabled").checked).toBe(true));
+    expect(stored.appearance?.paragraphHighlightEnabled).toBe(true);
+  });
+
   it("previews, reorders and saves selected menu functions without changing feature switches", async () => {
     await mount();
     query<HTMLButtonElement>("#appearanceMenuTab").click();

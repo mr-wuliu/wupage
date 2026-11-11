@@ -39,6 +39,7 @@ export interface AppearanceSettings {
   popupMenu: PopupMenuLayout;
   mode: AppearanceMode;
   floatingOpacity: number;
+  paragraphHighlightEnabled: boolean;
   lightSchemeId: string;
   darkSchemeId: string;
   customSchemes: ColorScheme[];
@@ -115,7 +116,8 @@ export const BUILT_IN_SCHEMES: readonly ColorScheme[] = [
 
 export const DEFAULT_APPEARANCE: AppearanceSettings = {
   popupMenu: DEFAULT_POPUP_MENU,
-  mode: "system", floatingOpacity: 100, lightSchemeId: "wupage-light", darkSchemeId: "wupage-dark", customSchemes: []
+  mode: "system", floatingOpacity: 100, paragraphHighlightEnabled: true,
+  lightSchemeId: "wupage-light", darkSchemeId: "wupage-dark", customSchemes: []
 };
 
 export function isHexColor(value: unknown): value is string {
@@ -157,6 +159,7 @@ export function normalizeAppearance(value: unknown): AppearanceSettings {
   return {
     popupMenu: normalizePopupMenu(input.popupMenu),
     mode: input.mode === "light" || input.mode === "dark" ? input.mode : "system",
+    paragraphHighlightEnabled: input.paragraphHighlightEnabled !== false,
     floatingOpacity: typeof input.floatingOpacity === "number" && Number.isFinite(input.floatingOpacity)
       ? Math.max(0, Math.min(100, Math.round(input.floatingOpacity))) : DEFAULT_APPEARANCE.floatingOpacity,
     lightSchemeId: all.find(entry => entry.id === input.lightSchemeId && entry.tone === "light")?.id ?? DEFAULT_APPEARANCE.lightSchemeId,
