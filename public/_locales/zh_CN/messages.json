@@ -1,4 +1,13 @@
 {
+  "textTranslationService": {
+    "message": "文本翻译服务"
+  },
+  "ocrTranslationService": {
+    "message": "OCR 翻译服务"
+  },
+  "ocrTranslationServiceDescription": {
+    "message": "配置图片和暂停画面的文字识别；识别结果由文本翻译服务翻译。"
+  },
   "ocrServiceInvalidEndpoint": {
     "message": "请输入有效的 HTTP 或 HTTPS 识别接口地址，地址中不能包含账号密码或片段。"
   },

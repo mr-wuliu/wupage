@@ -149,7 +149,7 @@ export function setupOcrControl(toggle: HTMLButtonElement | HTMLInputElement, on
     if (!current) { clearTimeout(timer); await refresh(); return; }
     if (current.backend === "http") {
       if (options.onConfigure) options.onConfigure();
-      else await request({ type: "OPEN_OPTIONS_PAGE" });
+      else await request({ type: "OPEN_OPTIONS_PAGE", section: "ocr" });
       return;
     }
     acting = true;

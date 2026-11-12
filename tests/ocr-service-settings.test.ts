@@ -25,11 +25,13 @@ describe("OCR service settings", () => {
     vi.stubGlobal("chrome", { runtime: {
       id: "test", getURL: (path: string) => `chrome-extension://test/${path}`,
       onMessage: { addListener: (fn: typeof listeners[number]) => listeners.push(fn) }, onConnect: { addListener: vi.fn() }
-    }, storage: { local: { get: async () => ({ [SETTINGS_KEY]: stored }),
+    }, tabs: { create: vi.fn() }, storage: { local: { get: async () => ({ [SETTINGS_KEY]: stored }),
       set: async (value: Record<string, ExtensionSettings>) => { stored = structuredClone(value[SETTINGS_KEY]); } } } });
     await import("../src/background/index");
     const request = async (message: RuntimeRequest, sender = {}): Promise<RuntimeResponse> =>
       new Promise(resolve => listeners[0](message, sender, resolve));
+    expect((await request({ type: "OPEN_OPTIONS_PAGE", section: "ocr" })).ok).toBe(true);
+    expect(chrome.tabs.create).toHaveBeenCalledWith({ url: "chrome-extension://test/options.html#ocrServiceSettings" });
     const enabled = { ...stored, imageTranslationEnabled: true, ocr };
     expect((await request({ type: "SAVE_SETTINGS", settings: enabled })).ok).toBe(true);
     expect(await request({ type: "GET_SETTINGS" })).toMatchObject({ ok: true, data: { imageTranslationEnabled: true, ocr } });
