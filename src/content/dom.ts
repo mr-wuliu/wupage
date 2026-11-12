@@ -32,6 +32,7 @@ import { injectContentStyles } from "./styles";
 import { isSteamContentCard, steamItemTitle, steamTextBlock } from "./steam-content";
 import { containsElementRuleBoundary, forcedTextRoot } from "./element-exclusions";
 import { isHackerNewsCommentChrome } from "./hacker-news-content";
+import { isTwitchChatIdentity, twitchMessageBody } from "./twitch-content";
 
 interface TrackedNode {
   id: string;
@@ -188,6 +189,9 @@ const SKIP_SELECTORS = [
   ".js-repo-nav"
 ];
 const SKIP_SELECTOR = SKIP_SELECTORS.join(",");
+// Twitch's message bodies are readable prose inside the right-column aside.
+// Keep every other exclusion, including hidden text, controls and editors.
+const CHAT_BODY_SKIP_SELECTOR = SKIP_SELECTORS.filter(selector => selector !== "aside").join(",");
 const VISIBLE_ARIA_HIDDEN_SKIP_SELECTOR = SKIP_SELECTORS.filter(
   (selector) => selector !== "[aria-hidden='true']"
 ).join(",");
@@ -787,6 +791,8 @@ export function findTranslatableParagraph(start: Element | null, anchor?: Node):
   if (start && !shouldSkipElement(start)) {
     const steamBlock = steamTextBlock(start);
     if (steamBlock && !shouldSkipElement(steamBlock)) return steamBlock;
+    const chatBody = twitchMessageBody(start);
+    if (chatBody && !shouldSkipElement(chatBody)) return chatBody;
     const specialized = start.closest(`${POST_TEXT_SELECTOR},${YOUTUBE_DESCRIPTION_SELECTOR},${YOUTUBE_COMMENT_SELECTOR},[data-wupage-scientific-source]`);
     if (specialized && !shouldSkipElement(specialized)) return specialized;
     const flow = new TextFlowSnapshot().containing(anchor && start.contains(anchor) ? anchor : start);
@@ -1782,6 +1788,7 @@ function groupTextSegments(
       readable!.text === normalizeText(groupNodes[0].node.data) &&
       !block.matches(TEXT_FLOW_SOURCE_SELECTOR) &&
       !isLegacyScientificProseBlock(block) &&
+      twitchMessageBody(block) !== block &&
       !block.matches(`summary, label, li, ${POST_TEXT_SELECTOR}, ${YOUTUBE_COMMENT_SELECTOR}`)
     ) continue;
     if (singleNodeBlock && !readable!.text) continue;
@@ -2023,6 +2030,8 @@ function findGroupingBlock(element: Element | null): Element | null {
 }
 
 function computeGroupingBlock(element: Element): Element | null {
+  const chatBody = twitchMessageBody(element);
+  if (chatBody) return chatBody;
   const lineBreakParagraph = element.closest(TEXT_FLOW_SOURCE_SELECTOR);
   if (lineBreakParagraph) return lineBreakParagraph;
   const post = element.closest(POST_TEXT_SELECTOR);
@@ -2217,7 +2226,9 @@ function decideSkipElement(
   if (element.closest(videoPlatform()?.captions ?? ".vjs-text-track-display,.plyr__captions,.jw-captions")) return true;
   if (forceRoot) return hasForcedTextSkipAncestor(element);
   if (isHackerNewsCommentChrome(element)) return true;
+  if (isTwitchChatIdentity(element)) return true;
   if (element.closest(REDDIT_METADATA_SELECTOR)) return true;
+  if (twitchMessageBody(element)) return hasSkippedAncestor(element, CHAT_BODY_SKIP_SELECTOR);
   if (isInsideCodeBlock(element)) return false;
   if (isCompactControlText(element)) {
     return hasSkippedAncestor(element, COMPACT_CONTROL_SKIP_SELECTOR);
