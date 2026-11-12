@@ -23,9 +23,13 @@ interface ImageEntry {
   contextOccluder?: Element | null;
   presentation?: HTMLElement;
   hoverBounds?: { left: number; top: number; right: number; bottom: number; buttonLeft: number };
+  hideTimer?: number;
+  fadeTimer?: number;
 }
 
 const HOST_ID = "wupage-image-tools";
+const BUTTON_HIDE_DELAY = 500;
+const BUTTON_FADE_DURATION = 150;
 const SOURCE_MASK_ATTR = "data-wupage-image-source-mask";
 const SOURCE_STYLE_ID = "wupage-image-source-style";
 const maskedSources = new Map<HTMLElement, string | null>();
@@ -95,7 +99,7 @@ export function setImageTranslationEnabled(value: boolean): void {
     if (scanTimer !== undefined) window.clearTimeout(scanTimer);
     if (frame !== undefined) window.cancelAnimationFrame(frame);
     scanTimer = undefined; frame = undefined;
-    entries.forEach((entry) => { entry.generation += 1; });
+    entries.forEach((entry) => { entry.generation += 1; cancelButtonHide(entry); });
     entries.clear(); host?.remove(); host = undefined; root = undefined;
     sourceStyle?.remove(); sourceStyle = undefined;
     return;
@@ -144,10 +148,12 @@ function createHost(): void {
   root.addEventListener("focusout", scheduleHover);
   const style = document.createElement("style");
   style.textContent = `
-    button{position:fixed;box-sizing:border-box;width:30px;height:30px;padding:0;border:1px solid var(--wp-border,#cbd5e1);border-radius:9px;background:var(--wp-image-button-background,#fff);color:var(--wp-image-button-foreground,#1856ba);box-shadow:0 2px 8px #0003;cursor:pointer;pointer-events:auto;font:600 13px/1 system-ui,sans-serif}
+    button{position:fixed;box-sizing:border-box;width:30px;height:30px;padding:0;border:1px solid var(--wp-border,#cbd5e1);border-radius:9px;background:var(--wp-image-button-background,#fff);color:var(--wp-image-button-foreground,#1856ba);box-shadow:0 2px 8px #0003;cursor:pointer;pointer-events:auto;font:600 13px/1 system-ui,sans-serif;transition:opacity ${BUTTON_FADE_DURATION}ms ease-out}
     button:hover,button[aria-pressed=true]{background:var(--wp-image-button-foreground,#1856ba);color:var(--wp-image-button-background,#fff)}
     button:focus-visible{outline:3px solid var(--wp-image-button-background,#60a5fa);outline-offset:2px}
     button:disabled{cursor:wait;opacity:.8}
+    button[data-fading]{opacity:0}
+    @media(prefers-reduced-motion:reduce){button{transition:none}}
     :host([data-touch="true"]) button{width:44px;height:44px;touch-action:manipulation;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
     canvas{position:fixed;pointer-events:none;box-sizing:content-box}
     .status{position:fixed;max-width:min(280px,85vw);padding:7px 10px;background:var(--wp-surface,#172033);color:var(--wp-foreground,#fff);border:1px solid var(--wp-border,transparent);border-radius:7px;font:12px/1.5 system-ui,sans-serif;overflow-wrap:anywhere;pointer-events:none}
@@ -168,6 +174,7 @@ function scanImages(): void {
   if (sourceStyle && !sourceStyle.isConnected) document.documentElement.append(sourceStyle);
   for (const [image, entry] of entries) {
     if (!image.isConnected || entry.source !== imageSource(image) || isNonProseElement(image) || isTranslationOptedOut(image)) {
+      cancelButtonHide(entry);
       entry.generation += 1; entry.button.remove(); entry.status.remove(); entry.canvas?.remove();
       resizeObserver?.unobserve(image); entries.delete(image);
     }
@@ -185,10 +192,12 @@ function createEntry(image: HTMLImageElement): ImageEntry {
   const existing = entries.get(image);
   if (existing && existing.source === imageSource(image)) return existing;
   if (existing) {
+    cancelButtonHide(existing);
     existing.generation += 1; existing.button.remove(); existing.status.remove(); existing.canvas?.remove();
   }
   const button = document.createElement("button");
   button.type = "button"; button.textContent = t("translateBadge"); button.title = t("translateImageTextAndOverlayTheOriginal");
+  button.hidden = true;
   button.setAttribute("aria-label", t("translateImage")); button.setAttribute("aria-pressed", "false");
   const status = document.createElement("div"); status.className = "status"; status.setAttribute("role", "status"); status.hidden = true;
   const entry: ImageEntry = { image, source: imageSource(image), button, status, busy: false, showing: false, generation: 0 };
@@ -315,6 +324,29 @@ function scheduleHover(): void {
   hoverFrame = window.requestAnimationFrame(() => { hoverFrame = undefined; updateHover(); });
 }
 
+function cancelButtonHide(entry: ImageEntry): void {
+  if (entry.hideTimer !== undefined) window.clearTimeout(entry.hideTimer);
+  if (entry.fadeTimer !== undefined) window.clearTimeout(entry.fadeTimer);
+  entry.hideTimer = undefined;
+  entry.fadeTimer = undefined;
+  entry.button.removeAttribute("data-fading");
+}
+
+function hideButton(entry: ImageEntry): void {
+  cancelButtonHide(entry);
+  entry.button.hidden = true;
+}
+
+function scheduleButtonHide(entry: ImageEntry): void {
+  // Repeated pointer moves and layout updates must not restart the grace period.
+  if (entry.button.hidden || entry.hideTimer !== undefined || entry.fadeTimer !== undefined) return;
+  entry.hideTimer = window.setTimeout(() => {
+    entry.hideTimer = undefined;
+    entry.button.setAttribute("data-fading", "");
+    entry.fadeTimer = window.setTimeout(() => hideButton(entry), BUTTON_FADE_DURATION);
+  }, BUTTON_HIDE_DELAY);
+}
+
 function updateHover(): void {
   const hit = pointer && document.elementFromPoint?.(pointer.x, pointer.y);
   for (const entry of entries.values()) {
@@ -332,7 +364,11 @@ function updateHover(): void {
       hovered = Boolean((onImage && imageHit) || onButton);
     }
     const keyboardFocus = root?.activeElement === entry.button && entry.button.matches(":focus-visible");
-    entry.button.hidden = !bounds || (!touchControls && !hovered && !keyboardFocus);
+    if (!bounds) hideButton(entry);
+    else if (touchControls || hovered || keyboardFocus) {
+      cancelButtonHide(entry);
+      entry.button.hidden = false;
+    } else scheduleButtonHide(entry);
   }
 }
 
@@ -356,7 +392,7 @@ function updateLayout(): void {
     let hidden = !image.isConnected || imageSource(image) !== entry.source || isNonProseElement(image) || isTranslationOptedOut(image)
       || rect.width < (entry.manual ? 1 : 80) || rect.height < (entry.manual ? 1 : 40);
     if (hidden || right - left < buttonSize || bottom - top < minimumHeight) {
-      button.hidden = true; status.hidden = true; if (canvas) canvas.hidden = true;
+      hideButton(entry); status.hidden = true; if (canvas) canvas.hidden = true;
       continue;
     }
     const style = window.getComputedStyle(presentation);
@@ -378,7 +414,7 @@ function updateLayout(): void {
       hidden = Boolean(hit && hit !== image && !hit.contains(image) && !presentation.contains(hit)
         && !(entry.manual && (hit === entry.contextOccluder || entry.contextOccluder?.contains(hit))));
     }
-    if (hidden) button.hidden = true;
+    if (hidden) hideButton(entry);
     status.hidden = hidden || !status.textContent;
     if (canvas) canvas.hidden = hidden || !entry.showing;
     if (hidden) continue;
