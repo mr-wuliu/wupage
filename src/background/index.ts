@@ -118,7 +118,8 @@ async function handleMessage(request: RuntimeRequest, sender: chrome.runtime.Mes
     case "REMOVE_LOCAL_MODEL":
       return requestLocal("remove", request.modelId);
     case "OPEN_OPTIONS_PAGE":
-      await chrome.runtime.openOptionsPage();
+      if (request.section === "ocr") await chrome.tabs.create({ url: chrome.runtime.getURL("options.html#ocrServiceSettings") });
+      else await chrome.runtime.openOptionsPage();
       return null;
     case "OPEN_EMBEDDED_PDF": {
       const source = new URL(request.url);

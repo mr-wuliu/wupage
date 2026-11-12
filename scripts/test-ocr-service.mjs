@@ -59,6 +59,9 @@ try {
   }, origin);
   await options.reload();
   await options.locator('#providerForm[data-provider-id="http-template"]').waitFor({ state: 'attached' });
+  await options.locator('.settings-nav a[aria-controls="providerSettings"]').click();
+  assert.deepEqual(await options.locator('#providerSettings > .service-settings-card h2').allTextContents(), ['文本翻译服务', 'OCR 翻译服务']);
+  assert.equal(await options.locator('#generalSettings #ocrBackend').count(), 0);
   await options.locator('#ocrBackend').selectOption('http');
   await options.locator('#ocrServiceEndpoint').fill(`${origin}/ocr`);
   await options.locator('#ocrServiceModel').fill('my-ocr');
@@ -74,6 +77,7 @@ try {
   assert.equal(await options.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, 'no narrow-screen horizontal overflow');
   await options.screenshot({ path: path.join(output, 'settings-mobile.png'), fullPage: true });
   await options.setViewportSize({ width: 1200, height: 1100 });
+  await options.locator('.settings-nav a[aria-controls="generalSettings"]').click();
   await options.locator('#imageTranslationEnabled').check({ force: true });
   await options.locator('#save').click();
   await options.waitForFunction(() => document.querySelector('#status').textContent.includes('已保存'));
@@ -96,6 +100,7 @@ try {
   await page.reload(); await page.locator('#sample').hover(); await button.waitFor({ state: 'visible' }); await button.click();
   await page.waitForFunction(() => document.querySelector('#wupage-image-tools')?.shadowRoot.querySelector('canvas'));
   assert.equal(requests.length, beforeCache, 'reopening must reuse the matching OCR cache');
+  await options.locator('.settings-nav a[aria-controls="providerSettings"]').click();
   await options.locator('#ocrServiceRevision').fill('2'); await options.locator('#save').click();
   await options.waitForFunction(() => document.querySelector('#status').textContent.includes('已保存'));
   await page.waitForFunction(() => !document.querySelector('#wupage-image-tools')?.shadowRoot.querySelector('canvas'));

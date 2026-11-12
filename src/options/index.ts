@@ -140,7 +140,7 @@ async function init(): Promise<void> {
   savedSettings = cloneSettings(settings);
   ocrSettingsControls = setupOcrSettings(imageTranslationEnabled, () => {
     settings.imageTranslationEnabled = false; setImageTranslationToggle(imageTranslationEnabled, false);
-  }, settings.ocr);
+  }, settings.ocr, field => settingsNavigation.reveal(field));
   render();
   setupSettingsActionFeedback(document);
   setupSettingsBackupControls({ status: setStatus, imported: imported => {
@@ -237,6 +237,7 @@ function renderGeneralSettings(): void {
   renderGeneralPageSettings(settings);
   renderSelectionSettings(settings);
   renderPerformanceSettings(settings);
+  ocrSettingsControls?.render(settings.ocr);
 }
 
 function renderGeneralPageSettings(value: ExtensionSettings): void {
@@ -248,7 +249,6 @@ function renderGeneralPageSettings(value: ExtensionSettings): void {
   cacheEnabled.checked = value.cacheEnabled;
   floatingBallEnabled.checked = value.floatingBallEnabled;
   setImageTranslationToggle(imageTranslationEnabled, value.imageTranslationEnabled === true);
-  ocrSettingsControls?.render(value.ocr);
   translateCodeComments.checked = value.translateCodeComments;
   translationDisplayMode.innerHTML = TRANSLATION_DISPLAY_MODES
     .map((mode) => `<option value="${mode.value}">${mode.label}</option>`)

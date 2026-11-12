@@ -4,7 +4,8 @@ import { setupOcrControl } from "../shared/ocr-control";
 import { normalizeOcrSettings, validateOcrService, type OcrSettings } from "../shared/ocr-service";
 import type { OcrRecognition } from "../shared/ocr";
 
-export function setupOcrSettings(toggle: HTMLInputElement, onRemoved: () => void, initial?: OcrSettings): {
+export function setupOcrSettings(toggle: HTMLInputElement, onRemoved: () => void, initial?: OcrSettings,
+  reveal?: (element: HTMLElement) => void): {
   render: (value?: OcrSettings) => void;
   read: () => OcrSettings;
 } {
@@ -30,7 +31,7 @@ export function setupOcrSettings(toggle: HTMLInputElement, onRemoved: () => void
   const read = (): OcrSettings => normalizeOcrSettings({ mode: mode.value, endpoint: endpoint.value,
     model: model.value, apiKey: key.value, modelRevision: revision.value });
   const control = setupOcrControl(toggle, onRemoved, { getConfig: read,
-    onConfigure: () => { root.scrollIntoView?.({ block: "center" }); endpoint.focus(); } });
+    onConfigure: () => { reveal?.(root); root.scrollIntoView?.({ block: "center" }); endpoint.focus(); } });
   function stop(): void {
     const requestId = active;
     active = undefined;
@@ -79,7 +80,17 @@ export function setupOcrSettings(toggle: HTMLInputElement, onRemoved: () => void
       if (active === requestId) { active = undefined; test.disabled = false; cancel.hidden = true; }
     }
   }
-  return { read, render(value) {
+  return { read() {
+    const config = read();
+    if (config.mode === "http") {
+      try { validateOcrService(config); }
+      catch (error) {
+        reveal?.(root); root.scrollIntoView?.({ block: "center" }); endpoint.focus();
+        throw error;
+      }
+    }
+    return config;
+  }, render(value) {
     const config = normalizeOcrSettings(value);
     const identity = JSON.stringify(config);
     if (rendered === identity && JSON.stringify(read()) === identity) return;

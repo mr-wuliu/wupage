@@ -138,6 +138,44 @@ describe("settings category navigation", () => {
     expect(query("#status").textContent).toContain("安装 OCR 模型");
   });
 
+  it("opens the OCR deep link in the services page with separate text and OCR sections", async () => {
+    history.replaceState(null, "", "/options.html#ocrServiceSettings");
+    await mount();
+    expect(query<HTMLElement>("#providerSettings").hidden).toBe(false);
+    expect(query("#generalSettings").contains(query("#ocrBackend"))).toBe(false);
+    expect(query("#providerSettings").contains(query("#ocrBackend"))).toBe(true);
+    expect([...document.querySelectorAll("#providerSettings > .service-settings-card h2")].map(title => title.textContent))
+      .toEqual(["文本翻译服务", "OCR 翻译服务"]);
+  });
+
+  it("reveals the OCR service card from the image translation configuration button", async () => {
+    stored.ocr = { mode: "http", endpoint: "https://ocr.example/v1/ocr", model: "my-ocr", apiKey: "private", modelRevision: "1" };
+    await mount();
+    query<HTMLButtonElement>("#ocrModelAction").click();
+    expect(query<HTMLElement>("#providerSettings").hidden).toBe(false);
+    expect(document.activeElement).toBe(query("#ocrServiceEndpoint"));
+  });
+
+  it("preserves OCR drafts and credentials when restoring general settings and saving", async () => {
+    stored.ocr = { mode: "http", endpoint: "https://ocr.example/v1/ocr", model: "my-ocr", apiKey: "private", modelRevision: "1" };
+    await mount(); navigate("providerSettings");
+    query<HTMLInputElement>("#ocrServiceModel").value = "draft-model";
+    navigate("generalSettings"); query<HTMLButtonElement>("#restorePageDefaults").click();
+    expect(query<HTMLInputElement>("#ocrServiceModel").value).toBe("draft-model");
+    query<HTMLButtonElement>("#save").click();
+    await vi.waitFor(() => expect(stored.ocr).toMatchObject({ model: "draft-model", apiKey: "private", mode: "http" }));
+  });
+
+  it("reveals an invalid OCR draft when saving from another category", async () => {
+    stored.ocr = { mode: "http", endpoint: "https://ocr.example/v1/ocr", model: "my-ocr", apiKey: "", modelRevision: "1" };
+    await mount();
+    query<HTMLInputElement>("#ocrServiceEndpoint").value = "invalid";
+    query<HTMLButtonElement>("#save").click();
+    await vi.waitFor(() => expect(query<HTMLElement>("#providerSettings").hidden).toBe(false));
+    expect(document.activeElement).toBe(query("#ocrServiceEndpoint"));
+    expect(sendMessage.mock.calls.some(([request]) => request.type === "SAVE_SETTINGS")).toBe(false);
+  });
+
   it("falls back to general settings for an unknown category", async () => {
     history.replaceState(null, "", "/options.html#missing-category");
     await mount();

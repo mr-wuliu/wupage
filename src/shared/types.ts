@@ -376,7 +376,7 @@ export type RuntimeRequest =
   | { type: "GET_SETTINGS" }
   | { type: "RESET_SETTINGS" }
   | { type: "IMPORT_SETTINGS"; backup: string }
-  | { type: "OPEN_OPTIONS_PAGE" }
+  | { type: "OPEN_OPTIONS_PAGE"; section?: "ocr" }
   | { type: "OPEN_EMBEDDED_PDF"; url: string }
   | { type: "SAVE_SETTINGS"; settings: ExtensionSettings; previousSettings?: ExtensionSettings; interfaceLanguage?: InterfaceLanguage }
   | { type: "TEST_PROVIDER"; providerId?: string };

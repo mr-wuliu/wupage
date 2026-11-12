@@ -92,6 +92,13 @@ body {
   display: none;
 }
 
+.settings-panel.provider-settings-panel {
+  gap: 16px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
 .settings-panel-heading {
   display: grid;
   gap: 6px;
@@ -657,22 +664,63 @@ button.auto-translation-help-trigger:focus-visible { outline: 2px solid var(--wp
 
 .general-toggles {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 12px;
+  grid-template-columns: minmax(0, 1fr);
+  border: 1px solid var(--wp-border, #d7dedb);
+  border-radius: 8px;
+}
+
+.general-toggles > .setting-toggle,
+.general-toggles .image-feature-row {
+  box-sizing: border-box;
+  min-height: 58px;
+  margin: 0;
+  padding: 10px 14px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.general-toggles > :not(:last-child) {
+  border-bottom: 1px solid var(--wp-border, #d7dedb);
 }
 
 .general-toggles .image-feature-row {
-  min-height: 38px;
   gap: 6px;
-  padding: 0 10px;
-  border: 1px solid var(--wp-border, #d7dedb);
-  border-radius: 6px;
+}
+
+.general-toggles > .setting-toggle:hover {
   background: var(--wp-soft, #f8faf9);
+}
+
+.general-toggles > .setting-toggle:last-child {
+  border-radius: 0 0 7px 7px;
+}
+
+.ocr-service-settings .ocr-backend-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  color: var(--wp-foreground, #26343a);
+}
+
+.ocr-backend-row > span {
+  flex: 1;
+  min-width: 0;
+}
+
+.ocr-backend-row > select {
+  flex: 0 1 auto;
+  width: auto;
+  max-width: 66%;
+  min-width: 0;
+  margin: 0;
 }
 
 .general-toggles .image-feature-label {
   color: var(--wp-foreground, #26343a);
-  white-space: nowrap;
+  min-width: 0;
+  line-height: 1.35;
   cursor: pointer;
 }
 
@@ -717,20 +765,9 @@ button.auto-translation-help-trigger:focus-visible { outline: 2px solid var(--wp
   height: 16px;
 }
 
-@container settings (max-width: 800px) {
-  .general-toggles {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
-@container settings (max-width: 420px) {
-  .general-toggles {
-    grid-template-columns: minmax(0, 1fr);
-  }
-}
-
 @media (max-width: 680px) {
-  .settings-panel {
+  .settings-panel,
+  .service-settings-card {
     padding: 18px;
   }
 }

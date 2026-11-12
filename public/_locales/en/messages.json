@@ -1,4 +1,13 @@
 {
+  "textTranslationService": {
+    "message": "Text translation services"
+  },
+  "ocrTranslationService": {
+    "message": "OCR translation services"
+  },
+  "ocrTranslationServiceDescription": {
+    "message": "Configure text recognition for images and paused video frames. Recognized text is translated by the text translation service."
+  },
   "ocrServiceInvalidEndpoint": {
     "message": "Enter a valid HTTP or HTTPS recognition URL without embedded credentials or a fragment."
   },
