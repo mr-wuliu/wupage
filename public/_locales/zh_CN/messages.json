@@ -268,7 +268,7 @@
     "message": "通用"
   },
   "regionTranslation": {
-    "message": "区域翻译"
+    "message": "翻译区域"
   },
   "keyboardShortcuts": {
     "message": "快捷键"
@@ -391,7 +391,7 @@
     "message": "在指定网站上保留区域原文，或补译被跳过的标题、按钮和标签。"
   },
   "regionTranslationRules": {
-    "message": "区域翻译规则"
+    "message": "翻译区域规则"
   },
   "addRule": {
     "message": "添加规则"
@@ -2715,7 +2715,7 @@
     }
   },
   "noRegionRulesYet": {
-    "message": "暂无区域翻译规则。"
+    "message": "暂无翻译区域规则。"
   },
   "collapseRule": {
     "message": "收起规则"

@@ -30,6 +30,7 @@ beforeEach(() => {
 });
 afterEach(() => {
   setImageTranslationEnabled(false); vi.restoreAllMocks(); vi.mocked(sendRuntimeRequest).mockReset(); document.body.innerHTML = "";
+  vi.useRealTimers();
   context.fillText.mockClear(); context.fillRect.mockClear();
   context.getImageData.mockReset();
   document.documentElement.removeAttribute("style");
@@ -315,13 +316,79 @@ describe("image translation controls", () => {
     button().click();
     await vi.waitFor(() => expect(shadow().querySelector("canvas")).not.toBeNull());
     await movePointer(700, 300);
-    expect(button().hidden).toBe(true);
+    expect(button().hidden).toBe(false);
+    await vi.waitFor(() => expect(button().hidden).toBe(true));
     expect(shadow().querySelector("canvas")!.hidden).toBe(false);
     await movePointer(); expect(button().hidden).toBe(false);
     window.dispatchEvent(new Event("blur"));
     await vi.waitFor(() => expect(button().hidden).toBe(true));
     setImageTranslationEnabled(false); setImageTranslationEnabled(true);
     expect(button().hidden).toBe(true);
+  });
+
+  it("waits 500ms before fading and does not extend the delay on unrelated pointer moves", async () => {
+    setImageTranslationEnabled(true); await movePointer();
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    await movePointer(700, 300);
+    await vi.advanceTimersByTimeAsync(250);
+    await movePointer(710, 310);
+    await vi.advanceTimersByTimeAsync(249);
+    expect(button().hidden).toBe(false);
+    expect(button().hasAttribute("data-fading")).toBe(false);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(button().hidden).toBe(false);
+    expect(button().hasAttribute("data-fading")).toBe(true);
+    await vi.advanceTimersByTimeAsync(149);
+    expect(button().hidden).toBe(false);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(button().hidden).toBe(true);
+    expect(sendRuntimeRequest).not.toHaveBeenCalled();
+  });
+
+  it("cancels hiding when returning to the image or the button, including during fade-out", async () => {
+    setImageTranslationEnabled(true); await movePointer();
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    await movePointer(700, 300);
+    await vi.advanceTimersByTimeAsync(300);
+    await movePointer();
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(button().hidden).toBe(false);
+    expect(button().hasAttribute("data-fading")).toBe(false);
+    await movePointer(700, 300);
+    await vi.advanceTimersByTimeAsync(550);
+    expect(button().hasAttribute("data-fading")).toBe(true);
+    await movePointer(435, 30);
+    expect(button().hasAttribute("data-fading")).toBe(false);
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(button().hidden).toBe(false);
+    await movePointer(700, 300);
+    await vi.advanceTimersByTimeAsync(650);
+    expect(button().hidden).toBe(true);
+  });
+
+  it("accepts a click during the grace period after leaving the trigger area", async () => {
+    setImageTranslationEnabled(true); await movePointer();
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    await movePointer(700, 300);
+    await vi.advanceTimersByTimeAsync(400);
+    expect(button().hidden).toBe(false);
+    button().click();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(sendRuntimeRequest).toHaveBeenCalledWith(expect.objectContaining({ type: "TRANSLATE_IMAGE" }));
+    expect(shadow().querySelector("canvas")?.hidden).toBe(false);
+  });
+
+  it.each([300, 550])("clears pending hiding when disabled after %ims", async (elapsed) => {
+    setImageTranslationEnabled(true); await movePointer();
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    await movePointer(700, 300);
+    await vi.advanceTimersByTimeAsync(elapsed);
+    setImageTranslationEnabled(false);
+    expect(vi.getTimerCount()).toBe(0);
+    setImageTranslationEnabled(true); await movePointer();
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(button().hidden).toBe(false);
+    expect(button().hasAttribute("data-fading")).toBe(false);
   });
 
   it("hides the button after the image scrolls away from a stationary pointer", async () => {
@@ -353,7 +420,8 @@ describe("image translation controls", () => {
     button().click();
     await vi.waitFor(() => expect(shadow().querySelector("canvas")).not.toBeNull());
     expect(shadow().querySelector("canvas")!.hidden).toBe(false);
-    await movePointer(700, 300); expect(button().hidden).toBe(true);
+    await movePointer(700, 300); expect(button().hidden).toBe(false);
+    await vi.waitFor(() => expect(button().hidden).toBe(true));
     expect(shadow().querySelector("canvas")!.hidden).toBe(false);
   });
 
