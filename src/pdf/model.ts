@@ -96,12 +96,23 @@ export function extractTextBlocks(
   tableCells: readonly PdfPageRectangle[] = []
 ): PdfTextBlock[] {
   const repaired = repairSplitWords(deduplicateTextItems(items));
-  const normalized = repaired.map((item, index) => preserveRotatedText(
+  const normalized = repaired.map((item, index) => {
     // Dingbat subsets can expose a square as an ordinary letter (for example
     // ZapfDingbats' "n"). Reflowing it with a prose font changes the glyph.
-    /^[■◼]$/u.test(item.str.trim()) || /(?:Dingbats?|Wingdings|Webdings)/iu.test(item.fontName ?? "") || oversizedHeadingMarker(repaired, index)
-      ? { ...item, preserveOriginal: true } : item
-  ));
+    const ornament = /^[■◼]$/u.test(item.str.trim()) || /(?:Dingbats?|Wingdings|Webdings)/iu.test(item.fontName ?? "") || oversizedHeadingMarker(repaired, index);
+    const preserved = preserveRotatedText(ornament ? { ...item, preserveOriginal: true } : item);
+    if (!ornament || preserved.sourceBounds) return preserved;
+    // A system fallback can paint the symbol outside the PDF's advance width.
+    // Include its ink overhang in both the preview and searchable export crop.
+    const size = preserved.height || Math.abs(Number(preserved.transform[3])) || 10;
+    const padding = size * 0.15;
+    return { ...preserved, sourceBounds: {
+      x: Number(preserved.transform[4]) - padding,
+      y: Number(preserved.transform[5]) - size * 0.24 - padding,
+      width: (preserved.width ?? 0) + padding * 2,
+      height: size * 1.14 + padding * 2
+    } };
+  });
   const tableItems = prepareRuledTableItems(preservePdfTableRules(normalized, cells), tableCells);
   const protectedMath = protectPdfMath(splitTocTextItems(tableItems, measure), measure, rules);
   const lines = collectLines(protectedMath.items);
