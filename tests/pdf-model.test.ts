@@ -71,6 +71,8 @@ describe("PDF text extraction", () => {
     ], 1);
     expect(blocks).toHaveLength(2);
     expect(blocks[0]).toMatchObject({ text: "■", translatable: false, preserveOriginal: true });
+    const bounds = blocks[0].lines[0].sourceBounds!;
+    expect(bounds.x + bounds.width).toBeLessThan(50);
     expect(blocks[1]).toMatchObject({ text: "INTRODUCTION", translatable: true, fontSize: 10, fontWeight: 700 });
   });
 
@@ -84,7 +86,7 @@ describe("PDF text extraction", () => {
     expect(blocks[0]).toMatchObject({ text: "n", translatable: false, preserveOriginal: true });
     const bounds = blocks[0].lines[0].sourceBounds!;
     expect(bounds.x).toBeLessThan(40);
-    expect(bounds.x + bounds.width).toBeGreaterThanOrEqual(54);
+    expect(bounds.x + bounds.width).toBeGreaterThanOrEqual(56);
     expect(bounds.x + bounds.width).toBeLessThan(62);
     expect(blocks[1]).toMatchObject({ text: "INTRODUCTION", translatable: true, fontSize: 10 });
   });

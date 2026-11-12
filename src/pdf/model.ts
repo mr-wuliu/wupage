@@ -106,10 +106,16 @@ export function extractTextBlocks(
     // Include its ink overhang in both the preview and searchable export crop.
     const size = preserved.height || Math.abs(Number(preserved.transform[3])) || 10;
     const padding = size * 0.15;
+    const x = Number(preserved.transform[4]), y = Number(preserved.transform[5]);
+    let right = x + Math.max(preserved.width ?? 0, size) + padding;
+    for (const other of repaired) {
+      if (other !== item && other.str.trim() && Number(other.transform[4]) > x
+        && Math.abs(Number(other.transform[5]) - y) < size * 0.5) right = Math.min(right, Number(other.transform[4]) - 0.5);
+    }
     return { ...preserved, sourceBounds: {
-      x: Number(preserved.transform[4]) - padding,
-      y: Number(preserved.transform[5]) - size * 0.24 - padding,
-      width: (preserved.width ?? 0) + padding * 2,
+      x: x - padding,
+      y: y - size * 0.24 - padding,
+      width: right - x + padding,
       height: size * 1.14 + padding * 2
     } };
   });
