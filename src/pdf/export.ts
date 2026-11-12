@@ -2,6 +2,7 @@ import { t } from "../shared/i18n";
 import { paintFormulaText } from "./math-rendering";
 import type { PdfTextBlock } from "./model";
 import type { PdfExportScene, PdfExportText } from "./vector-export";
+import { validateTranslationLayout } from "./layout-quality";
 
 export interface RasterPdfPage {
   width: number;
@@ -15,12 +16,13 @@ export async function buildRasterPdf(
   pages: RasterPdfPage[],
   title: string,
   sourceBytes?: Uint8Array,
-  fontBytes?: Uint8Array
+  fontBytes?: Uint8Array,
+  onFontFallback?: (pages: number[]) => void
 ): Promise<Uint8Array> {
   if (!pages.length) throw new Error(t("noPdfPagesToExport"));
   if (fontBytes && pages.some((page) => page.scene)) {
     const { buildSearchablePdf } = await import("./vector-export");
-    return buildSearchablePdf(pages, title, sourceBytes, fontBytes);
+    return buildSearchablePdf(pages, title, sourceBytes, fontBytes, onFontFallback);
   }
   const { PDFDocument } = await import("pdf-lib");
   const document = await PDFDocument.create();
@@ -46,6 +48,7 @@ export async function buildRasterPdf(
 
 export async function collectPdfExportScene(original: HTMLCanvasElement, layer: HTMLElement,
   blocks: PdfTextBlock[], width: number, height: number, transform: number[]): Promise<PdfExportScene> {
+  assertTranslationLayerFits(layer);
   const scene: PdfExportScene = { text: [], images: [], transform, unchanged: blocks.every((block) => !block.translatable) };
   const pixelScale = original.width / width;
   const measure = document.createElement("canvas").getContext("2d");
@@ -76,7 +79,6 @@ export async function collectPdfExportScene(original: HTMLCanvasElement, layer: 
   for (const block of layer.querySelectorAll<HTMLElement>(".translation-block")) {
     const element = block.querySelector<HTMLElement>(".translation-block-text");
     if (!element) continue;
-    if (block.dataset.layoutOverflow) throw new Error(t("someTranslatedTextDoesNotFitAtA"));
     const style = getComputedStyle(element), bounds = element.getBoundingClientRect();
     const fontSize = Number.parseFloat(element.style.fontSize);
     if (measure) measure.font = `${style.fontWeight} ${fontSize}px ${style.fontFamily}`;
@@ -130,6 +132,7 @@ export function paintTranslationLayer(
   context: CanvasRenderingContext2D,
   translationLayer: HTMLElement
 ): void {
+  assertTranslationLayerFits(translationLayer);
   const coordinateScale = Number(translationLayer.dataset.coordinateScale) || 1;
   if (coordinateScale !== 1) {
     context.save();
@@ -171,6 +174,10 @@ export function paintTranslationLayer(
     context.restore();
   });
   if (coordinateScale !== 1) context.restore();
+}
+
+function assertTranslationLayerFits(layer: HTMLElement): void {
+  if (validateTranslationLayout(layer).unsafe) throw new Error(t("someTranslatedTextDoesNotFitAtA"));
 }
 
 export function wrapCanvasText(

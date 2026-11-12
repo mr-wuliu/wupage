@@ -33,14 +33,20 @@ export interface PdfExportScene {
 }
 
 export async function buildSearchablePdf(pages: RasterPdfPage[], title: string, sourceBytes: Uint8Array | undefined,
-  fontBytes: Uint8Array): Promise<Uint8Array> {
+  fontBytes: Uint8Array, onFontFallback?: (pages: number[]) => void): Promise<Uint8Array> {
   const output = await PDFDocument.create();
   output.setTitle(title);
   output.setCreator("WuPage");
   output.setProducer("WuPage PDF Translator");
   output.registerFontkit(pdfExportFontkit);
   const hasText = pages.some((page) => !page.scene?.unchanged && page.scene?.text.length);
-  const font = hasText ? await output.embedFont(fontBytes, { subset: true }) : undefined;
+  const supported = new Set(hasText ? pdfExportFontkit.create(fontBytes).characterSet : []);
+  const supportedText = (text: string): boolean => [...text].every(character => supported.has(character.codePointAt(0)!));
+  // An empty CFF subset is invalid. Entirely unsupported scripts need only the
+  // raster page; do not create an unused font with no encodable text.
+  const hasSupportedText = pages.some(page => !page.scene?.unchanged && page.scene?.text.some(run => run.text && supportedText(run.text)));
+  const font = hasSupportedText ? await output.embedFont(fontBytes, { subset: true }) : undefined;
+  const fontFallbackPages: number[] = [];
   const original = sourceBytes ? await PDFDocument.load(sourceBytes) : undefined;
   const graphics = sourceBytes ? await PDFDocument.load(sourceBytes) : undefined;
   const optionalLayers = graphics?.catalog.has(PDFName.of("OCProperties"));
@@ -53,8 +59,13 @@ export async function buildSearchablePdf(pages: RasterPdfPage[], title: string, 
       continue;
     }
     const page = output.addPage([source.width, source.height]);
+    // A valid font file need not cover the target script or punctuation.
+    // Preserve the complete browser-rendered page instead of drawing .notdef
+    // boxes. Only supported text is added to the invisible search layer.
+    const fontFallback = Boolean(scene?.text.some(run => !run.invisible && !supportedText(run.text)));
+    if (fontFallback) fontFallbackPages.push(index + 1);
     let vector = false;
-    if (graphics && scene && !optionalLayers) {
+    if (graphics && scene && !optionalLayers && !fontFallback) {
       const sourcePage = graphics.getPage(index);
       if (stripPageText(sourcePage, rewritten)) {
         const crop = sourcePage.getCropBox(), v = scene.transform;
@@ -79,6 +90,7 @@ export async function buildSearchablePdf(pages: RasterPdfPage[], title: string, 
     page.pushOperators(pushGraphicsState(), beginText(), setFontAndSize(fontName, 10));
     for (const run of scene.text) {
       if (!run.text || !Number.isFinite(run.x + run.y + run.width + run.size) || run.size <= 0) continue;
+      if (!supportedText(run.text)) continue;
       const encoded = font.encodeText(run.text);
       const natural = font.widthOfTextAtSize(run.text, run.size);
       const [r, g, b] = run.color;
@@ -90,7 +102,9 @@ export async function buildSearchablePdf(pages: RasterPdfPage[], title: string, 
     }
     page.pushOperators(endText(), popGraphicsState());
   }
-  return output.save({ useObjectStreams: true });
+  const bytes = await output.save({ useObjectStreams: true });
+  onFontFallback?.(fontFallbackPages);
+  return bytes;
 }
 
 function stripPageText(page: PDFPage, rewritten: Map<PDFRawStream, PDFRef>): boolean {

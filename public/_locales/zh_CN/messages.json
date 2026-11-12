@@ -3468,6 +3468,13 @@
   "someTranslatedTextDoesNotFitAtA": {
     "message": "有译文超出可读排版范围，请调整译文块大小或文字后再下载。"
   },
+  "translatedPdfReadyWithFontFallback": {
+    "message": "译文 PDF 已生成：$ARG1$。有 $ARG2$ 页因字体缺少字符改用图像保存，内容已保留，但这些页面可能无法完整搜索。",
+    "placeholders": {
+      "arg1": { "content": "$1" },
+      "arg2": { "content": "$2" }
+    }
+  },
   "theBrowserCouldNotCreateThePdfExport": {
     "message": "浏览器无法创建 PDF 导出画布。"
   },

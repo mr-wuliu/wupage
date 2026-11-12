@@ -3468,6 +3468,13 @@
   "someTranslatedTextDoesNotFitAtA": {
     "message": "Some translated text does not fit at a readable size. Resize its block or edit the text before downloading."
   },
+  "translatedPdfReadyWithFontFallback": {
+    "message": "Translated PDF ready: $ARG1$. Missing font characters required $ARG2$ pages to be saved as images. Their content is preserved, but search may be incomplete on those pages.",
+    "placeholders": {
+      "arg1": { "content": "$1" },
+      "arg2": { "content": "$2" }
+    }
+  },
   "theBrowserCouldNotCreateThePdfExport": {
     "message": "The browser could not create the PDF export canvas."
   },

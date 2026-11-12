@@ -16,6 +16,31 @@ afterEach(() => {
 });
 
 describe("translated PDF export", () => {
+  it("rejects truncated text in image-only export as well as searchable export", () => {
+    const layer = document.createElement("div");
+    layer.innerHTML = '<div class="translation-block" data-layout-overflow="true"><div class="translation-block-text">完整译文不能静默丢失</div></div>';
+    const context = { save: vi.fn(), fillText: vi.fn() } as unknown as CanvasRenderingContext2D;
+    expect(() => paintTranslationLayer(context, layer)).toThrow("超出可读排版范围");
+    expect(context.fillText).not.toHaveBeenCalled();
+  });
+
+  it("checks live overflow after editing and permits export after the block is repaired", () => {
+    const layer = document.createElement("div");
+    layer.innerHTML = '<div class="translation-block" style="width:80px;height:20px"><div class="translation-block-text">完整译文</div></div>';
+    const block = layer.firstElementChild!, text = block.firstElementChild!;
+    let contentHeight = 50;
+    Object.defineProperties(text, { clientWidth: { value: 80 }, clientHeight: { value: 20 },
+      scrollWidth: { value: 80 }, scrollHeight: { get: () => contentHeight } });
+    const context = { save: vi.fn(), restore: vi.fn(), beginPath: vi.fn(), rect: vi.fn(), clip: vi.fn(),
+      fillText: vi.fn(), measureText: () => ({ width: 10 }) } as unknown as CanvasRenderingContext2D;
+    expect(() => paintTranslationLayer(context, layer)).toThrow();
+    expect(text.getAttribute("aria-invalid")).toBe("true");
+    contentHeight = 20;
+    expect(() => paintTranslationLayer(context, layer)).not.toThrow();
+    expect(block.hasAttribute("data-layout-overflow")).toBe(false);
+    expect(text.hasAttribute("aria-invalid")).toBe(false);
+  });
+
   it("converts minimum-font-safe text coordinates back to PDF canvas coordinates", () => {
     const layer = document.createElement("div");
     layer.dataset.coordinateScale = "12";

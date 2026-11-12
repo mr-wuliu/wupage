@@ -99,6 +99,7 @@
     "test:ocr-runtime": "node scripts/test-ocr-runtime.mjs",
     "test:local": "node scripts/test-local-translation.mjs",
     "test:pdf": "node scripts/test-pdf-corpus.mjs",
+    "test:pdf:quality": "node scripts/test-pdf-quality.mjs",
     "test:pdf:academic": "node scripts/test-pdf-academic.mjs",
     "test:pdf:academic:edge": "node scripts/test-pdf-academic.mjs --edge",
     "test:pdf:academic:firefox": "node scripts/test-pdf-academic.mjs --firefox",

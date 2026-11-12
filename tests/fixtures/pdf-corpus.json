@@ -5,8 +5,21 @@
     "source": "https://www.stat.cmu.edu/~ryantibs/convexopt/lectures/admm.pdf",
     "url": "https://www.stat.cmu.edu/~ryantibs/convexopt/lectures/admm.pdf",
     "pages": 34,
-    "inspect": [1, 2, 5, 8, 20],
-    "features": "Landscape slides, large headings, math-font bullets, inline formulas and source font-size fidelity"
+    "inspect": [
+      1,
+      2,
+      5,
+      8,
+      20
+    ],
+    "features": "Landscape slides, large headings, math-font bullets, inline formulas and source font-size fidelity",
+    "sha256": "100a085423f14e77b9a13292376acd429f71b59d24d291b8b128f31f85b39ca1",
+    "tags": [
+      "slides",
+      "formulas",
+      "lists",
+      "landscape"
+    ]
   },
   {
     "id": "pmlr",
@@ -14,8 +27,19 @@
     "source": "https://proceedings.mlr.press/assets/examples/pmlr-sample-double-column.pdf",
     "url": "https://proceedings.mlr.press/assets/examples/pmlr-sample-double-column.pdf",
     "pages": 3,
-    "inspect": [1, 2, 3],
-    "features": "Two columns, algorithms, inline integrals, full-width figures and tables"
+    "inspect": [
+      1,
+      2,
+      3
+    ],
+    "features": "Two columns, algorithms, inline integrals, full-width figures and tables",
+    "sha256": "d1d3270db0f4e0ba0c44f0afd22b9627bd6e87d10775cf8dc2237e054bb8d41d",
+    "tags": [
+      "two-column",
+      "algorithms",
+      "figures",
+      "tables"
+    ]
   },
   {
     "id": "bert",
@@ -23,8 +47,20 @@
     "source": "https://aclanthology.org/N19-1423/",
     "url": "https://aclanthology.org/N19-1423.pdf",
     "pages": 16,
-    "inspect": [3, 5, 11],
-    "features": "Two columns, footnotes, diagram labels, wide tables and appendices"
+    "inspect": [
+      3,
+      5,
+      11
+    ],
+    "features": "Two columns, footnotes, diagram labels, wide tables and appendices",
+    "sha256": "987545ffb087f1ece898142c403a516baeabeb70ce19089397fac6f7db12c3d4",
+    "tags": [
+      "two-column",
+      "footnotes",
+      "figures",
+      "tables",
+      "appendix"
+    ]
   },
   {
     "id": "attention",
@@ -32,9 +68,32 @@
     "source": "https://arxiv.org/abs/1706.03762",
     "url": "https://arxiv.org/pdf/1706.03762",
     "pages": 15,
-    "inspect": [1, 4, 5, 7, 14],
-    "preservedRegions": [{ "page": 14, "x": 105, "y": 195, "width": 405, "height": 455, "tolerance": 8, "maximumDifferentRatio": 0.00001 }],
-    "features": "Fractions, superscripts, author footnotes, angled chart labels and dense diagrams"
+    "inspect": [
+      1,
+      4,
+      5,
+      7,
+      14
+    ],
+    "preservedRegions": [
+      {
+        "page": 14,
+        "x": 105,
+        "y": 195,
+        "width": 405,
+        "height": 455,
+        "tolerance": 8,
+        "maximumDifferentRatio": 0.00001
+      }
+    ],
+    "features": "Fractions, superscripts, author footnotes, angled chart labels and dense diagrams",
+    "sha256": "bdfaa68d8984f0dc02beaca527b76f207d99b666d31d1da728ee0728182df697",
+    "tags": [
+      "formulas",
+      "figures",
+      "tables",
+      "footnotes"
+    ]
   },
   {
     "id": "jmlr",
@@ -42,8 +101,19 @@
     "source": "https://jmlr.org/papers/v12/pedregosa11a.html",
     "url": "https://jmlr.org/papers/volume12/pedregosa11a/pedregosa11a.pdf",
     "pages": 6,
-    "inspect": [2, 3, 6],
-    "features": "Journal typography, code, benchmark tables, accents and references"
+    "inspect": [
+      2,
+      3,
+      6
+    ],
+    "features": "Journal typography, code, benchmark tables, accents and references",
+    "sha256": "1c338a6b3c6c1dcafda3990a8098b8b50dd6c77616361396fb75f6822c6e0778",
+    "tags": [
+      "journal",
+      "code",
+      "references",
+      "accents"
+    ]
   },
   {
     "id": "drg",
@@ -51,7 +121,15 @@
     "source": "https://www.nature.com/articles/s41746-025-02038-7",
     "url": "https://www.nature.com/articles/s41746-025-02038-7.pdf",
     "pages": 12,
-    "inspect": [4, 5, 6, 8, 9, 10, 11],
+    "inspect": [
+      4,
+      5,
+      6,
+      8,
+      9,
+      10,
+      11
+    ],
     "protectedText": [
       "Totaling the sum of squared deviations for all DRGs",
       "the sum of squared deviations for all cases",
@@ -60,15 +138,70 @@
       "Nonnegative adaptive lasso for ultra-high dimensional regression models"
     ],
     "preservedRegions": [
-      { "page": 4, "x": 212, "y": 254, "width": 151, "height": 451 },
-      { "page": 8, "x": 70, "y": 45, "width": 495, "height": 204, "maximumDifferentRatio": 0.00001 },
-      { "page": 9, "x": 40, "y": 506, "width": 260, "height": 235, "maximumDifferentRatio": 0.00001 },
-      { "page": 10, "x": 335, "y": 322, "width": 230, "height": 51, "maximumDifferentRatio": 0.00001 },
-      { "page": 10, "x": 388, "y": 263, "width": 177, "height": 36, "maximumDifferentRatio": 0.00001 },
-      { "page": 11, "x": 35, "y": 44, "width": 265, "height": 421 },
-      { "page": 11, "x": 302, "y": 163, "width": 265, "height": 581 }
+      {
+        "page": 4,
+        "x": 212,
+        "y": 254,
+        "width": 151,
+        "height": 451
+      },
+      {
+        "page": 8,
+        "x": 70,
+        "y": 45,
+        "width": 495,
+        "height": 204,
+        "maximumDifferentRatio": 0.00001
+      },
+      {
+        "page": 9,
+        "x": 40,
+        "y": 506,
+        "width": 260,
+        "height": 235,
+        "maximumDifferentRatio": 0.00001
+      },
+      {
+        "page": 10,
+        "x": 335,
+        "y": 322,
+        "width": 230,
+        "height": 51,
+        "maximumDifferentRatio": 0.00001
+      },
+      {
+        "page": 10,
+        "x": 388,
+        "y": 263,
+        "width": 177,
+        "height": 36,
+        "maximumDifferentRatio": 0.00001
+      },
+      {
+        "page": 11,
+        "x": 35,
+        "y": 44,
+        "width": 265,
+        "height": 421
+      },
+      {
+        "page": 11,
+        "x": 302,
+        "y": 163,
+        "width": 265,
+        "height": 581
+      }
     ],
-    "features": "Publisher-encoded math symbols, piecewise expressions, rotated table and two-column bibliography with detached numbers (issue #76)"
+    "features": "Publisher-encoded math symbols, piecewise expressions, rotated table and two-column bibliography with detached numbers (issue #76)",
+    "sha256": "84554de5dcb9215060aa2079b342545b1eb6e9b277219101c13de9e53c438205",
+    "tags": [
+      "journal",
+      "encoded-fonts",
+      "tables",
+      "formulas",
+      "references",
+      "rotation"
+    ]
   },
   {
     "id": "sn74lv1t34",
@@ -76,19 +209,76 @@
     "source": "https://www.ti.com/lit/ds/symlink/sn74lv1t34.pdf",
     "url": "https://www.ti.com/lit/ds/symlink/sn74lv1t34.pdf",
     "pages": 26,
-    "inspect": [5, 7],
+    "inspect": [
+      5,
+      7
+    ],
     "preservedRegions": [
-      { "page": 5, "x": 430, "y": 531, "width": 124, "height": 122 },
-      { "page": 7, "x": 232, "y": 584, "width": 322, "height": 98 }
+      {
+        "page": 5,
+        "x": 430,
+        "y": 531,
+        "width": 124,
+        "height": 122
+      },
+      {
+        "page": 7,
+        "x": 232,
+        "y": 584,
+        "width": 322,
+        "height": 98
+      }
     ],
     "tableLabels": [
-      { "page": 5, "text": "最小值", "x": 428.7, "y": 654.8, "width": 40.2, "height": 14.1 },
-      { "page": 5, "text": "最大值", "x": 468.7, "y": 654.8, "width": 52.6, "height": 14.1 },
-      { "page": 5, "text": "单位", "x": 521.2, "y": 654.8, "width": 34.2, "height": 14.1 },
-      { "page": 7, "text": "频率", "x": 214.1, "y": 512, "width": 61.3, "height": 28 },
-      { "page": 7, "text": "（典型值）", "x": 214.1, "y": 512, "width": 61.3, "height": 28 }
+      {
+        "page": 5,
+        "text": "最小值",
+        "x": 428.7,
+        "y": 654.8,
+        "width": 40.2,
+        "height": 14.1
+      },
+      {
+        "page": 5,
+        "text": "最大值",
+        "x": 468.7,
+        "y": 654.8,
+        "width": 52.6,
+        "height": 14.1
+      },
+      {
+        "page": 5,
+        "text": "单位",
+        "x": 521.2,
+        "y": 654.8,
+        "width": 34.2,
+        "height": 14.1
+      },
+      {
+        "page": 7,
+        "text": "频率",
+        "x": 214.1,
+        "y": 512,
+        "width": 61.3,
+        "height": 28
+      },
+      {
+        "page": 7,
+        "text": "（典型值）",
+        "x": 214.1,
+        "y": 512,
+        "width": 61.3,
+        "height": 28
+      }
     ],
-    "features": "Ruled datasheet tables with spanning headers, separate MIN/TYP/MAX labels, subscripted symbols, numbers and units"
+    "features": "Ruled datasheet tables with spanning headers, separate MIN/TYP/MAX labels, subscripted symbols, numbers and units",
+    "sha256": "07c6cf783df4d2762f18760217310ef48174adc9984f791fde64bcd21f13d360",
+    "tags": [
+      "datasheet",
+      "tables",
+      "units",
+      "spanning-headers"
+    ]
   },
   {
     "id": "plos",
@@ -96,11 +286,123 @@
     "source": "https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0293807",
     "url": "https://journals.plos.org/plosone/article/file?id=10.1371%2Fjournal.pone.0293807&type=printable",
     "pages": 43,
-    "inspect": [7, 12, 19, 30, 43],
-    "preservedRegions": [
-      { "page": 19, "x": 282, "y": 178, "width": 195, "height": 118 },
-      { "page": 19, "x": 270, "y": 640, "width": 215, "height": 55 }
+    "inspect": [
+      7,
+      12,
+      19,
+      30,
+      43
     ],
-    "features": "Special math fonts, multiline systems, matrices, sidebars, tables and plots"
+    "preservedRegions": [
+      {
+        "page": 19,
+        "x": 282,
+        "y": 178,
+        "width": 195,
+        "height": 118
+      },
+      {
+        "page": 19,
+        "x": 270,
+        "y": 640,
+        "width": 215,
+        "height": 55
+      }
+    ],
+    "features": "Special math fonts, multiline systems, matrices, sidebars, tables and plots",
+    "sha256": "9605d7d2e43429e074e37e515e925c75469e345e222c75497c84662bba722dfc",
+    "tags": [
+      "journal",
+      "matrices",
+      "formulas",
+      "sidebars",
+      "plots",
+      "long-document"
+    ]
+  },
+  {
+    "id": "tracemonkey",
+    "title": "Trace-based Just-in-Time Type Specialization for Dynamic Languages",
+    "source": "https://mozilla.github.io/pdf.js/web/compressed.tracemonkey-pldi-09.pdf",
+    "url": "https://mozilla.github.io/pdf.js/web/compressed.tracemonkey-pldi-09.pdf",
+    "inspect": [
+      1,
+      3,
+      8,
+      14
+    ],
+    "tags": [
+      "two-column",
+      "code",
+      "algorithms",
+      "charts",
+      "references"
+    ],
+    "features": "ACM paper, source code, pseudocode, footnotes, dense charts and tables",
+    "pages": 14,
+    "sha256": "3662ff519e485810520552bf301d8c3b2b917fd2f83303f4965d7abed367e113"
+  },
+  {
+    "id": "layoutlm3",
+    "title": "LayoutLMv3: Pre-training for Document AI with Unified Text and Image Masking",
+    "source": "https://arxiv.org/abs/2204.08387v3",
+    "url": "https://arxiv.org/pdf/2204.08387v3",
+    "inspect": [
+      1,
+      2,
+      5,
+      8
+    ],
+    "tags": [
+      "two-column",
+      "figures",
+      "tables",
+      "appendix"
+    ],
+    "features": "ACM typography, diagrams containing documents, formulas, dense evaluation tables and appendices",
+    "pages": 10,
+    "sha256": "bd5395610755a49e6419c406e651906e688e7a0cfe155b3c43566469dfd641fe"
+  },
+  {
+    "id": "doclaynet",
+    "title": "DocLayNet: A Large Human-Annotated Dataset for Document-Layout Analysis",
+    "source": "https://arxiv.org/abs/2206.01062v1",
+    "url": "https://arxiv.org/pdf/2206.01062v1",
+    "inspect": [
+      1,
+      3,
+      5,
+      9
+    ],
+    "tags": [
+      "two-column",
+      "figures",
+      "tables",
+      "footnotes"
+    ],
+    "features": "Document screenshots, multicolumn figures, colored tables, footnotes and ACM references",
+    "pages": 9,
+    "sha256": "5dfbd8c115a15fd3396b68409124cfee29fc8efac7b5c846634ff924e635e0dc"
+  },
+  {
+    "id": "babeldoc",
+    "title": "BabelDOC: Better Layout-Preserving PDF Translation via Intermediate Representation",
+    "source": "https://aclanthology.org/2026.acl-demo.25/",
+    "url": "https://aclanthology.org/2026.acl-demo.25.pdf",
+    "inspect": [
+      1,
+      2,
+      4,
+      6
+    ],
+    "tags": [
+      "two-column",
+      "figures",
+      "tables",
+      "mixed-languages"
+    ],
+    "features": "ACL paper with translation examples, complex flow diagrams, mixed scripts and evaluation tables",
+    "pages": 10,
+    "sha256": "99411017926c2e515a72c9abd63493a65f3f959339eb777883aec64edaad0e2f"
   }
 ]

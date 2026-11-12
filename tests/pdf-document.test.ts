@@ -203,4 +203,32 @@ describe("academic PDF document boundaries", () => {
     expect(blocks.filter((block) => block.translatable).some((block) => block.text.startsWith("Training"))).toBe(true);
     expect(blocks.filter((block) => block.translatable).some((block) => block.text.startsWith("Test"))).toBe(true);
   });
+
+  it.each(["1−4", "5‐9", "10‑14", "15–17", "18-22"])("keeps a superscript reference range inline: %s", citation => {
+    const item = (str: string, x: number, y: number, size: number, width: number) => ({ str,
+      transform: [size, 0, 0, size, x, y], width, height: size, fontFamily: "serif", fontName: "Times-Roman" });
+    const blocks = extractTextBlocks([
+      item("The material affects groundwater resources.", 40, 600, 10, 210),
+      item(citation, 250, 604, 6, 15),
+      item("Further observations confirm these findings.", 40, 588, 10, 210)
+    ], 1);
+    expect(blocks).toHaveLength(1);
+    expect(blocks[0].lines).toHaveLength(2);
+    expect(blocks[0].formulas?.[0]).toMatchObject({ text: citation, display: false, fontSize: 10, baselineY: 600 });
+    expect(blocks[0].text).toContain("resources. ⟪WUPAGE0⟫ Further");
+  });
+
+  it("recognizes superscript references emitted as separate digits, a minus sign and spaces", () => {
+    const item = (str: string, x: number, y: number, size: number, width: number) => ({ str,
+      transform: [size, 0, 0, size, x, y], width, height: size, fontFamily: "serif", fontName: "Times-Roman" });
+    const blocks = extractTextBlocks([
+      item("The material affects groundwater resources.", 40, 600, 10, 210),
+      item(" ", 250, 604, 6, 0), item("1", 250, 604, 6, 3),
+      item("−", 253, 604, 6, 4), item("4", 257, 604, 6, 3), item(" ", 260, 604, 6, 0),
+      item("Further observations confirm these findings.", 40, 588, 10, 210)
+    ], 1);
+    expect(blocks).toHaveLength(1);
+    expect(blocks[0].lines).toHaveLength(2);
+    expect(blocks[0].formulas?.[0]).toMatchObject({ text: "1−4", display: false, fontSize: 10, baselineY: 600 });
+  });
 });

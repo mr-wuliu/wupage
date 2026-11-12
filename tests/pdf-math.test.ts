@@ -7,6 +7,23 @@ function item(str: string, x: number, y: number, size = 11, fontName = "CMR10", 
 }
 
 describe("PDF formula preservation", () => {
+  it("preserves long identifiers inside a numbered display equation without font-name evidence", () => {
+    const blocks = extractTextBlocks([
+      item("The learning rate is defined below.",40,230,10,"Opaque1",190),
+      item("lrate",100,200,10,"Opaque2",22),item("=",126,200,10,"Opaque3",8),
+      item("d",140,200,10,"Opaque2",5),item("model",145,197,7,"Opaque1",17),
+      item("min",180,200,10,"Opaque1",17),item("(",200,200,10,"Opaque3",4),
+      item("step",207,200,10,"Opaque2",20),item(", step",228,200,10,"Opaque2",25),
+      item("warmup_steps",260,200,10,"Opaque2",58),item(")",320,200,10,"Opaque3",4),
+      item("(3)",480,200,10,"Opaque1",12),
+      item("The optimizer uses the following schedule.",40,170,10,"Opaque1",200)
+    ],7);
+    expect(blocks.filter(block=>block.translatable).map(block=>block.text)).toEqual([
+      "The learning rate is defined below.","The optimizer uses the following schedule."
+    ]);
+    expect(blocks.some(block=>block.preserveOriginal&&block.text.includes("lrate"))).toBe(true);
+  });
+
   it("preserves publisher-encoded equations, including italic identifiers and their numbers", () => {
     const roman = "BFDNNO+AdvOT1ef757c0";
     const italic = "BFDOFP+AdvOT7d6df7ab.I";

@@ -3,6 +3,15 @@ import { findAvailableHorizontalLeft, findAvailableHorizontalRight, findAvailabl
 import type { PdfTextBlock } from "../src/pdf/model";
 
 describe("PDF translated text layout", () => {
+  it("does not expand a one-line wrapping region into its adjacent artwork", () => {
+    const block = { ...createBlock("A narrow fragment", 40, 100), paragraphId: "page-1-paragraph-1" };
+    const layout = getTranslatedBlockLayout(createMeasureContext(), "需要限制在插图旁边的译文", block,
+      [{ x: 40, y: 20, width: 100, height: 12 }], 1, 600, 600)!;
+    expect(layout.left).toBe(40);
+    expect(layout.width).toBe(100);
+    expect(layout.textAlign).toBe("left");
+  });
+
   it("centers a longer translated header within its own cell", () => {
     const block = createBlock("MAX", 142, 16);
     const layout = getTranslatedBlockLayout(createMeasureContext(), "最大允许值", block,

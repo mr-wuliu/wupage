@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { preparePdfDocumentTranslations, preparePdfPageTranslations } from "../src/pdf/paragraph-flow";
 import { preparePdfTranslation } from "../src/pdf/document";
-import type { PdfTextBlock } from "../src/pdf/model";
+import { extractTextBlocks, type PdfTextBlock } from "../src/pdf/model";
 
 function block(text: string, x: number, y: number, count = 4): PdfTextBlock {
   return { id: `${x}-${y}`, text, translatable: true, fontFamily: "serif", fontWeight: 400, fontSize: 10,
@@ -17,6 +17,25 @@ function fragments() {
 }
 
 describe("PDF paragraph flow across columns", () => {
+  it("translates an abstract around artwork as one paragraph and restores both physical regions", () => {
+    const texts = ["The material is prepared using a process that", "combines several components and supports",
+      "a wide range of environments while retaining its original structure and performance.", "These observations confirm the findings."];
+    const blocks = extractTextBlocks(texts.map((str, index) => ({ str,
+      transform: [10, 0, 0, 10, 40, 700 - index * 12], height: 10, width: index < 2 ? 240 : index === 2 ? 510 : 210,
+      fontFamily: "serif", hasEOL: true
+    })), 1);
+    const page = { blocks, width: 600, height: 800 };
+    const inputs = preparePdfPageTranslations(page, new Map());
+    const plans = preparePdfDocumentTranslations([page], new Map());
+    expect(blocks).toHaveLength(2);
+    expect(inputs.size).toBe(1);
+    expect(plans[0].inputs.size).toBe(1);
+    const input = inputs.get(0)!;
+    expect(input.text.replace(/⟪WUPAGE(?:OPEN|CLOSE)?\d+⟫/gu, "")).toBe(texts.join(" "));
+    expect(input.restore(input.text)).toEqual(new Map(blocks.map((block, index) => [index, block.text])));
+    expect(plans[0].inputs.get(0)!.regions).toEqual([{ pageNumber: 1, index: 0 }, { pageNumber: 1, index: 1 }]);
+  });
+
   it("translates a continued sentence together and restores each original region with independent placeholder IDs", () => {
     const blocks = fragments(), before = structuredClone(blocks);
     const inputs = preparePdfPageTranslations({ blocks, height: 800 }, new Map());

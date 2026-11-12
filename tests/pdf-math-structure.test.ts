@@ -8,6 +8,17 @@ const item = (str: string, x: number, y: number, size = 10, font = "OpaqueA", wi
 });
 
 describe("font-independent PDF math evidence", () => {
+  it("recognizes densely stacked brace pieces whose glyphs decode as ordinary punctuation", () => {
+    const pieces = [item(":",286,196.7,10,"OpaqueBrace",8.85),
+      ...Array.from({length:12},(_,index)=>item(">",286,199.6+index*2.94,10,"OpaqueBrace",8.85))];
+    const closing = item("!",474,681,10,"OpaqueBrace",7.81);
+    const ordinary = [item("1",50,100,10,"OpaqueNumbers"),item("2",50,88,10,"OpaqueNumbers"),item("3",50,76,10,"OpaqueNumbers")];
+    const evidence=detectPdfMathStructure([...pieces,closing,...ordinary]);
+    expect(pieces.every(piece=>evidence.extensions.has(piece))).toBe(true);
+    expect(evidence.extensions.has(closing)).toBe(true);
+    expect(ordinary.some(piece=>evidence.extensions.has(piece))).toBe(false);
+  });
+
   it("recognizes positioned scripts even when the content stream is out of order", () => {
     const base = item("x", 20, 100), script = item("if", 25, 97, 6), prose = item("if", 80, 100);
     const evidence = detectPdfMathStructure([script, prose, base]);

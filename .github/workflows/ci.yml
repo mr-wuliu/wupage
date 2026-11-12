@@ -58,6 +58,11 @@ jobs:
         env:
           PLAYWRIGHT_MODULE: ${{ github.workspace }}/.npm-cache/mail-test-tools/node_modules/playwright/index.mjs
 
+      - name: Check PDF layout and export safeguards
+        run: npm run test:pdf:quality -- --profile=smoke
+        env:
+          PLAYWRIGHT_MODULE: ${{ github.workspace }}/.npm-cache/mail-test-tools/node_modules/playwright/index.mjs
+
       - name: Upload page translation failure details
         if: failure()
         uses: actions/upload-artifact@v4
@@ -70,6 +75,11 @@ jobs:
             .npm-cache/frame-connection/chrome/*.png
             .npm-cache/frame-connection/chrome/*.json
             .npm-cache/frame-connection/chrome/*.txt
+            .npm-cache/pdf-quality/smoke/**/report.json
+            .npm-cache/pdf-quality/smoke/**/report.html
+            .npm-cache/pdf-quality/smoke/**/*quality.json
+            .npm-cache/pdf-quality/smoke/**/*.png
+            .npm-cache/pdf-quality/smoke/**/run.log
           if-no-files-found: ignore
           retention-days: 7
 
