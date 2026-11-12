@@ -1,6 +1,7 @@
 import { t } from "../shared/i18n";
 import type { ExtensionSettings, ImageTextRegion, TranslateImageResponse } from "../shared/types";
 import { SETTINGS_KEY } from "../shared/defaults";
+import { ocrSettingsIdentity } from "../shared/ocr-service";
 import { hasRuntimeContext, sendRuntimeRequest } from "./runtime";
 import { getImageRasterSize, renderImageTranslation } from "./image-rendering";
 import { isNonProseElement, isTranslationOptedOut } from "./content-policy";
@@ -56,6 +57,7 @@ export function initImageTranslation(): void {
     if (!previous || !settings || previous.imageTranslationEnabled !== settings.imageTranslationEnabled
       || previous.sourceLang !== settings.sourceLang || previous.targetLang !== settings.targetLang
       || previous.activeProviderId !== settings.activeProviderId
+      || ocrSettingsIdentity(previous.ocr) !== ocrSettingsIdentity(settings.ocr)
       || JSON.stringify(previous.providers) !== JSON.stringify(settings.providers)) {
       // Clear old language/provider results as well as pending responses.
       setImageTranslationEnabled(false);

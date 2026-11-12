@@ -1,4 +1,89 @@
 {
+  "ocrServiceInvalidEndpoint": {
+    "message": "Enter a valid HTTP or HTTPS recognition URL without embedded credentials or a fragment."
+  },
+  "ocrServiceInvalidConfig": {
+    "message": "Enter a model name and cache version, and check the API key format."
+  },
+  "ocrServiceHttpError": {
+    "message": "OCR service request failed (HTTP $ARG1$).",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "customOcrService": {
+    "message": "Custom OCR service"
+  },
+  "ocrServiceInvalidResponse": {
+    "message": "The OCR response does not match the protocol. Check its version, image dimensions, text, and four-point polygons."
+  },
+  "ocrServiceTestBusy": {
+    "message": "An OCR test is already running. Cancel it or wait for it to finish."
+  },
+  "ocrServiceChanged": {
+    "message": "OCR settings changed or image translation was disabled. Run recognition again."
+  },
+  "ocrServiceOptionsOnly": {
+    "message": "Test the OCR service from extension settings."
+  },
+  "ocrServicePrivacy": {
+    "message": "Images and paused video frames are sent to the configured OCR service. The translation provider receives only recognized text."
+  },
+  "configureOcrService": {
+    "message": "Configure OCR service"
+  },
+  "ocrServiceConfigured": {
+    "message": "Custom OCR configured. Test recognition in settings."
+  },
+  "ocrBackendLabel": {
+    "message": "Text recognition"
+  },
+  "builtinOcr": {
+    "message": "Built-in OCR (on device)"
+  },
+  "ocrServiceEndpoint": {
+    "message": "Recognition endpoint"
+  },
+  "ocrServiceModel": {
+    "message": "Model name"
+  },
+  "ocrServiceKey": {
+    "message": "API key (optional)"
+  },
+  "ocrServiceRevision": {
+    "message": "Model cache version"
+  },
+  "ocrServiceProtocolHelp": {
+    "message": "Requires the WuPage OCR protocol with text coordinates. Change the cache version after replacing server model weights. The endpoint is used as entered."
+  },
+  "testOcrService": {
+    "message": "Test recognition"
+  },
+  "ocrServicePreviewLabel": {
+    "message": "OCR test image and text polygons"
+  },
+  "ocrServiceTestCanceled": {
+    "message": "Recognition test canceled."
+  },
+  "ocrServicePreviewUnavailable": {
+    "message": "Could not create the test image. Reopen settings."
+  },
+  "ocrServiceTesting": {
+    "message": "Sending the built-in sample image for recognition…"
+  },
+  "ocrServiceTestPassed": {
+    "message": "Recognition completed with $ARG1$ text regions. Polygons and text appear below. Save settings to apply.",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "ocrServiceTestEmpty": {
+    "message": "Connected, but no text was recognized in the sample. Check the service model and detection settings."
+  },
   "providerOriginCompatibilityUnavailable": {
     "message": "Reload the updated extension to enable API request compatibility."
   },
@@ -1273,7 +1358,7 @@
     "message": "Cannot locate the video frame. Bring the entire video into view and try again."
   },
   "enableSubtitlesAndImageTranslationAndInstallThe": {
-    "message": "Enable subtitles and image translation and install the OCR models first."
+    "message": "Enable subtitles and image translation, then install OCR models or configure a custom OCR service."
   },
   "theVideoPageHasChangedReturnToThe": {
     "message": "The video page has changed. Return to the original page and try again."
@@ -1904,7 +1989,7 @@
     "message": "Enable video subtitles first."
   },
   "useTheWrenchBesideImageTranslationInWupage": {
-    "message": "Use the wrench beside image translation in WuPage to install OCR models, then enable image translation."
+    "message": "Install OCR models or configure a custom OCR service in WuPage settings, then enable image translation."
   },
   "noTranslatableTextFoundInThisFrame": {
     "message": "No translatable text found in this frame."
@@ -2726,7 +2811,7 @@
     }
   },
   "beforeTranslatingImagesFromTheContextMenuInstall": {
-    "message": "Before translating images from the context menu, install the OCR models with the wrench button, enable image translation and save."
+    "message": "Before translating images from the context menu, install OCR models or configure a custom OCR service, enable image translation and save."
   },
   "couldNotConnectToTheImageSPage": {
     "message": "Could not connect to the image’s page. Refresh the page and right-click the image again. Some embedded pages are unsupported."

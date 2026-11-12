@@ -96,6 +96,7 @@
     "test:services": "node scripts/test-service-modes.mjs",
     "test:templates": "node scripts/test-request-templates.mjs",
     "test:ocr": "node scripts/test-ocr-flow.mjs",
+    "test:ocr-service": "node scripts/test-ocr-service.mjs",
     "test:ocr-runtime": "node scripts/test-ocr-runtime.mjs",
     "test:local": "node scripts/test-local-translation.mjs",
     "test:pdf": "node scripts/test-pdf-corpus.mjs",

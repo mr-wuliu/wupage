@@ -8,8 +8,9 @@ import type { RuntimeRequest, RuntimeResponse } from "../shared/types";
 import { createProvider } from "./providers";
 import { loadImageData, translateImageWithSettings } from "./image-translation";
 import { clearTranslationCache, getTranslationDebugSnapshot, translateWithSettings } from "./translation";
-import { requestOcr } from "./ocr";
-import { installedRevision } from "../ocr/model-store";
+import { getOcrStatus, requestOcr } from "./ocr";
+import { cancelOcrTest, initOcrService, ocrRevision, testOcrService } from "./ocr-service";
+import { normalizeOcrSettings, ocrSettingsIdentity, validateOcrService } from "../shared/ocr-service";
 import { initImageContextMenu, refreshImageContextMenu } from "./image-context-menu";
 import { initPageContextMenu, refreshPageContextMenu } from "./page-context-menu";
 import { initializeOllamaCompatibility } from "./ollama-compatibility";
@@ -45,6 +46,7 @@ chrome.runtime.onMessage.addListener((request: RuntimeRequest, sender, sendRespo
 try { frameSessions.install(); }
 catch (error) { console.warn("WuPage frame integration:", error); }
 initStatistics();
+initOcrService();
 try { initVideoSettings(); chrome.tabs?.onRemoved?.addListener(clearVideoTab); }
 catch (error) { console.warn("WuPage video integration:", error); }
 
@@ -131,13 +133,15 @@ async function handleMessage(request: RuntimeRequest, sender: chrome.runtime.Mes
         // OCR cache availability must not take down page translation/settings.
         // Only a successful check can establish that a model is missing.
         let installed: string | undefined;
-        try { installed = await installedRevision(); }
+        const checkedIdentity = ocrSettingsIdentity(settings.ocr);
+        try { installed = await ocrRevision(settings); }
         catch { return getSettings(); }
         // Model checks may finish after another page has saved new settings.
         // Return that version and only change its image toggle when needed.
         settings = await getSettings();
-        if (!installed && settings.imageTranslationEnabled) {
-          settings = await saveSettings(latest => ({ ...latest, imageTranslationEnabled: false }));
+        if (!installed && settings.imageTranslationEnabled && checkedIdentity === ocrSettingsIdentity(settings.ocr)) {
+          settings = await saveSettings(latest => checkedIdentity === ocrSettingsIdentity(latest.ocr)
+            ? { ...latest, imageTranslationEnabled: false } : latest);
         }
       }
       return settings;
@@ -152,18 +156,30 @@ async function handleMessage(request: RuntimeRequest, sender: chrome.runtime.Mes
       await saveSettings(async latest => {
         const next = request.previousSettings
           ? mergeSettingsChanges(latest, request.settings, request.previousSettings) : request.settings;
-        if (next.imageTranslationEnabled && !latest.imageTranslationEnabled
-          && !await installedRevision()) throw new Error(t("useTheWrenchBesideImageTranslationToInstall"));
+        const config = normalizeOcrSettings(next.ocr);
+        if (config.mode === "http") validateOcrService(config);
+        if (next.imageTranslationEnabled && (!latest.imageTranslationEnabled || ocrSettingsIdentity(next.ocr) !== ocrSettingsIdentity(latest.ocr))
+          && !await ocrRevision(next)) throw new Error(t("useTheWrenchBesideImageTranslationToInstall"));
         return next;
       }, request.interfaceLanguage);
       return null;
     case "GET_OCR_STATUS":
-      return requestOcr("status");
+      return request.builtin ? requestOcr("status") : getOcrStatus(await getSettings());
+    case "TEST_OCR_SERVICE":
+    case "CANCEL_OCR_TEST": {
+      if (sender.id !== chrome.runtime.id || sender.url?.split(/[?#]/u)[0] !== chrome.runtime.getURL("options.html")) {
+        throw new Error(t("ocrServiceOptionsOnly"));
+      }
+      if (request.type === "CANCEL_OCR_TEST") { cancelOcrTest(request.requestId); return null; }
+      const config = normalizeOcrSettings(request.config);
+      if (config.mode !== "http") throw new Error(t("ocrServiceInvalidConfig"));
+      return testOcrService(request.requestId, config, request.image);
+    }
     case "INSTALL_OCR":
       return requestOcr("install");
     case "REMOVE_OCR": {
       const result = await requestOcr("remove");
-      await saveSettings(latest => ({ ...latest, imageTranslationEnabled: false }));
+      await saveSettings(latest => normalizeOcrSettings(latest.ocr).mode === "http" ? latest : { ...latest, imageTranslationEnabled: false });
       return result;
     }
     case "TRANSLATE_BATCH": {

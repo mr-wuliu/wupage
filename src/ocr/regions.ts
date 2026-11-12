@@ -11,7 +11,7 @@ export function needsImageTranslation(text: string): boolean {
 
 export function positionedLines(lines: OcrLine[], width: number, height: number): ImageTextRegion[] {
   return lines.flatMap((line) => {
-    if (line.score < 0.6 || !needsImageTranslation(line.text) || line.poly.length !== 4
+    if (line.score !== undefined && line.score < 0.6 || !needsImageTranslation(line.text) || line.poly.length !== 4
       || line.poly.some((point) => point.length !== 2 || point.some((value) => !Number.isFinite(value)))) return [];
     const xs = line.poly.map(([x]) => x), ys = line.poly.map(([, y]) => y);
     const left = Math.max(0, Math.min(...xs) - 1), top = Math.max(0, Math.min(...ys) - 1);

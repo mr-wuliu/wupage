@@ -85,6 +85,14 @@ describe("paused video frame translation", () => {
     expect(root().querySelector("canvas")).toBeNull();
   });
 
+  it("clears the paused-frame overlay when the OCR configuration changes", async () => {
+    button().click(); await flush();
+    expect(root().querySelector("canvas")).not.toBeNull();
+    settings = { ...settings, ocr: { mode: "http", endpoint: "https://ocr.example/ocr", model: "my-ocr", apiKey: "", modelRevision: "1" } };
+    changed({ [SETTINGS_KEY]: { newValue: settings } }, "local"); await flush();
+    expect(root().querySelector("canvas")).toBeNull();
+  });
+
   it("explains missing OCR setup before capturing any pixels", async () => {
     settings.imageTranslationEnabled = false;
     button().click(); await flush();

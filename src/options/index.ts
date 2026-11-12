@@ -7,7 +7,9 @@ import { sendRuntimeMessage } from "../shared/messaging";
 import type { DoubaoStatus, ExtensionSettings, ProviderConfig, TranslationApiOptions } from "../shared/types";
 import { supportsServiceMode, translationApiOptions } from "../shared/translation-service";
 import "./styles.css";
-import { setImageTranslationToggle, setupOcrControl } from "../shared/ocr-control";
+import { setImageTranslationToggle } from "../shared/ocr-control";
+import { setupOcrSettings } from "./ocr-service";
+import { DEFAULT_OCR_SETTINGS } from "../shared/ocr-service";
 import { setupLocalModelControl } from "../local/control";
 import { ensureProviderIconStyles, providerIconMarkup } from "../shared/provider-icons";
 import { setupAutoTranslationControls } from "./auto-translation";
@@ -121,6 +123,7 @@ let doubaoRetryTimer: ReturnType<typeof setTimeout> | undefined;
 let statusTimer: ReturnType<typeof setTimeout> | undefined;
 const pendingSettingsWrites = new Set<Promise<void>>();
 let optionsClosed = false;
+let ocrSettingsControls: ReturnType<typeof setupOcrSettings> | undefined;
 
 window.addEventListener("pagehide", () => {
   optionsClosed = true;
@@ -135,6 +138,9 @@ void init().catch((error: unknown) => {
 async function init(): Promise<void> {
   settings = await sendRuntimeMessage<ExtensionSettings>({ type: "GET_SETTINGS" });
   savedSettings = cloneSettings(settings);
+  ocrSettingsControls = setupOcrSettings(imageTranslationEnabled, () => {
+    settings.imageTranslationEnabled = false; setImageTranslationToggle(imageTranslationEnabled, false);
+  }, settings.ocr);
   render();
   setupSettingsActionFeedback(document);
   setupSettingsBackupControls({ status: setStatus, imported: imported => {
@@ -145,7 +151,6 @@ async function init(): Promise<void> {
     setProviderMenuOpen(false);
     render();
   } });
-  setupOcrControl(imageTranslationEnabled, () => { settings.imageTranslationEnabled = false; setImageTranslationToggle(imageTranslationEnabled, false); });
   const imageNotice = new URLSearchParams(location.search).get("imageTranslationNotice");
   if (imageNotice === "setup") setStatus(t("beforeTranslatingImagesFromTheContextMenuInstall"));
   if (imageNotice === "refresh") setStatus(t("couldNotConnectToTheImageSPage"));
@@ -243,6 +248,7 @@ function renderGeneralPageSettings(value: ExtensionSettings): void {
   cacheEnabled.checked = value.cacheEnabled;
   floatingBallEnabled.checked = value.floatingBallEnabled;
   setImageTranslationToggle(imageTranslationEnabled, value.imageTranslationEnabled === true);
+  ocrSettingsControls?.render(value.ocr);
   translateCodeComments.checked = value.translateCodeComments;
   translationDisplayMode.innerHTML = TRANSLATION_DISPLAY_MODES
     .map((mode) => `<option value="${mode.value}">${mode.label}</option>`)
@@ -1069,8 +1075,10 @@ function readSettingsFromForm(): ExtensionSettings {
       throw error;
     }
   }
+  const ocr = ocrSettingsControls?.read();
   return {
     ...settings,
+    ...(settings.ocr !== undefined || ocr && JSON.stringify(ocr) !== JSON.stringify(DEFAULT_OCR_SETTINGS) ? { ocr } : {}),
     appearance,
     shortcuts: shortcutControls.read(),
     localShortcuts: shortcutControls.readLocal(),

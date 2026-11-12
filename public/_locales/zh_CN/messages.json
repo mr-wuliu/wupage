@@ -1,4 +1,89 @@
 {
+  "ocrServiceInvalidEndpoint": {
+    "message": "请输入有效的 HTTP 或 HTTPS 识别接口地址，地址中不能包含账号密码或片段。"
+  },
+  "ocrServiceInvalidConfig": {
+    "message": "请填写模型名称和缓存版本，并检查 API 密钥格式。"
+  },
+  "ocrServiceHttpError": {
+    "message": "OCR 服务请求失败（HTTP $ARG1$）。",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "customOcrService": {
+    "message": "自定义 OCR 服务"
+  },
+  "ocrServiceInvalidResponse": {
+    "message": "OCR 服务返回格式不符合协议，请检查版本、图片尺寸、文字及四点坐标。"
+  },
+  "ocrServiceTestBusy": {
+    "message": "已有 OCR 测试正在运行，请先取消或等待完成。"
+  },
+  "ocrServiceChanged": {
+    "message": "OCR 配置已更改或图片翻译已关闭，请重新识别。"
+  },
+  "ocrServiceOptionsOnly": {
+    "message": "请在扩展设置中测试 OCR 服务。"
+  },
+  "ocrServicePrivacy": {
+    "message": "图片及暂停的视频画面将发送到指定 OCR 服务；翻译服务只接收识别出的文字。"
+  },
+  "configureOcrService": {
+    "message": "配置 OCR 服务"
+  },
+  "ocrServiceConfigured": {
+    "message": "自定义 OCR 已配置 · 可在设置中测试识别"
+  },
+  "ocrBackendLabel": {
+    "message": "文字识别"
+  },
+  "builtinOcr": {
+    "message": "内置 OCR（本机识别）"
+  },
+  "ocrServiceEndpoint": {
+    "message": "识别接口地址"
+  },
+  "ocrServiceModel": {
+    "message": "模型名称"
+  },
+  "ocrServiceKey": {
+    "message": "API 密钥（可选）"
+  },
+  "ocrServiceRevision": {
+    "message": "模型缓存版本"
+  },
+  "ocrServiceProtocolHelp": {
+    "message": "需使用 WuPage OCR 协议并返回文字坐标。服务器更换模型权重后，请修改缓存版本。地址按原样使用。"
+  },
+  "testOcrService": {
+    "message": "测试识别"
+  },
+  "ocrServicePreviewLabel": {
+    "message": "OCR 测试图片与文字框"
+  },
+  "ocrServiceTestCanceled": {
+    "message": "识别测试已取消。"
+  },
+  "ocrServicePreviewUnavailable": {
+    "message": "无法创建测试图片，请重新打开设置。"
+  },
+  "ocrServiceTesting": {
+    "message": "正在发送内置样例图片并识别…"
+  },
+  "ocrServiceTestPassed": {
+    "message": "识别完成，返回 $ARG1$ 处文字。下方显示文字框与原文；保存设置后生效。",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "ocrServiceTestEmpty": {
+    "message": "连接成功，但样例未识别出文字。请检查服务的模型与检测设置。"
+  },
   "providerOriginCompatibilityUnavailable": {
     "message": "请重新加载更新后的扩展，以启用 API 请求兼容处理。"
   },
@@ -1273,7 +1358,7 @@
     "message": "无法定位视频画面，请将完整视频显示在窗口内后重试。"
   },
   "enableSubtitlesAndImageTranslationAndInstallThe": {
-    "message": "请先开启视频字幕和图片翻译，并安装 OCR 模型。"
+    "message": "请先开启视频字幕和图片翻译，并安装 OCR 模型或配置自定义 OCR 服务。"
   },
   "theVideoPageHasChangedReturnToThe": {
     "message": "视频页已切换，请回到原视频页重试。"
@@ -1904,7 +1989,7 @@
     "message": "请先开启视频字幕功能。"
   },
   "useTheWrenchBesideImageTranslationInWupage": {
-    "message": "请在 WuPage 图片翻译旁的扳手中安装 OCR 模型，并开启图片翻译。"
+    "message": "请在 WuPage 设置中安装 OCR 模型或配置自定义 OCR 服务，并开启图片翻译。"
   },
   "noTranslatableTextFoundInThisFrame": {
     "message": "未识别到需要翻译的画面文字。"
@@ -2726,7 +2811,7 @@
     }
   },
   "beforeTranslatingImagesFromTheContextMenuInstall": {
-    "message": "使用右键图片翻译前，请先点击扳手安装 OCR 模型，开启图片翻译并保存。"
+    "message": "使用右键图片翻译前，请先安装 OCR 模型或配置自定义 OCR 服务，开启图片翻译并保存。"
   },
   "couldNotConnectToTheImageSPage": {
     "message": "无法连接图片所在页面。请刷新刚才的网页，再右键点击图片翻译；部分嵌入页面暂不支持。"
