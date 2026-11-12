@@ -1,6 +1,7 @@
 import { isNonProseElement, isTranslationOptedOut } from "./content-policy";
 import { containsElementRuleBoundary } from "./element-exclusions";
 import { TEXT_FLOW_SOURCE_SELECTOR, TextFlowSnapshot, type TextFlow } from "./text-flow";
+import { TWITCH_MESSAGE_BODY_SELECTOR } from "./twitch-content";
 
 const sources = new Set<Element>();
 let pendingSources = new WeakMap<Node, Element>();
@@ -11,7 +12,8 @@ const EXCLUDED = "pre,code,kbd,samp,nav,header,footer,aside,button,summary,label
   + ".highlight,.example-wrap,.blob-code,.react-code-text,"
   + "[role='tab'],[role='menuitem'],[tabindex],[onclick],[slot],.wupage-translation,"
   + "[data-testid='tweetText'],[id^='message-content-'],.ytAttributedStringHost,"
-  + "ytd-comment-view-model,ytd-comment-renderer,#description,[data-wupage-scientific-source],.MATH," + TEXT_FLOW_SOURCE_SELECTOR;
+  + "ytd-comment-view-model,ytd-comment-renderer,#description,[data-wupage-scientific-source],.MATH,"
+  + TWITCH_MESSAGE_BODY_SELECTOR + "," + TEXT_FLOW_SOURCE_SELECTOR;
 
 /** Adapt anonymous ranges to the existing renderer without cloning author nodes. */
 export function materializeTextFlow(unit: TextFlow): Element | null {

@@ -1,4 +1,5 @@
 import { translationOwner } from "./translation-boundaries";
+import { TWITCH_MESSAGE_BODY_SELECTOR } from "./twitch-content";
 
 export const TEXT_FLOW_SOURCE_SELECTOR = "[data-wupage-prose-source]";
 const OUTPUT = ".wupage-translation";
@@ -8,7 +9,8 @@ const INLINE_FALLBACK = "a,span,b,strong,i,em,u,s,del,ins,mark,small,big,sub,sup
 // These readers own authored lines/attributed text and must not be absorbed by
 // an otherwise inline outer wrapper. They still use the shared source lifecycle.
 const CONTENT_OWNER = "[data-testid='tweetText'],[id^='message-content-'],[data-wupage-scientific-source],"
-  + ".ytAttributedStringHost,ytd-comment-view-model #content-text,ytd-comment-renderer #content-text";
+  + ".ytAttributedStringHost,ytd-comment-view-model #content-text,ytd-comment-renderer #content-text,"
+  + TWITCH_MESSAGE_BODY_SELECTOR;
 
 /** A contiguous authored range, which need not have an element of its own. */
 export interface TextFlow {
