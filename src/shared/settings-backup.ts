@@ -174,6 +174,7 @@ const settingsShape = {
   pdfTranslationPageRadius: (v, p, s) => v === null ? null : number(0, 1000)(v, p, s),
   cacheEnabled: boolean, floatingBallEnabled: boolean, translateCodeComments: boolean,
   statisticsEnabled: optional(boolean), contextMenuTranslationEnabled: optional(boolean), imageTranslationEnabled: optional(boolean),
+  ocr: optional(object({ mode: oneOf("builtin", "http"), endpoint: string, model: string, apiKey: string, modelRevision: string })),
   translationDisplayMode: oneOf("replace", "bilingual", "bilingual-accent"), providers: array(provider, 1000),
   shortcuts: optional(object(fields(TRANSLATION_SHORTCUTS.map(entry => entry.name), string))),
   localShortcuts: optional(object(fields(LOCAL_BINDINGS.map(entry => entry.name), string))),

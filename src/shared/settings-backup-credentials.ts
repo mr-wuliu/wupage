@@ -75,6 +75,10 @@ export function withoutSettingsKeys(settings: ExtensionSettings): ExtensionSetti
       provider.bodyTemplate = text(provider.bodyTemplate);
     }
   }
+  if (result.ocr) {
+    result.ocr.apiKey = credential(result.ocr.apiKey, false);
+    result.ocr.endpoint = text(result.ocr.endpoint);
+  }
   // Also remove copies of known credentials in otherwise opaque request fields.
   const known = [...secrets].sort((a, b) => b.length - a.length);
   function scrubValue(value: string): string {
@@ -87,6 +91,11 @@ export function withoutSettingsKeys(settings: ExtensionSettings): ExtensionSetti
     return value;
   }
   const scrub = (value: string): string => mapRequestText(value, scrubValue);
+  if (result.ocr) {
+    result.ocr.endpoint = scrub(result.ocr.endpoint);
+    result.ocr.model = scrub(result.ocr.model);
+    result.ocr.modelRevision = scrub(result.ocr.modelRevision);
+  }
   for (const provider of result.providers) {
     for (const field of ["baseURL", "endpoint", "url", "systemPrompt", "bodyTemplate"] as const) {
       if (field in provider) {

@@ -1,6 +1,6 @@
 import { initializeInterfaceLanguage, t } from "../shared/i18n";
 import { getSettings } from "../shared/settings";
-import { installedRevision } from "../ocr/model-store";
+import { ocrRevision } from "./ocr-service";
 import type { RuntimeRequest, RuntimeResponse } from "../shared/types";
 
 export const IMAGE_MENU_ID = "wupage-translate-image";
@@ -30,7 +30,7 @@ export function refreshImageContextMenu(): void {
 export async function handleImageMenuClick(info: chrome.contextMenus.OnClickData, tab?: chrome.tabs.Tab): Promise<void> {
   if (info.menuItemId !== IMAGE_MENU_ID || !info.srcUrl || tab?.id === undefined) return;
   const settings = await getSettings();
-  if (!settings.imageTranslationEnabled || !await installedRevision()) {
+  if (!settings.imageTranslationEnabled || !await ocrRevision(settings)) {
     await openImageSettings("setup");
     return;
   }

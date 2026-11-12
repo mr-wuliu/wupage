@@ -8,6 +8,7 @@ import { normalizeShortcutEnabled, normalizeShortcuts } from "./shortcuts";
 import { normalizeLocalShortcuts } from "./local-shortcuts";
 import { normalizeServiceConfig, supportsServiceMode } from "./translation-service";
 import { normalizeVideoTranslation } from "./video";
+import { normalizeOcrSettings } from "./ocr-service";
 import { normalizeRequestTemplate, supportsRequestTemplate } from "./request-template";
 import type { ExtensionSettings, ProviderConfig } from "./types";
 import { normalizeFrameTranslation } from "./frame-session";
@@ -90,6 +91,7 @@ export function normalizeSettings(value: unknown): ExtensionSettings {
         ? input.translateCodeComments
         : DEFAULT_SETTINGS.translateCodeComments,
     imageTranslationEnabled: input.imageTranslationEnabled === true,
+    ...(input.ocr !== undefined ? { ocr: normalizeOcrSettings(input.ocr) } : {}),
     statisticsEnabled: input.statisticsEnabled === true,
     contextMenuTranslationEnabled: input.contextMenuTranslationEnabled === true,
     translationDisplayMode: isTranslationDisplayMode(input.translationDisplayMode)

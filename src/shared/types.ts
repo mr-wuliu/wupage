@@ -224,6 +224,7 @@ export interface ExtensionSettings {
   floatingBallEnabled: boolean;
   contextMenuTranslationEnabled?: boolean;
   imageTranslationEnabled?: boolean;
+  ocr?: import("./ocr-service").OcrSettings;
   translateCodeComments: boolean;
   translationDisplayMode: TranslationDisplayMode;
   providers: ProviderConfig[];
@@ -344,9 +345,11 @@ export type RuntimeRequest =
   | { type: "INSTALL_LOCAL_MODEL"; modelId: string }
   | { type: "CANCEL_LOCAL_MODEL_DOWNLOAD" }
   | { type: "REMOVE_LOCAL_MODEL"; modelId: string }
-  | { type: "GET_OCR_STATUS" }
+  | { type: "GET_OCR_STATUS"; builtin?: boolean }
   | { type: "INSTALL_OCR" }
   | { type: "REMOVE_OCR" }
+  | { type: "TEST_OCR_SERVICE"; requestId: string; config: import("./ocr-service").OcrSettings; image: import("./ocr-service").OcrImageInput }
+  | { type: "CANCEL_OCR_TEST"; requestId: string }
   | { type: "TRANSLATE_PAGE" }
   | { type: "OPEN_VIDEO_SUBTITLES"; tabId?: number }
   | { type: "VIDEO_FRAME_STATUS"; videos: number; area: number; playing: boolean }

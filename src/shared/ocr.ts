@@ -5,11 +5,12 @@ export const OCR_MODELS = [
 ].map((model) => ({ ...model, url: `https://paddle-model-ecology.bj.bcebos.com/paddlex/official_inference_model/paddle3.0.0/${model.name}_onnx_infer.tar` }));
 export const OCR_DOWNLOAD_BYTES = OCR_MODELS.reduce((sum, model) => sum + model.bytes, 0);
 export interface OcrStatus {
+  backend?: "http";
   state: "missing" | "installing" | "installed" | "error";
   downloaded: number;
   total: number;
   revision?: string;
   error?: string;
 }
-export interface OcrLine { poly: [number, number][]; text: string; score: number }
+export interface OcrLine { poly: [number, number][]; text: string; score?: number }
 export interface OcrRecognition { lines: OcrLine[]; revision: string }

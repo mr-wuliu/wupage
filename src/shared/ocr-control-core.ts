@@ -3,12 +3,15 @@ import { sendRuntimeMessage } from "./messaging";
 import type { OcrStatus } from "./ocr";
 import { uiIconMarkup } from "./ui-icons";
 import { setHtmlContent } from "./html";
+import { validateOcrService, type OcrSettings } from "./ocr-service";
 
 interface OcrControlOptions {
   elements?: { action: HTMLButtonElement; description: HTMLElement; status: HTMLElement; progress: HTMLProgressElement };
   helpId?: string;
   request?: typeof sendRuntimeMessage;
   shouldPoll?: () => boolean;
+  getConfig?: () => OcrSettings;
+  onConfigure?: () => void;
 }
 
 export function setImageTranslationToggle(toggle: HTMLButtonElement | HTMLInputElement, enabled: boolean): void {
@@ -82,19 +85,22 @@ export function setupOcrControl(toggle: HTMLButtonElement | HTMLInputElement, on
     current = value;
     const installed = value.state === "installed";
     const installing = value.state === "installing";
+    const remote = value.backend === "http";
+    description.textContent = remote ? t("ocrServicePrivacy") : t("imageTranslationRequiresAnAdditionalDownloadOfAbout");
     if (wasInstalled && !installed) onRemoved();
     toggle.disabled = !installed || toggle.getAttribute("aria-busy") === "true";
     if (!installed) setImageTranslationToggle(toggle, false);
     button.disabled = acting || installing;
     button.dataset.state = value.state;
-    setHtmlContent(button, uiIconMarkup(installed ? "trash" : "wrench"));
-    button.title = installed ? t("removeOcrModelsAndDisableImageTranslation") : installing ? t("installingOcrModels") : t("installOcrModelsAbout205Mb");
+    setHtmlContent(button, uiIconMarkup(installed && !remote ? "trash" : "wrench"));
+    button.title = remote ? t("configureOcrService") : installed ? t("removeOcrModelsAndDisableImageTranslation") : installing ? t("installingOcrModels") : t("installOcrModelsAbout205Mb");
     button.setAttribute("aria-label", button.title);
     progress.hidden = !installing;
     progress.max = value.total;
     progress.value = value.downloaded;
     status.dataset.state = value.state;
-    status.textContent = installed ? t("ocrModelsInstalledImageTranslationAvailable")
+    status.textContent = remote ? installed ? t("ocrServiceConfigured") : value.error ?? t("ocrServiceInvalidConfig")
+      : installed ? t("ocrModelsInstalledImageTranslationAvailable")
       : installing ? value.downloaded >= value.total ? t("downloadCompleteCheckingModels") : t("downloadingOcrModels", Math.floor(value.downloaded / value.total * 100))
       : value.state === "error" ? t("installationFailedClickTheWrenchToRetry", value.error ?? t("modelRetry"))
       : t("ocrModelsNotInstalledClickTheWrenchTo");
@@ -116,7 +122,14 @@ export function setupOcrControl(toggle: HTMLButtonElement | HTMLInputElement, on
 
   async function readStatus(): Promise<void> {
     try {
-      const value = await request<OcrStatus>({ type: "GET_OCR_STATUS" });
+      const config = options.getConfig?.();
+      let value: OcrStatus;
+      if (config?.mode === "http") {
+        try { validateOcrService(config); value = { backend: "http", state: "installed", total: 0, downloaded: 0 }; }
+        catch (error) { value = { backend: "http", state: "error", total: 0, downloaded: 0, error: error instanceof Error ? error.message : String(error) }; }
+      } else value = await request<OcrStatus>({ type: "GET_OCR_STATUS", ...(config ? { builtin: true } : {}) });
+      // The draft may have switched backends while a local status was loading.
+      if (config && JSON.stringify(config) !== JSON.stringify(options.getConfig?.())) return readStatus();
       if (!disposed) render(value);
     } catch (error) {
       if (!disposed) {
@@ -134,6 +147,11 @@ export function setupOcrControl(toggle: HTMLButtonElement | HTMLInputElement, on
   button.addEventListener("click", async () => {
     if (acting) return;
     if (!current) { clearTimeout(timer); await refresh(); return; }
+    if (current.backend === "http") {
+      if (options.onConfigure) options.onConfigure();
+      else await request({ type: "OPEN_OPTIONS_PAGE" });
+      return;
+    }
     acting = true;
     button.disabled = true;
     clearTimeout(timer);

@@ -1171,3 +1171,10 @@ button[data-settings-feedback]:active {
 @container settings (max-width: 640px) {
   .shortcut-local-row { align-items: flex-start; flex-direction: column; gap: 8px; }
 }
+/* OCR configuration follows the image feature in the general settings. */
+.ocr-service-settings { display: grid; gap: 12px; width: 100%; min-width: 0; }
+.ocr-service-settings label { display: grid; gap: 7px; min-width: 0; }
+#ocrServiceFields:not([hidden]) { display: grid; gap: 12px; }
+.ocr-service-test-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+#ocrServicePreview { width: 100%; max-width: 640px; height: auto; border: 1px solid var(--wp-border, #d6dedb); border-radius: 8px; background: #fff; }
+#ocrServiceTestText { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 160px; overflow: auto; margin: 0; }

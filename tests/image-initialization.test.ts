@@ -78,4 +78,16 @@ describe("live image translation settings", () => {
     expect(host()).not.toBe(initial);
     expect(host()?.shadowRoot?.querySelectorAll("button")).toHaveLength(1);
   });
+
+  it("replaces image controls when the OCR service or model cache version changes", async () => {
+    finishRead(settings);
+    await vi.waitFor(() => expect(host()).not.toBeNull());
+    const initial = host();
+    const next = { ...settings, ocr: { mode: "http" as const, endpoint: "https://ocr.example/ocr", model: "my-ocr", apiKey: "", modelRevision: "1" } };
+    update(settings, next);
+    expect(host()).not.toBe(initial);
+    const previous = host();
+    update(next, { ...next, ocr: { ...next.ocr, modelRevision: "2" } });
+    expect(host()).not.toBe(previous);
+  });
 });

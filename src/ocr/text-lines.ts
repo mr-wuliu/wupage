@@ -35,7 +35,8 @@ export function refineTextStripLines(lines: OcrLine[], pixels: Uint8ClampedArray
     if (!group) { groups.push({ ...candidate, line: { ...candidate.line } }); continue; }
     group.line.text = candidate.left < group.left
       ? `${candidate.line.text} ${group.line.text}` : `${group.line.text} ${candidate.line.text}`;
-    group.line.score = Math.min(group.line.score, candidate.line.score);
+    group.line.score = group.line.score === undefined || candidate.line.score === undefined
+      ? undefined : Math.min(group.line.score, candidate.line.score);
     group.right = Math.max(group.right, candidate.right);
     group.left = Math.min(group.left, candidate.left);
     group.top = Math.min(group.top, candidate.top);
