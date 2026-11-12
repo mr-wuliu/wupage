@@ -59,7 +59,10 @@ export function createEditableTranslationBlock(
     renderFormulaText(text, options.text, options.formulaImages ?? [], options.fontSize);
   }
   else text.textContent = options.text;
-  text.addEventListener("input", () => options.onTextChange?.(readFormulaText(text)));
+  text.addEventListener("input", () => {
+    refreshTranslationBlockOverflow(block);
+    options.onTextChange?.(readFormulaText(text));
+  });
 
   const moveHandle = createControl("translation-block-move", t("moveTranslationBlock"), "cursor-move");
   bindPointerGesture(moveHandle, block, layer, "move");
@@ -81,6 +84,7 @@ export function createEditableTranslationBlock(
       const minimum = Number(layer.dataset.coordinateScale) || 1;
       setTranslationFontSize(block, Math.max(minimum, size + direction * (options.fontSizeStep ?? 1)));
       if (direction > 0) growTranslationBlock(block, layer, options.maximumAutoHeight);
+      refreshTranslationBlockOverflow(block);
     });
   }
 
@@ -98,7 +102,7 @@ export function fitTranslationBlock(block: HTMLElement): void {
   if (!text || !text.clientWidth || !text.clientHeight) return;
   const initialSize = numericStyle(text.style.fontSize);
   const coordinateScale = Number(block.parentElement?.dataset.coordinateScale) || 1;
-  delete block.dataset.layoutOverflow;
+  setTranslationBlockOverflow(block, false);
   const range = document.createRange();
   let fittedInset = 0;
   const legacyFits = (size: number): boolean => {
@@ -152,14 +156,15 @@ export function fitTranslationBlock(block: HTMLElement): void {
   }
   // A single extra wrapped line does not mean the font should be halved.
   // Find the largest size that fits, including the browser's font metrics.
-  let low = Math.max(Math.min(coordinateScale, initialSize), initialSize * 0.6);
+  const preferredSize = Number(block.dataset.preferredFontSize) || initialSize;
+  let low = Math.max(Math.min(coordinateScale, initialSize), Math.min(initialSize, preferredSize * 0.6));
   let high = initialSize;
   if (!fits(low)) {
     // There is no valid lower bound: committing it leaves a 1px line box
     // around a larger glyph (or bad inset) and can make all text disappear.
     fits(initialSize);
     apply(initialSize);
-    block.dataset.layoutOverflow = "true";
+    setTranslationBlockOverflow(block, true);
     return;
   }
   for (let attempt = 0; attempt < 12 && high - low > 0.02 * coordinateScale; attempt += 1) {
@@ -169,6 +174,35 @@ export function fitTranslationBlock(block: HTMLElement): void {
   }
   fits(low);
   apply(low);
+}
+
+export function refreshTranslationBlockOverflow(block: HTMLElement): boolean {
+  const text = block.querySelector<HTMLElement>(".translation-block-text");
+  if (!text?.clientWidth || !text.clientHeight) return Boolean(block.dataset.layoutOverflow);
+  // Firefox can retain the preceding font candidate's scroll metrics until
+  // paint. Measure a fresh frame, as fitTranslationBlock does.
+  const probe = text.cloneNode(true) as HTMLElement;
+  Object.assign(probe.style, { position: "absolute", left: "0px", top: "0px", visibility: "hidden", pointerEvents: "none",
+    width: block.style.width, height: block.style.height });
+  block.append(probe);
+  const measured = probe.clientWidth && probe.clientHeight ? probe : text;
+  const overflow = measured.scrollHeight > measured.clientHeight + 1 || measured.scrollWidth > measured.clientWidth + 1;
+  probe.remove();
+  setTranslationBlockOverflow(block, overflow);
+  return overflow;
+}
+
+function setTranslationBlockOverflow(block: HTMLElement, overflow: boolean): void {
+  const text = block.querySelector<HTMLElement>(".translation-block-text");
+  if (overflow) {
+    block.dataset.layoutOverflow = "true";
+    block.title = t("someTranslatedTextDoesNotFitAtA");
+    text?.setAttribute("aria-invalid", "true");
+  } else {
+    delete block.dataset.layoutOverflow;
+    block.removeAttribute("title");
+    text?.removeAttribute("aria-invalid");
+  }
 }
 
 export function setTranslationFontSize(block: HTMLElement, size: number): void {
@@ -267,6 +301,7 @@ function bindPointerGesture(
     };
     const onEnd = (): void => {
       block.classList.remove("is-interacting");
+      refreshTranslationBlockOverflow(block);
       ownerWindow.removeEventListener("pointermove", onMove);
       ownerWindow.removeEventListener("pointerup", onEnd);
       ownerWindow.removeEventListener("pointercancel", onEnd);

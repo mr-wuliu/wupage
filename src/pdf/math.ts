@@ -35,15 +35,7 @@ export function protectPdfMath(items: ReadonlyArray<PdfTextItemLike>, measure?: 
   const isMathToken = (item: PdfTextItemLike): boolean => !structure.proseFragments.has(item) && (structure.math.has(item) || isMathFontItem(item));
   const isExtension = (item: PdfTextItemLike): boolean => structure.extensions.has(item) || EXTENSION_FONT.test(item.fontName ?? "");
   const tokens = items.flatMap((item) => structure.math.has(item) || structure.unreadable.has(item) ? [item] : splitProseBoundary(item, measure));
-  const citations = new Set(tokens.filter((item, index) => {
-    if (!/^\d+(?:[–,\-]\d+)*$/u.test(item.str.trim())) return false;
-    return [tokens[index - 1], tokens[index + 1]].some((near) => near && near.tableCell === item.tableCell && isProse(near.str)
-      && itemSize(item) < itemSize(near) * 0.85
-      && Number(item.transform[5]) > Number(near.transform[5]) + itemSize(near) * 0.12
-      && Math.abs(Number(item.transform[5]) - Number(near.transform[5])) < itemSize(near) * 0.7
-      && Math.min(Math.abs(Number(item.transform[4]) - Number(near.transform[4]) - (near.width ?? 0)),
-        Math.abs(Number(near.transform[4]) - Number(item.transform[4]) - (item.width ?? 0))) < itemSize(near) * 1.5);
-  }));
+  const citations = findSuperscriptCitations(tokens);
   const functionNames = new Set(tokens.filter((item, index) => {
     let nextIndex = index + 1;
     while (nextIndex < tokens.length && !tokens[nextIndex].str.trim()) nextIndex += 1;
@@ -83,7 +75,7 @@ export function protectPdfMath(items: ReadonlyArray<PdfTextItemLike>, measure?: 
       let baselineY = Number(baseline.transform[5]);
       const previous = [...output].reverse().find((item) => item.str.trim());
       const citation = visible.every((item) => citations.has(item));
-      const inline = !visible.some(item => structure.display.has(item)) && [previous, next].some((item) => item && item.tableCell === cell && isProse(item.str)
+      const inline = citation || !visible.some(item => structure.display.has(item)) && [previous, next].some((item) => item && item.tableCell === cell && isProse(item.str)
         && !isMathItem(item) && !/⟪WUPAGE\d+⟫/u.test(item.str)
         && Math.abs(Number(item.transform[5]) - baselineY) <= (citation ? itemSize(item) * 0.7 : size * 0.65));
       // Sentence punctuation belongs to the prose. Baking it into an inline
@@ -142,8 +134,7 @@ export function protectPdfMath(items: ReadonlyArray<PdfTextItemLike>, measure?: 
       }
       if (cell) bottom = Math.max(bottom, cell.y + 0.5);
       const top = Math.min(Math.max(...glyphBounds.map((bounds) => bounds.top)) + padding, cell ? cell.y + cell.height - 0.5 : Infinity);
-      const prose = citation ? [previous, next].find((item) => item && item.tableCell === cell && isProse(item.str)
-        && !isMathItem(item) && Math.abs(Number(item.transform[5]) - baselineY) < itemSize(item) * 0.7) : undefined;
+      const prose = citation ? citations.get(visible[0]) : undefined;
       if (prose) baselineY = Number(prose.transform[5]);
       const fontSize = prose ? itemSize(prose) : size;
       const formula: PdfFormula = {
@@ -218,6 +209,41 @@ export function protectPdfMath(items: ReadonlyArray<PdfTextItemLike>, measure?: 
   }
   flush();
   return { items: output, formulas };
+}
+
+function findSuperscriptCitations(tokens: readonly PdfTextItemLike[]): Map<PdfTextItemLike, PdfTextItemLike> {
+  const citations = new Map<PdfTextItemLike, PdfTextItemLike>();
+  const visible = tokens.filter(item => item.str.trim());
+  // Publishers use several Unicode dashes for ranges and may emit each digit
+  // and separator in its own run, with synthetic spaces between those runs.
+  const fragment = (item: PdfTextItemLike): boolean => /^[\d\s,;‐‑‒–—−-]+$/u.test(item.str.trim()) && !item.preserveOriginal;
+  for (let index = 0; index < visible.length; index++) {
+    const first = visible[index];
+    if (!fragment(first)) continue;
+    let end = index;
+    while (end + 1 < visible.length) {
+      const a = visible[end], b = visible[end + 1];
+      const gap = Number(b.transform[4]) - Number(a.transform[4]) - (a.width ?? 0);
+      if (!fragment(b) || a.tableCell !== b.tableCell || Math.abs(itemSize(a) / itemSize(b) - 1) > 0.15
+        || Math.abs(Number(a.transform[5]) - Number(b.transform[5])) > itemSize(a) * 0.25
+        || gap < -itemSize(a) * 0.1 || gap > itemSize(a) * 0.75) break;
+      end++;
+    }
+    const group = visible.slice(index, end + 1);
+    const text = group.map(item => item.str).join("");
+    if (/^\d+(?:\s*[,;‐‑‒–—−-]\s*\d+)*$/u.test(text.trim())) {
+      const last = visible[end];
+      const prose = [visible[index - 1], visible[end + 1]].find(near => near && near.tableCell === first.tableCell && isProse(near.str)
+        && itemSize(first) < itemSize(near) * 0.85
+        && Number(first.transform[5]) > Number(near.transform[5]) + itemSize(near) * 0.12
+        && Number(first.transform[5]) - Number(near.transform[5]) < itemSize(near) * 0.7
+        && Math.min(Math.abs(Number(first.transform[4]) - Number(near.transform[4]) - (near.width ?? 0)),
+          Math.abs(Number(near.transform[4]) - Number(last.transform[4]) - (last.width ?? 0))) < itemSize(near) * 1.5);
+      if (prose) for (const item of group) citations.set(item, prose);
+    }
+    index = end;
+  }
+  return citations;
 }
 
 function fontMetric(value: number | undefined, fallback: number): number {

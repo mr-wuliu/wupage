@@ -11,8 +11,13 @@ import { getDocument } from 'pdfjs-dist/legacy/build/pdf.mjs';
 import { browserTarget } from './lib/browser-target.mjs';
 import { openExtensionBrowser } from './lib/extension-browser.mjs';
 import { anonymizePdfFonts } from './lib/pdf-anonymous-fonts.mjs';
+import { inspectPdfPageQuality } from './lib/pdf-page-quality.mjs';
 const root = fileURLToPath(new URL('..', import.meta.url)), target = browserTarget();
-const output = path.join(root, '.npm-cache/pdf-academic', target.kind);
+const outputArgument=process.argv.find(arg=>arg.startsWith('--output='))?.slice(9);
+const output = outputArgument ? path.resolve(root,outputArgument) : path.join(root, '.npm-cache/pdf-academic', target.kind);
+assert.ok(output.startsWith(path.join(root,'.npm-cache')+path.sep),'Test output must stay inside .npm-cache');
+const expansion=Number(process.argv.find(arg=>arg.startsWith('--expansion='))?.slice(12)??0.33);
+assert.ok(expansion>=0.1&&expansion<=2,'Invalid translation expansion');
 await fs.mkdir(output, { recursive: true });
 const checks = [], requests = [];
 const fontPin = JSON.parse(await fs.readFile(path.join(root,'public/pdf-fonts/font-metadata.json'),'utf8')).font;
@@ -66,12 +71,46 @@ rotated.drawRectangle({x:240,y:300,width:180,height:45,color:rgb(0.1,0.7,0.3)});
 const retained = source.addPage([600,800]);
 add(retained,'42',40,740,10);
 retained.drawRectangle({x:100,y:500,width:180,height:45,color:rgb(0.1,0.7,0.3)});
+// ACS-style abstracts widen beneath artwork; section markers and Unicode
+// superscript reference ranges must not change the heading or paragraph size.
+const wrapped = source.addPage([600,800]);
+const abstractLines = ['ABSTRACT: These observations explain how the', 'material responds to changing conditions and',
+ 'retains its structure during the experiments', 'described here. The results demonstrate that',
+ 'the same approach can provide stable outcomes', 'for different samples and several processes',
+ 'involving water and dissolved components. We', 'evaluate the response over time and identify',
+ 'the conditions that control the behavior of', 'the material. These findings clarify the', 'relevant geological processes and support',
+ 'a comprehensive assessment of material performance across the full range of environmental conditions.',
+ 'Further experiments confirm these observations and provide a basis for practical applications.'];
+for (const [index,text] of abstractLines.entries()) add(wrapped,text,40,710-index*12);
+wrapped.drawRectangle({x:320,y:590,width:240,height:130,color:rgb(0.1,0.7,0.3)});
+const markerFont = await source.embedFont(StandardFonts.ZapfDingbats);
+wrapped.drawText('■',{x:40,y:480,size:16,font:markerFont,color:rgb(0.1,0.35,0.2)});
+add(wrapped,'INTRODUCTION',62,480,10,bold);
+const prose = 'The material affects groundwater resources.';
+add(wrapped,prose,40,450);
+const citationX=40+regular.widthOfTextAtSize(prose,10);
+add(wrapped,'1',citationX,454,6);
+add(wrapped,'−',citationX+3,454,6,symbol);
+add(wrapped,'4',citationX+6.3,454,6);
+add(wrapped,'Further observations confirm these findings.',40,438);
+const columns=source.addPage([600,800]);
+add(columns,'Three-column proceedings',35,740,16,bold);
+for(const [column,x] of [35,215,395].entries()){
+ add(columns,`Section ${column+1}`,x,700,10,bold);
+ for(const [line,text] of ['This column describes the method', 'and explains the observations made',
+  'during the experiment. The results', 'provide useful evidence about the', 'behavior of the proposed system.'].entries())add(columns,text,x,680-line*12,9);
+}
+const imageOnly=source.addPage([600,800]);
+const image=await source.embedPng(Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=','base64'));
+imageOnly.drawImage(image,{x:40,y:100,width:520,height:600});
 const fixture = path.join(output, 'academic-source.pdf'); await fs.writeFile(fixture, await source.save());
 const file = process.argv.find(arg => arg.startsWith('--file='))?.slice(7);
 const corpusId = process.argv.find(arg => arg.startsWith('--corpus='))?.slice(9);
 const corpus = corpusId ? JSON.parse(await fs.readFile(path.join(root, 'tests/fixtures/pdf-corpus.json'), 'utf8')).find(entry => entry.id === corpusId) : undefined;
 assert.ok(!corpusId || corpus, 'Unknown PDF corpus id');
-const documents = [{ id: 'fixture', file: fixture }, ...(file ? [{ id: 'paper', file: path.resolve(file) }] : []),
+const documents = [{ id: 'fixture', file: fixture, preservedRegions: [
+ {page:6,x:320,y:590,width:240,height:130,tolerance:1}, {page:6,x:40,y:475,width:15,height:20}
+] }, ...(file ? [{ id: 'paper', file: path.resolve(file) }] : []),
  ...(corpus ? [{ ...corpus, file: path.join(root, '.npm-cache/pdf-corpus', corpus.id + '.pdf') }] : [])];
 if(process.argv.includes('--anonymize-fonts')){
  assert.ok(documents.length>1,'Supply --corpus or --file for the font anonymity test');
@@ -95,7 +134,7 @@ function translate(text) {
  return text.split(/(⟪WUPAGE(?:OPEN|CLOSE)?\d+⟫)/gu).map(part => {
   if (/^⟪WUPAGE(?:OPEN|CLOSE)?\d+⟫$/u.test(part) || !/\p{L}/u.test(part)) return part;
   if (words.has(part.trim())) return part.replace(part.trim(), words.get(part.trim()));
-  const count = Math.max(2, Math.ceil(part.length * 0.33));
+  const count = Math.max(2, Math.ceil(part.length * expansion));
   return '这是用于验证论文段落排版与保护规则的本地模拟译文。'.repeat(Math.ceil(count/26)).slice(0,count);
  }).join('');
 }
@@ -143,13 +182,40 @@ try{
   await wait(()=>browser.evaluate('return {status:document.querySelector("#statusToast").textContent,disabled:document.querySelector("#translateDocument").disabled};'),v=>!v.disabled&&v.status.includes('翻译完成'),document.id+' translation');
   for(const text of document.protectedText??[])assert.ok(!requests.slice(requestStart).some(input=>input.texts.some(source=>source.includes(text))),document.id+' preserved text must not reach the translator: '+text);
   const pages=await browser.evaluate('return document.querySelectorAll(".page-row").length;');
+  const pageChecks=[];
   for(let number=1;number<=pages;number++){
    await browser.evaluate(`document.querySelector('article[data-page="${number}"]').scrollIntoView({block:'start'});`);
    await wait(()=>browser.evaluate(`return !!document.querySelector('article[data-page="${number}"] .canvas-shell.is-rendered');`),Boolean,'render page');
    await wait(()=>browser.evaluate(`return document.querySelector('article[data-page="${number}"] .translation-prompt').hidden;`),Boolean,'translated or retained page displayed');
    await new Promise(resolve=>setTimeout(resolve,100));
-   if(document.id==='fixture'||(document.inspect??[1,3,5,6,9,10]).includes(number))await browser.capture(`${document.id}-${number}.png`);
+   const quality=await browser.evaluate(`return (${inspectPdfPageQuality.toString()})(${number},${JSON.stringify(document.preservedRegions??[])});`);
+   pageChecks.push(quality);
+   await fs.writeFile(path.join(output,`${document.id}-${number}-quality.json`),JSON.stringify(quality,null,2));
+   if(document.id==='fixture'||quality.collisions.length||quality.protectedOverlaps.length||quality.blocks.some(block=>block.problems.length)
+    ||(document.inspect??[1,3,5,6,9,10]).includes(number))await browser.capture(`${document.id}-${number}.png`);
   }
+  const qualityProblems=pageChecks.flatMap(page=>[
+   ...page.blocks.filter(block=>block.problems.length).map(block=>({page:page.page,id:block.id,problems:block.problems})),
+   ...page.collisions.map(ids=>({page:page.page,collision:ids})),
+   ...page.protectedOverlaps.map(overlap=>({page:page.page,protectedOverlap:overlap}))
+  ]);
+  if(qualityProblems.length&&process.argv.includes('--allow-safe-rejection')&&document.id!=='fixture'){
+   assert.ok(qualityProblems.every(problem=>problem.collision||problem.problems?.every(value=>value==='overflow')),
+    document.id+' only explicitly detected layout failures can be safely rejected');
+   const marked=await browser.evaluate(`return [...document.querySelectorAll('[data-layout-overflow],[data-layout-collision]')].map(block=>block.dataset.blockId);`);
+   for(const problem of qualityProblems)for(const id of problem.collision??[problem.id])assert.ok(marked.includes(id),document.id+' unmarked layout failure: '+id);
+   const count=await browser.evaluate('return document.querySelectorAll(".translation-layout-warning:not([hidden])").length;');
+   assert.ok(count>0,'reader must explain unsafe layout');
+   const before=requests.length;
+   await browser.evaluate('document.querySelector("#downloadDocument").click();');
+   await wait(()=>browser.evaluate('return {status:document.querySelector("#statusToast").textContent,disabled:document.querySelector("#downloadDocument").disabled};'),
+    value=>!value.disabled&&value.status.includes('超出可读排版范围'),document.id+' unsafe export is blocked');
+   assert.equal(requests.length,before,'rejecting unsafe export does not retranslate successful paragraphs');
+   checks.push({document:document.id,outcome:'safely-rejected',pages,pagesChecked:pageChecks.length,qualityProblems,exportBlocked:true,
+    blocks:pageChecks.reduce((sum,page)=>sum+page.blocks.length,0)});
+   continue;
+  }
+  assert.deepEqual(qualityProblems,[],document.id+' page quality');
   const layout=await browser.evaluate(`return Array.from(document.querySelectorAll('.translation-block')).map(block=>({
    id:block.dataset.blockId,text:block.querySelector('.translation-block-text').textContent,overflow:!!block.dataset.layoutOverflow,
    size:parseFloat(block.querySelector('.translation-block-text').style.fontSize),preferred:Number(block.dataset.preferredFontSize)}));`);
@@ -162,6 +228,24 @@ try{
    await fs.writeFile(path.join(output,document.id+'-overflow.json'),JSON.stringify(details,null,2));
   }
   assert.equal(layout.filter(block=>block.overflow).length,0,document.id+' readable layout: '+JSON.stringify(layout.filter(block=>block.overflow)));
+  if(document.id==='fixture'){
+   const wrappedLayout=await browser.evaluate(`const row=document.querySelector('article[data-page="6"]');
+    const canvas=row.querySelector('.translated-panel > .canvas-shell > canvas'),box=canvas.getBoundingClientRect();
+    const sx=box.width/600,sy=box.height/800;
+    return [...row.querySelectorAll('.translation-block')].map(block=>{const text=block.querySelector('.translation-block-text'),r=block.getBoundingClientRect();
+     return {left:(r.left-box.left)/sx,right:(r.right-box.left)/sx,top:(r.top-box.top)/sy,bottom:(r.bottom-box.top)/sy,
+      size:parseFloat(text.style.fontSize)/Number(block.parentElement.dataset.coordinateScale)/(canvas.width/600),formulas:text.querySelectorAll('.pdf-inline-formula').length};});`);
+   assert.ok(wrappedLayout.every(block=>block.right<=320||block.left>=560||block.bottom<=80||block.top>=210),
+    'abstract translation stays outside artwork: '+JSON.stringify(wrappedLayout));
+   const headings=wrappedLayout.filter(block=>block.top>300&&block.top<330);
+   assert.equal(headings.length,1,'translated section heading remains visible');
+   assert.ok(headings.every(block=>block.size<=10),
+    'section marker does not inflate heading font size: '+JSON.stringify(wrappedLayout));
+   assert.equal(wrappedLayout.filter(block=>block.top>330&&block.formulas===1).length,1,'superscript citation stays inside its prose paragraph');
+   assert.ok(requests.slice(requestStart).some(input=>input.texts.some(text=>text.includes('ABSTRACT:')&&text.includes('comprehensive assessment'))),
+    'wrapped abstract is translated as one paragraph');
+   assert.ok(requests.every(input=>input.texts.every(text=>!text.includes('■'))),'section marker stays out of translation');
+  }
   const tableLabels = await browser.evaluate(`return ${JSON.stringify(document.tableLabels ?? [])}.map(label=>{
    const row=document.querySelector('article[data-page="'+label.page+'"]');
    const canvas=row.querySelector('.translated-panel > .canvas-shell > canvas');
@@ -184,9 +268,11 @@ try{
    const [width,height]=row.querySelector('.original-panel .canvas-shell').style.aspectRatio.split('/').map(Number),scale=original.width/width;
    const x=Math.ceil(region.x*scale),y=Math.ceil((height-region.y-region.height)*scale),w=Math.floor(region.width*scale),h=Math.floor(region.height*scale);
    const before=original.getContext('2d').getImageData(x,y,w,h).data,after=translated.getContext('2d').getImageData(x,y,w,h).data;
-   let differences=0;
-   for(let i=0;i<before.length;i+=4)if(Math.max(Math.abs(before[i]-after[i]),Math.abs(before[i+1]-after[i+1]),Math.abs(before[i+2]-after[i+2]))>(region.tolerance||0))differences++;
-   return {...region,differences,pixelsChecked:w*h,sourcePixels:Array.from(before)};
+   let differences=0;const changed=[];
+   for(let i=0;i<before.length;i+=4)if(Math.max(Math.abs(before[i]-after[i]),Math.abs(before[i+1]-after[i+1]),Math.abs(before[i+2]-after[i+2]))>(region.tolerance||0)){
+    differences++;if(changed.length<5)changed.push({x:x+(i/4)%w,y:y+Math.floor(i/4/w),before:Array.from(before.slice(i,i+3)),after:Array.from(after.slice(i,i+3))});
+   }
+   return {...region,differences,changed,pixelsChecked:w*h,sourcePixels:Array.from(before)};
   });`)).map(({sourcePixels,...region})=>({...region,sourceHash:createHash('sha256').update(Buffer.from(sourcePixels)).digest('hex')}));
   for(const region of preservedRegions)assert.ok(region.differences<=Math.floor(region.pixelsChecked*(region.maximumDifferentRatio||0)),document.id+' preserved region on page '+region.page+': '+JSON.stringify(region));
   if(document.sourceId){
@@ -214,7 +300,7 @@ try{
    await wait(()=>browser.evaluate('return document.querySelector("#pdfFontDialog").open;'),Boolean,'font installer');
    await browser.capture('font-installer.png');
    await browser.evaluate('document.querySelector("#pdfFontInstall").click();');
-   await wait(()=>browser.evaluate('return {open:document.querySelector("#pdfFontDialog").open,state:document.querySelector("#pdfFontAction").dataset.state};'),v=>!v.open&&v.state==='installed','font installed');
+   await wait(()=>browser.evaluate('return {open:document.querySelector("#pdfFontDialog").open,state:document.querySelector("#pdfFontAction").dataset.state,status:document.querySelector("#pdfFontStatus").textContent,statusState:document.querySelector("#pdfFontStatus").dataset.state};'),v=>{assert.notEqual(v.statusState,'error','font installation failed: '+JSON.stringify(v));return !v.open&&v.state==='installed';},'font installed');
    assert.equal(fontRequests,1,'one explicit font installation');
    }
   }
@@ -238,7 +324,8 @@ try{
    assert.ok(texts[9].includes('Halpern'),'bibliography continuation retains original text');
   }
   await loading.destroy();
-  checks.push({document:document.id,pages,preservedRegions,textLengths:texts.map(text=>text.length),blocks:layout.length,minimumFontRatio:Math.min(...layout.map(block=>block.size/block.preferred)),bytes:(await fs.stat(destination)).size,export:destination});
+  const fontFallbackPages=await browser.evaluate('return JSON.parse(document.querySelector("#downloadDocument").dataset.fontFallbackPages??"[]");');
+  checks.push({document:document.id,outcome:'translated',pages,pagesChecked:pageChecks.length,preservedRegions,fontFallbackPages,textLengths:texts.map(text=>text.length),blocks:layout.length,minimumFontRatio:Math.min(...layout.map(block=>block.size/block.preferred)),bytes:(await fs.stat(destination)).size,export:destination});
  }
  assert.ok(requests.every(input=>input.context?.includes('Academic document:')));
  assert.ok(requests.every(input=>!input.texts.some(text=>/^(?:PPV|NPV|RNN)$/u.test(text))));
@@ -246,5 +333,5 @@ try{
  assert.ok(requests.some(input=>input.texts.some(text=>/^IV\. THE ⟪WUPAGE\d+⟫ MODEL$/u.test(text))),'small-caps MODEL stays outside the symbol crop');
  await fs.writeFile(path.join(output,'report.json'),JSON.stringify({passed:true,browser:target.kind,userAgent,mock:true,checks,requests},null,2));
  console.log(JSON.stringify({passed:true,browser:target.kind,userAgent,checks}));
-}catch(error){await fs.writeFile(path.join(output,'report.json'),JSON.stringify({passed:false,browser:target.kind,checks,error:String(error)},null,2));throw error;}
+}catch(error){await browser?.capture('failure.png').catch(()=>{});await fs.writeFile(path.join(output,'report.json'),JSON.stringify({passed:false,browser:target.kind,checks,error:String(error)},null,2));throw error;}
 finally{await browser?.close();server.closeAllConnections();await new Promise(resolve=>server.close(resolve));}

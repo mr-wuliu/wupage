@@ -2,6 +2,95 @@ import { describe, expect, it } from "vitest";
 import { extractTextBlocks, normalizePdfTextItems } from "../src/pdf/model";
 
 describe("PDF text extraction", () => {
+  it("uses visible line geometry when a publisher inserts an EOL inside a sentence", () => {
+    const blocks = extractTextBlocks([
+      {str:"A paragraph begins here and",width:150,transform:[10,0,0,10,40,600],hasEOL:true},
+      {str:"continues on the same line.",width:130,transform:[10,0,0,10,193,600],hasEOL:true},
+      {str:"The following line remains in this paragraph.",width:280,transform:[10,0,0,10,40,588]}
+    ].map(item=>({...item,height:10,fontFamily:"serif"})),1);
+    expect(blocks).toHaveLength(1);
+    expect(blocks[0].lines).toHaveLength(2);
+    expect(blocks[0].text).toContain("here and continues on the same line.");
+  });
+
+  it("removes duplicate text at the same position while keeping repeated labels in other cells", () => {
+    const item = {str:"NOTE 5",width:28.573,height:7.91,fontName:"Helvetica",transform:[7.91,0,0,7.91,120.4968,429.2721]};
+    const blocks = extractTextBlocks([item,{...item,transform:[7.91,0,0,7.91,120.5003,429.2721]},
+      {...item,transform:[7.91,0,0,7.91,320,429.2721]}],1);
+    expect(blocks).toHaveLength(2);
+    expect(blocks.map(block=>block.text)).toEqual(["NOTE 5","NOTE 5"]);
+  });
+
+  it("keeps staggered table header rows separate from adjacent math symbols", () => {
+    const blocks = extractTextBlocks([
+      {str:"d",transform:[10,0,0,10,207,647.5],width:5,fontName:"CMMI10"},
+      {str:"train",transform:[10,0,0,10,371,652.96],width:18,fontName:"Times-Roman"},
+      {str:"steps",transform:[10,0,0,10,370.3,641.58],width:20,fontName:"Times-Roman"}
+    ].map(item=>({...item,height:10,fontFamily:"serif"})),9);
+    expect(blocks.filter(block=>block.translatable).map(block=>block.text)).toEqual(["train steps"]);
+    expect(blocks.some(block=>block.text.includes("train")&&block.formulas?.length)).toBe(false);
+  });
+
+  it("keeps the narrow and wide parts of an abstract in separate regions around artwork", () => {
+    const texts = [
+      "ABSTRACT: The material is prepared using a process that",
+      "combines several components with improved properties and",
+      "provides a stable response under the conditions described",
+      "in this study. The results support applications involving",
+      "a wide range of environments while retaining the original structure and performance of the material.",
+      "Further experiments confirm these observations."
+    ];
+    const blocks = extractTextBlocks(texts.map((str, index) => ({ str,
+      transform: [10, 0, 0, 10, 40, 700 - index * 12], width: index < 4 ? 240 : index === 4 ? 510 : 220,
+      height: 10, fontFamily: "serif", hasEOL: true
+    })), 1);
+    expect(blocks).toHaveLength(2);
+    expect(blocks.map(block => block.lines.length)).toEqual([4, 2]);
+    expect(blocks[0].paragraphId).toBeTruthy();
+    expect(blocks[1].paragraphId).toBe(blocks[0].paragraphId);
+    expect(blocks.map(block => block.text).join(" ")).toBe(texts.join(" "));
+  });
+
+  it.each([
+    { widths: [510, 510, 240, 240, 200], lengths: [2, 3] },
+    { widths: [240, 240, 150], lengths: [3] }
+  ])("distinguishes a sustained narrower region from a short final line: $widths", ({ widths, lengths }) => {
+    const blocks = extractTextBlocks(widths.map((width, index) => ({
+      str: "A description of the material and its environment", width, height: 10,
+      transform: [10, 0, 0, 10, 40, 700 - index * 12], fontFamily: "serif", hasEOL: true
+    })), 1);
+    expect(blocks.map(block => block.lines.length)).toEqual(lengths);
+    expect(blocks.every(block => block.translatable)).toBe(true);
+  });
+
+  it("preserves a publisher's oversized square glyph without enlarging the section heading", () => {
+    const blocks = extractTextBlocks([
+      { str: "■", transform: [20, 0, 0, 20, 40, 600], width: 5, height: 20, fontFamily: "sans-serif" },
+      { str: "INTRODUCTION", transform: [10, 0, 0, 10, 50, 600], width: 95, height: 10,
+        fontFamily: "sans-serif", fontWeight: 700 }
+    ], 1);
+    expect(blocks).toHaveLength(2);
+    expect(blocks[0]).toMatchObject({ text: "■", translatable: false, preserveOriginal: true });
+    const bounds = blocks[0].lines[0].sourceBounds!;
+    expect(bounds.x + bounds.width).toBeLessThan(50);
+    expect(blocks[1]).toMatchObject({ text: "INTRODUCTION", translatable: true, fontSize: 10, fontWeight: 700 });
+  });
+
+  it.each(["ZapfDingbats", "Opaque1"])("preserves a dingbat square with a Latin text mapping: %s", fontName => {
+    const blocks = extractTextBlocks([
+      { str: "n", transform: [16, 0, 0, 16, 40, 480], width: 12.176, height: 16, fontName },
+      { str: "INTRODUCTION", transform: [10, 0, 0, 10, 62, 480], width: 76.66, height: 10,
+        fontName: "Helvetica-Bold", fontWeight: 700 }
+    ], 1);
+    expect(blocks).toHaveLength(2);
+    expect(blocks[0]).toMatchObject({ text: "n", translatable: false, preserveOriginal: true });
+    const bounds = blocks[0].lines[0].sourceBounds!;
+    expect(bounds.x).toBeLessThan(40);
+    expect(bounds.x + bounds.width).toBeGreaterThanOrEqual(56);
+    expect(bounds.x + bounds.width).toBeLessThan(62);
+    expect(blocks[1]).toMatchObject({ text: "INTRODUCTION", translatable: true, fontSize: 10 });
+  });
+
   it("joins a bold run-in heading with regular prose without making the whole paragraph bold", () => {
     const items = [
       { str: "Flow matching.", transform: [10, 0, 0, 10, 30, 100], width: 65, fontWeight: 700 },

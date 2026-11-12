@@ -26,6 +26,7 @@ import {
   type RgbColor
 } from "./colors";
 import { createEditableTranslationBlock, fitTranslationBlock } from "./editor";
+import { validateTranslationLayout } from "./layout-quality";
 import { setupPdfFontControl } from "./font-control";
 import {
   buildRasterPdf,
@@ -787,6 +788,7 @@ function renderTranslatedPdfPage(pageState: PdfPageState): void {
     context.fillStyle = toCssRgb(rect.color);
     context.fillRect(rect.x, rect.y, rect.width, rect.height);
   }
+  validateTranslationLayout(pageState.translationLayer, true);
   syncTranslationLayer(pageState);
   if (!pageState.translationLayerObserver) {
     pageState.translationLayerObserver = new ResizeObserver(() => syncTranslationLayer(pageState));
@@ -1214,12 +1216,15 @@ async function downloadTranslatedDocument(): Promise<void> {
     }
 
     const fileName = translatedPdfFileName(currentDocumentName);
+    let fontFallbackPages: number[] = [];
     const bytes = await buildRasterPdf(rasterPages, fileName.replace(/\.pdf$/iu, ""),
-      choice.fontBytes ? await documentProxy.getData?.() : undefined, choice.fontBytes);
+      choice.fontBytes ? await documentProxy.getData?.() : undefined, choice.fontBytes, pages => { fontFallbackPages = pages; });
     if (translationSession !== session || pdfDocument !== documentProxy) return;
     progressBar.style.width = "100%";
     downloadPdfBytes(bytes, fileName);
-    showStatus(t("translatedPdfReady", fileName), "success");
+    downloadButton.dataset.fontFallbackPages = JSON.stringify(fontFallbackPages);
+    showStatus(fontFallbackPages.length ? t("translatedPdfReadyWithFontFallback", fileName, fontFallbackPages.length)
+      : t("translatedPdfReady", fileName), "success");
   } catch (error) {
     showStatus(t("downloadFailed", error instanceof Error ? error.message : String(error)), "error");
   } finally {

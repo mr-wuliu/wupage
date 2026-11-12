@@ -1,0 +1,49 @@
+name: PDF corpus regression
+
+on:
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: PDF regression profile
+        type: choice
+        options: [standard, stress, full]
+        default: full
+
+permissions:
+  contents: read
+
+jobs:
+  pdf:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Install browser test tools
+        run: |
+          npm install --prefix .npm-cache/pdf-test-tools --no-save --package-lock=false playwright@1.64.1
+          node .npm-cache/pdf-test-tools/node_modules/playwright/cli.js install --with-deps chromium
+          sudo apt-get install -y fonts-noto-cjk
+      - name: Run pinned PDF corpus
+        run: npm run test:pdf:quality -- --profile="$PDF_PROFILE" --download
+        env:
+          PDF_PROFILE: ${{ inputs.profile }}
+          PLAYWRIGHT_MODULE: ${{ github.workspace }}/.npm-cache/pdf-test-tools/node_modules/playwright/index.mjs
+      - name: Upload quality reports and screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pdf-quality-${{ inputs.profile }}
+          path: |
+            .npm-cache/pdf-quality/**/report.json
+            .npm-cache/pdf-quality/**/report.html
+            .npm-cache/pdf-quality/**/*quality.json
+            .npm-cache/pdf-quality/**/*.png
+            .npm-cache/pdf-quality/**/run.log
+          if-no-files-found: error
+          retention-days: 14

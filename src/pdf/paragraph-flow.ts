@@ -25,7 +25,7 @@ export function preparePdfDocumentTranslations(pages: readonly FlowPage[], abbre
   let offset = 0;
   const next = new Map<number, number>();
   pages.forEach((page, pageIndex) => {
-    for (const [from, to] of columnContinuations(page)) next.set(offset + from, offset + to);
+    for (const [from, to] of regionContinuations(page)) next.set(offset + from, offset + to);
     offset += page.blocks.length;
     if (pageIndex + 1 < pages.length) {
       const from = pageEdge(page, true), to = pageEdge(pages[pageIndex + 1], false);
@@ -64,7 +64,7 @@ export function preparePdfDocumentTranslations(pages: readonly FlowPage[], abbre
 export function preparePdfPageTranslations(
   page: Pick<PdfDocumentPage, "blocks" | "height">, abbreviations: ReadonlyMap<string, string>
 ): Map<number, PdfParagraphInput> {
-  const next = columnContinuations(page);
+  const next = regionContinuations(page);
   const children = new Set(next.values());
   const inputs = new Map<number, PdfParagraphInput>();
   page.blocks.forEach((block, index) => {
@@ -80,6 +80,18 @@ export function preparePdfPageTranslations(
 }
 
 const CAPTION = /^(?:fig(?:ure)?\.?\s*\d+\s*[.:]|table\s+(?:\d+|[IVX]+)\s*[.:]|[图圖表]\s*\d+\s*[:：.])/iu;
+function regionContinuations(page: Pick<PdfDocumentPage, "blocks" | "height">): Map<number, number> {
+  const next = columnContinuations(page);
+  const previous = new Map<string, number>();
+  page.blocks.forEach((block, index) => {
+    if (!block.paragraphId || !block.translatable) return;
+    const parent = previous.get(block.paragraphId);
+    if (parent !== undefined) next.set(parent, index);
+    previous.set(block.paragraphId, index);
+  });
+  return next;
+}
+
 function flowText(block: PdfTextBlock, height: number): boolean {
   const region = bounds(block);
   return block.translatable && !block.preserveOriginal && !block.role && !block.tocPart && !block.tableCell

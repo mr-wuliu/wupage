@@ -657,6 +657,19 @@ button:disabled {
   scrollbar-width: none;
 }
 
+.translation-block[data-layout-overflow],
+.translation-block[data-layout-collision] {
+  outline: 2px solid #b64d35;
+  background: rgba(255, 238, 230, 0.25);
+}
+
+.translation-layout-warning {
+  margin: 10px 14px;
+  color: #9b3924;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
 .translation-block-text::-webkit-scrollbar {
   width: 0;
   height: 0;

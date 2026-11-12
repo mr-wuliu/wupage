@@ -247,6 +247,33 @@ export function detectPdfMathStructure(items: readonly PdfTextItemLike[], rules:
     if (font.runs.some(run => run.compressed) || font.opaque >= 2 && font.runs.every(run => !run.item.fontAscent && !run.item.fontDescent)) {
       for (const run of font.runs) if (!run.prose) extensions.add(run.item);
     }
+    // Extensible braces can decode as stacks of ordinary ASCII ">" and ":"
+    // glyphs. Their dense vertical chain is stronger evidence than a font name.
+    const columns = new Map<string, Run[]>();
+    for (const run of font.runs.filter(run => !run.prose && run.text.length === 1)) {
+      const key = `${Math.round(run.x / Math.max(1, run.size * 0.1))}-${Math.round(run.size * 10)}`;
+      if (!columns.has(key)) columns.set(key, []);
+      columns.get(key)!.push(run);
+    }
+    let extensibleFont = false;
+    for (const column of columns.values()) {
+      column.sort((a, b) => a.y - b.y);
+      let chain: Run[] = [];
+      const flush = (): void => {
+        if (chain.length >= 3 && chain.every(run => /^[><:!8{}|]$/u.test(run.text))) {
+          extensibleFont = true;
+          for (const run of chain) { extensions.add(run.item); math.add(run.item); }
+        }
+        chain = [];
+      };
+      for (const run of column) {
+        const previous = chain.at(-1);
+        if (previous && (run.y - previous.y < run.size * 0.1 || run.y - previous.y > run.size * 0.6)) flush();
+        chain.push(run);
+      }
+      flush();
+    }
+    if (extensibleFont) for (const run of font.runs) if (!run.prose) extensions.add(run.item);
   }
   for (const run of runs) if (!run.prose && mathematicalFonts.has(run.font)) math.add(run.item);
 
@@ -309,6 +336,16 @@ export function detectPdfMathStructure(items: readonly PdfTextItemLike[], rules:
     for (const run of font.runs) if (!run.prose) math.add(run.item);
   }
   protectCaseExpressions(runs, math, extensions, display, cell / 3);
+  // Long Roman-looking identifiers in a numbered display are mathematical
+  // content even when every font name has been removed.
+  for (const number of runs.filter(run => /^\(\d+[a-z]?\)$/iu.test(run.text))) {
+    const row = runs.filter(run => run.item.tableCell === number.item.tableCell
+      && Math.abs(run.y - number.y) <= Math.max(run.size, number.size) * 1.2);
+    if (row.filter(run => math.has(run.item)).length < 2 || !row.some(run => /[=≤≥≈]/u.test(run.text))) continue;
+    if (row.some(run => run.prose && (/\p{L}{2,}\s+\p{L}{2,}/u.test(run.text)
+      || CONNECTIVE.test(run.text.replace(/^[,;]\s*/u, ""))))) continue;
+    for (const run of row) { math.add(run.item); display.add(run.item); proseFragments.delete(run.item); }
+  }
   return { math, extensions, unreadable, proseFragments, display };
 }
 

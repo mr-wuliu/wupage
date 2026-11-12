@@ -113,7 +113,7 @@ export function getTranslatedBlockLayout(
   }, 0);
   context.font = `${block.fontWeight} ${preferredSize}px ${family}`;
 
-  const preferredTextWidth = block.lines.length === 1
+  const preferredTextWidth = block.lines.length === 1 && !block.paragraphId
     ? measure(text.trim()) + preferredSize * 0.25
     : originalWidth;
   const horizontalLimit = Math.min(Math.max(bounds.right, availableRight ?? bounds.right), cell ? cell.x + cell.width - inset : Infinity);
@@ -135,7 +135,7 @@ export function getTranslatedBlockLayout(
   const center = cell ? cell.x + cell.width / 2 : (bounds.left + bounds.right) / 2;
   // A symbol and its description can share a cell without an inner border.
   // Keep the description's left edge when the symbol occupies that space.
-  const centered = !listItem && !block.tocPart && (cell
+  const centered = !listItem && !block.tocPart && !block.paragraphId && (cell
     ? availableLeft <= cell.x + scale * 3 && Math.abs((bounds.left + bounds.right) / 2 - center) < block.fontSize * scale * 0.5
     : Boolean(pageWidth && block.lines.length === 1 && bounds.width < pageWidth * 0.75
       && Math.abs(bounds.left + bounds.right - pageWidth) < block.fontSize * scale));

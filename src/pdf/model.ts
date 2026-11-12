@@ -44,6 +44,7 @@ export interface PdfTextBlock {
   tableCell?: PdfPageRectangle;
   tocPart?: "title" | "leader";
   role?: "reference" | "identifier" | "figure-label";
+  paragraphId?: string;
 }
 
 interface TextLine {
@@ -94,11 +95,34 @@ export function extractTextBlocks(
   cells: readonly PdfPageRectangle[] = [],
   tableCells: readonly PdfPageRectangle[] = []
 ): PdfTextBlock[] {
-  const normalized = repairSplitWords(items).map(preserveRotatedText);
+  const repaired = repairSplitWords(deduplicateTextItems(items));
+  const normalized = repaired.map((item, index) => {
+    // Dingbat subsets can expose a square as an ordinary letter (for example
+    // ZapfDingbats' "n"). Reflowing it with a prose font changes the glyph.
+    const ornament = /^[■◼]$/u.test(item.str.trim()) || /(?:Dingbats?|Wingdings|Webdings)/iu.test(item.fontName ?? "") || oversizedHeadingMarker(repaired, index);
+    const preserved = preserveRotatedText(ornament ? { ...item, preserveOriginal: true } : item);
+    if (!ornament || preserved.sourceBounds) return preserved;
+    // A system fallback can paint the symbol outside the PDF's advance width.
+    // Include its ink overhang in both the preview and searchable export crop.
+    const size = preserved.height || Math.abs(Number(preserved.transform[3])) || 10;
+    const padding = size * 0.15;
+    const x = Number(preserved.transform[4]), y = Number(preserved.transform[5]);
+    let right = x + Math.max(preserved.width ?? 0, size) + padding;
+    for (const other of repaired) {
+      if (other !== item && other.str.trim() && Number(other.transform[4]) > x
+        && Math.abs(Number(other.transform[5]) - y) < size * 0.5) right = Math.min(right, Number(other.transform[4]) - 0.5);
+    }
+    return { ...preserved, sourceBounds: {
+      x: x - padding,
+      y: y - size * 0.24 - padding,
+      width: right - x + padding,
+      height: size * 1.14 + padding * 2
+    } };
+  });
   const tableItems = prepareRuledTableItems(preservePdfTableRules(normalized, cells), tableCells);
   const protectedMath = protectPdfMath(splitTocTextItems(tableItems, measure), measure, rules);
   const lines = collectLines(protectedMath.items);
-  return collectParagraphs(lines)
+  return collectParagraphs(lines, pageNumber)
     .map((block, index) => {
       const formulas = protectedMath.formulas.filter((formula) => block.text.includes(formula.placeholder));
       if (formulas.length === 1 && (block.preserveOriginal || block.text.trim() === formulas[0].placeholder)) {
@@ -115,6 +139,18 @@ export function extractTextBlocks(
         ...(formulas.some((formula) => !formula.display) ? { formulas: formulas.filter((formula) => !formula.display) } : {})
       };
     });
+}
+
+function oversizedHeadingMarker(items: readonly PdfTextItemLike[], index: number): boolean {
+  const marker = items[index];
+  if ([...marker.str.trim()].length !== 1 || (marker.fontWeight ?? 400) >= 600) return false;
+  const next = items.slice(index + 1).find(item => item.str.trim());
+  if (!next || (next.fontWeight ?? 400) < 600 || !/\p{L}{2}/u.test(next.str)) return false;
+  const size = next.height || Math.abs(Number(next.transform[3])) || 10;
+  const gap = Number(next.transform[4]) - Number(marker.transform[4]) - (marker.width ?? 0);
+  return (marker.height || Math.abs(Number(marker.transform[3]))) >= size * 1.45
+    && Math.abs(Number(marker.transform[5]) - Number(next.transform[5])) < size * 0.25
+    && gap >= -0.5 && gap <= size * 2;
 }
 
 // Dot leaders are layout, not prose. Keep their original glyphs and page
@@ -208,13 +244,11 @@ function collectLines(items: ReadonlyArray<PdfTextItemLike>): TextLine[] {
   const lines: TextLine[] = [];
   let current: TextLine | undefined;
   let previousX = Number.NEGATIVE_INFINITY;
-  let previousEndedLine = false;
   let explicitSpace = false;
 
   for (const item of items) {
     const text = normalizeText(item.str);
     if (!text) {
-      previousEndedLine ||= Boolean(item.hasEOL);
       explicitSpace ||= /\s/u.test(item.str);
       continue;
     }
@@ -235,9 +269,8 @@ function collectLines(items: ReadonlyArray<PdfTextItemLike>): TextLine[] {
       ? current.preserveOriginal || item.preserveOriginal
         || current.tocPart !== item.tocPart
         || current.tableCell !== item.tableCell
-        || Math.abs(current.y - y) > Math.max(2.5, Math.min(current.height, height) * 0.55)
+        || !isSameVisualLine(current, y, height)
         || x + (/^⟪WUPAGE\d+⟫$/u.test(text) ? Math.max(2, height * 0.5) : 2) < previousX
-        || (previousEndedLine && !hangingListNumber)
         || separatedOnSameLine
       : false;
 
@@ -276,7 +309,6 @@ function collectLines(items: ReadonlyArray<PdfTextItemLike>): TextLine[] {
     }
 
     previousX = x + width;
-    previousEndedLine = Boolean(item.hasEOL);
     explicitSpace = false;
   }
 
@@ -284,7 +316,22 @@ function collectLines(items: ReadonlyArray<PdfTextItemLike>): TextLine[] {
 }
 
 function isSameVisualLine(line: TextLine, y: number, height: number): boolean {
-  return Math.abs(line.y - y) <= Math.max(2.5, Math.min(line.height, height) * 0.55);
+  return Math.abs(line.y - y) <= Math.max(2.5, Math.min(line.height, height) * 0.45);
+}
+
+function deduplicateTextItems(items: readonly PdfTextItemLike[]): PdfTextItemLike[] {
+  const seen = new Map<string, PdfTextItemLike[]>();
+  return items.filter(item => {
+    if (!item.str.trim()) return true;
+    const key = JSON.stringify([item.str, item.fontName ?? item.fontFamily, item.fontWeight]);
+    const matches = seen.get(key) ?? [];
+    const duplicate = matches.some(previous => Array.from(item.transform).every((value, index) =>
+      Math.abs(value - Number(previous.transform[index])) < 0.02)
+      && Math.abs((item.width ?? 0) - (previous.width ?? 0)) < 0.02
+      && Math.abs((item.height ?? 0) - (previous.height ?? 0)) < 0.02);
+    if (!duplicate) { matches.push(item); seen.set(key, matches); }
+    return !duplicate;
+  });
 }
 
 function hasLargeHorizontalGap(line: TextLine, nextX: number, height: number): boolean {
@@ -299,34 +346,40 @@ function hasLargeHorizontalGap(line: TextLine, nextX: number, height: number): b
   return gap > maximumWordGap;
 }
 
-function collectParagraphs(lines: TextLine[]): Omit<PdfTextBlock, "id" | "translatable">[] {
+function collectParagraphs(lines: TextLine[], pageNumber: number): Omit<PdfTextBlock, "id" | "translatable">[] {
   const blocks: Omit<PdfTextBlock, "id" | "translatable">[] = [];
   let current: TextLine[] = [];
+  let paragraphNumber = 0;
 
   const commit = (): void => {
     if (!current.length) return;
-    const weights = new Map<number, number>();
-    for (const line of current) for (const [weight, count] of line.weights) weights.set(weight, (weights.get(weight) ?? 0) + count);
-    const fontWeight = [...weights].sort((left, right) => right[1] - left[1])[0][0];
-    const normalizedLines = current.map((line) => ({
-      text: normalizeText(line.text),
-      x: line.x,
-      baselineY: line.y,
-      width: Math.max(1, line.right - line.x),
-      height: line.height,
-      ...(line.sourceBounds ? { sourceBounds: line.sourceBounds } : {})
-    }));
-    blocks.push({
-      text: joinParagraphLines(normalizedLines),
-      lines: normalizedLines,
-      fontFamily: current[0].fontFamily,
-      fontWeight,
-      fontSize: Math.max(...current.map((line) => line.height)),
-      ...(fontWeight < 600 && current[0].boldPrefix ? { boldPrefix: current[0].boldPrefix } : {}),
-      ...(current.some((line) => line.preserveOriginal) ? { preserveOriginal: true } : {}),
-      ...(current[0].tocPart ? { tocPart: current[0].tocPart } : {}),
-      ...(current[0].tableCell ? { tableCell: current[0].tableCell } : {})
-    });
+    paragraphNumber++;
+    const regions = splitParagraphRegions(current);
+    for (const [regionIndex, region] of regions.entries()) {
+      const weights = new Map<number, number>();
+      for (const line of region) for (const [weight, count] of line.weights) weights.set(weight, (weights.get(weight) ?? 0) + count);
+      const fontWeight = [...weights].sort((left, right) => right[1] - left[1])[0][0];
+      const normalizedLines = region.map((line) => ({
+        text: normalizeText(line.text),
+        x: line.x,
+        baselineY: line.y,
+        width: Math.max(1, line.right - line.x),
+        height: line.height,
+        ...(line.sourceBounds ? { sourceBounds: line.sourceBounds } : {})
+      }));
+      blocks.push({
+        text: joinParagraphLines(normalizedLines),
+        lines: normalizedLines,
+        fontFamily: region[0].fontFamily,
+        fontWeight,
+        fontSize: Math.max(...region.map((line) => line.height)),
+        ...(regionIndex === 0 && fontWeight < 600 && region[0].boldPrefix ? { boldPrefix: region[0].boldPrefix } : {}),
+        ...(region.some((line) => line.preserveOriginal) ? { preserveOriginal: true } : {}),
+        ...(region[0].tocPart ? { tocPart: region[0].tocPart } : {}),
+        ...(region[0].tableCell ? { tableCell: region[0].tableCell } : {}),
+        ...(regions.length > 1 ? { paragraphId: `page-${pageNumber}-paragraph-${paragraphNumber}` } : {})
+      });
+    }
     current = [];
   };
 
@@ -337,6 +390,31 @@ function collectParagraphs(lines: TextLine[]): Omit<PdfTextBlock, "id" | "transl
   }
   commit();
   return blocks;
+}
+
+// An abstract can wrap beside artwork, then span the page underneath it.
+// A single enclosing rectangle would put its first translated lines over the
+// artwork. Keep those physical regions linked as one translation paragraph.
+function splitParagraphRegions(lines: TextLine[]): TextLine[][] {
+  if (lines[0].tableCell || lines[0].tocPart || lines.some(line => line.preserveOriginal)) return [lines];
+  const regions: TextLine[][] = [];
+  let region: TextLine[] = [];
+  for (const [index, line] of lines.entries()) {
+    if (region.length) {
+      const right = Math.max(...region.map(previous => previous.right));
+      const left = Math.min(...region.map(previous => previous.x));
+      const tolerance = Math.max(line.height * 3, (right - left) * 0.18);
+      const next = lines[index + 1];
+      const widens = region.length >= 2 && line.right > right + tolerance;
+      // A short final line is ordinary paragraph layout. A sustained narrower
+      // right edge can instead mark the start of an adjacent illustration.
+      const narrows = next && line.right < right - tolerance && next.right < right - tolerance;
+      if (widens || narrows) { regions.push(region); region = []; }
+    }
+    region.push(line);
+  }
+  if (region.length) regions.push(region);
+  return regions;
 }
 
 function canJoinParagraph(previous: TextLine, next: TextLine, paragraph: TextLine[]): boolean {

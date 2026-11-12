@@ -22,6 +22,8 @@
 
 以下为现有实现的操作背景，具体行为以 .github/workflows/release.yml、.github/workflows/publish-edge.yml、.github/workflows/publish-firefox.yml 及对应的 scripts/publish-*.py 为准。
 
+PDF 的无网络样本验证 `npm run test:pdf:quality -- --profile=smoke` 同时纳入 PR 检查与标签发布，失败时不得继续打包发布。`.github/workflows/pdf-regression.yml` 提供手动整批 PDF 验证，支持标准、压力和完整矩阵，下载公开原文并验证固定 SHA-256。报告单列正常排版、安全拦截和失败；压力测试的安全拦截不得当成保持版式导出成功。上传的验证证据仅包含报告、截图与日志，不上传第三方 PDF、浏览器资料目录或完整字体。
+
 ## 发布流程
 
 推送 `v*` 标签会触发 GitHub Actions：校验 `package.json`、`package-lock.json` 与扩展 Manifest 的版本，执行类型检查和测试，构建扩展，并发布 ZIP。Release 不再附加独立的 `.sha256` 文件，校验值使用 GitHub 为每个附件生成并显示的 SHA-256 digest。

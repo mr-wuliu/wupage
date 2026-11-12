@@ -24,6 +24,30 @@ function fontWithCff(container: Uint8Array, cff: Uint8Array) {
 }
 
 describe("searchable PDF export", () => {
+  it.each(["译文", ""])("uses the raster preview for missing characters, retaining supported text: %s", async supportedText => {
+    const source = await PDFDocument.create(); source.addPage([400,500]);
+    const png = new Uint8Array(Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=", "base64"));
+    const fontBytes = new Uint8Array(await readFile("tests/fixtures/pdf-export-font.otf"));
+    expect(fontkit.create(fontBytes).hasGlyphForCodePoint("。".codePointAt(0)!)).toBe(false);
+    let fallback: number[] = [];
+    const bytes = await buildSearchablePdf([{width:400,height:500,imageBytes:png,format:"png",scene:{
+      unchanged:false,transform:[1,0,0,-1,0,500],images:[],text:[
+        {text:supportedText,x:30,y:80,width:24,size:12,color:[0,0,0]},
+        {text:"。",x:54,y:80,width:12,size:12,color:[0,0,0]}
+      ]
+    }}],"Font fallback",await source.save(),fontBytes,pages=>{fallback=pages;});
+    expect(fallback).toEqual([1]);
+    const exported=await PDFDocument.load(bytes);
+    const streams=exported.context.enumerateIndirectObjects().flatMap(([,object])=>object instanceof PDFRawStream
+      ?[new TextDecoder().decode(decodePDFRawStream(object).decode())]:[]);
+    if(supportedText)expect(streams.some(text=>text.includes("3 Tr"))).toBe(true);
+    expect(streams.some(text=>text.includes("0 Tr"))).toBe(false);
+    const {getDocument}=await import("pdfjs-dist/legacy/build/pdf.mjs"),loading=getDocument({data:bytes.slice()}),pdf=await loading.promise;
+    const text=(await(await pdf.getPage(1)).getTextContent()).items.flatMap(item=>"str"in item?[item.str]:[]).join("");
+    expect(text).toBe(supportedText);
+    await loading.destroy();
+  });
+
   it.each([
     "1) 中文译文 ABCDEFGHIJKLMNOPQRSTUVWXYZ abcdefghijklmnopqrstuvwxyz 0123456789 日本語 한국어 Русский Ελληνικα 繁體𠮷",
     "中文 A 测试 B 日本語 K 한국어 L Русский M Ελληνικα N 繁體 Z 𠮷",
