@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ExtensionSettings } from "../src/shared/types";
 import { getTranslationDebugSnapshot, groupTexts, translateWithSettings } from "../src/background/translation";
+import { googleHtmlReply, withGoogleAuth } from "./helpers/google-web";
 
 describe("groupTexts", () => {
   it("groups texts without exceeding max chars when possible", () => {
@@ -58,44 +59,34 @@ describe("contextual machine translation", () => {
       ["A lightweight library for game extensions.", "用于游戏扩展的轻量级库。"],
       ["Download the latest release.", "下载最新版本。"]
     ]);
-    const fetchMock = vi.fn(async (url: string) => {
-      const source = new URL(url).searchParams.get("q")!;
-      if (source.startsWith("Page title:")) return { ok: true, json: async () => [[
-        ["页面标题：模组列表\n\n", "Page title: 模组列表\n\n"],
-        ["游戏版本\n\n", "游戏版本\n\n"],
-        ["A lightweight library for game extensions.\n\n", "A lightweight library for game extensions.\n\n"],
-        ["下载最新版本。", "Download the latest release."]
-      ]] };
-      const translated = translations.get(source);
-      expect(translated).toBeDefined();
-      return { ok: true, json: async () => [[[translated, source, null, null]]] };
+    const fetchMock = vi.fn(async (_url: string, init: RequestInit) => {
+      const inputs = JSON.parse(String(init.body))[0][0] as string[];
+      if (inputs[0].includes("Page title:")) return googleHtmlReply('<pre><a i=0>页面标题：模组列表</a>\n\n<a i=1>游戏版本</a>\n\n<a i=2>A lightweight library for game extensions.</a>\n\n<a i=3>下载最新版本。</a></pre>');
+      return googleHtmlReply(...inputs.map(source => {
+        const translated = translations.get(source.slice(5, -6));
+        expect(translated).toBeDefined();
+        return `<pre>${translated}</pre>`;
+      }));
     });
-    vi.stubGlobal("fetch", fetchMock);
+    vi.stubGlobal("fetch", withGoogleAuth(fetchMock));
     const settings = createLlmSettings("google-mixed", 1);
     settings.providers = [{ id: "google-mixed", type: "google-web-translate", label: "Google" }];
     await expect(translateWithSettings(settings, {
       texts: [...translations.keys()], sourceLang, targetLang: "zh-CN", context: "Page title: 模组列表"
     })).resolves.toEqual({ translations: [...translations.values()], cached: 0 });
-    const sources = fetchMock.mock.calls.map(([url]) => new URL(url).searchParams.get("q"));
-    expect(sources).toHaveLength(3);
-    expect(sources.slice(1)).toEqual(["游戏版本", "A lightweight library for game extensions."]);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(JSON.parse(String(fetchMock.mock.calls[1][1].body))[0][0])
+      .toEqual(["<pre>游戏版本</pre>", "<pre>A lightweight library for game extensions.</pre>"]);
   });
 
   it("translates adjacent page items together so ambiguous terms share context", async () => {
-    const fetchMock = vi.fn(async (url: string) => {
-      const source = new URL(url).searchParams.get("q") ?? "";
+    const fetchMock = vi.fn(async (_url: string, init: RequestInit) => {
+      const source = (JSON.parse(String(init.body))[0][0] as string[])[0];
       expect(source).toContain("Why variance matters");
       expect(source).not.toContain("WUPAGESEGMENT");
-      return {
-        ok: true,
-        json: async () => [[
-          ["参考内容。\n\n", source.slice(0, source.indexOf("\n\n") + 2)],
-          ["为什么型变很重要\n\n", "Why variance matters\n\n"],
-          ["型变涉及用一种类型替换另一种类型的能力。", "Variance is about our ability to substitute types for other types."]
-        ]]
-      };
+      return googleHtmlReply('<pre><a i=0>参考内容。</a>\n\n<a i=1>为什么型变很重要</a>\n\n<a i=2>型变涉及用一种类型替换另一种类型的能力。</a></pre>');
     });
-    vi.stubGlobal("fetch", fetchMock);
+    vi.stubGlobal("fetch", withGoogleAuth(fetchMock));
     const settings: ExtensionSettings = {
       targetLang: "zh-CN",
       sourceLang: "en",

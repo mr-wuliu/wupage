@@ -57,6 +57,8 @@ PDF 的参考文献边界由 `src/pdf/document.ts` 按标题所属栏及上下�
 
 `src/background/providers.ts` 是服务工厂；`providers/` 按在线翻译服务、LLM 和 HTTP 模板组织适配器，`provider-transport.ts` 统一管理超时、重试与响应读取。网页渐进扫描的分块、让出主线程及变更补扫位于 `src/content/progressive-scan.ts`，内容判断与渲染仍由 `dom.ts` 处理。正文采集测试使用与产品相同的渐进扫描入口。
 
+Google 免费翻译由 `google-web-transport.ts` 管理两个批量协议，优先 `translateHtml`，必要时切换到 `clients5.google.com/translate_a/t`。前端请求信息仅从固定 Google 来源读取并短暂缓存在内存中，不执行下载脚本；`google-context.ts` 负责转义原文和严格校验 HTML 段落对应，无法对应时使用备用协议按段翻译。备用 GET 请求保留本地换行并限制编码后的 URL 长度；两条协议共用单次操作期限，取消后不再切换，限流时保留 `Retry-After`。`tests/google-web-transport.test.ts` 与 `tests/google-context.test.ts` 覆盖协议、响应校验和生命周期。
+
 DeepL 适配位于 `src/background/providers/deepl.ts`，负责语言代码、按条数与 UTF-8 请求体大小分批、结果顺序及错误状态；空接口地址按密钥选择官方 Free / Pro 服务。上下文通过独立参数传递，不拼入计费原文；请求复用现有的临时来源请求头兼容规则，仅作用于扩展自身的目标 POST 地址。Index-Translate 复用 OpenAI 兼容请求链路，提供本地桥接预设、关闭思考的请求参数及前置思考块过滤。两项服务纳入设置规范化、性能参数、请求模板（Index-Translate）和备份恢复。`tests/deepl-provider.test.ts`、`tests/index-translate-provider.test.ts` 通过模拟接口验证协议和异常，`tests/options-provider-state.test.ts` 检查界面保存。构建后运行 `npm run test:translation-providers` 可检查实际扩展请求和窄屏设置页，支持 `-- --edge`、`-- --firefox`；报告位于 `.npm-cache/translation-providers/`。这些测试不使用真实密钥、不访问在线翻译服务或安装模型。
 
 `src/content/text-flow.ts` 根据计算样式和交互归属，将连续文本识别为共享范围。鼠标和触屏通过原生文字命中定位具体节点；悬停、快捷键和整页采集共用同一套边界，首尾裸文本无需 `<p>` 包裹。行内链接与格式保持在同一范围，独立块及布局字段分别处理，连续 `<br>` 分段，单个显式换行使用受保护标记传输。`text-flow-sources.ts` 在需要时为匿名范围建立可撤销的源容器，保留原始节点；`inline-translation.ts` 使用相同的排版判断复用原始格式节点。返回译文前再次校验范围，布局已变化时丢弃旧结果。站点适配只补充正文政策或专有内容读取方式。
@@ -155,6 +157,8 @@ npm run test:page
 也可通过 `PLAYWRIGHT_MODULE` 指定已有 Playwright 模块。浏览器路径由对应脚本的 `CHROME_TEST_BROWSER`、`EDGE_TEST_BROWSER`、`PDF_TEST_BROWSER` 或 `FIREFOX_BINARY` 指定；Firefox 测试使用本机浏览器及 Marionette。
 
 浏览器验证通常使用独立资料目录、本地样例和模拟翻译服务，报告与截图保存在被 Git 忽略的 `.npm-cache/`。OCR、本地模型与部分 PDF 验证可能下载公开数据，运行前查看对应脚本。样例通过说明流程和排版符合预期，真实站点兼容性与译文质量仍需分别验证。
+
+Google 免费入口使用 `npm run test:google` 验证实际 Chrome 扩展中的首选协议、上下文段落、429 备用切换、冷却和凭据隔离；Edge 使用 `node scripts/test-google-web.mjs --edge`。默认模拟全部翻译响应；加 `--live` 后只向 Google 发送脚本中固定的英文样本，429 仍由测试模拟，不制造真实限流。报告保存在 `.npm-cache/google-web/`，不记录请求 key、请求头或完整查询地址。
 
 Twitch 聊天正文适配位于 `src/content/twitch-content.ts`，仅对 Twitch 消息正文放宽侧栏过滤，昵称保持原样；消息按正文容器分组，避免与作者、相邻消息合并。`tests/twitch-content.test.ts` 覆盖正文识别、独立聊天窗口、增量扫描、原文恢复及隐藏和编辑区域过滤。构建后运行 `node scripts/test-twitch-chat.mjs`（Edge 加 `--edge`），使用本地页面和模拟服务验证完整扩展的动态消息、节点复用、三种显示模式及 1400、390、312 像素窗口；无需登录或访问 Twitch。
 

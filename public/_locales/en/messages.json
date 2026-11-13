@@ -1080,6 +1080,12 @@
   "googleTranslateReturnedNoValidTranslationItsResponse": {
     "message": "Google Translate returned no valid translation. Its response format may have changed."
   },
+  "googleWebKeyUnavailable": {
+    "message": "Could not initialize Google web translation. Its response format may have changed."
+  },
+  "googleWebInputTooLong": {
+    "message": "The text exceeds the Google Translate fallback request limit."
+  },
   "couldNotReachTranslateGoogleapisComOrTranslate": {
     "message": "Could not reach translate.googleapis.com or translate.google.com. Check network or proxy rules for both translation endpoints."
   },

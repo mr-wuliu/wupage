@@ -10,18 +10,26 @@ const moduleName=process.env.PLAYWRIGHT_MODULE||'playwright';
 const {chromium}=await import(path.isAbsolute(moduleName)?pathToFileURL(moduleName).href:moduleName);
 const context=await chromium.launchPersistentContext(path.join(output,`profile-${Date.now()}`),{
   ...(process.env.PDF_TEST_BROWSER?{executablePath:process.env.PDF_TEST_BROWSER}:{channel:'chromium'}),
-  headless:true,ignoreDefaultArgs:['--disable-extensions'],args:['--lang=zh-CN', `--load-extension=${path.join(root,'dist')}`],viewport:{width:1100,height:1000}
+  headless:true,ignoreDefaultArgs:['--disable-extensions'],args:['--lang=zh-CN', ...(process.env.PDF_TEST_BROWSER
+    ?['--enable-unsafe-extension-debugging']:[`--load-extension=${path.join(root,'dist')}`])],viewport:{width:1100,height:1000}
 });
 try{
+  if(process.env.PDF_TEST_BROWSER){
+    const session=await context.browser().newBrowserCDPSession();
+    await session.send('Extensions.loadUnpacked',{path:path.join(root,'dist')});await session.detach();
+  }
   const worker=context.serviceWorkers()[0]||await context.waitForEvent('serviceworker');
   const extension=`chrome-extension://${new URL(worker.url()).host}`;
   await worker.evaluate(()=>{
     globalThis.serviceModeRequests=[];
     globalThis.fetch=async(url,init={})=>{
       const parsed=new URL(url),headers=new Headers(init.headers),host=parsed.hostname;
+      if(host==='translate.googleapis.com')return new Response(parsed.pathname.includes('/translate_a/element.js')
+        ?"_loadJs('https://translate.googleapis.com/_/translate_http/_/js/k=fixture/m=el_main')"
+        :`({'x-goog-api-key':'${'A'.repeat(39)}'})`);
       globalThis.serviceModeRequests.push({host,key:headers.get('Authorization')||headers.get('Ocp-Apim-Subscription-Key')||headers.get('X-RapidAPI-Key')||parsed.searchParams.get('key')});
       const payload=host==='edge.microsoft.com'||host==='api.cognitive.microsofttranslator.com'?[{translations:[{text:'你好'}]}]
-        :host==='translate.googleapis.com'?[[['你好']]]
+        :host==='translate-pa.googleapis.com'?[["<pre>你好</pre>"]]
           :host==='translation.googleapis.com'?{data:{translations:[{translatedText:'你好'}]}}
             :host==='transmart.qq.com'?{header:{ret_code:'succ'},auto_translation:['你好']}
               :host==='tokenhub.tencentmaas.com'?{choices:[{message:{content:'你好'}}]}

@@ -1080,6 +1080,12 @@
   "googleTranslateReturnedNoValidTranslationItsResponse": {
     "message": "谷歌翻译未返回有效译文，接口格式可能发生变化。"
   },
+  "googleWebKeyUnavailable": {
+    "message": "无法初始化谷歌网页翻译，接口格式可能发生变化。"
+  },
+  "googleWebInputTooLong": {
+    "message": "文本超过谷歌翻译备用接口的单次请求限制。"
+  },
   "couldNotReachTranslateGoogleapisComOrTranslate": {
     "message": "无法连接谷歌翻译，已尝试 translate.googleapis.com 和 translate.google.com。请检查这两个域名的网络或代理规则；能打开 Google 网页不代表翻译接口可用。"
   },

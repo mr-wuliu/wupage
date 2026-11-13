@@ -113,6 +113,7 @@
     "test:image-resolution": "node scripts/test-image-resolution.mjs",
     "typecheck": "tsc --noEmit",
     "test:translation-providers": "node scripts/test-translation-providers.mjs",
+    "test:google": "node scripts/test-google-web.mjs",
     "test:page-scan": "node scripts/test-page-scan.mjs",
     "test:page-scan:edge": "node scripts/test-page-scan.mjs --edge",
     "test:page-scan:firefox": "node scripts/test-page-scan.mjs --firefox"

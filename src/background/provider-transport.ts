@@ -156,7 +156,7 @@ export async function readJsonResponse<T>(response: Response, providerLabel: str
   }
 }
 
-async function readResponseText(response: Response): Promise<string> {
+export async function readResponseText(response: Response): Promise<string> {
   const reader = response.body?.getReader();
   if (!reader) return response.text();
   const decoder = new TextDecoder();

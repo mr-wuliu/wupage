@@ -4,7 +4,6 @@ import { chatCompletionsEndpoint } from "../ollama-compatibility";
 import { TranslationResponseError } from "../translation-response";
 import { translationApiOptions } from "../../shared/translation-service";
 import { signVolcengineTranslation } from "../volcengine-signing";
-import { alignGoogleContext, googleContextSource } from "../google-context";
 import { ProviderError } from "../../shared/errors";
 import { fetchWithTimeout, httpResponseError, readJsonResponse, API_TRANSLATION_TIMEOUT_MS } from "../provider-transport";
 import { fetchGoogleWebTranslation } from "../google-web-transport";
@@ -14,6 +13,8 @@ const GOOGLE_WEB_REQUEST_CONCURRENCY = 4;
 const WEB_TRANSLATION_TIMEOUT_MS = 20_000;
 
 export class GoogleWebTranslateProvider implements TranslatorProvider {
+  readonly maxTextLength = 4000;
+
   get id(): string {
     return this.config.id;
   }
@@ -29,22 +30,27 @@ export class GoogleWebTranslateProvider implements TranslatorProvider {
   }
 
   async translateBatch(request: TranslateBatchRequest, signal?: AbortSignal): Promise<string[]> {
-    const fetchText = async (text: string): Promise<GoogleWebTranslateResponse> => {
-      return fetchGoogleWebTranslation(text, normalizeGoogleLang(request.sourceLang ?? "auto"), normalizeGoogleLang(request.targetLang), signal);
-    };
-    let aligned: Array<string | undefined> = request.texts.map(() => undefined);
-    if (request.context && request.texts.length) {
-      const { source, ranges } = googleContextSource(request.context, request.texts);
-      const payload = await fetchText(source);
-      signal?.throwIfAborted();
-      aligned = alignGoogleContext(payload, source, ranges);
+    const groups: string[][] = [];
+    let size = 0;
+    for (const text of request.texts) {
+      if (!groups.length || size + text.length > this.maxTextLength || groups.at(-1)!.length >= 32) { groups.push([]); size = 0; }
+      groups.at(-1)!.push(text); size += text.length;
     }
-    return mapWithConcurrency(request.texts, GOOGLE_WEB_REQUEST_CONCURRENCY, async (text, index) => {
-      const value = aligned[index];
-      // Auto-detection over mixed-language context can leave foreign text intact.
-      if (value !== undefined && (request.sourceLang && request.sourceLang !== "auto" || value.trim() !== text.trim())) return value;
-      return parseGoogleWebResponse(await fetchText(text));
+    const translate = (texts: string[], context?: string) => fetchGoogleWebTranslation(texts,
+      normalizeGoogleLang(request.sourceLang ?? "auto"), normalizeGoogleLang(request.targetLang), context, signal);
+    const batches = await mapWithConcurrency(groups, GOOGLE_WEB_REQUEST_CONCURRENCY, async texts => {
+      const output = await translate(texts, request.context);
+      signal?.throwIfAborted();
+      if (request.context && (!request.sourceLang || request.sourceLang === "auto")) {
+        const unchanged = texts.flatMap((text, index) => text.trim() === output[index].trim() ? [index] : []);
+        if (unchanged.length) {
+          const isolated = await translate(unchanged.map(index => texts[index]));
+          unchanged.forEach((index, position) => { output[index] = isolated[position]; });
+        }
+      }
+      return output;
     });
+    return batches.flat();
   }
 }
 
@@ -524,8 +530,6 @@ async function mapWithConcurrency<T, R>(
   return output;
 }
 
-type GoogleWebTranslateResponse = unknown[];
-
 interface MicrosoftTranslateResponse extends Array<{
   translations?: Array<{
     text?: string;
@@ -553,18 +557,6 @@ function normalizeVolcengineLang(value: string): string {
 
 function normalizeGoogleLang(value: string): string {
   return value === "zh-CN" ? "zh-CN" : value;
-}
-
-function parseGoogleWebResponse(payload: GoogleWebTranslateResponse): string {
-  const segments = payload[0];
-  if (!Array.isArray(segments)) {
-    throw new Error(t("googleSegmentsMissing"));
-  }
-  const text = segments
-    .map((segment) => (Array.isArray(segment) && typeof segment[0] === "string" ? segment[0] : ""))
-    .join("");
-  if (!text) throw new Error(t("serviceGoogleWebNoText"));
-  return text;
 }
 
 function decodeHtmlEntities(value: string): string {
