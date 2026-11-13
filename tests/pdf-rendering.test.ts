@@ -1,8 +1,61 @@
 import { describe, expect, it, vi } from "vitest";
-import type { PDFPageProxy } from "pdfjs-dist";
-import { renderPageWithoutText } from "../src/pdf/rendering";
+import { OPS, type PDFPageProxy } from "pdfjs-dist";
+import { renderPageWithoutText, renderRotatedPdfText, rotatedTextFilter } from "../src/pdf/rendering";
 
-vi.mock("pdfjs-dist", () => ({ OPS: { showText: 44, showSpacedText: 45, nextLineShowText: 46, nextLineSetSpacingShowText: 47 } }));
+vi.mock("pdfjs-dist", () => ({ OPS: { save: 10, restore: 11, transform: 12, fill: 22, endPath: 28,
+  clip: 29, beginText: 31, setFont: 37, setTextMatrix: 42, showText: 44, showSpacedText: 45,
+  nextLineShowText: 46, nextLineSetSpacingShowText: 47, setGState: 9, paintFormXObjectBegin: 74,
+  paintFormXObjectEnd: 75, paintImageXObject: 85, constructPath: 91 } }));
+
+describe("rotated PDF text background", () => {
+  const viewport = [1, 0, 0, -1, 0, 800];
+  it("preserves watermark glyphs while excluding upright body text, paths and images", () => {
+    const filter = rotatedTextFilter(viewport);
+    expect(filter(OPS.setTextMatrix, [1, 1, -1, 1, 80, 100])).toBe(true);
+    expect(filter(OPS.showText, [])).toBe(true);
+    expect(filter(OPS.setGState, [[['ca', 0.2]]])).toBe(true);
+    expect(filter(OPS.constructPath, [OPS.fill])).toBe(false);
+    expect(filter(OPS.paintImageXObject, [])).toBe(false);
+    expect(filter(OPS.clip, [])).toBe(true);
+    expect(filter(OPS.constructPath, [OPS.endPath])).toBe(true);
+    filter(OPS.setTextMatrix, [1, 0, 0, 1, 80, 100]);
+    for (const op of [OPS.showText, OPS.showSpacedText, OPS.nextLineShowText, OPS.nextLineSetSpacingShowText]) expect(filter(op, [])).toBe(false);
+  });
+  it("tracks nested form transforms and restores the body text orientation", () => {
+    const filter = rotatedTextFilter(viewport);
+    filter(OPS.paintFormXObjectBegin, [[0.7, 0.7, -0.7, 0.7, 0, 0]]);
+    filter(OPS.beginText, []);
+    expect(filter(OPS.showText, [])).toBe(true);
+    filter(OPS.save, []);
+    filter(OPS.transform, [1, -1, 1, 1, 0, 0]);
+    expect(filter(OPS.showText, [])).toBe(false);
+    filter(OPS.restore, []);
+    expect(filter(OPS.showText, [])).toBe(true);
+    filter(OPS.paintFormXObjectEnd, []);
+    expect(filter(OPS.showText, [])).toBe(false);
+  });
+  it("uses displayed page rotation instead of treating an upright rotated page as a watermark", () => {
+    const filter = rotatedTextFilter([0, 1, 1, 0, 0, 0]);
+    filter(OPS.setTextMatrix, [0, 1, -1, 0, 100, 200]);
+    expect(filter(OPS.showText, [])).toBe(false);
+    filter(OPS.setTextMatrix, [1, 0, 0, 1, 100, 200]);
+    expect(filter(OPS.showText, [])).toBe(true);
+  });
+  it("uses a transparent canvas and the render task's own optimized operations", async () => {
+    const canvas = { getContext: () => ({}) } as unknown as HTMLCanvasElement;
+    const results: boolean[] = [];
+    const fnArray = [OPS.setTextMatrix, OPS.showText, OPS.setTextMatrix, OPS.showText, OPS.paintImageXObject];
+    const argsArray = [[new Float32Array([1, 1, -1, 1, 0, 0])], [], [new Float32Array([1, 0, 0, 1, 0, 0])], [], []];
+    const render = vi.fn(({ operationsFilter }) => ({
+      _internalRenderTask: { operatorList: { fnArray, argsArray } },
+      promise: Promise.resolve().then(() => fnArray.forEach((_, index) => results.push(operationsFilter(index))))
+    }));
+    await renderRotatedPdfText({ render } as unknown as PDFPageProxy, canvas,
+      { width: 600, height: 800, transform: viewport } as ReturnType<PDFPageProxy['getViewport']>);
+    expect(results).toEqual([true, true, true, false, false]);
+    expect(render.mock.calls[0][0].background).toBe('rgba(0,0,0,0)');
+  });
+});
 
 describe("renderPageWithoutText", () => {
   it("skips all PDF text operators, including vector glyphs, while retaining graphics", async () => {

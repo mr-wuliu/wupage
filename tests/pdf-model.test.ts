@@ -137,7 +137,7 @@ describe("PDF text extraction", () => {
       { str: "Vertical axis", transform: [0, 10, -10, 0, 100, 200], width: 50, height: 10 },
       { str: "Normal caption.", transform: [10, 0, 0, 10, 20, 180], width: 80, height: 10 }
     ], 1);
-    expect(blocks[0]).toMatchObject({ text: "Vertical axis", preserveOriginal: true, translatable: false });
+    expect(blocks[0]).toMatchObject({ text: "Vertical axis", preserveOriginal: true, translatable: false, backgroundText: true });
     const line = blocks[0].lines[0];
     expect(line.x).toBeLessThanOrEqual(91);
     expect(line.width).toBeGreaterThanOrEqual(11.4);

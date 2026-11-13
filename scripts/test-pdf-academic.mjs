@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { createServer } from 'node:http';
 import { createHash } from 'node:crypto';
 import { PDFDocument, StandardFonts, rgb, degrees } from 'pdf-lib';
+import { createCanvas } from '@napi-rs/canvas';
 import { getDocument } from 'pdfjs-dist/legacy/build/pdf.mjs';
 import { browserTarget } from './lib/browser-target.mjs';
 import { openExtensionBrowser } from './lib/extension-browser.mjs';
@@ -27,6 +28,14 @@ const source = await PDFDocument.create();
 const regular = await source.embedFont(StandardFonts.TimesRoman), bold = await source.embedFont(StandardFonts.HelveticaBold), italic = await source.embedFont(StandardFonts.TimesRomanItalic);
 const symbol = await source.embedFont(StandardFonts.Symbol);
 const add = (page, text, x, y, size = 10, font = regular) => page.drawText(text, { x, y, size, font });
+async function renderWatermarkExport(pdf,name){
+ const page=await pdf.getPage(9),viewport=page.getViewport({scale:1.5}),canvas=createCanvas(Math.ceil(viewport.width),Math.ceil(viewport.height));
+ await page.render({canvasContext:canvas.getContext('2d'),viewport}).promise;
+ const data=canvas.getContext('2d').getImageData(0,0,canvas.width,canvas.height).data;let red=0;
+ for(let i=0;i<data.length;i+=4)if(data[i]>180&&data[i]-data[i+1]>15&&Math.abs(data[i+1]-data[i+2])<15)red++;
+ assert.ok(red>100,'watermarks survive '+name);
+ await fs.writeFile(path.join(output,name),canvas.toBuffer('image/png'));
+}
 const first = source.addPage([600, 800]);
 add(first, 'Clinical prediction of complications', 40, 740, 17, bold);
 add(first, 'Background', 40, 700, 10, bold);
@@ -103,6 +112,15 @@ for(const [column,x] of [35,215,395].entries()){
 const imageOnly=source.addPage([600,800]);
 const image=await source.embedPng(Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=','base64'));
 imageOnly.drawImage(image,{x:40,y:100,width:520,height:600});
+const watermarked=source.addPage([600,800]);
+watermarked.drawText('REVIEW COPY',{x:120,y:230,size:44,font:bold,rotate:degrees(45),color:rgb(1,0.85,0.85)});
+watermarked.drawText('DOCUMENT DRAFT',{x:130,y:580,size:32,font:regular,rotate:degrees(-30),color:rgb(1,0.85,0.85)});
+const watermarkBodyLines=['The original paragraph must not be copied around a diagonal watermark.',
+ 'Its translation remains readable while the watermark keeps its original appearance.',
+ 'Preserving angled glyphs must not create a rectangular patch of source prose.'];
+for(const [index,text] of watermarkBodyLines.entries())add(watermarked,text,80,480-index*16,10);
+watermarked.drawText('Vertical axis',{x:560,y:150,size:10,font:regular,rotate:degrees(90)});
+watermarked.drawRectangle({x:80,y:60,width:240,height:40,color:rgb(0.1,0.5,0.8)});
 const fixture = path.join(output, 'academic-source.pdf'); await fs.writeFile(fixture, await source.save());
 const file = process.argv.find(arg => arg.startsWith('--file='))?.slice(7);
 const corpusId = process.argv.find(arg => arg.startsWith('--corpus='))?.slice(9);
@@ -129,7 +147,8 @@ if(process.argv.includes('--anonymize-fonts')){
 }
 const words = new Map([['References','参考文献'],['Appendix','附录'],['Background','背景'],['Training','训练'],['Test','测试'],['State','状态'],
  ['Bleeding','出血'],['Mortality','死亡风险'],['Renal failure','肾功能衰竭'],['Clinical reference tool','临床参考工具'],['Features','特征'],['Prediction','预测'],
- ['MIN','最小值'],['TYP','典型值'],['MAX','最大值'],['UNIT','单位'],['FREQUENCY','频率'],['(TYP)','（典型值）']]);
+ ['MIN','最小值'],['TYP','典型值'],['MAX','最大值'],['UNIT','单位'],['FREQUENCY','频率'],['(TYP)','（典型值）'],
+ [watermarkBodyLines.join(' '),'这是用于验证论文段落排版与保护规则的本地模拟译文'.repeat(2)]]);
 function translate(text) {
  return text.split(/(⟪WUPAGE(?:OPEN|CLOSE)?\d+⟫)/gu).map(part => {
   if (/^⟪WUPAGE(?:OPEN|CLOSE)?\d+⟫$/u.test(part) || !/\p{L}/u.test(part)) return part;
@@ -280,6 +299,17 @@ try{
    assert.deepEqual(preservedRegions.map(region=>region.sourceHash),original.preservedRegions.map(region=>region.sourceHash),'font renaming preserves source rendering in checked regions');
   }
   if(document.pages)assert.equal(pages,document.pages,'corpus page count');
+  let watermarkPixels;
+  if(document.id==='fixture'){
+   watermarkPixels=await browser.evaluate(`const row=document.querySelector('article[data-page="9"]');
+    const sample=canvas=>{const scale=canvas.width/600,data=canvas.getContext('2d').getImageData(Math.floor(80*scale),Math.floor(200*scale),Math.floor(450*scale),Math.floor(400*scale)).data;let dark=0,red=0;
+     for(let i=0;i<data.length;i+=4){if(Math.max(data[i],data[i+1],data[i+2])<120)dark++;if(data[i]>180&&data[i]-data[i+1]>15&&Math.abs(data[i+1]-data[i+2])<15)red++;}return {dark,red};};
+    return {original:sample(row.querySelector('.original-panel canvas')),background:sample(row.querySelector('.translated-panel > .canvas-shell > canvas'))};`);
+   assert.ok(watermarkPixels.original.dark>100,'watermark region contains original body text');
+   assert.equal(watermarkPixels.background.dark,0,'background watermark glyphs never copy the surrounding source prose');
+   assert.ok(watermarkPixels.background.red>100,'watermarks remain visible in their original color');
+   assert.ok(!requests.some(input=>JSON.stringify(input).includes('REVIEW COPY')||JSON.stringify(input).includes('DOCUMENT DRAFT')),'watermarks stay out of translation inputs and context');
+  }
   const start=requests.length;
   if(document.id==='fixture'){
    assert.equal(fontRequests,0,'reading and translation never download fonts');
@@ -295,6 +325,7 @@ try{
    const basicLoading=getDocument({data:new Uint8Array(await fs.readFile(basic))}),basicPdf=await basicLoading.promise;
    assert.equal(basicPdf.numPages,pages);
    assert.equal((await(await basicPdf.getPage(1)).getTextContent()).items.length,0,'basic export remains image-only');
+   await renderWatermarkExport(basicPdf,'watermark-basic-export.png');
    await basicLoading.destroy();assert.equal(fontRequests,0,'basic export needs no font download');
    await browser.evaluate('document.querySelector("#pdfFontAction").click();');
    await wait(()=>browser.evaluate('return document.querySelector("#pdfFontDialog").open;'),Boolean,'font installer');
@@ -319,13 +350,15 @@ try{
    assert.ok(!texts.join('').includes('付费观看')&&!texts.join('').includes('净现值'));
    assert.ok(texts[1].includes('Jones K. Further observations.'));
    assert.ok(texts[1].includes('附录'));
+   await renderWatermarkExport(pdf,'watermark-export.png');
   }else if(document.id==='paper'){
    assert.ok(texts[8].includes('Krittanawong'),'mixed bibliography remains searchable');
    assert.ok(texts[9].includes('Halpern'),'bibliography continuation retains original text');
   }
   await loading.destroy();
   const fontFallbackPages=await browser.evaluate('return JSON.parse(document.querySelector("#downloadDocument").dataset.fontFallbackPages??"[]");');
-  checks.push({document:document.id,outcome:'translated',pages,pagesChecked:pageChecks.length,preservedRegions,fontFallbackPages,textLengths:texts.map(text=>text.length),blocks:layout.length,minimumFontRatio:Math.min(...layout.map(block=>block.size/block.preferred)),bytes:(await fs.stat(destination)).size,export:destination});
+  if(document.id==='fixture')assert.ok(!fontFallbackPages.includes(9),'watermark fixture must exercise searchable vector export');
+  checks.push({document:document.id,outcome:'translated',pages,pagesChecked:pageChecks.length,preservedRegions,watermarkPixels,fontFallbackPages,textLengths:texts.map(text=>text.length),blocks:layout.length,minimumFontRatio:Math.min(...layout.map(block=>block.size/block.preferred)),bytes:(await fs.stat(destination)).size,export:destination});
  }
  assert.ok(requests.every(input=>input.context?.includes('Academic document:')));
  assert.ok(requests.every(input=>!input.texts.some(text=>/^(?:PPV|NPV|RNN)$/u.test(text))));

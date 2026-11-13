@@ -47,7 +47,7 @@ export async function buildRasterPdf(
 }
 
 export async function collectPdfExportScene(original: HTMLCanvasElement, layer: HTMLElement,
-  blocks: PdfTextBlock[], width: number, height: number, transform: number[]): Promise<PdfExportScene> {
+  blocks: PdfTextBlock[], width: number, height: number, transform: number[], backgroundText?: HTMLCanvasElement): Promise<PdfExportScene> {
   assertTranslationLayerFits(layer);
   const scene: PdfExportScene = { text: [], images: [], transform, unchanged: blocks.every((block) => !block.translatable) };
   const pixelScale = original.width / width;
@@ -57,7 +57,8 @@ export async function collectPdfExportScene(original: HTMLCanvasElement, layer: 
     const blob = await new Promise<Blob>((resolve, reject) => canvas.toBlob((value) => value ? resolve(value) : reject(new Error(t("couldNotEncodeThePreservedPdfContent"))), "image/png"));
     scene.images.push({ bytes: new Uint8Array(await blob.arrayBuffer()), x, y, width: w, height: h });
   };
-  for (const block of blocks.filter((block) => !block.translatable)) for (const line of block.lines) {
+  if (backgroundText) await image(backgroundText, 0, 0, width, height);
+  for (const block of blocks.filter((block) => !block.translatable && !block.backgroundText)) for (const line of block.lines) {
     const bounds = line.sourceBounds ?? { x: line.x, y: line.baselineY - line.height * 0.24,
       width: line.width, height: line.height * 1.14 };
     const left = Math.max(0, Math.floor(bounds.x * pixelScale));
