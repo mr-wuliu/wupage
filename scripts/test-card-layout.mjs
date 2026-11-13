@@ -21,6 +21,10 @@ const listTranslations = [
 ];
 const translations = [[title, "游戏扩展模块库"], [summary, "用于创建扩展并与其他玩家分享的轻量级工具。"], ["by", "作者"],
   ["Extension overview", "扩展概述"], ["Store listings", "商店条目"], ["Submission status", "提交状态"],
+  ["Extension ⟪WUPAGEOPEN0⟫overview⟪WUPAGECLOSE0⟫", "扩展⟪WUPAGEOPEN0⟫概述⟪WUPAGECLOSE0⟫"],
+  ["Store ⟪WUPAGEOPEN0⟫listings⟪WUPAGECLOSE0⟫", "商店⟪WUPAGEOPEN0⟫条目⟪WUPAGECLOSE0⟫"],
+  ["Submission ⟪WUPAGEOPEN0⟫status⟪WUPAGECLOSE0⟫", "提交⟪WUPAGEOPEN0⟫状态⟪WUPAGECLOSE0⟫"],
+  ["Lower your ⟪WUPAGEOPEN0⟫expectations⟪WUPAGECLOSE0⟫ for this puzzle", "降低你对这个谜题的⟪WUPAGEOPEN0⟫期望⟪WUPAGECLOSE0⟫"],
   ["Type ⟪WUPAGE0⟫ to search", "输入 ⟪WUPAGE0⟫ 进行搜索"], ["Type / to search", "输入 / 进行搜索"],
   ["Auto", "自动"], ["Optimized for Balance", "针对平衡进行了优化"],
   ["Optimized for: Balance", "针对：平衡进行了优化"], ...listTranslations];
@@ -131,21 +135,30 @@ try {
     const originalFetch = globalThis.fetch;
     globalThis.cardRequests = [];
     globalThis.fetch = async (url, init) => {
-      if (new URL(url).hostname !== "translate.googleapis.com") return originalFetch(url, init);
-      const source = new URL(url).searchParams.get("q");
-      globalThis.cardRequests.push(source);
+      const parsed = new URL(url);
+      if (parsed.hostname === "translate.googleapis.com") return new Response(parsed.pathname.includes("/translate_a/element.js")
+        ? "_loadJs('https://translate.googleapis.com/_/translate_http/_/js/k=fixture/m=el_main')"
+        : `({'x-goog-api-key':'${'A'.repeat(39)}'})`);
+      if (parsed.hostname !== "translate-pa.googleapis.com") return originalFetch(url, init);
+      const sources = JSON.parse(init.body)[0][0];
+      globalThis.cardRequests.push(...sources);
       // Simulate the endpoint detecting a Chinese catalog as already Chinese,
       // including its embedded English descriptions. Individual items translate.
-      let translated = source;
-      if (!source.startsWith("Page title: 模组列表")) {
-        for (const [original, target] of translations) translated = translated.replaceAll(original, target);
-      }
-      return new Response(JSON.stringify([[[translated, source, null, null]]]), {
+      const translated = sources.map(source => {
+        if (source.startsWith("<pre><a i=0>Page title: 模组列表")) return source;
+        const escape = text => text.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;')
+          .replaceAll('"', '&quot;').replaceAll("'", '&#39;');
+        for (const [original, target] of translations) source = source.replaceAll(escape(original), escape(target));
+        return source;
+      });
+      return new Response(JSON.stringify([translated]), {
         headers: { "Content-Type": "application/json" }
       });
     };
   }, translations);
   const page = await context.newPage();
+  page.setDefaultTimeout(10_000);
+  control.setDefaultTimeout(10_000);
   const identity = verifyBrowserIdentity(target, await page.evaluate(() => navigator.userAgent));
   const setMode = mode => control.evaluate(async mode => {
     const { data: settings } = await chrome.runtime.sendMessage({ type: "GET_SETTINGS" });
@@ -211,26 +224,34 @@ try {
         assert.equal(await page.locator(".fields > .wupage-translation").count(), 0);
         assert.equal(await page.locator(".sidebar-regression a > .wupage-translation").count(), 0,
           "Sidebar translations must stay in their text cell, not become a clipped third item");
-        const sidebar = await page.locator(".sidebar-regression a").evaluateAll(links => links.map(link => {
-          const text = link.querySelector('.nav-label .wupage-translation'), icon = link.querySelector('.status-slot');
+        const sidebar = await page.locator(".sidebar-regression a").evaluateAll((links, mode) => links.map(link => {
+          const label = link.querySelector('.nav-label');
+          const text = label.querySelector('.wupage-translation') ?? (mode === 'replace' && label.hasAttribute('data-wupage-translated') ? label : null);
+          const icon = link.querySelector('.status-slot');
           if(!text)return {missing:true};
           const row = link.getBoundingClientRect(), style = getComputedStyle(text);
           const range = document.createRange();range.selectNodeContents(text);
           return {text:text.textContent,display:style.display,fontSize:parseFloat(style.fontSize),visibility:style.visibility,opacity:style.opacity,
             visible:[...range.getClientRects()].some(box=>box.width>0&&box.height>0&&box.left<row.right&&box.right>row.left&&box.top<row.bottom&&box.bottom>row.top),
             iconVisible:icon.getBoundingClientRect().width===16,href:link.getAttribute('href')};
-        }));
+        }), mode);
+        if (sidebar.some(row => row.missing)) {
+          await fs.writeFile(path.join(output, 'missing-sidebar.json'), JSON.stringify({ locale, width, mode, sidebar,
+            requests: await worker.evaluate(() => globalThis.cardRequests.filter(source => /Extension|Store|Submission/.test(source))),
+            html: await page.locator('.sidebar-regression').innerHTML() }, null, 2));
+        }
         assert.deepEqual(sidebar.map(row=>row.text),['扩展概述','商店条目','提交状态']);
         assert.ok(sidebar.every(row=>row.visible&&row.iconVisible&&row.display!=='none'&&row.fontSize>0&&row.visibility==='visible'&&row.opacity==='1'),
           JSON.stringify({locale,width,mode,sidebar}));
         assert.deepEqual(sidebar.map(row=>row.href),['/overview','/listing','/submission']);
         assert.equal(await page.locator("#list-layout li > .wupage-translation").count(), 0);
-        assert.equal(await page.locator(".layout-link .wupage-translation").count(), 5);
+        assert.equal(await page.locator(".layout-link").evaluateAll(nodes => nodes.filter(node =>
+          node.querySelector('.wupage-translation') || node.hasAttribute('data-wupage-translated')).length), 5);
         assert.deepEqual(await page.locator(".layout-link").evaluateAll(nodes => nodes.map(node => ({
           href: node.getAttribute("href"), color: getComputedStyle(node).color
         }))), listLinks);
         const listLayout = await page.locator(".layout-link").evaluateAll(nodes => nodes.map(node => {
-          const translation = node.querySelector(".wupage-translation");
+          const translation = node.querySelector(".wupage-translation") ?? node;
           const box = node.getBoundingClientRect();
           const insideLink = [...translation.getClientRects()].every(rect => rect.left >= box.left - 1
             && rect.right <= box.right + 1 && rect.top >= box.top - 1 && rect.bottom <= box.bottom + 1);
@@ -238,13 +259,13 @@ try {
           return { insideLink, insideRow: box.right <= row.right + 1, color: getComputedStyle(translation).color };
         }));
         assert.ok(listLayout.every(row => row.insideLink && row.insideRow), JSON.stringify({ locale, width, mode, listLayout }));
-        assert.deepEqual(await page.locator(".author a").evaluateAll(nodes => nodes.map(node => node.getAttribute("href"))),
+        assert.deepEqual(await page.locator(".author a").evaluateAll(nodes => nodes.filter(node => !node.closest('.wupage-translation')).map(node => node.getAttribute("href"))),
           ["/user/developer", "/user/developer"]);
         assert.equal(await page.locator("main").evaluate(node => node.scrollWidth > node.clientWidth + 1), false);
         const tier = await page.locator(".tier-control").evaluate(button => {
-          const output = button.querySelector(".wupage-translation");
+          const output = button.querySelector(".wupage-translation") ?? button.querySelector('.tier-label[data-wupage-translated]');
           const rect = button.getBoundingClientRect(), translated = output.getBoundingClientRect();
-          return { text: output.textContent, field: output.parentElement.dataset.component,
+          return { text: output.textContent, field: output.closest('[data-component="text"]')?.dataset.component,
             singleLine: translated.height <= Number.parseFloat(getComputedStyle(button).lineHeight),
             fits: translated.left >= rect.left && translated.right <= rect.right && translated.top >= rect.top && translated.bottom <= rect.bottom,
             fontSize: getComputedStyle(output).fontSize, expanded: button.getAttribute("aria-expanded") };
@@ -280,8 +301,12 @@ try {
             [translations[0][1], translations[1][1]]);
         }
         for (const [selector, text, size] of [["#model-label", "自动", "14px"], ["#model-description", "针对平衡进行了优化", "12px"]]) {
-          assert.equal(await page.locator(`${selector} .wupage-translation`).textContent(), text);
-          if (mode === "replace") assert.equal(await page.locator(`${selector} .wupage-translation`).evaluate(node => getComputedStyle(node).fontSize), size);
+          const rendered = await page.locator(selector).evaluate(label => {
+            const output = label.querySelector('.wupage-translation') ?? label;
+            return { text: output.textContent, fontSize: getComputedStyle(output).fontSize };
+          });
+          assert.equal(rendered.text, text);
+          if (mode === "replace") assert.equal(rendered.fontSize, size);
         }
         assert.equal(await page.locator(".model-list li > .wupage-translation,.action-content > .wupage-translation,.action-subcontent > .wupage-translation").count(), 0);
         assert.deepEqual(await page.locator(".model-list li").evaluate(node => ["role", "aria-checked", "tabindex", "aria-labelledby", "aria-describedby"].map(name => node.getAttribute(name))),
@@ -306,8 +331,8 @@ try {
     assert.equal(await page.locator("main").innerHTML(), original);
   }
   const requests = await worker.evaluate(() => globalThis.cardRequests);
-  assert.ok(requests.some(source => source.startsWith("Page title: 模组列表")), "Exercise combined language detection");
-  assert.ok(requests.includes(summary), "Retry the untranslated description independently");
+  assert.ok(requests.some(source => source.startsWith("<pre><a i=0>Page title: 模组列表")), "Exercise combined language detection");
+  assert.ok(requests.includes(`<pre>${summary}</pre>`), "Retry the untranslated description independently");
   assert.deepEqual(errors, []);
   await fs.writeFile(path.join(output, "report.json"), JSON.stringify({ ...identity, reports, errors }, null, 2));
   console.log("PASS: localized card pages; 12 locale/viewport/mode combinations, sidebar font-icon rows and hidden-span styles, title and recovered typography, stable dynamic counts, author links, icon/link rows, tag labels, mixed-language recovery and source restoration");

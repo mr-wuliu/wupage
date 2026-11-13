@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createProvider } from "../src/background/providers";
+import { googleHtmlReply, withGoogleAuth } from "./helpers/google-web";
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -21,15 +22,15 @@ describe.each(["free", "api"] as const)("Traditional Chinese in %s mode", servic
   });
 
   it.each(languagePairs)("keeps Google's regional codes for $sourceLang → $targetLang", async pair => {
-    const payload = serviceMode === "free" ? [[["譯文"]]] : { data: { translations: [{ translatedText: "譯文" }] } };
-    const fetchMock = vi.fn(async (_url: string, _init?: RequestInit) => new Response(JSON.stringify(payload)));
-    vi.stubGlobal("fetch", fetchMock);
+    const fetchMock = vi.fn(async (_url: string, _init?: RequestInit) => serviceMode === "free" ? googleHtmlReply("<pre>譯文</pre>")
+      : new Response(JSON.stringify({ data: { translations: [{ translatedText: "譯文" }] } })));
+    vi.stubGlobal("fetch", withGoogleAuth(fetchMock));
     const provider = createProvider({ type: "google-web-translate", id: "google", label: "Google", serviceMode, api: credentials });
     await expect(provider.translateBatch({ texts: ["原文"], ...pair })).resolves.toEqual(["譯文"]);
     const [url, init] = fetchMock.mock.calls[0];
     if (serviceMode === "free") {
-      expect(new URL(url).searchParams.get("sl")).toBe(pair.sourceLang);
-      expect(new URL(url).searchParams.get("tl")).toBe(pair.targetLang);
+      expect(new URL(url).hostname).toBe("translate-pa.googleapis.com");
+      expect(JSON.parse(String(init?.body))[0].slice(1)).toEqual([pair.sourceLang, pair.targetLang]);
     } else {
       expect(JSON.parse(String(init?.body))).toMatchObject({ source: pair.sourceLang, target: pair.targetLang });
     }

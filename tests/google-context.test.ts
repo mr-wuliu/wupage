@@ -1,57 +1,58 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { alignGoogleContext, googleContextSource } from "../src/background/google-context";
+import { googleHtmlSource, parseGoogleHtml } from "../src/background/google-context";
 import { createProvider } from "../src/background/providers";
+import { googleHtmlReply, withGoogleAuth } from "./helpers/google-web";
 
 afterEach(() => vi.unstubAllGlobals());
-describe("Google original-segment alignment", () => {
-  const texts = ["First sentence. Another sentence.", "Repeated.", "Repeated."];
-  it("collects split sentences and repeated paragraphs while discarding reference text", () => {
-    const { source, ranges } = googleContextSource("Page title: Test", texts);
-    expect(alignGoogleContext([[
-      ["页面标题：测试\n\n", "Page title: Test\n\n"],
-      ["第一句。", "First sentence. "], ["另一句。\n\n", "Another sentence.\n\n"],
-      ["重复一。\n\n", "Repeated.\n\n"], ["重复二。", "Repeated."]
-    ]], source, ranges)).toEqual(["第一句。另一句。", "重复一。", "重复二。"]);
+
+describe("Google HTML paragraph alignment", () => {
+  it("escapes source HTML and literal entities before adding indexed context", () => {
+    expect(googleHtmlSource(['Use <div> &lt; & "quotes"', "Repeated.", "Repeated."], "Title"))
+      .toEqual(['<pre><a i=0>Title</a>\n\n<a i=1>Use &lt;div&gt; &amp;lt; &amp; &quot;quotes&quot;</a>\n\n<a i=2>Repeated.</a>\n\n<a i=3>Repeated.</a></pre>']);
+    expect(googleHtmlSource(["One", "Two"])).toEqual(["<pre>One</pre>", "<pre>Two</pre>"]);
   });
-  it("rejects rewritten original text, missing segments and translations spanning multiple paragraphs", () => {
-    const { source, ranges } = googleContextSource("Topic", ["First.", "Second."]);
-    for (const payload of [null, {}, [], [null], [[null]], [[["译文"]]]])
-      expect(alignGoogleContext(payload, source, ranges)).toEqual([undefined, undefined]);
-    expect(alignGoogleContext([[["整段", source]]], source, ranges)).toEqual([undefined, undefined]);
-    expect(alignGoogleContext([[["标题", "Topic"], ["第二句", "Second."]]], source, ranges)).toEqual([undefined, undefined]);
-    expect(alignGoogleContext([[["标题", "Topic"]]], source, ranges)).toEqual([undefined, undefined]);
-    expect(alignGoogleContext([[["标题", "Topic"], ["第一句", "First."]]], source, ranges)).toEqual(["第一句", undefined]);
+
+  it("bounds reference text and drops excerpts for long batches", () => {
+    expect(googleHtmlSource(["Hello"], "x".repeat(2000))[0]).not.toContain("x".repeat(801));
+    expect(googleHtmlSource(["x".repeat(300)], "Title\nPrivate excerpt")[0]).not.toContain("Private excerpt");
   });
-  it("retries only paragraphs that cannot be aligned and never sends fragile segment markers", async () => {
-    const fetchMock = vi.fn(async (url: string) => {
-      const source = new URL(url).searchParams.get("q")!;
-      expect(source).not.toContain("WUPAGESEGMENT");
-      return new Response(JSON.stringify([source === "Second." ? [["第二句。", source]] : [
-        ["话题\n\n", "Topic\n\n"], ["第一句。", "First."]
-      ]]));
-    });
-    vi.stubGlobal("fetch", fetchMock);
+
+  it("discards reference/source spans and collects split translations at the same index", () => {
+    expect(parseGoogleHtml([["<pre><b><a i=0>标题</a>\n\n<a i=1>第一句。</a></b><i>Title First.</i><b><a i=1>另一句。</a>\n\n<a i=2>重复一。</a>\n\n<a i=3>重复二。</a></b></pre>"]], 3, true))
+      .toEqual(["第一句。另一句。", "重复一。", "重复二。"]);
+  });
+
+  it("decodes exactly once after stripping transport markup without using DOMParser", () => {
+    vi.stubGlobal("DOMParser", undefined);
+    expect(parseGoogleHtml([["<pre><b>使用 &lt;div&gt;、&amp;lt;、&#x1f408;。</b><i>Use &lt;div&gt; literally.</i><br>下一行</pre>"]], 1, false))
+      .toEqual(["使用 <div>、&lt;、🐈。\n下一行"]);
+    expect(parseGoogleHtml([["<pre>&#999999999; &#xD800;</pre>"]], 1, false)).toEqual(["&#999999999; &#xD800;"]);
+  });
+
+  it.each([
+    "<pre>Title and both paragraphs merged</pre>",
+    "<pre><a i=0>标题</a><a i=1>第一句</a></pre>",
+    "<pre><a i=0>标题</a><a i=2>第二句</a><a i=1>第一句</a></pre>",
+    "<pre><a i=0>标题</a><a i=1>第一句</a>漂移译文<a i=2>第二句</a></pre>",
+    "<pre><a i=0>标题</a><a i=1>第一句<a i=2>第二句</a></pre>",
+    '<script>alert(1)</script><a i=0>标题</a><a i=1>一</a><a i=2>二</a>',
+    "<pre><a i=0>标题</a><a i=99>错误编号</a></pre>"
+  ])("rejects missing, reordered or ambiguous paragraphs: %s", html => {
+    expect(parseGoogleHtml([[html]], 2, true)).toBeUndefined();
+  });
+
+  it.each([null, {}, [], [null], [[null]], [[""]], [["One", "Extra"]]])("rejects malformed payloads: %j", payload => {
+    expect(parseGoogleHtml(payload, 1, false)).toBeUndefined();
+  });
+
+  it("falls back as a batch if paragraph markers are lost, never displaying reference text", async () => {
+    const fetch = vi.fn(async (url: string) => url.includes("/translateHtml")
+      ? googleHtmlReply("<pre>参考内容与正文合并了</pre>") : new Response(JSON.stringify(["第一句", "第二句"])));
+    vi.stubGlobal("fetch", withGoogleAuth(fetch));
     const provider = createProvider({ type: "google-web-translate", id: "google", label: "Google" });
     await expect(provider.translateBatch({ texts: ["First.", "Second."], context: "Topic", sourceLang: "en", targetLang: "zh-CN" }))
-      .resolves.toEqual(["第一句。", "第二句。"]);
-    expect(fetchMock.mock.calls.map(([url]) => new URL(url).searchParams.get("q"))).toEqual(["Topic\n\nFirst.\n\nSecond.", "Second."]);
-  });
-  it("does not turn rate limits into extra fallback requests", async () => {
-    const fetchMock = vi.fn(async () => new Response("Limited", { status: 429 }));
-    vi.stubGlobal("fetch", fetchMock);
-    const provider = createProvider({ type: "google-web-translate", id: "google", label: "Google" });
-    await expect(provider.translateBatch({ texts: ["First."], context: "Topic", targetLang: "zh-CN" })).rejects.toThrow("429");
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-  });
-  it("cancels an unalignable response before starting paragraph fallbacks", async () => {
-    const controller = new AbortController();
-    const fetchMock = vi.fn(async () => {
-      controller.abort();
-      return new Response(JSON.stringify([[["整段译文", "Topic\n\nFirst."]]]));
-    });
-    vi.stubGlobal("fetch", fetchMock);
-    const provider = createProvider({ type: "google-web-translate", id: "google", label: "Google" });
-    await expect(provider.translateBatch({ texts: ["First."], context: "Topic", targetLang: "zh-CN" }, controller.signal)).rejects.toThrow();
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+      .resolves.toEqual(["第一句", "第二句"]);
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(new URL(fetch.mock.calls[1][0]).searchParams.getAll("q")).toEqual(["First.", "Second."]);
   });
 });

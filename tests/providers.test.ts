@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createProvider } from "../src/background/providers";
+import { googleHtmlReply, withGoogleAuth } from "./helpers/google-web";
 
 describe("MicrosoftWebTranslateProvider", () => {
   const provider = createProvider({
@@ -146,12 +147,9 @@ describe("GoogleWebTranslateProvider", () => {
     vi.unstubAllGlobals();
   });
 
-  it("calls the Google web endpoint without an API key", async () => {
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => [[["你好", "hello", null, null]]]
-    });
-    vi.stubGlobal("fetch", fetchMock);
+  it("calls the preferred Google HTML endpoint without user Cloud credentials", async () => {
+    const fetchMock = vi.fn(async () => googleHtmlReply("<pre>你好</pre>"));
+    vi.stubGlobal("fetch", withGoogleAuth(fetchMock));
 
     const provider = createProvider({
       type: "google-web-translate",
@@ -167,30 +165,24 @@ describe("GoogleWebTranslateProvider", () => {
       })
     ).resolves.toEqual(["你好"]);
 
-    const [url] = fetchMock.mock.calls[0] as [string, RequestInit?];
-    expect(url).toContain("https://translate.googleapis.com/translate_a/single");
-    expect(url).toContain("client=gtx");
-    expect(url).toContain("sl=en");
-    expect(url).toContain("tl=zh-CN");
-    expect(url).toContain("q=hello");
-    expect(url).not.toContain("key=");
+    const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toBe("https://translate-pa.googleapis.com/v1/translateHtml");
+    expect(JSON.parse(String(init.body))).toEqual([[["<pre>hello</pre>"], "en", "zh-CN"], "te"]);
   });
 
   it("limits concurrent web requests for large PDF batches", async () => {
     vi.useFakeTimers();
     let inFlight = 0;
     let maxInFlight = 0;
-    const fetchMock = vi.fn(async () => {
+    const fetchMock = vi.fn(async (_url: string, init: RequestInit) => {
       inFlight += 1;
       maxInFlight = Math.max(maxInFlight, inFlight);
       await new Promise((resolve) => globalThis.setTimeout(resolve, 100));
       inFlight -= 1;
-      return {
-        ok: true,
-        json: async () => [[["译文", "source", null, null]]]
-      };
+      const inputs = JSON.parse(String(init.body))[0][0] as string[];
+      return googleHtmlReply(...inputs.map(() => "<pre>译文</pre>"));
     });
-    vi.stubGlobal("fetch", fetchMock);
+    vi.stubGlobal("fetch", withGoogleAuth(fetchMock));
     const provider = createProvider({
       type: "google-web-translate",
       id: "google-web",
@@ -198,7 +190,7 @@ describe("GoogleWebTranslateProvider", () => {
     });
 
     const request = provider.translateBatch({
-      texts: Array.from({ length: 12 }, (_, index) => `text ${index}`),
+      texts: Array.from({ length: 12 }, (_, index) => `text ${index} ${"source ".repeat(400)}`),
       sourceLang: "en",
       targetLang: "zh-CN"
     });

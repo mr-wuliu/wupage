@@ -81,7 +81,7 @@ async function translateConfigured(
   // provider or tuning its concurrency must not discard the whole cache.
   const cacheProviderId = useCache
     ? `${providerId}.${await sha256(JSON.stringify({ version: CACHE_KEY_VERSION, provider: cacheStableProviderConfig(providerConfig), sourceLang: request.sourceLang ?? "auto",
-      ...(providerConfig.type === "google-web-translate" && providerConfig.serviceMode !== "api" ? { googleContextVersion: 1 } : {}),
+      ...(providerConfig.type === "google-web-translate" && providerConfig.serviceMode !== "api" ? { googleContextVersion: 2 } : {}),
       ...(providerConfig.type === "firefox-local" ? { models: LOCAL_MODELS.map(({ id, version }) => [id, version]) } : {}),
       ...(providerConfig.type === "doubao-web" ? { doubaoProtocolVersion: DOUBAO_PROTOCOL_VERSION, translateService: "1" } : {}),
       // Bump the style version when its built-in translation instructions change.

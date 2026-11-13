@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { createProvider } from "../src/background/providers";
 import { signVolcengineTranslation } from "../src/background/volcengine-signing";
 import { normalizeSettings } from "../src/shared/settings";
+import { withGoogleAuth } from "./helpers/google-web";
 
 const types = ["microsoft-web-translate", "google-web-translate", "tencent-transmart", "yandex-web-translate", "volcengine-web-translate", "mymemory"] as const;
 const request = { texts: ["Hello"], sourceLang: "en", targetLang: "zh-CN" };
@@ -26,12 +27,12 @@ describe("translation service modes", () => {
   it.each(types)("defaults %s to free without sending saved API credentials", async type => {
     const provider = createProvider({ type, id: type, label: type, api: credentials });
     const freePayload = type === "microsoft-web-translate" ? responses[type]
-      : type === "google-web-translate" ? [[["你好"]]]
+      : type === "google-web-translate" ? [["<pre>你好</pre>"]]
         : type === "tencent-transmart" ? { header: { ret_code: "succ" }, auto_translation: ["你好"] }
           : type === "yandex-web-translate" ? { code: 200, text: ["你好"] }
             : type === "volcengine-web-translate" ? { base_resp: { status_code: 0 }, translation: "你好" } : responses[type];
     const fetchMock = vi.fn(async (_url: string, _init: RequestInit) => new Response(JSON.stringify(freePayload)));
-    vi.stubGlobal("fetch", fetchMock);
+    vi.stubGlobal("fetch", withGoogleAuth(fetchMock));
     expect(provider.validateConfig()).toEqual({ ok: true });
     await expect(provider.translateBatch(request)).resolves.toEqual(["你好"]);
     const serialized = JSON.stringify(fetchMock.mock.calls);
