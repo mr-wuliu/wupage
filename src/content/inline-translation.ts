@@ -11,6 +11,8 @@ interface Snapshot {
   children: Node[];
   expected: Node[];
   attributes: string;
+  prefix: Node[];
+  suffix: Node[];
 }
 interface Piece { text?: string; id?: number; atom?: number; children?: Piece[] }
 interface ProtectedInlineNode { marker: string; sourceNode: Node }
@@ -24,6 +26,7 @@ export class InlineTranslationPlan {
   private readonly snapshots: Snapshot[] = [];
   private readonly originals = new Map<Text, string>();
   private readonly expectedText = new Map<Text, string>();
+  private readonly comments = new Map<Comment, string>();
   private readonly added = new Set<Text>();
   private applied = false;
 
@@ -39,8 +42,21 @@ export class InlineTranslationPlan {
     const flows = new TextFlowSnapshot();
     const read = (element: Element): string => {
       const nodes = children(element);
-      this.snapshots.push({ element, children: nodes, expected: nodes, attributes: attributes(element) });
-      return nodes.map(node => {
+      // Edge comments can be disabled markup or framework region anchors.
+      // Keep them and their whitespace fixed outside the translated range;
+      // comments between words still make the tree unsafe to reorder.
+      const boundary = (node: Node) => node.nodeType === Node.COMMENT_NODE || node instanceof Text && !node.data.trim();
+      let start = 0, end = nodes.length;
+      while (start < end && boundary(nodes[start])) start++;
+      while (end > start && boundary(nodes[end - 1])) end--;
+      const prefix = nodes.slice(0, start).some(node => node.nodeType === Node.COMMENT_NODE) ? nodes.slice(0, start) : [];
+      const suffix = nodes.slice(end).some(node => node.nodeType === Node.COMMENT_NODE) ? nodes.slice(end) : [];
+      for (const node of [...prefix, ...suffix]) {
+        if (node instanceof Comment) this.comments.set(node, node.data);
+        if (node instanceof Text) { this.originals.set(node, node.data); this.expectedText.set(node, node.data); }
+      }
+      this.snapshots.push({ element, children: nodes, expected: nodes, attributes: attributes(element), prefix, suffix });
+      return nodes.slice(prefix.length, nodes.length - suffix.length).map(node => {
         if (node instanceof Element && protectedByNode.has(node)) {
           const marker = protectedByNode.get(node)!;
           this.atoms.set(Number(/\d+/u.exec(marker)![0]), node);
@@ -78,6 +94,7 @@ export class InlineTranslationPlan {
     return this.block.isConnected && this.hasExpectedChildren()
       && this.snapshots.every(snapshot => attributes(snapshot.element) === snapshot.attributes)
       && [...this.expectedText].every(([node, value]) => node.data === value)
+      && [...this.comments].every(([node, value]) => node.data === value)
       && [...this.atomMarkup].every(([node, html]) => node.outerHTML === html);
   }
 
@@ -129,7 +146,8 @@ export class InlineTranslationPlan {
     const previousAdded = [...this.added];
     const update = (element: Element, items: Piece[]) => {
       const snapshot = this.snapshots.find(entry => entry.element === element)!;
-      const pool = snapshot.children.filter((node): node is Text => node instanceof Text);
+      const pool = snapshot.children.slice(snapshot.prefix.length, snapshot.children.length - snapshot.suffix.length)
+        .filter((node): node is Text => node instanceof Text);
       const output: Node[] = items.map(piece => {
         if (piece.atom !== undefined) return this.atoms.get(piece.atom)!;
         if (piece.id !== undefined) {
@@ -144,9 +162,10 @@ export class InlineTranslationPlan {
         return node;
       });
       // Keep surplus original Text nodes (including empty nodes held by a UI
-      // framework) and comments attached to their original parent.
+      // framework) attached inside their original comment boundaries.
       for (const node of pool) { node.data = ""; this.expectedText.set(node, ""); output.push(node); }
-      output.push(...snapshot.children.filter(node => node.nodeType === Node.COMMENT_NODE));
+      output.unshift(...snapshot.prefix);
+      output.push(...snapshot.suffix);
       const extras = [...element.childNodes].filter(owned);
       const next = [...output, ...extras], current = [...element.childNodes];
       if (next.length !== current.length || next.some((node, index) => node !== current[index])) {
