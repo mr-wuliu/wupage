@@ -29,10 +29,13 @@ describe("shortcut configuration", () => {
     });
     for (const value of [null, [], 123, "invalid"]) expect(normalizeShortcuts(value)).toEqual(DEFAULT_SHORTCUTS);
   });
-  it("rejects incomplete and repeated modifiers and preserves physical-key names", () => {
-    expect(canonicalShortcut("Shift+Alt+7")).toBe("Alt+Shift+7");
-    expect(canonicalShortcut("Ctrl+F8")).toBe("Ctrl+F8");
-    for (const value of ["Shift+Y", "Y", "Alt+Alt+Y", "Alt+KeyY", "Alt+Escape", "Alt+Plus", false]) {
+  it("normalizes single keys and chords while rejecting malformed bindings", () => {
+    for (const [input, expected] of [
+      ["Y", "Y"], ["Shift+Y", "Shift+Y"], ["Ctrl+F8", "Ctrl+F8"], ["Alt+Escape", "Alt+Escape"],
+      ["Shift+Alt+7", "Alt+Shift+7"], ["Meta+Shift+Alt+Ctrl+Slash", "Ctrl+Alt+Shift+Meta+Slash"],
+      ["NumpadAdd", "NumpadAdd"], ["F24", "F24"]
+    ]) expect(canonicalShortcut(input)).toBe(expected);
+    for (const value of ["Shift", "Y+J", "Alt+Alt+Y", "Alt+KeyY", "Alt+Plus", "F25", false]) {
       expect(canonicalShortcut(value)).toBeUndefined();
     }
   });

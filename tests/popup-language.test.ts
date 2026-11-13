@@ -191,8 +191,10 @@ describe("popup language controls", () => {
 
     query<HTMLButtonElement>("#openGithub").click();
     query<HTMLButtonElement>("#openWebsite").click();
+    query<HTMLButtonElement>("#openSupport").click();
     expect(createTab).toHaveBeenCalledWith({ url: "https://github.com/mr-wuliu/wupage" });
     expect(createTab).toHaveBeenCalledWith({ url: "https://wupage.mrwuliu.top/" });
+    expect(createTab).toHaveBeenCalledWith({ url: "https://wupage.mrwuliu.top/#pricing" });
     createTab.mockClear();
 
     vi.spyOn(window, "close").mockImplementation(() => undefined);

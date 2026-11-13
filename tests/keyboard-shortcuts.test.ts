@@ -54,6 +54,18 @@ describe("configurable page keyboard shortcuts", () => {
     expect(press(document.body, { key: "J", code: "KeyJ" }).defaultPrevented).toBe(false);
     expect(press().defaultPrevented).toBe(false); expect(execute).toHaveBeenCalledOnce();
   });
+  it("matches single physical keys and exact chords with more than two modifiers", () => {
+    controller.update({ ...DEFAULT_SHORTCUTS, "toggle-page-translation": "Semicolon", "cycle-display-mode": "Ctrl+Alt+Shift+Numpad1" });
+    const single = { key: "ö", code: "Semicolon", altKey: false, shiftKey: false };
+    expect(press(document.querySelector("textarea")!, single).defaultPrevented).toBe(false);
+    expect(press(document.body, single).defaultPrevented).toBe(true);
+    expect(execute).toHaveBeenLastCalledWith("toggle-page-translation");
+    const chord = { key: "End", code: "Numpad1", ctrlKey: true };
+    expect(press(document.body, { ...chord, ctrlKey: false }).defaultPrevented).toBe(false);
+    expect(press(document.body, chord).defaultPrevented).toBe(true);
+    expect(execute).toHaveBeenLastCalledWith("cycle-display-mode");
+    expect(execute).toHaveBeenCalledTimes(2);
+  });
   it("uses physical letter keys and ignores held keys and composition", () => {
     controller.update(DEFAULT_SHORTCUTS);
     press(document.body, { key: "译" }); expect(execute).toHaveBeenCalledOnce();

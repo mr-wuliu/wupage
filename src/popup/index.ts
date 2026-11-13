@@ -51,9 +51,11 @@ const clearCacheButton = query<HTMLButtonElement>("#clearCache");
 const optionsButton = query<HTMLButtonElement>("#openOptions");
 const githubButton = query<HTMLButtonElement>("#openGithub");
 const websiteButton = query<HTMLButtonElement>("#openWebsite");
+const supportButton = query<HTMLButtonElement>("#openSupport");
 const moreFeaturesButton = query<HTMLButtonElement>("#moreFeatures");
 const GITHUB_URL = "https://github.com/mr-wuliu/wupage";
 const WEBSITE_URL = "https://wupage.mrwuliu.top/";
+const SUPPORT_URL = `${WEBSITE_URL}#pricing`;
 
 let settings: ExtensionSettings;
 let paragraphMode = false;
@@ -218,6 +220,9 @@ async function init(): Promise<void> {
   });
   websiteButton.addEventListener("click", () => {
     void chrome.tabs.create({ url: WEBSITE_URL });
+  });
+  supportButton.addEventListener("click", () => {
+    void chrome.tabs.create({ url: SUPPORT_URL });
   });
   let syncing = false;
   const timer = !activeTabIsPdf && pageTranslationAvailable && activeTab?.id

@@ -1,9 +1,10 @@
 import { t } from "../shared/i18n";
-import { DEFAULT_SHORTCUTS, DEFAULT_SHORTCUT_ENABLED, formatShortcut, normalizeShortcutEnabled, normalizeShortcuts, shortcutFromEvent, shortcutWarning,
+import { DEFAULT_SHORTCUTS, DEFAULT_SHORTCUT_ENABLED, formatShortcut, normalizeShortcutEnabled, normalizeShortcuts, shortcutWarning,
   TRANSLATION_SHORTCUTS, type ShortcutEnabledSettings, type ShortcutSettings, type TranslationShortcut } from "../shared/shortcuts";
 import { setupLocalShortcutSettings } from "./local-shortcuts";
 import type { LocalShortcutSettings } from "../shared/local-shortcuts";
 import { showActionStatus } from "./action-feedback";
+import { setupShortcutRecorder } from "./shortcut-recorder";
 
 export function setupShortcutSettings(root: HTMLElement): {
   render: (value: unknown, enabled?: unknown, local?: unknown) => void;
@@ -21,7 +22,7 @@ export function setupShortcutSettings(root: HTMLElement): {
   let ready = false;
   let recording: TranslationShortcut | undefined;
   let localControls: ReturnType<typeof setupLocalShortcutSettings> | undefined;
-  const rows = new Map<TranslationShortcut, { input: HTMLInputElement; error: HTMLElement; reset: HTMLButtonElement }>();
+  const rows = new Map<TranslationShortcut, { input: HTMLInputElement; error: HTMLElement; reset: HTMLButtonElement; refreshRecorder: (active: boolean) => void }>();
   const switches = new Map<keyof ShortcutEnabledSettings, { button: HTMLButtonElement; row: HTMLElement }>();
 
   function createSwitch(name: keyof ShortcutEnabledSettings, label: string, row: HTMLElement): HTMLButtonElement {
@@ -50,6 +51,7 @@ export function setupShortcutSettings(root: HTMLElement): {
       row.input.parentElement!.style.setProperty("--shortcut-width", `${Math.max(10, characters)}ch`);
       row.input.disabled = !ready;
       row.input.dataset.recording = String(recording === name);
+      row.refreshRecorder(recording === name);
       row.reset.disabled = !ready || values[name] === DEFAULT_SHORTCUTS[name];
       if (!row.input.hasAttribute("aria-invalid")) row.error.textContent = shortcutWarning(values[name]) ?? "";
     }
@@ -90,7 +92,6 @@ export function setupShortcutSettings(root: HTMLElement): {
     input.id = label.htmlFor; input.type = "text"; input.readOnly = true; input.disabled = true;
     input.autocomplete = "off"; input.spellcheck = false; input.dataset.command = shortcut.name;
     input.setAttribute("aria-describedby", `shortcut-error-${shortcut.name} shortcutRecorderHelp`);
-    input.title = t("clickAndPressACombinationEscCancelsBackspace");
     const error = document.createElement("span"); error.id = `shortcut-error-${shortcut.name}`;
     error.className = "shortcut-error"; error.setAttribute("role", "status");
     field.append(input, error);
@@ -98,36 +99,27 @@ export function setupShortcutSettings(root: HTMLElement): {
     reset.dataset.settingsFeedback = "";
     reset.setAttribute("aria-label", t("restoreDefaultShortcutFor", shortcut.label));
     actions.append(field, reset, createSwitch(shortcut.name, shortcut.label, row)); row.append(title, actions); bindings.append(row);
-    rows.set(shortcut.name, { input, error, reset });
-
-    input.addEventListener("focus", () => {
-      recording = shortcut.name;
-      status.textContent = t("pressANewCombinationEscCancelsBackspaceOr");
-      refresh();
-    }, { signal: events.signal });
-    input.addEventListener("blur", () => {
-      if (recording !== shortcut.name) return;
-      recording = undefined; refresh();
-      status.textContent = t("clickAShortcutFieldToRecordKeysThen");
-    }, { signal: events.signal });
-    input.addEventListener("keydown", event => {
-      if (event.isComposing || event.keyCode === 229 || event.getModifierState("AltGraph")) return;
-      if (event.key === "Tab" && !event.ctrlKey && !event.altKey && !event.metaKey) return;
-      event.preventDefault(); event.stopPropagation();
-      if (event.repeat) return;
-      if (["Control", "Shift", "Alt", "Meta", "OS"].includes(event.key)) return;
-      if (event.key === "Escape") {
-        recording = undefined; error.textContent = ""; input.removeAttribute("aria-invalid");
-        refresh(); input.blur(); status.textContent = t("recordingCanceledPreviousShortcutKept"); return;
-      }
-      const clearing = ["Backspace", "Delete"].includes(event.key) && !event.ctrlKey && !event.altKey && !event.shiftKey && !event.metaKey;
-      const value = clearing ? "" : shortcutFromEvent(event);
-      if (value === undefined) {
-        error.textContent = t("combineCtrlAltOrCommandWithALetter");
-        input.setAttribute("aria-invalid", "true"); status.textContent = error.textContent; return;
-      }
-      if (apply(shortcut.name, value)) input.blur();
-    }, { signal: events.signal });
+    const refreshRecorder = setupShortcutRecorder(input, {
+      start() {
+        recording = shortcut.name;
+        status.textContent = t("pressAShortcutEscCancelsAndDeleteClears");
+        refresh();
+      },
+      stop(canceled) {
+        if (recording !== shortcut.name) return;
+        recording = undefined;
+        if (canceled) input.removeAttribute("aria-invalid");
+        refresh();
+        status.textContent = t(canceled ? "recordingCanceledPreviousShortcutKept" : "clickAShortcutFieldToRecordKeysThen");
+      },
+      apply: value => apply(shortcut.name, value),
+      invalid() {
+        error.textContent = t("shortcutKeyUnavailable");
+        input.setAttribute("aria-invalid", "true"); status.textContent = error.textContent;
+      },
+      status, signal: events.signal
+    });
+    rows.set(shortcut.name, { input, error, reset, refreshRecorder });
     reset.addEventListener("click", () => {
       if (apply(shortcut.name, DEFAULT_SHORTCUTS[shortcut.name])) showActionStatus(status, status.textContent ?? "");
     }, { signal: events.signal });

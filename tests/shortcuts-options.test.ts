@@ -106,11 +106,32 @@ describe("in-page shortcut editor", () => {
     expect(binding().value).toBe("");
   });
   it.each([
-    ["y", "KeyY", {}], ["Y", "KeyY", { shiftKey: true }]
-  ])("rejects unmodified combinations %s %j", (key, code, modifiers) => {
+    ["y", "KeyY", {}, "Y", "Y"],
+    ["?", "Slash", { shiftKey: true }, "Shift+Slash", "Shift＋/"],
+    ["Delete", "NumpadDecimal", {}, "NumpadDecimal", "Num Decimal"],
+    ["K", "KeyK", { ctrlKey: true, shiftKey: true, altKey: true, metaKey: true }, "Ctrl+Alt+Shift+Meta+K", "Ctrl＋Alt＋Shift＋Win＋K"]
+  ])("records %s from %s with %j", (key, code, modifiers, value, label) => {
+    vi.spyOn(navigator, "platform", "get").mockReturnValue("Win32");
     mount(); binding().focus(); press(key, code, modifiers);
-    expect(binding().getAttribute("aria-invalid")).toBe("true");
-    expect(controls.read()).toEqual(DEFAULT_SHORTCUTS);
+    expect(binding().hasAttribute("aria-invalid")).toBe(false);
+    expect(binding().value).toBe(label);
+    expect(controls.read()["toggle-page-translation"]).toBe(value);
+  });
+  it("allows special keys to be assigned while keeping Tab navigation and Delete clearing in the normal recorder", () => {
+    mount(); const input = binding();
+    const special = input.parentElement!.querySelector<HTMLButtonElement>(".shortcut-special-keys")!;
+    expect(special.hidden).toBe(true);
+    input.focus();
+    expect(press("Tab").defaultPrevented).toBe(false);
+    special.focus(); expect(special.hidden).toBe(false);
+    special.click(); expect(document.activeElement).toBe(input);
+    expect(press("Tab").defaultPrevented).toBe(true);
+    expect(controls.read()["toggle-page-translation"]).toBe("Tab");
+    expect(special.hidden).toBe(true);
+    input.focus(); special.click(); press("Delete");
+    expect(controls.read()["toggle-page-translation"]).toBe("Delete");
+    input.focus(); press("Delete");
+    expect(controls.read()["toggle-page-translation"]).toBe("");
   });
   it.each([
     ["c", "KeyC", { ctrlKey: true }, "Ctrl+C"],
@@ -175,7 +196,7 @@ describe("in-page shortcut editor", () => {
     expect(controls.readEnabled()["selection-submit"]).toBe(true);
     const dismiss = root.querySelector<HTMLInputElement>('[data-local-command="dismiss-overlays"]')!;
     dismiss.focus(); press("Enter", "Enter", { altKey: true });
-    dismiss.focus(); root.querySelector<HTMLButtonElement>('[data-local-escape="dismiss-overlays"]')!.click();
+    dismiss.focus(); dismiss.parentElement!.querySelector<HTMLButtonElement>(".shortcut-special-keys")!.click(); press("Escape");
     expect(controls.readLocal()["dismiss-overlays"]).toBe("Escape");
     controls.reset();
     expect(controls.readLocal()["paragraph-click"]).toBe("Ctrl");

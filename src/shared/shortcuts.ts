@@ -1,5 +1,6 @@
 import { t } from "./i18n";
 import { normalizeLocalShortcuts } from "./local-shortcuts";
+import { canonicalShortcutChord, isPrintableShortcutKey, shortcutKeyLabel } from "./shortcut-keys";
 
 export const TRANSLATION_SHORTCUTS = [
   { name: "toggle-page-translation", get label() { return t("translatePageRestoreOriginal"); } },
@@ -31,28 +32,8 @@ export const DEFAULT_SHORTCUTS: ShortcutSettings = {
   "cycle-display-mode": "Alt+Shift+M"
 };
 
-const MODIFIERS = ["Ctrl", "Alt", "Shift", "Meta"];
-const KEYS = /^(?:[A-Z0-9]|F(?:[1-9]|1[0-2])|ArrowUp|ArrowDown|ArrowLeft|ArrowRight|Home|End|PageUp|PageDown|Enter|Space)$/;
-
 export function canonicalShortcut(value: unknown): string | undefined {
-  if (value === "") return "";
-  if (typeof value !== "string") return;
-  const parts = value.split("+");
-  const key = parts.pop()!;
-  if (!KEYS.test(key) || !parts.length || new Set(parts).size !== parts.length
-    || parts.some(part => !MODIFIERS.includes(part)) || !parts.some(part => part !== "Shift")) return;
-  return [...MODIFIERS.filter(modifier => parts.includes(modifier)), key].join("+");
-}
-
-export function shortcutFromEvent(event: KeyboardEvent): string | undefined {
-  if (event.isComposing || event.keyCode === 229 || event.getModifierState("AltGraph")) return;
-  const code = event.code;
-  const key = /^Key[A-Z]$/.test(code) ? code.slice(3) : /^Digit\d$/.test(code) ? code.slice(5)
-    : code === "Space" ? "Space" : code || (event.key.length === 1 ? event.key.toUpperCase() : event.key);
-  return canonicalShortcut([
-    ...(event.ctrlKey ? ["Ctrl"] : []), ...(event.altKey ? ["Alt"] : []),
-    ...(event.shiftKey ? ["Shift"] : []), ...(event.metaKey ? ["Meta"] : []), key
-  ].join("+"));
+  return typeof value === "string" ? value && canonicalShortcutChord(value) : undefined;
 }
 
 export function shortcutWarning(value: string): string | undefined {
@@ -61,15 +42,18 @@ export function shortcutWarning(value: string): string | undefined {
   if (!shortcut) return;
   if (shortcut.includes("Ctrl+") && shortcut.includes("Alt+")) return t("thisCombinationMayConflictWithAltgrInput");
   const parts = shortcut.split("+");
-  const key = parts.at(-1)!;
+  const key = parts.pop()!;
   const platformModifier = parts.includes("Ctrl") || parts.includes("Meta");
+  const plainOrShift = parts.length === 0 || (parts.length === 1 && parts[0] === "Shift");
+  const navigationOrTyping = plainOrShift && (isPrintableShortcutKey(key)
+    || ["Tab", "Backspace", "Delete", "F1", "F3", "F5", "F6", "F7", "F11", "F12"].includes(key));
   const browserOrEditing = platformModifier && !parts.includes("Alt") && (
     (!parts.includes("Shift") && /^[A-Z0-9]$/.test(key))
     || (parts.includes("Shift") && /^[ABCDEGHIJKLMNOPQRSTVWZ]$/.test(key))
     || ["Tab", "Enter", "PageUp", "PageDown"].includes(key));
   const altBrowser = shortcut === "Alt+F4" || /^Alt\+(?:D|E|F|Home|ArrowLeft|ArrowRight)$/.test(shortcut)
     || /^Alt\+Shift\+[ABCINPRTWXZ]$/.test(shortcut);
-  if (browserOrEditing || altBrowser) return t("thisCombinationMayConflictWithABrowserOr");
+  if (navigationOrTyping || browserOrEditing || altBrowser) return t("thisCombinationMayConflictWithABrowserOr");
 }
 
 export function normalizeShortcuts(value: unknown): ShortcutSettings {
@@ -85,7 +69,7 @@ export function normalizeShortcuts(value: unknown): ShortcutSettings {
 }
 
 export function formatShortcut(value: string, mac = false): string {
-  return value.split("+").map(key => key === "Meta" ? (mac ? "Command" : "Win") : key === "Alt" && mac ? "Option" : key).join("＋");
+  return value.split("+").map(key => key === "Meta" ? (mac ? "Command" : "Win") : key === "Alt" && mac ? "Option" : shortcutKeyLabel(key)).join("＋");
 }
 
 export function normalizeShortcutEnabled(value: unknown, bindings?: unknown, localBindings?: unknown): ShortcutEnabledSettings {

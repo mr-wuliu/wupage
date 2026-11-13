@@ -15,10 +15,11 @@ export const POPUP_MENU_ITEMS = [
   { id: "debug", label: "Debug", group: "tools" },
   { id: "clearCache", get label() { return t("clearCache"); }, group: "tools" },
   { id: "openGithub", label: "GitHub", group: "links" },
-  { id: "openWebsite", get label() { return t("website"); }, group: "links" }
+  { id: "openWebsite", get label() { return t("website"); }, group: "links" },
+  { id: "openSupport", get label() { return t("supportProject"); }, group: "links" }
 ] as const;
 export type PopupMenuItem = typeof POPUP_MENU_ITEMS[number]["id"];
-export const POPUP_MENU_LINKS: readonly PopupMenuItem[] = ["openGithub", "openWebsite"];
+export const POPUP_MENU_LINKS: readonly PopupMenuItem[] = ["openGithub", "openWebsite", "openSupport"];
 export const isPopupMenuLink = (id: PopupMenuItem): boolean => POPUP_MENU_LINKS.includes(id);
 export interface PopupMenuLayout { order: PopupMenuItem[]; hidden: PopupMenuItem[]; rows: PopupMenuItem[][] }
 export const DEFAULT_POPUP_MENU: PopupMenuLayout = {

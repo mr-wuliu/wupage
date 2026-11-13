@@ -258,6 +258,9 @@
   "website": {
     "message": "Website"
   },
+  "supportProject": {
+    "message": "Support"
+  },
   "wupageSettings": {
     "message": "WuPage settings"
   },
@@ -313,7 +316,7 @@
     "message": "Enter one URL pattern per line. Use * for any characters, or “page pattern => embedded URL pattern” to exclude an embed only on matching pages."
   },
   "clickAShortcutFieldToRecordKeysPress": {
-    "message": "Click a shortcut field to record keys. Press Esc to cancel or Delete to clear. Choose Save to apply."
+    "message": "Click a shortcut field and press a key with or without modifiers. For Esc, Tab, Backspace or Delete, choose Record special key first. Choose Save to apply."
   },
   "translationShortcuts": {
     "message": "Translation shortcuts"
@@ -514,7 +517,7 @@
     "message": "Pinned footer links"
   },
   "dropBesideAButtonToShareItsRow": {
-    "message": "Drop beside a button to share its row, or between rows to use a full row. Alt and the arrow keys also reorder buttons. GitHub and Website stay at the bottom."
+    "message": "Drop beside a button to share its row, or between rows to use a full row. Alt and the arrow keys also reorder buttons. GitHub, Website and Support stay at the bottom."
   },
   "availableFeatures": {
     "message": "Available features"
@@ -3079,17 +3082,14 @@
       }
     }
   },
-  "clickAndPressTheShortcutEscCancelsAnd": {
-    "message": "Click and press the shortcut. Esc cancels and Delete clears. Choose Use Esc to assign Esc."
-  },
   "pressAShortcutEscCancelsAndDeleteClears": {
-    "message": "Press a shortcut. Esc cancels and Delete clears. Choose Use Esc to assign Esc."
+    "message": "Press a shortcut. Esc cancels. Backspace or Delete clears."
   },
   "recordingCanceledPreviousShortcutKept": {
     "message": "Recording canceled. Previous shortcut kept."
   },
-  "useAFunctionKeyOrCombineCtrlAlt": {
-    "message": "Use a function key or combine Ctrl, Alt or Command with another key."
+  "shortcutKeyUnavailable": {
+    "message": "This key could not be identified. Try a different key."
   },
   "clickParagraph": {
     "message": "$ARG1$ + click paragraph",
@@ -3110,8 +3110,11 @@
       }
     }
   },
-  "useEsc": {
-    "message": "Use Esc"
+  "shortcutSpecialKeys": {
+    "message": "Record special key"
+  },
+  "pressSpecialShortcutKey": {
+    "message": "Press the special key to assign, such as Esc, Tab, Backspace or Delete."
   },
   "remove": {
     "message": "Remove $ARG1$",
@@ -3400,17 +3403,8 @@
   "shortcutChangedSaveToApply": {
     "message": "Shortcut changed. Save to apply."
   },
-  "clickAndPressACombinationEscCancelsBackspace": {
-    "message": "Click and press a combination. Esc cancels. Backspace or Delete clears."
-  },
-  "pressANewCombinationEscCancelsBackspaceOr": {
-    "message": "Press a new combination. Esc cancels. Backspace or Delete clears."
-  },
   "clickAShortcutFieldToRecordKeysThen": {
     "message": "Click a shortcut field to record keys, then choose Save."
-  },
-  "combineCtrlAltOrCommandWithALetter": {
-    "message": "Combine Ctrl, Alt or Command with a letter, number or another key."
   },
   "start": {
     "message": "start"

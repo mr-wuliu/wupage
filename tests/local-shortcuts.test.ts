@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from "vitest";
-import { canonicalLocalShortcut, DEFAULT_LOCAL_SHORTCUTS, formatLocalShortcut, localShortcutFromEvent,
+import { canonicalLocalShortcut, DEFAULT_LOCAL_SHORTCUTS, formatLocalShortcut,
   matchesLocalShortcut, matchesParagraphClick, normalizeLocalShortcuts } from "../src/shared/local-shortcuts";
 import { normalizeSettings } from "../src/shared/settings";
 
@@ -14,12 +14,14 @@ describe("custom local shortcuts", () => {
     expect(normalizeLocalShortcuts(undefined)).toEqual(DEFAULT_LOCAL_SHORTCUTS);
     expect(normalizeSettings({ localShortcuts: { "floating-activate": "" } }).shortcutEnabled?.["floating-controls"]).toBe(true);
   });
-  it("accepts local navigation keys and exact modifier chords without widening page shortcut syntax", () => {
+  it("accepts single keys, modifier chords and legacy alternatives", () => {
     expect(canonicalLocalShortcut("Escape")).toBe("Escape");
+    expect(canonicalLocalShortcut("A")).toBe("A");
+    expect(canonicalLocalShortcut("Shift+Slash")).toBe("Shift+Slash");
     expect(canonicalLocalShortcut("Shift+Alt+Enter")).toBe("Alt+Shift+Enter");
     expect(canonicalLocalShortcut("Enter|Space|Enter")).toBe("Enter|Space");
     expect(canonicalLocalShortcut("Shift+Meta", true)).toBe("Shift+Meta");
-    for (const value of ["A", "Shift+A", "Ctrl+Ctrl+Enter", "Primary+Meta+Enter", "Enter|", "Ctrl+Click"]) expect(canonicalLocalShortcut(value)).toBeUndefined();
+    for (const value of ["A+B", "Ctrl+Ctrl+Enter", "Primary+Meta+Enter", "Enter|", "Ctrl+Click"]) expect(canonicalLocalShortcut(value)).toBeUndefined();
     expect(canonicalLocalShortcut("", true)).toBe("");
     expect(canonicalLocalShortcut("", false)).toBe("");
   });
@@ -29,7 +31,9 @@ describe("custom local shortcuts", () => {
     expect(matchesLocalShortcut(new KeyboardEvent("keydown", { key: "Enter", ctrlKey: true, altKey: true }), "Alt+Primary+Enter")).toBe(true);
     expect(matchesLocalShortcut(new KeyboardEvent("keydown", { key: "Enter", ctrlKey: true, shiftKey: true }), "Ctrl+Enter")).toBe(false);
     expect(matchesLocalShortcut(new KeyboardEvent("keydown", { key: "Enter", isComposing: true }), "Enter")).toBe(false);
-    expect(localShortcutFromEvent(new KeyboardEvent("keydown", { key: "a", code: "KeyQ", altKey: true }))).toBe("Alt+Q");
+    expect(matchesLocalShortcut(new KeyboardEvent("keydown", { key: "a", code: "KeyQ" }), "Q")).toBe(true);
+    expect(matchesLocalShortcut(new KeyboardEvent("keydown", { key: "Enter", code: "NumpadEnter", ctrlKey: true }), "Primary+Enter")).toBe(true);
+    expect(matchesLocalShortcut(new KeyboardEvent("keydown", { key: "Enter", code: "Enter" }), "NumpadEnter")).toBe(false);
   });
   it("matches only the configured primary mouse modifier chord", () => {
     expect(matchesParagraphClick(new MouseEvent("click", { altKey: true, shiftKey: true }), "Alt+Shift")).toBe(true);

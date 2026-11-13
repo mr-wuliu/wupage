@@ -258,6 +258,9 @@
   "website": {
     "message": "官网"
   },
+  "supportProject": {
+    "message": "支持一下"
+  },
   "wupageSettings": {
     "message": "WuPage 设置"
   },
@@ -313,7 +316,7 @@
     "message": "每行一个网址规则，* 匹配任意字符。也可写「所在网页规则 => 嵌入网址规则」，仅排除指定网页中的嵌入内容。"
   },
   "clickAShortcutFieldToRecordKeysPress": {
-    "message": "点击按键框录入；Esc 取消，Delete 清空。修改后点击「保存」。"
+    "message": "点击按键框后，按一个键或搭配修饰键。录入 Esc、Tab、Backspace 或 Delete 时，先点「录入特殊键」。修改后点击「保存」。"
   },
   "translationShortcuts": {
     "message": "翻译快捷键"
@@ -514,7 +517,7 @@
     "message": "固定底部链接"
   },
   "dropBesideAButtonToShareItsRow": {
-    "message": "拖到按钮旁可并排，拖到行间可独占一行。也可按 Alt + 方向键排序；GitHub 和官网固定在底部。"
+    "message": "拖到按钮旁可并排，拖到行间可独占一行。也可按 Alt + 方向键排序；GitHub、官网和支持一下固定在底部。"
   },
   "availableFeatures": {
     "message": "可添加功能"
@@ -3079,17 +3082,14 @@
       }
     }
   },
-  "clickAndPressTheShortcutEscCancelsAnd": {
-    "message": "点击后按下快捷键；Esc 取消，Delete 清空；也可点击「使用 Esc」绑定 Esc"
-  },
   "pressAShortcutEscCancelsAndDeleteClears": {
-    "message": "按下快捷键，Esc 取消，Delete 清空。绑定 Esc 可点击旁边的「使用 Esc」。"
+    "message": "按下快捷键。Esc 取消，Backspace 或 Delete 清空。"
   },
   "recordingCanceledPreviousShortcutKept": {
     "message": "已取消录入，原绑定保持不变。"
   },
-  "useAFunctionKeyOrCombineCtrlAlt": {
-    "message": "请使用功能键，或 Ctrl、Alt、Command 加字母等组合键。"
+  "shortcutKeyUnavailable": {
+    "message": "无法识别这个键，请换一个键。"
   },
   "clickParagraph": {
     "message": "$ARG1$ + 点击段落",
@@ -3110,8 +3110,11 @@
       }
     }
   },
-  "useEsc": {
-    "message": "使用 Esc"
+  "shortcutSpecialKeys": {
+    "message": "录入特殊键"
+  },
+  "pressSpecialShortcutKey": {
+    "message": "按下要绑定的特殊键，例如 Esc、Tab、Backspace 或 Delete。"
   },
   "remove": {
     "message": "移除$ARG1$",
@@ -3400,17 +3403,8 @@
   "shortcutChangedSaveToApply": {
     "message": "快捷键已修改，点击底部「保存」后生效。"
   },
-  "clickAndPressACombinationEscCancelsBackspace": {
-    "message": "点击后按下组合键；Esc 取消，Backspace 或 Delete 清空"
-  },
-  "pressANewCombinationEscCancelsBackspaceOr": {
-    "message": "按下新的组合键，Esc 取消，Backspace 或 Delete 清空。"
-  },
   "clickAShortcutFieldToRecordKeysThen": {
     "message": "点击按键框录入，修改后点击底部「保存」。"
-  },
-  "combineCtrlAltOrCommandWithALetter": {
-    "message": "请使用 Ctrl、Alt 或 Command 加字母、数字等按键的组合。"
   },
   "start": {
     "message": "开始"

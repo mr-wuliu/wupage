@@ -68,6 +68,11 @@ try {
         && response.data.shortcutEnabled['toggle-page-translation'] === expected.enabled;
     }, { binding, enabled });
   };
+  await field.focus(); await field.press('Tab');
+  const special = options.locator('#shortcut-toggle-page-translation + .shortcut-special-keys');
+  assert.equal(await special.evaluate(element => document.activeElement === element), true);
+  await special.press('Enter'); await field.press('Delete');
+  assert.equal(await field.inputValue(), 'Delete');
   await record('Alt+Shift+J');
   assert.equal(await field.inputValue(), 'Alt＋Shift＋J');
   await record('Alt+Shift+Q');
@@ -77,7 +82,7 @@ try {
   await save('Alt+Shift+J');
   await options.reload(); await options.locator('#shortcut-toggle-page-translation:enabled').waitFor();
   assert.equal(await field.inputValue(), 'Alt＋Shift＋J');
-  checks.push('in-page recording, conflict, cancellation, persistence and no navigation');
+  checks.push('in-page recording, keyboard access to special keys, conflict, cancellation, persistence and no navigation');
   assert.ok((await options.locator('#shortcutSettings').boundingBox()).height < 800, 'compact desktop shortcut panel');
   await options.screenshot({ path: path.join(output, 'settings-desktop.png'), fullPage: true });
   await options.setViewportSize({ width: 390, height: 844 });
@@ -111,10 +116,10 @@ try {
   await press('Alt+Shift+J'); await page.locator('.wupage-translation').first().waitFor();
   await press('Alt+Shift+J'); await page.waitForFunction(() => document.querySelectorAll('.wupage-translation').length === 0);
   checks.push('independent on/off switch retains the key across reloads and does not disable other actions');
-  await options.bringToFront(); await record('Alt+Shift+K'); await save('Alt+Shift+K');
+  await options.bringToFront(); await record(';'); await save('Semicolon');
   await press('Alt+Shift+J'); await page.waitForTimeout(150); assert.equal(await translationCount(), 0);
-  await press('Alt+Shift+K'); await page.locator('.wupage-translation').first().waitFor();
-  await press('Alt+Shift+K'); await page.waitForFunction(() => document.querySelectorAll('.wupage-translation').length === 0);
+  await press(';'); await page.locator('.wupage-translation').first().waitFor();
+  await press(';'); await page.waitForFunction(() => document.querySelectorAll('.wupage-translation').length === 0);
   await options.bringToFront();
   await record('Delete');
   assert.equal(await pageSwitch.isDisabled(), true);
@@ -124,11 +129,11 @@ try {
   await options.reload(); await options.locator('#shortcut-toggle-page-translation:enabled').waitFor();
   assert.equal(await pageSwitch.isDisabled(), true);
   assert.equal(await field.inputValue(), '');
-  await press('Alt+Shift+K'); await page.waitForTimeout(150); assert.equal(await translationCount(), 0);
+  await press(';'); await page.waitForTimeout(150); assert.equal(await translationCount(), 0);
   await options.bringToFront(); await options.locator('#restorePageDefaults').click(); await save('Alt+Shift+Y');
   await press('Alt+Shift+Y'); await page.locator('.wupage-translation').first().waitFor();
   await press('Alt+Shift+Y'); await page.waitForFunction(() => document.querySelectorAll('.wupage-translation').length === 0);
-  checks.push('live rebinding, empty bindings stay disabled across reloads, explicit default restoration without reloading the reading page');
+  checks.push('live rebinding to a single punctuation key, empty bindings stay disabled across reloads, explicit default restoration without reloading the reading page');
   await press('Alt+Shift+L'); await page.waitForFunction(() => document.documentElement.classList.contains('wupage-paragraph-mode'));
   await press('Alt+Shift+L'); await page.waitForFunction(() => !document.documentElement.classList.contains('wupage-paragraph-mode'));
   await page.locator('#selection').evaluate(element => {

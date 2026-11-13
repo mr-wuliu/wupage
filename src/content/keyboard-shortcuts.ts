@@ -1,5 +1,6 @@
 import { SETTINGS_KEY } from "../shared/defaults";
-import { normalizeShortcutEnabled, normalizeShortcuts, shortcutFromEvent, TRANSLATION_SHORTCUTS, type ShortcutEnabledSettings, type ShortcutSettings, type TranslationShortcut } from "../shared/shortcuts";
+import { normalizeShortcutEnabled, normalizeShortcuts, TRANSLATION_SHORTCUTS, type ShortcutEnabledSettings, type ShortcutSettings, type TranslationShortcut } from "../shared/shortcuts";
+import { shortcutFromEvent } from "../shared/shortcut-keys";
 import type { ExtensionSettings } from "../shared/types";
 import { sendRuntimeRequest } from "./runtime";
 

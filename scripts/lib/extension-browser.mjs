@@ -47,8 +47,9 @@ export async function openExtensionBrowser(root, output, firefox = false) {
         },
         press: async combination => {
           await select(page);
+          // WebDriver uses E006 for the main Enter key and E007 for keypad Enter.
           const modifiers = { Alt: '\uE00A', Shift: '\uE008', Control: '\uE009', Meta: '\uE03D', Escape: '\uE00C',
-            Enter: '\uE007', Space: '\uE00D', ArrowDown: '\uE015', Delete: '\uE017', Tab: '\uE004', Backspace: '\uE003' };
+            Enter: '\uE006', Space: '\uE00D', ArrowDown: '\uE015', Delete: '\uE017', Tab: '\uE004', Backspace: '\uE003' };
           const keys = combination.split('+').map(key => modifiers[key] || key.toLowerCase());
           await browser.command('WebDriver:PerformActions', { actions: [{ type: 'key', id: 'keyboard', actions: [
             ...keys.map(value => ({ type: 'keyDown', value })), ...[...keys].reverse().map(value => ({ type: 'keyUp', value }))

@@ -1,4 +1,5 @@
 import { t } from "./i18n";
+import { canonicalShortcutChord, orderedShortcutModifiers, shortcutFromEvent, shortcutKeyLabel, SHORTCUT_MODIFIERS } from "./shortcut-keys";
 export const LOCAL_BINDINGS = [
   { name: "paragraph-click", get label() { return t("paragraphClick"); }, toggle: "paragraph-click" },
   { name: "selection-submit", get label() { return t("submitSelectedText"); }, toggle: "selection-submit" },
@@ -12,22 +13,18 @@ export const DEFAULT_LOCAL_SHORTCUTS: LocalShortcutSettings = {
   "paragraph-click": "Ctrl", "selection-submit": "Primary+Enter", "dismiss-overlays": "Escape",
   "floating-activate": "Enter|Space", "floating-menu": "ArrowDown"
 };
-const MODIFIERS = ["Ctrl", "Alt", "Shift", "Meta", "Primary"];
-const KEYS = /^(?:[A-Z0-9]|F(?:[1-9]|1[0-2])|ArrowUp|ArrowDown|ArrowLeft|ArrowRight|Home|End|PageUp|PageDown|Enter|Space|Escape)$/;
+const LOCAL_MODIFIERS = [...SHORTCUT_MODIFIERS, "Primary"];
 
 export function canonicalLocalShortcut(value: unknown, pointer = false): string | undefined {
   if (value === "") return "";
   if (typeof value !== "string") return;
+  if (pointer) return orderedShortcutModifiers(value.split("+"))?.join("+");
   const alternatives = value.split("|");
-  if (alternatives.length > 3 || pointer && alternatives.length !== 1) return;
+  if (alternatives.length > 3) return;
   const result: string[] = [];
   for (const alternative of alternatives) {
-    const parts = alternative.split("+"), key = pointer ? undefined : parts.pop();
-    if ((!pointer && (!key || !KEYS.test(key))) || pointer && !parts.length
-      || new Set(parts).size !== parts.length || parts.some(part => !MODIFIERS.includes(part))
-      || pointer && parts.includes("Primary") || parts.includes("Primary") && (parts.includes("Ctrl") || parts.includes("Meta"))
-      || key && /^[A-Z0-9]$/.test(key) && !parts.some(part => part !== "Shift")) return;
-    const binding = [...MODIFIERS.filter(modifier => parts.includes(modifier)), ...(key ? [key] : [])].join("+");
+    const binding = canonicalShortcutChord(alternative, LOCAL_MODIFIERS);
+    if (!binding || (binding.includes("Primary+") && /(?:Ctrl|Meta)\+/.test(binding))) return;
     if (!result.includes(binding)) result.push(binding);
   }
   return result.join("|");
@@ -43,19 +40,13 @@ export function normalizeLocalShortcuts(value: unknown): LocalShortcutSettings {
 export function localShortcutVariants(value: string): string[] {
   return value.split("|").filter(Boolean).flatMap(binding => binding.includes("Primary")
     ? [binding.replace("Primary", "Ctrl"), binding.replace("Primary", "Meta")] : [binding])
-    .map(binding => canonicalLocalShortcut(binding)).filter((binding): binding is string => !!binding);
-}
-
-export function localShortcutFromEvent(event: KeyboardEvent): string | undefined {
-  if (event.isComposing || event.keyCode === 229 || event.getModifierState("AltGraph")) return;
-  const key = /^Key[A-Z]$/.test(event.code) ? event.code.slice(3) : /^Digit\d$/.test(event.code) ? event.code.slice(5)
-    : event.code === "Space" || event.key === " " ? "Space" : event.code === "NumpadEnter" ? "Enter" : event.code || (event.key.length === 1 ? event.key.toUpperCase() : event.key);
-  return canonicalLocalShortcut([...(event.ctrlKey ? ["Ctrl"] : []), ...(event.altKey ? ["Alt"] : []),
-    ...(event.shiftKey ? ["Shift"] : []), ...(event.metaKey ? ["Meta"] : []), key].join("+"));
+    .map(binding => canonicalShortcutChord(binding)).filter((binding): binding is string => !!binding)
+    // Existing local Enter bindings also match keypad Enter.
+    .flatMap(binding => /(^|\+)Enter$/.test(binding) ? [binding, binding.replace(/Enter$/, "NumpadEnter")] : [binding]);
 }
 
 export function matchesLocalShortcut(event: KeyboardEvent, value: string): boolean {
-  const actual = localShortcutFromEvent(event);
+  const actual = shortcutFromEvent(event);
   return !!actual && localShortcutVariants(value).includes(actual);
 }
 
@@ -68,9 +59,18 @@ export function matchesParagraphClick(event: MouseEvent, value: string): boolean
 
 export function formatLocalShortcut(value: string, mac = /Mac/.test(globalThis.navigator?.platform ?? "")): string {
   return value.split("|").map(binding => binding.replace("Primary", mac ? "Meta" : "Ctrl").split("+")
-    .map(key => key === "Meta" ? mac ? "Command" : "Win" : key === "Alt" && mac ? "Option" : key).join("＋")
-    .replace(/Escape/g, "Esc").replace(/Space/g, t("space")).replace(/ArrowDown/g, t("downArrow")).replace(/ArrowUp/g, t("upArrow"))
-    .replace(/ArrowLeft/g, t("leftArrow")).replace(/ArrowRight/g, t("rightArrow"))).join(" / ");
+    .map(key => {
+      switch (key) {
+        case "Meta": return mac ? "Command" : "Win";
+        case "Alt": return mac ? "Option" : key;
+        case "Space": return t("space");
+        case "ArrowDown": return t("downArrow");
+        case "ArrowUp": return t("upArrow");
+        case "ArrowLeft": return t("leftArrow");
+        case "ArrowRight": return t("rightArrow");
+        default: return shortcutKeyLabel(key);
+      }
+    }).join("＋")).join(" / ");
 }
 
 export function paragraphClickHint(value: unknown, enabled = true): string {

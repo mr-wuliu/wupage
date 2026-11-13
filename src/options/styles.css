@@ -1145,6 +1145,7 @@ button[data-settings-feedback]:active {
 .shortcut-error { color: var(--wp-danger, #ad3737); font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
 .shortcut-error:empty { display: none; }
 .shortcut-editor .shortcut-small-button { min-height: 32px; padding: 0 6px; color: var(--wp-muted, #526068); background: transparent; font-size: 12px; font-weight: 400; white-space: nowrap; }
+.shortcut-editor .shortcut-special-keys { min-width: 0; white-space: normal; }
 .shortcut-small-button:hover:enabled { color: var(--wp-accent, #116466); background: var(--wp-soft, #f1f4f3); }
 .shortcut-small-button:disabled { cursor: default; opacity: .4; }
 .shortcut-row kbd { display: inline-block; padding: 2px 6px; border: 1px solid var(--wp-border, #c9d1cf); border-bottom-width: 2px; border-radius: 4px; color: var(--wp-foreground, #172026); background: var(--wp-soft, #f1f4f3); font: 11px/1.5 ui-monospace, monospace; }
@@ -1204,7 +1205,6 @@ button[data-settings-feedback]:active {
 .shortcut-local-editor .shortcut-field:has(select) { width: 210px; }
 .shortcut-local-editor select { width: 100%; min-height: 38px; min-width: 0; box-sizing: border-box; padding: 0 28px 0 10px; border: 1px solid var(--wp-border); border-radius: 6px; color: var(--wp-foreground); background-color: var(--wp-surface); font: inherit; font-size: 13px; }
 .shortcut-local-editor input { max-width: 180px; }
-.shortcut-local-editor [data-local-escape][hidden] { display: none; }
 @container settings (max-width: 640px) {
   .shortcut-local-row { align-items: flex-start; flex-direction: column; gap: 8px; }
 }

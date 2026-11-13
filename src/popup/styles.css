@@ -238,6 +238,10 @@ button.secondary {
 
 .footer-links { display: flex; align-items: center; justify-content: center; gap: 16px; }
 
+@media (max-width: 290px) {
+  .footer-links { gap: 4px; }
+}
+
 .footer-link {
   min-height: 28px;
   display: inline-flex;

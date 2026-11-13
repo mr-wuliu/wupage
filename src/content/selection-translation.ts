@@ -93,8 +93,9 @@ export class SelectionTranslationController {
     this.word.addEventListener("keydown", event => {
       event.stopPropagation();
       if (this.shortcutEnabled["dismiss-overlays"] && matchesLocalShortcut(event, this.localShortcuts["dismiss-overlays"])) { event.preventDefault(); this.close(); return; }
-      if (this.shortcutEnabled["selection-submit"] && matchesLocalShortcut(event, this.localShortcuts["selection-submit"]) && !event.repeat) {
-        event.preventDefault(); this.submitEditedText();
+      if (this.shortcutEnabled["selection-submit"] && matchesLocalShortcut(event, this.localShortcuts["selection-submit"])) {
+        event.preventDefault();
+        if (!event.repeat) this.submitEditedText();
       }
     });
     this.word.addEventListener("keyup", event => event.stopPropagation());

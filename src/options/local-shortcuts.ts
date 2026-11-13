@@ -1,8 +1,10 @@
 import { t } from "../shared/i18n";
-import { DEFAULT_LOCAL_SHORTCUTS, LOCAL_BINDINGS, canonicalLocalShortcut, formatLocalShortcut, localShortcutFromEvent,
+import { DEFAULT_LOCAL_SHORTCUTS, LOCAL_BINDINGS, canonicalLocalShortcut, formatLocalShortcut,
   localShortcutVariants, normalizeLocalShortcuts, type LocalBinding, type LocalShortcutSettings } from "../shared/local-shortcuts";
 import { LOCAL_SHORTCUTS, TRANSLATION_SHORTCUTS, shortcutWarning, type LocalShortcut, type ShortcutSettings } from "../shared/shortcuts";
 import { showActionStatus } from "./action-feedback";
+import { SHORTCUT_MODIFIERS } from "../shared/shortcut-keys";
+import { setupShortcutRecorder } from "./shortcut-recorder";
 
 interface Callbacks {
   status: HTMLElement;
@@ -15,11 +17,12 @@ interface Callbacks {
 export function setupLocalShortcutSettings(root: HTMLElement, callbacks: Callbacks) {
   const mac = /Mac/.test(navigator.platform), container = root.querySelector("#localShortcutBindings")!;
   let values = normalizeLocalShortcuts(undefined), ready = false, recording: LocalBinding | undefined;
-  const fields = new Map<LocalBinding, { input: HTMLInputElement | HTMLSelectElement; error: HTMLElement; reset: HTMLButtonElement; escape?: HTMLButtonElement }>();
-  const overlap = (a: string, b: string) => localShortcutVariants(a).some(value => localShortcutVariants(b).includes(value));
+  const fields = new Map<LocalBinding, { input: HTMLInputElement | HTMLSelectElement; error: HTMLElement; reset: HTMLButtonElement; refreshRecorder?: (active: boolean) => void }>();
   function conflict(value: string, exclude?: LocalBinding): string | undefined {
     if (!value) return;
-    return LOCAL_BINDINGS.find(item => item.name !== "paragraph-click" && item.name !== exclude && overlap(values[item.name], value))?.label;
+    const variants = exclude ? localShortcutVariants(value) : [value];
+    return LOCAL_BINDINGS.find(item => item.name !== "paragraph-click" && item.name !== exclude
+      && localShortcutVariants(values[item.name]).some(candidate => variants.includes(candidate)))?.label;
   }
   function empty(name: LocalShortcut): boolean {
     return name === "floating-controls" ? !values["floating-activate"] && !values["floating-menu"] : !values[name];
@@ -35,7 +38,7 @@ export function setupLocalShortcutSettings(root: HTMLElement, callbacks: Callbac
         field.input.parentElement!.style.setProperty("--shortcut-width", `${Math.max(10, field.input.value.length + 1)}ch`);
       } else field.input.value = values[name];
       field.reset.disabled = !ready || values[name] === DEFAULT_LOCAL_SHORTCUTS[name];
-      if (field.escape) field.escape.hidden = recording !== name;
+      field.refreshRecorder?.(recording === name);
       if (!field.input.hasAttribute("aria-invalid")) field.error.textContent = shortcutWarning(values[name]) ?? "";
     }
   }
@@ -43,7 +46,7 @@ export function setupLocalShortcutSettings(root: HTMLElement, callbacks: Callbac
     const field = fields.get(name)!;
     const global = callbacks.getGlobal();
     const duplicate = name === "paragraph-click" ? undefined : conflict(value, name)
-      ?? TRANSLATION_SHORTCUTS.find(item => overlap(global[item.name], value))?.label;
+      ?? TRANSLATION_SHORTCUTS.find(item => localShortcutVariants(value).includes(global[item.name]))?.label;
     if (duplicate) {
       field.error.textContent = t("alreadyUsedByChooseADifferentCombination", duplicate);
       field.input.setAttribute("aria-invalid", "true"); callbacks.status.textContent = field.error.textContent; return false;
@@ -71,29 +74,8 @@ export function setupLocalShortcutSettings(root: HTMLElement, callbacks: Callbac
       input.id = `shortcut-local-${binding.name}`; input.dataset.localCommand = binding.name;
       input.setAttribute("aria-label", t("shortcut", binding.label));
       input.setAttribute("aria-describedby", `shortcut-error-${binding.name} shortcutRecorderHelp`);
-      if (input instanceof HTMLInputElement) {
-        input.type = "text"; input.readOnly = true; input.autocomplete = "off"; input.spellcheck = false;
-        input.title = t("clickAndPressTheShortcutEscCancelsAnd");
-        input.addEventListener("focus", () => { recording = binding.name; refresh(ready); callbacks.status.textContent = t("pressAShortcutEscCancelsAndDeleteClears"); }, { signal: callbacks.signal });
-        input.addEventListener("blur", event => { if (event.relatedTarget === fields.get(binding.name)?.escape) return; if (recording === binding.name) { recording = undefined; refresh(ready); } }, { signal: callbacks.signal });
-        input.addEventListener("keydown", event => {
-          if (event.isComposing || event.keyCode === 229 || event.getModifierState("AltGraph")) return;
-          if (event.key === "Tab" && !event.ctrlKey && !event.altKey && !event.metaKey) return;
-          event.preventDefault(); event.stopPropagation();
-          if (event.repeat || ["Control", "Alt", "Shift", "Meta", "OS"].includes(event.key)) return;
-          const plain = !event.ctrlKey && !event.altKey && !event.shiftKey && !event.metaKey;
-          if (plain && event.key === "Escape") {
-            recording = undefined; input.removeAttribute("aria-invalid"); refresh(ready); input.blur(); callbacks.status.textContent = t("recordingCanceledPreviousShortcutKept"); return;
-          }
-          const value = plain && ["Delete", "Backspace"].includes(event.key) ? "" : localShortcutFromEvent(event);
-          if (value === undefined) {
-            fieldError.textContent = t("useAFunctionKeyOrCombineCtrlAlt");
-            input.setAttribute("aria-invalid", "true"); return;
-          }
-          if (apply(binding.name, value)) input.blur();
-        }, { signal: callbacks.signal });
-      } else {
-        const modifiers = ["Ctrl", "Alt", "Shift", "Meta"];
+      if (input instanceof HTMLSelectElement) {
+        const modifiers = SHORTCUT_MODIFIERS;
         const choices = ["", ...Array.from({ length: 15 }, (_, index) => modifiers.filter((_, bit) => (index + 1) & (1 << bit)).join("+"))];
         for (const value of choices) { const option = document.createElement("option"); option.value = value; option.textContent = value ? t("clickParagraph", formatLocalShortcut(value, mac)) : t("unassigned"); input.append(option); }
         input.addEventListener("change", () => { const value = canonicalLocalShortcut(input.value, true); if (value !== undefined) apply(binding.name, value); }, { signal: callbacks.signal });
@@ -103,19 +85,37 @@ export function setupLocalShortcutSettings(root: HTMLElement, callbacks: Callbac
       const reset = document.createElement("button"); reset.type = "button"; reset.className = "shortcut-small-button"; reset.textContent = t("default");
       reset.dataset.settingsFeedback = "";
       reset.setAttribute("aria-label", t("restoreDefaultShortcutFor", binding.label)); group.append(reset); actions.append(group);
-      const entry: { input: typeof input; error: HTMLElement; reset: HTMLButtonElement; escape?: HTMLButtonElement } = { input, error: fieldError, reset };
+      let refreshRecorder: ((active: boolean) => void) | undefined;
       if (input instanceof HTMLInputElement) {
-        const escape = document.createElement("button"); escape.type = "button"; escape.textContent = t("useEsc"); escape.className = "shortcut-small-button"; escape.hidden = true;
-        escape.dataset.localEscape = binding.name;
-        // Keep the recorder active while clicking this explicit special-key binding.
-        escape.addEventListener("pointerdown", event => event.preventDefault(), { signal: callbacks.signal });
-        escape.addEventListener("click", () => apply(binding.name, "Escape"), { signal: callbacks.signal });
-        field.append(escape); entry.escape = escape;
+        input.type = "text"; input.readOnly = true; input.autocomplete = "off"; input.spellcheck = false;
+        refreshRecorder = setupShortcutRecorder(input, {
+          start() {
+            recording = binding.name;
+            callbacks.status.textContent = t("pressAShortcutEscCancelsAndDeleteClears");
+            refresh(ready);
+          },
+          stop(canceled) {
+            if (recording !== binding.name) return;
+            recording = undefined;
+            if (canceled) {
+              input.removeAttribute("aria-invalid");
+              callbacks.status.textContent = t("recordingCanceledPreviousShortcutKept");
+            }
+            refresh(ready);
+          },
+          apply: value => apply(binding.name, value),
+          invalid() {
+            fieldError.textContent = t("shortcutKeyUnavailable");
+            input.setAttribute("aria-invalid", "true");
+            callbacks.status.textContent = fieldError.textContent;
+          },
+          status: callbacks.status, signal: callbacks.signal
+        });
       }
       reset.addEventListener("click", () => {
         if (apply(binding.name, DEFAULT_LOCAL_SHORTCUTS[binding.name])) showActionStatus(callbacks.status, callbacks.status.textContent ?? "");
       }, { signal: callbacks.signal });
-      fields.set(binding.name, entry);
+      fields.set(binding.name, { input, error: fieldError, reset, refreshRecorder });
     }
     actions.append(callbacks.createSwitch(item.name, item.label, row)); row.append(title, actions); container.append(row);
   }

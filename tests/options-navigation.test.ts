@@ -104,13 +104,13 @@ describe("settings category navigation", () => {
     await mount(); navigate("shortcutSettings");
     const input = query<HTMLInputElement>("[data-command='toggle-page-translation']");
     input.focus();
-    input.dispatchEvent(new KeyboardEvent("keydown", { key: "J", code: "KeyJ", altKey: true, shiftKey: true, bubbles: true, cancelable: true }));
+    input.dispatchEvent(new KeyboardEvent("keydown", { key: "?", code: "Slash", shiftKey: true, bubbles: true, cancelable: true }));
     query<HTMLButtonElement>("[data-shortcut-toggle='toggle-page-translation']").click();
     navigate("generalSettings"); navigate("shortcutSettings");
-    expect(input.value).toBe("Alt＋Shift＋J");
+    expect(input.value).toBe("Shift＋/");
     expect(sendMessage.mock.calls.some(([request]) => request.type === "SAVE_SETTINGS")).toBe(false);
     query<HTMLButtonElement>("#save").click();
-    await vi.waitFor(() => expect(stored.shortcuts?.["toggle-page-translation"]).toBe("Alt+Shift+J"));
+    await vi.waitFor(() => expect(stored.shortcuts?.["toggle-page-translation"]).toBe("Shift+Slash"));
     expect(stored.shortcutEnabled?.["toggle-page-translation"]).toBe(false);
     expect(location.hash).toBe("#shortcutSettings");
     expect(document.querySelector("#manageShortcuts")).toBeNull();

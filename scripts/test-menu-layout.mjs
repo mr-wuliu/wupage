@@ -29,18 +29,18 @@ try {
   const popupUrl = await browser.api('return chrome.runtime.getURL("popup.html");');
   const optionsUrl = await browser.api('return chrome.runtime.getURL("options.html#appearanceSettings");');
   await browser.api('location.hash="appearanceSettings";');
-  await waitFor(() => browser.api('return document.querySelectorAll("[data-menu-add]").length;'), count => count === 12, 'menu editor');
+  await waitFor(() => browser.api('return document.querySelectorAll("[data-menu-add]").length;'), count => count === 13, 'menu editor');
   await browser.api('document.querySelector("#appearanceMenuTab").click();');
   await browser.navigate(popupUrl); await browser.resize(330, 950);
   const inspect = () => browser.evaluate(`return {loading:document.querySelector('.popup')?.hasAttribute('data-menu-loading'),width:innerWidth,
     overflow:document.documentElement.scrollWidth>innerWidth,gridHidden:document.querySelector('[data-popup-menu-grid]').hidden,
     items:[...document.querySelectorAll('[data-popup-menu-item]')].filter(e=>getComputedStyle(e).display!=='none').map(e=>e.dataset.popupMenuItem),
     settingsVisible:document.querySelector('#openOptions').getBoundingClientRect().width>0,hintVisible:!document.querySelector('#paragraphModeHint').hidden};`);
-  const defaultLayout = await waitFor(inspect, value => value.loading === false && value.items.length === 12, 'default popup');
+  const defaultLayout = await waitFor(inspect, value => value.loading === false && value.items.length === 13, 'default popup');
   await browser.evaluate(`const w=window.wrappedJSObject||window;w.menuNodes=[...document.querySelectorAll('[data-popup-menu-item]')];`);
   await browser.capture('default-popup.png');
   const custom = ['clearCache', 'floatingBall', 'contextMenuTranslation', 'selectionTranslation', 'pageToggle', 'paragraphMode', 'openPdfWorkspace'];
-  await browser.api(`for(const id of ['imageTranslation','videoTranslation','debug','openGithub','openWebsite']){
+  await browser.api(`for(const id of ['imageTranslation','videoTranslation','debug','openGithub','openWebsite','openSupport']){
     document.querySelector('#popupMenuPreview [data-popup-menu-item="'+id+'"]').click();}
     for(const id of ['floatingBall','clearCache'])document.querySelector('#popupMenuPreview [data-popup-menu-item="'+id+'"]')
       .dispatchEvent(new KeyboardEvent('keydown',{key:'Home',altKey:true,bubbles:true,cancelable:true}));`);
@@ -84,7 +84,7 @@ try {
   checks.push('click to re-add at the end; reordered controls still work; saved layout survives reopening; empty grid collapses and defaults preserve features');
 
   await browser.navigate(optionsUrl); await browser.resize(1400, 1100);
-  await waitFor(() => browser.evaluate('return document.querySelectorAll("[data-menu-add]").length;'), count => count === 12, 'options preview');
+  await waitFor(() => browser.evaluate('return document.querySelectorAll("[data-menu-add]").length;'), count => count === 13, 'options preview');
   await browser.evaluate('document.querySelector("#appearanceMenuTab").click();');
   const editorOrder = () => browser.evaluate(`return [...document.querySelectorAll('#popupMenuPreview [data-popup-menu-item]')].filter(e=>!e.hasAttribute('data-popup-menu-hidden')).map(e=>e.dataset.popupMenuItem);`);
   const point = id => browser.evaluate(`const e=document.querySelector('#popupMenuPreview [data-popup-menu-item="${id}"]');const r=e.getBoundingClientRect();return {x:r.left+r.width/2,y:r.top+r.height/2};`);
@@ -94,7 +94,7 @@ try {
   await browser.capture('editor-dragging.png');
   await browser.pointer([{type:'up'}]); await delay(220);
   assert.deepEqual((await editorOrder()).slice(0,2), ['floatingBall','contextMenuTranslation']);
-  assert.equal((await editorOrder()).length, 12, 'drop must not become a remove click');
+  assert.equal((await editorOrder()).length, 13, 'drop must not become a remove click');
   assert.equal(await browser.evaluate('return !!document.querySelector(".menu-drag-ghost");'), false);
 
   // Links remain in an independent footer and cannot be reordered by pointer or keyboard.
@@ -104,7 +104,7 @@ try {
   await browser.pointer([{type:'move',...linkFrom},{type:'down'},{type:'move',...linkTo},{type:'up'}]);
   assert.deepEqual(await editorOrder(), beforeLinks);
   assert.equal(await browser.evaluate(`return !!document.querySelector('#popupMenuPreview [data-popup-menu-footer] [data-popup-menu-item="openGithub"]')&&!document.querySelector('#popupMenuPreview [data-popup-menu-grid] [data-popup-menu-item="openWebsite"]');`),true);
-  checks.push('GitHub and website stay in their fixed footer and do not participate in pointer or keyboard sorting');
+  checks.push('GitHub, website and support stay in their fixed footer and do not participate in pointer or keyboard sorting');
 
   // Pair a short button with PDF, pull it into a separate row, and cancel the entire gesture.
   const geometry = id => browser.evaluate(`const e=document.querySelector('#popupMenuPreview [data-popup-menu-item="${id}"]'),g=document.querySelector('#popupMenuPreview [data-popup-menu-grid]'),r=e.getBoundingClientRect();return {x:r.left,y:r.top,width:r.width,height:r.height,grid:g.clientWidth};`);
@@ -131,7 +131,7 @@ try {
   assert.deepEqual(savedPair,{same:true,equal:true,wide:false});
   checks.push('long rows magnetically split and rejoin within one drag; cancellation restores rows; saved and reopened popup preserves paired geometry');
   await browser.navigate(optionsUrl);await browser.resize(1400,1100);
-  await waitFor(()=>browser.evaluate('return document.querySelectorAll("[data-menu-add]").length;'),count=>count===12,'paired editor');
+  await waitFor(()=>browser.evaluate('return document.querySelectorAll("[data-menu-add]").length;'),count=>count===13,'paired editor');
   await browser.evaluate('document.querySelector("#appearanceMenuTab").click();');
 
   // Cross-category pointer sorting, cancellation, and persistence in the real popup.
@@ -152,17 +152,17 @@ try {
   checks.push('real pointer dragging snaps into grid slots, crosses categories, suppresses removal after drop, supports Escape and outside cancellation, and saves exact preview order');
 
   await browser.navigate(optionsUrl); await browser.resize(1400, 1100);
-  await waitFor(() => browser.evaluate('return document.querySelectorAll("[data-menu-add]").length;'), count => count === 12, 'options editor');
+  await waitFor(() => browser.evaluate('return document.querySelectorAll("[data-menu-add]").length;'), count => count === 13, 'options editor');
   await browser.evaluate('document.querySelector("#appearanceMenuTab").click();');
   const clickFrom = await point('imageTranslation');
   await browser.pointer([{type:'move',...clickFrom},{type:'down'},{type:'up'}]);
   assert.equal(await browser.evaluate('return document.querySelector("[data-menu-add=imageTranslation]").hidden;'), false, 'real click removes into the library');
   const clickAdd = await browser.evaluate('const r=document.querySelector("[data-menu-add=imageTranslation]").getBoundingClientRect();return {x:r.left+r.width/2,y:r.top+r.height/2};');
   await browser.pointer([{type:'move',...clickAdd},{type:'down'},{type:'up'}]);
-  assert.equal((await editorOrder()).filter(id=>!['openGithub','openWebsite'].includes(id)).at(-1), 'imageTranslation', 'real click adds at the end');
-  assert.equal((await editorOrder()).length, 12);
+  assert.equal((await editorOrder()).filter(id=>!['openGithub','openWebsite','openSupport'].includes(id)).at(-1), 'imageTranslation', 'real click adds at the end');
+  assert.equal((await editorOrder()).length, 13);
   await browser.evaluate(`document.querySelector('#appearanceMenuTab').click();document.querySelector('#resetPopupMenu').click();
-    for(const id of ['imageTranslation','videoTranslation','debug','openGithub','openWebsite'])document.querySelector('#popupMenuPreview [data-popup-menu-item="'+id+'"]').click();`);
+    for(const id of ['imageTranslation','videoTranslation','debug','openGithub','openWebsite','openSupport'])document.querySelector('#popupMenuPreview [data-popup-menu-item="'+id+'"]').click();`);
   await browser.capture('editor-desktop.png');
   const position = await browser.evaluate(`return {preview:document.querySelector('#popupMenuPreview').getBoundingClientRect().left,library:document.querySelector('.menu-layout-library').getBoundingClientRect().left};`);
   assert.ok(position.preview < position.library, 'preview is on the left, available buttons on the right');

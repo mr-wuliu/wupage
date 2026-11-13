@@ -35,7 +35,7 @@ describe("popup menu preferences", () => {
     expect([...document.querySelector('[data-popup-menu-grid]')!.children].map(node => (node as HTMLElement).dataset.popupMenuItem))
       .toEqual(order.filter(id => !isPopupMenuLink(id)));
     expect([...document.querySelector('[data-popup-menu-footer]')!.children].map(node => (node as HTMLElement).dataset.popupMenuItem))
-      .toEqual(["openGithub", "openWebsite"]);
+      .toEqual(["openGithub", "openWebsite", "openSupport"]);
     expect(document.querySelector("#contextMenuTranslation")).toBe(button);
     expect(document.querySelector("#ocrModelAction")).toBe(helper);
     expect(button.getAttribute("aria-pressed")).toBe("true");
@@ -80,7 +80,7 @@ describe("popup menu preferences", () => {
   it("migrates older orders into rows while fixing links at the bottom and retaining their hidden state", () => {
     expect(normalizePopupMenu({ order: DEFAULT_POPUP_MENU.order, hidden: [] })).toEqual(DEFAULT_POPUP_MENU);
     const layout = normalizePopupMenu({ order: ["openWebsite", "clearCache", "openGithub", "openPdfWorkspace"], hidden: ["openWebsite"] });
-    expect(layout.order.slice(-2)).toEqual(["openGithub", "openWebsite"]);
+    expect(layout.order.slice(-3)).toEqual(["openGithub", "openWebsite", "openSupport"]);
     expect(layout.rows.slice(0, 2)).toEqual([["clearCache"], ["openPdfWorkspace"]]);
     expect(layout.hidden).toEqual(["openWebsite"]);
     expect(layout.rows.flat().some(isPopupMenuLink)).toBe(false);
@@ -91,7 +91,7 @@ describe("popup menu preferences", () => {
       ["pageToggle", "floatingBall", "selectionTranslation"]], hidden: ["selectionTranslation"] });
     expect(layout.rows.slice(0, 2)).toEqual([["openPdfWorkspace", "clearCache"], ["pageToggle", "floatingBall"]]);
     expect(layout.rows.every(row => row.length > 0 && row.length <= 2)).toBe(true);
-    expect(new Set(layout.order).size).toBe(12);
+    expect(new Set(layout.order).size).toBe(POPUP_MENU_ITEMS.length);
     expect(layout.rows.flat()).not.toContain("selectionTranslation");
   });
 
