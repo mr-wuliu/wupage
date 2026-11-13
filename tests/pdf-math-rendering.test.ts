@@ -9,6 +9,24 @@ import type { PdfFormula } from "../src/pdf/math";
 afterEach(() => { vi.restoreAllMocks(); document.body.replaceChildren(); });
 
 describe("PDF inline formula rendering", () => {
+  it("exports isolated rotated glyphs without copying the source prose in their bounding boxes", async () => {
+    const original = document.createElement("canvas"), background = document.createElement("canvas");
+    original.width = background.width = 600; original.height = background.height = 800;
+    const drawImage = vi.fn();
+    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({ drawImage } as unknown as CanvasRenderingContext2D);
+    const encode = vi.spyOn(HTMLCanvasElement.prototype, "toBlob").mockImplementation(function (this: HTMLCanvasElement, callback) {
+      callback(new Blob([new Uint8Array([this === background ? 1 : 2])]));
+    });
+    const scene = await collectPdfExportScene(original, document.createElement("div"), [
+      { id: "watermark", text: "REVIEW COPY", translatable: false, preserveOriginal: true, backgroundText: true,
+        lines: [{ text: "REVIEW COPY", x: 100, baselineY: 200, width: 350, height: 300 }], fontSize: 44, fontFamily: "serif", fontWeight: 400 }
+    ], 600, 800, [1, 0, 0, -1, 0, 800], background);
+    expect(drawImage).not.toHaveBeenCalled();
+    expect(encode).toHaveBeenCalledOnce();
+    expect(scene.images).toHaveLength(1);
+    expect(scene.images[0]).toMatchObject({ x: 0, y: 0, width: 600, height: 800 });
+    expect(Array.from(scene.images[0].bytes)).toEqual([1]);
+  });
   it("keeps a translated bold lead-in editable and preserves its weight in both exports", async () => {
     const layer = document.createElement("div"); layer.style.width = "400px";
     const source = "⟪WUPAGEOPEN0⟫标题。⟪WUPAGECLOSE0⟫正文。";

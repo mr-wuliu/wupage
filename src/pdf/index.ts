@@ -39,8 +39,8 @@ import {
 } from "./export";
 import { findAvailableHorizontalLeft, findAvailableHorizontalRight, findAvailableVerticalBottom, getTranslatedBlockLayout } from "./layout";
 import { getExtensionDetailsUrl, getPdfLaunchOptions, openPdfWorkspaceInNewTab } from "./launch";
-import { extractTextBlocks, normalizePdfTextItems, type PdfTextBlock } from "./model";
-import { renderPageWithoutText } from "./rendering";
+import { extractTextBlocks, isRotatedPdfText, normalizePdfTextItems, type PdfTextBlock } from "./model";
+import { renderPageWithoutText, renderRotatedPdfText } from "./rendering";
 import { filterVisiblePdfText } from "./visibility";
 import { readPdfPageGeometry } from "./math-structure";
 import { validatePdfMathTranslation } from "./math";
@@ -76,6 +76,7 @@ interface PdfPageState {
   originalTextLayerObserver?: ResizeObserver;
   translatedCanvas: HTMLCanvasElement;
   translatedBaseCanvas: HTMLCanvasElement;
+  backgroundTextCanvas?: HTMLCanvasElement;
   translatedCanvasShell: HTMLElement;
   translationLayer: HTMLElement;
   translationPrompt: HTMLElement;
@@ -455,7 +456,8 @@ async function loadPdf(data: ArrayBuffer, name: string, autoTranslate: boolean, 
   const documentPages = parsedPages.map(({ page, blocks, textContent }) => {
     const viewport = page.getViewport({ scale: 1 });
     return { blocks, width: viewport.width, height: viewport.height,
-      sourceText: textContent.items.flatMap((item) => "str" in item ? [item.str] : []).join(" ") };
+      sourceText: normalizePdfTextItems(textContent.items.flatMap(item => "str" in item ? [item] : []), viewport)
+        .filter(item => !isRotatedPdfText(item.transform)).map(item => item.str).join(" ") };
   });
   documentContext = preparePdfDocument(documentPages, currentDocumentName);
   documentParagraphs = preparePdfDocumentTranslations(documentPages, documentContext.abbreviations);
@@ -609,6 +611,10 @@ async function renderPdfPageOnce(pageState: PdfPageState): Promise<void> {
   await page.render({ canvas: pageState.canvas, viewport }).promise;
   await renderOriginalTextLayer(pageState, cssViewport);
   await renderPageWithoutText(page, pageState.translatedBaseCanvas, viewport);
+  if (pageState.blocks.some(block => block.backgroundText)) {
+    pageState.backgroundTextCanvas = document.createElement("canvas");
+    await renderRotatedPdfText(page, pageState.backgroundTextCanvas, viewport);
+  }
   renderedPages.add(pageState.pageNumber);
   pageState.canvasShell.classList.add("is-rendered");
   if (pageState.translations || pageState.translationDraft?.page.values.some((value, index) => pageState.blocks[index].translatable && value !== undefined)) renderTranslatedPdfPage(pageState);
@@ -662,6 +668,7 @@ function renderTranslatedPdfPage(pageState: PdfPageState): void {
   const context = target.getContext("2d", { alpha: false });
   if (!context) return;
   context.drawImage(pageState.translatedBaseCanvas, 0, 0);
+  if (pageState.backgroundTextCanvas) context.drawImage(pageState.backgroundTextCanvas, 0, 0);
 
   const originalContext = pageState.canvas.getContext("2d", { alpha: false });
   // PDF.js already measures the browser's enforced minimum font size. Use
@@ -680,7 +687,7 @@ function renderTranslatedPdfPage(pageState: PdfPageState): void {
     cellRect: block.tableCell ? { x: block.tableCell.x * scale,
       y: (pageState.pdfHeight - block.tableCell.y - block.tableCell.height) * scale,
       width: block.tableCell.width * scale, height: block.tableCell.height * scale } : undefined,
-    lineRects: [
+    lineRects: block.backgroundText ? [] : [
       ...block.lines.map((line) => getViewportLineRect(line, viewport)),
       ...(block.formulas ?? []).map((formula) => getFormulaViewportRect(formula, viewport))
     ]
@@ -1208,7 +1215,7 @@ async function downloadTranslatedDocument(): Promise<void> {
         imageBytes,
         format: "jpeg",
         scene: choice.fontBytes ? await collectPdfExportScene(page.canvas, page.translationLayer, page.blocks, page.pdfWidth, page.pdfHeight,
-          Array.from((await documentProxy.getPage(page.pageNumber)).getViewport({ scale: 1 }).transform ?? [])) : undefined
+          Array.from((await documentProxy.getPage(page.pageNumber)).getViewport({ scale: 1 }).transform ?? []), page.backgroundTextCanvas) : undefined
       });
       const percentage = Math.round(((index + 1) / pageStates.length) * 85);
       progressBar.style.width = `${percentage}%`;

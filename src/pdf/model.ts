@@ -15,6 +15,7 @@ export interface PdfTextItemLike {
   fontAscent?: number;
   fontDescent?: number;
   preserveOriginal?: boolean;
+  backgroundText?: boolean;
   sourceBounds?: PdfPageRectangle;
   tableCell?: PdfPageRectangle;
   tocPart?: "title" | "leader";
@@ -40,6 +41,7 @@ export interface PdfTextBlock {
   fontSize: number;
   boldPrefix?: string;
   preserveOriginal?: boolean;
+  backgroundText?: boolean;
   formulas?: PdfFormula[];
   tableCell?: PdfPageRectangle;
   tocPart?: "title" | "leader";
@@ -57,6 +59,7 @@ interface TextLine {
   fontWeight: number;
   boldPrefix?: string;
   preserveOriginal?: boolean;
+  backgroundText?: boolean;
   tocPart?: "title" | "leader";
   families: Map<string, number>;
   weights: Map<number, number>;
@@ -210,13 +213,19 @@ function splitTocTextItems(items: ReadonlyArray<PdfTextItemLike>, measure?: PdfT
   return output;
 }
 
-// Reflowing an angled chart label as horizontal text damages the figure. Keep
-// its original pixels, using the four transformed corners for its bounds.
+export function isRotatedPdfText(transform: ArrayLike<number>): boolean {
+  const a = Number(transform[0]), b = Number(transform[1]);
+  const length = Math.hypot(a, b);
+  return length > 0 && !(a > 0 && Math.abs(b / length) < 0.01);
+}
+
+// Angled glyphs stay in a separate background layer. Their bounds must never
+// become a source-image crop, which would also copy overlapping body text.
 function preserveRotatedText(item: PdfTextItemLike): PdfTextItemLike {
   const a = Number(item.transform[0]);
   const b = Number(item.transform[1]);
   const length = Math.hypot(a, b);
-  if (!length || (a > 0 && Math.abs(b / length) < 0.01)) return item;
+  if (!isRotatedPdfText(item.transform)) return item;
   const cosine = a / length;
   const sine = b / length;
   const size = item.height || Math.hypot(Number(item.transform[2]), Number(item.transform[3])) || 10;
@@ -236,7 +245,8 @@ function preserveRotatedText(item: PdfTextItemLike): PdfTextItemLike {
     transform: [1, 0, 0, height, left, bottom + height * 0.24],
     width: Math.max(...corners.map((point) => point.x)) + padding - left,
     height,
-    preserveOriginal: true
+    preserveOriginal: true,
+    backgroundText: true
   };
 }
 
@@ -287,6 +297,7 @@ function collectLines(items: ReadonlyArray<PdfTextItemLike>): TextLine[] {
         weights: new Map([[item.fontWeight ?? 400, text.length]]),
         ...((item.fontWeight ?? 400) >= 600 ? { boldPrefix: text } : {}),
         ...(item.preserveOriginal ? { preserveOriginal: true } : {}),
+        ...(item.backgroundText ? { backgroundText: true } : {}),
         ...(item.sourceBounds ? { sourceBounds: item.sourceBounds } : {}),
         ...(item.tableCell ? { tableCell: item.tableCell } : {}),
         ...(item.tocPart ? { tocPart: item.tocPart } : {})
@@ -375,6 +386,7 @@ function collectParagraphs(lines: TextLine[], pageNumber: number): Omit<PdfTextB
         fontSize: Math.max(...region.map((line) => line.height)),
         ...(regionIndex === 0 && fontWeight < 600 && region[0].boldPrefix ? { boldPrefix: region[0].boldPrefix } : {}),
         ...(region.some((line) => line.preserveOriginal) ? { preserveOriginal: true } : {}),
+        ...(region.some((line) => line.backgroundText) ? { backgroundText: true } : {}),
         ...(region[0].tocPart ? { tocPart: region[0].tocPart } : {}),
         ...(region[0].tableCell ? { tableCell: region[0].tableCell } : {}),
         ...(regions.length > 1 ? { paragraphId: `page-${pageNumber}-paragraph-${paragraphNumber}` } : {})
