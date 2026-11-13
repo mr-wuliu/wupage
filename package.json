@@ -30,6 +30,7 @@
     "test:mail-layout": "node scripts/test-mail-layout.mjs",
     "test:mail-layout:edge": "node scripts/test-mail-layout.mjs --edge",
     "test:mail-layout:firefox": "node scripts/test-mail-layout.mjs --firefox",
+    "test:outlook": "node scripts/test-outlook-content.mjs",
     "test:task-menu": "node scripts/test-task-menu.mjs",
     "test:task-menu:edge": "node scripts/test-task-menu.mjs --edge",
     "test:task-menu:firefox": "node scripts/test-task-menu.mjs --firefox",

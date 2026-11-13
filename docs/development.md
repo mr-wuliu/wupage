@@ -164,6 +164,8 @@ Twitch 聊天正文适配位于 `src/content/twitch-content.ts`，仅对 Twitch 
 
 邮件列表排版使用 `npm run test:mail-layout` 检查表格、网格和 Gmail 式弹性布局；Edge、Firefox 分别使用 `test:mail-layout:edge`、`test:mail-layout:firefox`。覆盖宽窄窗口、等待占位、三种显示模式、动态新增行及恢复原文，同场验证标题、预览和时间保持单行，以及短正文译成长句后正常换行且不横向溢出。行内插入位置不代表单行界面语义，调整换行规则时两类场景必须同时通过。涉及分段、渲染或公共译文样式时应运行此项检查。
 
+Outlook 网页在根节点设置 `translate="no"`。`src/content/content-policy.ts` 仅对列出的 Outlook 主机忽略这一根节点属性，邮件内部的 `translate="no"`、`notranslate`、编辑区及用户排除规则继续生效，不改写页面原有属性。`tests/outlook-content.test.ts` 覆盖正文采集、语言采样、段落翻译与恢复；构建后运行 `npm run test:outlook`（Edge 加 `-- --edge`），以本地模拟页面和服务验证三种显示模式、动态邮件、原文恢复与宽窄窗口，无需登录或访问邮箱。
+
 嵌入文档连接使用 `npm run test:frame-connection` 验证；Edge、Firefox 分别使用 `test:frame-connection:edge`、`test:frame-connection:firefox`。脚本仅修改临时复制的构建，通过移除测试文档的消息接收器触发浏览器原始连接错误，覆盖隐藏辅助文档失联、无离开通知的文档删除、可见正文失联及新文档重新接入。隐藏辅助文档的不可访问状态保留在 Debug 中，可见正文和主页面的真实错误仍须上报。
 
 扩展重载使用 `npm run test:extension-reload` 验证，Edge 对应 `test:extension-reload:edge`。测试保留正在翻译的视频页和等待视频的嵌入页，重载测试扩展后检查旧任务停止、原字幕恢复、不再产生未捕获异常，并确认刷新页面后能重新翻译。
