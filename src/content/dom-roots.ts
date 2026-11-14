@@ -48,6 +48,28 @@ export function composedParent(element: Element): Element | null {
   return root instanceof ShadowRoot ? root.host : null;
 }
 
+/** Layout follows slot assignment, while content ownership follows the DOM. */
+export function renderedParent(node: Element | Text): Element | null {
+  return projectedSlot(node) ?? node.parentElement
+    ?? (node.parentNode instanceof ShadowRoot ? node.parentNode.host : null);
+}
+
+export function renderedContains(container: Element, node: Element): boolean {
+  for (let current: Element | null = node; current; current = renderedParent(current)) {
+    if (current === container) return true;
+  }
+  return false;
+}
+
+export function isTopLayer(element: Element): boolean {
+  const root = element.getRootNode() as Document | ShadowRoot;
+  if (root.fullscreenElement === element) return true;
+  // Test separately so an unsupported selector cannot hide another state.
+  try { if (element.localName === "dialog" && element.matches(":modal")) return true; } catch { /* Older DOM implementations. */ }
+  try { if (element.hasAttribute("popover") && element.matches(":popover-open")) return true; } catch { /* Older DOM implementations. */ }
+  return false;
+}
+
 /** A bare text node in a shadow tree is laid out by its host. */
 export function textContainer(node: Text): Element | null {
   return node.parentElement ?? (node.parentNode instanceof ShadowRoot ? node.parentNode.host : null);

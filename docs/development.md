@@ -65,6 +65,8 @@ DeepL 适配位于 `src/background/providers/deepl.ts`，负责语言代码、�
 
 `tests/text-flow.test.ts`、`tests/line-break-paragraphs.test.ts` 和 `tests/page-translation.test.ts` 覆盖标签与包装变化、CSS 行内/块级切换、长段落、显式换行、动态更新和精确恢复。构建后运行 `node scripts/test-text-flow.mjs --edge` 或 `--firefox`，用独立浏览器及本地模拟服务检查原生点选、首尾裸段、三种显示模式、链接与按钮、整页及增量翻译；结果保存在 `.npm-cache/text-flow/`。
 
+可见性判断沿插槽实际渲染路径检查样式，分别处理顶层浮层、定位包含块、根容器的溢出传播、绘制包含和基本裁剪形状。内容归属与原文恢复继续使用原 DOM 路径。构建后运行 `node scripts/test-content-visibility.mjs`，可加 `--edge` 或 `--firefox`，使用离线样例和本地模拟翻译验证浏览器原生交叉区域、三种显示模式、链接、动态弹窗及原文恢复；报告保存在 `.npm-cache/content-visibility/`。修改可见性逻辑时，应保留可见与不可见的成对样例。
+
 网页翻译使用绑定到原节点的写入计划。`translation-boundaries.ts` 将自定义组件、插槽和交互元素作为独立范围；`dom-roots.ts` 通过扩展接口发现开放及封闭的 Shadow DOM，并记录实际插槽路径。`TextSegment.text` 保留可读原文，`requestText` 按需生成用于传输的格式标记。`inline-translation.ts` 只接纳已确认的句内格式，替换模式复用原文本和格式节点，双语模式生成展示副本。共享校验器检查标记数量、配对、嵌套和非空内容；失效结果不写入页面，后台对损坏标记执行有界重试和保留结构的分片回退。本地引擎将这些格式标记转换为受限 HTML，利用 Bergamot 对齐后再还原标记；其他服务继续使用受保护的文本协议。
 
 `npm run test:structured:edge` 和 `npm run test:structured:firefox` 使用独立浏览器配置与本地翻译服务，检查开放/封闭组件、原节点身份、格式顺序、点击行为、动态更新及精确恢复。真实本地模型验证使用 `npm run test:structured:local`，需先构建 Firefox，并通过 `LOCAL_MODEL_FIXTURE_DIR` 指向已有的 `en-zh-Hans` 模型目录；测试校验模型文件哈希，不下载模型。模型 HTML 对齐结果不符合结构约束时，测试同时检查受保护文本回退。

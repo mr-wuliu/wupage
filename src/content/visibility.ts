@@ -1,4 +1,5 @@
-import { composedContains, composedParent, textContainer } from "./dom-roots";
+import { composedContains, isTopLayer, renderedContains, renderedParent, textContainer } from "./dom-roots";
+import { basicShapeClip } from "./paint-clips";
 const MIN_RENDERED_SIZE = 1;
 const SAMPLE_INSET = 1;
 
@@ -14,6 +15,11 @@ interface RectLike {
 interface AncestorClip {
   x: boolean;
   y: boolean;
+  parent: Element | null;
+  marginX: number;
+  marginY: number;
+  paintParent: Element | null;
+  shape: (rect: RectLike) => RectLike | null;
 }
 
 export interface RenderVisibilitySnapshot {
@@ -50,6 +56,16 @@ export function createRenderVisibilitySnapshot(onOccluded?: (blockers: Set<Eleme
   const textRects = new WeakMap<Text, RectLike[]>();
   const ancestorClips = new WeakMap<Element, AncestorClip>();
   const decisions = new WeakMap<Element, boolean>();
+  const parents = new WeakMap<Element, Element | null>();
+  const topLayers = new WeakMap<Element, boolean>();
+  const parentOf = (element: Element): Element | null => {
+    if (!parents.has(element)) parents.set(element, renderedParent(element));
+    return parents.get(element)!;
+  };
+  const inTopLayer = (element: Element): boolean => {
+    if (!topLayers.has(element)) topLayers.set(element, isTopLayer(element));
+    return topLayers.get(element)!;
+  };
 
   const readStyle = (element: Element): CSSStyleDeclaration | undefined => {
     const cached = styles.get(element);
@@ -62,9 +78,18 @@ export function createRenderVisibilitySnapshot(onOccluded?: (blockers: Set<Eleme
     const cached = paintedTrees.get(element);
     if (cached !== undefined) return cached;
     const style = readStyle(element);
-    const parent = composedParent(element);
+    const parent = parentOf(element);
+    // Top-layer boxes escape ancestor painting effects, but a display:none
+    // ancestor still prevents their box tree from being generated.
+    const ancestorsPaint = () => {
+      if (!inTopLayer(element)) return !parent || paintsDescendants(parent);
+      for (let ancestor = parent; ancestor; ancestor = parentOf(ancestor)) {
+        if (readStyle(ancestor)?.display === "none") return false;
+      }
+      return true;
+    };
     const paints = Boolean(style && style.display !== "none" && style.contentVisibility !== "hidden"
-      && parseOpacity(style.opacity) > 0 && (!parent || paintsDescendants(parent)));
+      && parseOpacity(style.opacity) > 0 && ancestorsPaint());
     paintedTrees.set(element, paints);
     return paints;
   };
@@ -97,9 +122,30 @@ export function createRenderVisibilitySnapshot(onOccluded?: (blockers: Set<Eleme
     const cached = ancestorClips.get(element);
     if (cached) return cached;
     const style = readStyle(element);
-    const clip: AncestorClip = style
-      ? { x: clipsOverflow(style.overflowX || style.overflow), y: clipsOverflow(style.overflowY || style.overflow) }
-      : { x: false, y: false };
+    let parent = inTopLayer(element) ? null : parentOf(element);
+    if (!inTopLayer(element) && (style?.position === "fixed" || style?.position === "absolute")) {
+      // Positioned descendants escape overflow between themselves and their
+      // containing block. A viewport-fixed reader can outgrow a zero-height
+      // page wrapper; transformed/contained readers still obey their block.
+      while (parent) {
+        const parentStyle = readStyle(parent);
+        if (parentStyle && establishesContainingBlock(parent, parentStyle, style.position === "fixed")) break;
+        parent = parentOf(parent);
+      }
+    }
+    const overflowX = style?.overflowX || style?.overflow || "visible";
+    const overflowY = style?.overflowY || style?.overflow || "visible";
+    const containsPaint = Boolean(style && canContainPaint(style) && /\b(?:paint|strict|content)\b/u.test(style.contain));
+    const viewportOverflow = element === element.ownerDocument.documentElement || isViewportBody(element, readStyle);
+    const clips = Boolean(style && canClipOverflow(element, style) && !viewportOverflow);
+    const margin = Number.parseFloat(style?.getPropertyValue?.("overflow-clip-margin")?.match(/(?:^|\s)([\d.]+)px\s*$/u)?.[1] ?? "0");
+    const clip: AncestorClip = {
+      x: containsPaint || clips && clipsOverflow(overflowX), y: containsPaint || clips && clipsOverflow(overflowY), parent,
+      marginX: overflowX === "clip" || containsPaint && overflowX === "visible" ? margin : 0,
+      marginY: overflowY === "clip" || containsPaint && overflowY === "visible" ? margin : 0,
+      paintParent: inTopLayer(element) ? null : parentOf(element),
+      shape: style ? basicShapeClip(element, style) : rect => rect
+    };
     ancestorClips.set(element, clip);
     return clip;
   };
@@ -122,7 +168,7 @@ export function createRenderVisibilitySnapshot(onOccluded?: (blockers: Set<Eleme
     decisions,
     isElementStyleVisible: isRendered,
     isTextNodeVisuallyRendered(node: Text): boolean {
-      const host = textContainer(node);
+      const host = renderedParent(node);
       return Boolean(host && isRendered(host) && anyVisible(readTextRects(node), host, node.getRootNode()));
     },
     isElementVisuallyRendered(element: Element): boolean {
@@ -169,16 +215,22 @@ function clipToHiddenAncestors(
   if (!host.ownerDocument.defaultView) return null;
   let visibleRect: RectLike | null = rect;
   let ancestor: Element | null = host;
+  let overflowAncestor: Element | null = host;
 
   while (ancestor && visibleRect) {
     const clip = readAncestorClip(ancestor);
     const clipsX = clip.x;
     const clipsY = clip.y;
-    if (clipsX || clipsY) {
+    if (ancestor === overflowAncestor && (clipsX || clipsY)) {
       const bounds = readElementRects(ancestor)[0] ?? ancestor.getBoundingClientRect();
-      visibleRect = intersectOnAxes(visibleRect, bounds, clipsX, clipsY);
+      visibleRect = intersectOnAxes(visibleRect, makeRect(bounds.top - clip.marginY, bounds.right + clip.marginX,
+        bounds.bottom + clip.marginY, bounds.left - clip.marginX), clipsX, clipsY);
     }
-    ancestor = composedParent(ancestor);
+    // clip-path follows the painting tree even when positioned content can
+    // escape an intermediate ancestor's overflow clipping.
+    if (visibleRect) visibleRect = clip.shape(visibleRect);
+    if (ancestor === overflowAncestor) overflowAncestor = clip.parent;
+    ancestor = clip.paintParent;
   }
   return visibleRect;
 }
@@ -211,7 +263,8 @@ function occlusionAtSamplePoints(
   ];
 
   const bareShadowText = root instanceof ShadowRoot && root.host === host;
-  const related = (hit: Element) => composedContains(hit, host) || (!bareShadowText && composedContains(host, hit));
+  const related = (hit: Element) => renderedContains(hit, host) || composedContains(hit, host)
+    || (!bareShadowText && (renderedContains(host, hit) || composedContains(host, hit)));
   let blockers: Set<Element> | undefined;
   for (const [x, y] of points) {
     const hit = hitTest(x, y);
@@ -235,7 +288,7 @@ function opaqueCover(
   hit: Element, host: Element, x: number, y: number, readStyle: (element: Element) => CSSStyleDeclaration | undefined
 ): Element | undefined {
   let cover: Element | undefined;
-  for (let layer: Element | null = hit; layer; layer = composedParent(layer)) {
+  for (let layer: Element | null = hit; layer; layer = isTopLayer(layer) ? null : renderedParent(layer)) {
     const style = readStyle(layer);
     if (!style || parseOpacity(style.opacity) < 1 || (style.filter && style.filter !== "none")
       || (style.maskImage && style.maskImage !== "none") || (style.mixBlendMode && style.mixBlendMode !== "normal")) return;
@@ -245,6 +298,44 @@ function opaqueCover(
     if (x > bounds.left && x < bounds.right && y > bounds.top && y < bounds.bottom) cover = layer;
   }
   return cover;
+}
+
+function establishesContainingBlock(element: Element, style: CSSStyleDeclaration, fixed: boolean): boolean {
+  if (style.display === "contents") return false;
+  if (!fixed && style.position && style.position !== "static") return true;
+  const changed = (value: string) => Boolean(value && value !== "none");
+  if (canTransform(element, style) && [style.transform, style.translate, style.rotate, style.scale, style.perspective].some(changed)) return true;
+  // A filter on the document root does not contain fixed descendants.
+  if (element !== element.ownerDocument.documentElement && [style.filter, style.backdropFilter].some(changed)) return true;
+  return canContainPaint(style) && (/\b(?:layout|paint|strict|content)\b/u.test(style.contain) || style.contentVisibility === "auto")
+    || style.willChange?.split(",").some(property => {
+      const name = property.trim();
+      if (/^(?:transform|translate|rotate|scale|perspective)$/u.test(name)) return canTransform(element, style);
+      if (name === "contain") return canContainPaint(style);
+      return /^(?:filter|backdrop-filter)$/u.test(name) && element !== element.ownerDocument.documentElement;
+    }) || false;
+}
+
+function canTransform(element: Element, style: CSSStyleDeclaration): boolean {
+  return !/^(?:inline|table-column|table-column-group)$/u.test(style.display)
+    || element.matches("img,video,iframe,object,embed,canvas,input,textarea,select,svg");
+}
+
+function canContainPaint(style: CSSStyleDeclaration): boolean {
+  return !/^(?:none|contents|inline|ruby.*|table-(?!cell).*)$/u.test(style.display);
+}
+
+function canClipOverflow(element: Element, style: CSSStyleDeclaration): boolean {
+  return style.display !== "contents" && (style.display !== "inline" || element.matches("img,video,iframe,object,embed,canvas,input,textarea,select,svg"));
+}
+
+function isViewportBody(element: Element, readStyle: (element: Element) => CSSStyleDeclaration | undefined): boolean {
+  const doc = element.ownerDocument;
+  if (element !== doc.body || doc.documentElement.localName !== "html") return false;
+  const root = readStyle(doc.documentElement), body = readStyle(element);
+  const noContainment = (style: CSSStyleDeclaration | undefined) => !style?.contain || style.contain === "none";
+  return Boolean(root && (root.overflowX || root.overflow || "visible") === "visible"
+    && (root.overflowY || root.overflow || "visible") === "visible" && noContainment(root) && noContainment(body));
 }
 
 function clipsOverflow(value: string): boolean {

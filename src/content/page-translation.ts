@@ -368,9 +368,33 @@ function observePage(session: TranslationSession): void {
     attributes: true,
     attributeFilter: observedTranslationAttributes(document)
   };
-  for (const root of translationRoots()) session.observer.observe(root, options);
   session.unobserveRoots?.();
-  session.unobserveRoots = onTranslationRoot(root => session.observer.observe(root, options));
+  const roots = new Set<Document | ShadowRoot>();
+  const events = ["toggle", "slotchange", "fullscreenchange"];
+  const renderedStateChanged = (event: Event) => {
+    if (!isActive(session)) return;
+    let element = event.composedPath().find(node => node instanceof Element) as Element | undefined;
+    if (event.type === "slotchange" && element?.getRootNode() instanceof ShadowRoot) {
+      element = (element.getRootNode() as ShadowRoot).host;
+    }
+    const root = element ?? document.body;
+    if (!root || isExtensionOwned(root)) return;
+    session.dynamicRoots.add(root);
+    for (const uncovered of takeUncoveredScanRoots([root])) session.dynamicRoots.add(uncovered);
+    refreshSegments(session);
+  };
+  const observe = (root: Document | ShadowRoot) => {
+    session.observer.observe(root, options);
+    if (roots.has(root)) return;
+    roots.add(root);
+    for (const event of events) root.addEventListener(event, renderedStateChanged, true);
+  };
+  for (const root of translationRoots()) observe(root);
+  const unsubscribe = onTranslationRoot(observe);
+  session.unobserveRoots = () => {
+    unsubscribe();
+    for (const root of roots) for (const event of events) root.removeEventListener(event, renderedStateChanged, true);
+  };
 }
 
 function disconnectPageObserver(session: TranslationSession): void {
@@ -599,6 +623,13 @@ function handleDynamicContent(session: TranslationSession, mutations: MutationRe
       if (root && !isExtensionOwned(root)) {
         visualChanges.add(root);
         session.dynamicRoots.add(root);
+        const tree = root.getRootNode();
+        if (tree instanceof ShadowRoot && (root.matches("slot") || root.querySelector("slot"))) {
+          // Assigned light-DOM prose is outside the changed shadow subtree.
+          // Revisit its host when a slot's painting ancestors change.
+          visualChanges.add(tree.host);
+          session.dynamicRoots.add(tree.host);
+        }
         if (suspendedSession === session) session.changedRoots.add(root);
       }
       continue;
