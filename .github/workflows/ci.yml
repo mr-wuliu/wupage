@@ -58,6 +58,11 @@ jobs:
         env:
           PLAYWRIGHT_MODULE: ${{ github.workspace }}/.npm-cache/mail-test-tools/node_modules/playwright/index.mjs
 
+      - name: Check native content visibility and restoration
+        run: npm run test:visibility
+        env:
+          PLAYWRIGHT_MODULE: ${{ github.workspace }}/.npm-cache/mail-test-tools/node_modules/playwright/index.mjs
+
       - name: Check PDF layout and export safeguards
         run: npm run test:pdf:quality -- --profile=smoke
         env:
@@ -75,6 +80,8 @@ jobs:
             .npm-cache/frame-connection/chrome/*.png
             .npm-cache/frame-connection/chrome/*.json
             .npm-cache/frame-connection/chrome/*.txt
+            .npm-cache/content-visibility/chrome/*.png
+            .npm-cache/content-visibility/chrome/*.json
             .npm-cache/pdf-quality/smoke/**/report.json
             .npm-cache/pdf-quality/smoke/**/report.html
             .npm-cache/pdf-quality/smoke/**/*quality.json

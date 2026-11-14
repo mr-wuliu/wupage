@@ -1,7 +1,8 @@
 import { t } from "../shared/i18n";
 import { createDocumentKey } from "../shared/frame-session";
 import { validVideoFrameArea, type VideoFrameArea } from "../shared/video-frame";
-import { componentShadowRoot } from "./dom-roots";
+import { componentShadowRoot, renderedParent } from "./dom-roots";
+import { createRenderVisibilitySnapshot } from "./visibility";
 
 const GEOMETRY_REQUEST = "wupage-video-frame-area";
 const GEOMETRY_REPLY = "wupage-video-frame-area-result";
@@ -39,6 +40,7 @@ export function installFrameVisibilityBridge(): { ready: Promise<void> } {
   const roots = new Set<Document | ShadowRoot>([document]);
   let observer: MutationObserver | undefined;
   let scheduled = false;
+  const watchedRoots = new WeakSet<Document | ShadowRoot>();
   let resolveReady = () => {};
   let timer: ReturnType<typeof setTimeout> | undefined;
   const ready = window === window.top ? Promise.resolve() : new Promise<void>(resolve => {
@@ -50,11 +52,9 @@ export function installFrameVisibilityBridge(): { ready: Promise<void> } {
     if (!host.isConnected) return false;
     const rect = host.getBoundingClientRect();
     if (rect.width <= 0 || rect.height <= 0) return false;
-    for (let element: Element | null = host; element;) {
-      const style = getComputedStyle(element);
-      if (element.matches("[hidden],[aria-hidden='true']") || style.display === "none" || style.visibility === "hidden"
-        || style.contentVisibility === "hidden" || Number(style.opacity) === 0) return false;
-      element = element.parentElement ?? (element.getRootNode() instanceof ShadowRoot ? (element.getRootNode() as ShadowRoot).host : null);
+    if (!createRenderVisibilitySnapshot().isElementStyleVisible(host)) return false;
+    for (let element: Element | null = host; element; element = renderedParent(element)) {
+      if (element.matches("[hidden],[aria-hidden='true']")) return false;
     }
     return true;
   };
@@ -76,7 +76,11 @@ export function installFrameVisibilityBridge(): { ready: Promise<void> } {
     for (const root of roots) {
       const target = root instanceof Document ? root.documentElement : root;
       if (target) observer.observe(target, { childList: true, subtree: true, attributes: true,
-        attributeFilter: ["style", "class", "hidden", "aria-hidden"] });
+        attributeFilter: ["style", "class", "hidden", "aria-hidden", "open", "slot", "name"] });
+      if (!watchedRoots.has(root)) {
+        watchedRoots.add(root);
+        for (const event of ["toggle", "slotchange", "fullscreenchange"]) root.addEventListener(event, schedule, true);
+      }
     }
   };
   const schedule = () => { if (!scheduled && children.size) { scheduled = true; requestAnimationFrame(flush); } };

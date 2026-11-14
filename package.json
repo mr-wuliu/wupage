@@ -23,6 +23,7 @@
     "test:structured:firefox": "node scripts/test-structured-translation.mjs --firefox",
     "test:structured:local": "node scripts/test-structured-local.mjs",
     "test:cards": "node scripts/test-card-layout.mjs",
+    "test:visibility": "node scripts/test-content-visibility.mjs",
     "test:cards:edge": "node scripts/test-card-layout.mjs --edge",
     "test:profile-layout": "node scripts/test-profile-layout.mjs",
     "test:profile-layout:firefox": "node scripts/test-profile-layout.mjs --firefox",
