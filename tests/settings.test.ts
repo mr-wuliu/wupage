@@ -55,6 +55,20 @@ describe("normalizeSettings", () => {
     expect(normalizeSettings({ imageTranslationEnabled: "true" }).imageTranslationEnabled).toBe(false);
   });
 
+  it("keeps both image controls enabled for older settings and preserves independent preferences", () => {
+    expect(normalizeSettings({ imageTranslationEnabled: true })).toMatchObject({
+      imageTranslationContextMenuEnabled: true, imageTranslationFloatingEnabled: true
+    });
+    expect(normalizeSettings({ imageTranslationEnabled: false, imageTranslationContextMenuEnabled: false,
+      imageTranslationFloatingEnabled: true })).toMatchObject({
+      imageTranslationEnabled: false, imageTranslationContextMenuEnabled: false, imageTranslationFloatingEnabled: true
+    });
+    expect(normalizeSettings({ imageTranslationContextMenuEnabled: true, imageTranslationFloatingEnabled: false }))
+      .toMatchObject({ imageTranslationContextMenuEnabled: true, imageTranslationFloatingEnabled: false });
+    expect(normalizeSettings({ imageTranslationContextMenuEnabled: "false", imageTranslationFloatingEnabled: null }))
+      .toMatchObject({ imageTranslationContextMenuEnabled: true, imageTranslationFloatingEnabled: true });
+  });
+
   it("preserves valid translation display modes and rejects unknown values", () => {
     expect(normalizeSettings({ translationDisplayMode: "replace" }).translationDisplayMode)
       .toBe("replace");

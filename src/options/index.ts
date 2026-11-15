@@ -56,6 +56,9 @@ const selectionTranslationFields = query<HTMLFieldSetElement>("#selectionTransla
 const selectionDictionary = query<HTMLSelectElement>("#selectionDictionary");
 const selectionTriggerStyle = query<HTMLSelectElement>("#selectionTriggerStyle");
 const imageTranslationEnabled = query<HTMLInputElement>("#imageTranslationEnabled");
+const imageTranslationContextMenuEnabled = query<HTMLInputElement>("#imageTranslationContextMenuEnabled");
+const imageTranslationFloatingEnabled = query<HTMLInputElement>("#imageTranslationFloatingEnabled");
+imageTranslationEnabled.addEventListener("change", () => setImageTranslationToggle(imageTranslationEnabled, imageTranslationEnabled.checked));
 const translateCodeComments = query<HTMLInputElement>("#translateCodeComments");
 const translationDisplayMode = query<HTMLSelectElement>("#translationDisplayMode");
 const translationDisplayModeDescription = query<HTMLSpanElement>("#translationDisplayModeDescription");
@@ -249,6 +252,8 @@ function renderGeneralPageSettings(value: ExtensionSettings): void {
   cacheEnabled.checked = value.cacheEnabled;
   floatingBallEnabled.checked = value.floatingBallEnabled;
   setImageTranslationToggle(imageTranslationEnabled, value.imageTranslationEnabled === true);
+  imageTranslationContextMenuEnabled.checked = value.imageTranslationContextMenuEnabled !== false;
+  imageTranslationFloatingEnabled.checked = value.imageTranslationFloatingEnabled !== false;
   translateCodeComments.checked = value.translateCodeComments;
   translationDisplayMode.innerHTML = TRANSLATION_DISPLAY_MODES
     .map((mode) => `<option value="${mode.value}">${mode.label}</option>`)
@@ -1103,6 +1108,8 @@ function readSettingsFromForm(): ExtensionSettings {
       style: selectionTriggerStyle.value as SelectionTriggerStyle
     },
     imageTranslationEnabled: imageTranslationEnabled.checked,
+    imageTranslationContextMenuEnabled: imageTranslationContextMenuEnabled.checked,
+    imageTranslationFloatingEnabled: imageTranslationFloatingEnabled.checked,
     translateCodeComments: translateCodeComments.checked,
     translationDisplayMode: translationDisplayMode.value as ExtensionSettings["translationDisplayMode"],
     providers: settings.providers.map((provider) =>

@@ -2,7 +2,7 @@ import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 import { DEFAULT_SETTINGS } from "../src/shared/defaults";
 import { getSettings } from "../src/shared/settings";
 import { installedRevision } from "../src/ocr/model-store";
-import { handleImageMenuClick, IMAGE_MENU_ID, initImageContextMenu } from "../src/background/image-context-menu";
+import { handleImageMenuClick, IMAGE_MENU_ID, initImageContextMenu, refreshImageContextMenu } from "../src/background/image-context-menu";
 
 vi.mock("../src/shared/settings", () => ({ getSettings: vi.fn() }));
 vi.mock("../src/ocr/model-store", () => ({ installedRevision: vi.fn() }));
@@ -15,7 +15,9 @@ beforeEach(() => {
   vi.stubGlobal("chrome", {
     runtime: { getURL: (path: string) => `chrome-extension://test/${path}` },
     tabs: { sendMessage: vi.fn(async () => ({ ok: true, data: { started: true } })), create: vi.fn() },
-    contextMenus: { update: vi.fn((_id, _properties, callback) => { callback?.(); }), create: vi.fn(), onClicked: { addListener: vi.fn() } }
+    storage: { onChanged: { addListener: vi.fn() } },
+    contextMenus: { update: vi.fn((_id, _properties, callback) => { callback?.(); }),
+      create: vi.fn((_properties, callback) => { Reflect.deleteProperty(chrome.runtime, "lastError"); callback?.(); }), onClicked: { addListener: vi.fn() } }
   });
 });
 afterEach(() => vi.unstubAllGlobals());
@@ -40,6 +42,28 @@ describe("image context menu", () => {
   it("routes the exact source URL to the clicked tab and frame", async () => {
     await handleImageMenuClick(info, tab);
     expect(chrome.tabs.sendMessage).toHaveBeenCalledWith(42, { type: "TRANSLATE_CONTEXT_IMAGE", srcUrl: info.srcUrl }, { frameId: 3 });
+    expect(chrome.tabs.create).not.toHaveBeenCalled();
+  });
+  it.each([
+    [true, true, true], [true, false, false], [false, true, false], [false, false, false]
+  ])("shows the image menu with master=%s and context control=%s: %s", async (master, menu, visible) => {
+    vi.mocked(getSettings).mockResolvedValue({ ...DEFAULT_SETTINGS, imageTranslationEnabled: master,
+      imageTranslationContextMenuEnabled: menu, imageTranslationFloatingEnabled: false });
+    await refreshImageContextMenu();
+    expect(chrome.contextMenus.update).toHaveBeenLastCalledWith(IMAGE_MENU_ID, expect.objectContaining({ visible }), expect.any(Function));
+  });
+  it("updates an existing menu when the saved image controls change", async () => {
+    initImageContextMenu();
+    await refreshImageContextMenu();
+    vi.mocked(getSettings).mockResolvedValue({ ...DEFAULT_SETTINGS, imageTranslationEnabled: true, imageTranslationContextMenuEnabled: false });
+    vi.mocked(chrome.storage.onChanged.addListener).mock.calls[0][0]({ "wupage.settings": { newValue: {} } }, "local");
+    await vi.waitFor(() => expect(chrome.contextMenus.update).toHaveBeenLastCalledWith(IMAGE_MENU_ID,
+      expect.objectContaining({ visible: false }), expect.any(Function)));
+  });
+  it("ignores a stale menu click when its own control has been disabled", async () => {
+    vi.mocked(getSettings).mockResolvedValue({ ...DEFAULT_SETTINGS, imageTranslationEnabled: true, imageTranslationContextMenuEnabled: false });
+    await handleImageMenuClick(info, tab);
+    expect(chrome.tabs.sendMessage).not.toHaveBeenCalled();
     expect(chrome.tabs.create).not.toHaveBeenCalled();
   });
   it("opens setup when models are missing instead of uploading an image", async () => {

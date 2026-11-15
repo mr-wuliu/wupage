@@ -4,11 +4,12 @@ import { DEFAULT_SELECTION_TRANSLATION } from "./dictionary";
 import { DEFAULT_APPEARANCE } from "./appearance";
 import { DEFAULT_SHORTCUTS, DEFAULT_SHORTCUT_ENABLED } from "./shortcuts";
 import { DEFAULT_LOCAL_SHORTCUTS } from "./local-shortcuts";
-import { normalizeElementExclusions } from "./element-exclusions";
+import { ELEMENT_EXCLUSION_DEFAULTS_VERSION, normalizeElementExclusions } from "./element-exclusions";
 
 export const DEFAULT_SETTINGS: ExtensionSettings = {
   elementExclusions: normalizeElementExclusions(undefined),
   elementInclusions: [],
+  elementExclusionDefaultsVersion: ELEMENT_EXCLUSION_DEFAULTS_VERSION,
   shortcuts: { ...DEFAULT_SHORTCUTS },
   localShortcuts: { ...DEFAULT_LOCAL_SHORTCUTS },
   shortcutEnabled: { ...DEFAULT_SHORTCUT_ENABLED },
@@ -27,6 +28,8 @@ export const DEFAULT_SETTINGS: ExtensionSettings = {
   floatingBallEnabled: true,
   contextMenuTranslationEnabled: false,
   imageTranslationEnabled: false,
+  imageTranslationContextMenuEnabled: true,
+  imageTranslationFloatingEnabled: true,
   translateCodeComments: true,
   translationDisplayMode: "bilingual",
   providers: [

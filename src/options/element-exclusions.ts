@@ -1,5 +1,5 @@
 import { t } from "../shared/i18n";
-import { normalizeElementExclusions, normalizeElementInclusions, type ElementRule, type ElementRuleSettings } from "../shared/element-exclusions";
+import { ELEMENT_EXCLUSION_DEFAULTS_VERSION, normalizeElementExclusions, normalizeElementInclusions, type ElementRule, type ElementRuleSettings } from "../shared/element-exclusions";
 import { normalizeSitePattern } from "../shared/auto-translation";
 import { randomId } from "../shared/random-id";
 import { uiIconMarkup } from "../shared/ui-icons";
@@ -142,7 +142,8 @@ export function setupElementRuleControls(root: HTMLElement, reveal: (field: HTML
         entries.push({ id: rule.id, enabled: rule.enabled, pattern, selectors, name: rule.name.trim() || pattern });
       }
       message.textContent = "";
-      return { elementExclusions: normalizeElementExclusions(result.exclude), elementInclusions: normalizeElementInclusions(result.include) };
+      return { elementExclusions: normalizeElementExclusions(result.exclude), elementInclusions: normalizeElementInclusions(result.include),
+        elementExclusionDefaultsVersion: ELEMENT_EXCLUSION_DEFAULTS_VERSION };
     }
   };
 }

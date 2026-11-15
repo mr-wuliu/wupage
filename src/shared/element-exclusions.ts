@@ -9,17 +9,45 @@ export interface ElementRule {
   enabled: boolean;
 }
 
+export const ELEMENT_EXCLUSION_DEFAULTS_VERSION = 2;
+
 export const DEFAULT_ELEMENT_EXCLUSIONS: ElementRule[] = [{
   id: "x-sidebar", get name() { return t("xSidebarNavigation"); }, pattern: "x.com", selectors: ['header[role="banner"]'], enabled: true
+}, {
+  id: "x-news", get name() { return t("xSidebarNews"); }, pattern: "x.com",
+  selectors: ['[data-testid="sidebarColumn"] div:has(> [data-testid="news_sidebar"])'], enabled: true
+}, {
+  id: "x-trends", get name() { return t("xSidebarTrends"); }, pattern: "x.com",
+  selectors: ['[data-testid="sidebarColumn"] section:has([data-testid="trend"])'], enabled: true
+}, {
+  id: "x-follow", get name() { return t("xSidebarFollow"); }, pattern: "x.com",
+  selectors: ['[data-testid="sidebarColumn"] aside:has([data-testid="UserCell"])'], enabled: true
+}, {
+  id: "x-footer", get name() { return t("xSidebarFooter"); }, pattern: "x.com",
+  selectors: ['[data-testid="sidebarColumn"] nav:has(a[href="https://x.com/tos"])'], enabled: true
 }];
+
+const PRESET_ADDED_VERSION: Record<string, number> = { "x-news": 1, "x-trends": 1, "x-follow": 2, "x-footer": 2 };
 
 export interface ElementRuleSettings {
   elementExclusions?: ElementRule[];
   elementInclusions?: ElementRule[];
+  elementExclusionDefaultsVersion?: number;
 }
 
 export function normalizeElementExclusions(value: unknown): ElementRule[] {
   return normalizeRules(value, DEFAULT_ELEMENT_EXCLUSIONS, "exclusion");
+}
+
+/** Add new presets once, preserving edits and an explicitly empty rule list. */
+export function migrateElementExclusionDefaults(value: unknown, version: unknown): ElementRule[] {
+  const rules = normalizeElementExclusions(value);
+  const previousVersion = typeof version === "number" && Number.isInteger(version) && version >= 0 ? version : 0;
+  if (!Array.isArray(value) || value.length === 0
+    || previousVersion >= ELEMENT_EXCLUSION_DEFAULTS_VERSION) return rules;
+  const ids = new Set(rules.map(rule => rule.id));
+  const additions = DEFAULT_ELEMENT_EXCLUSIONS.filter(rule => (PRESET_ADDED_VERSION[rule.id] ?? 0) > previousVersion && !ids.has(rule.id));
+  return normalizeElementExclusions([...rules, ...additions]);
 }
 
 export function normalizeElementInclusions(value: unknown): ElementRule[] {

@@ -18,6 +18,7 @@ beforeEach(async () => {
   document.open(); document.write(readFileSync("options.html", "utf8")); document.close();
   stored = normalizeSettings({ ...structuredClone(DEFAULT_SETTINGS), activeProviderId: "deepseek",
     sourceLang: "en", targetLang: "ja", cacheEnabled: false, floatingBallEnabled: false, translateCodeComments: false,
+    imageTranslationContextMenuEnabled: false, imageTranslationFloatingEnabled: false,
     translationDisplayMode: "replace", frameTranslation: { enabled: false, excludeMatches: ["example.com"] },
     selectionTranslation: { enabled: true, provider: "bing", style: "underline" },
     autoTranslation: { enabled: true, nonTargetLanguage: true, presetSites: ["github.com"], customSites: [] },
@@ -61,7 +62,7 @@ async function save(): Promise<void> {
 }
 
 it.each<[string, (keyof ExtensionSettings)[]]>([
-  ["generalSettings", ["sourceLang", "targetLang", "translationDisplayMode", "imageTranslationEnabled", "cacheEnabled", "floatingBallEnabled", "translateCodeComments", "frameTranslation"]],
+  ["generalSettings", ["sourceLang", "targetLang", "translationDisplayMode", "imageTranslationEnabled", "imageTranslationContextMenuEnabled", "imageTranslationFloatingEnabled", "cacheEnabled", "floatingBallEnabled", "translateCodeComments", "frameTranslation"]],
   ["selectionTranslationSettings", ["selectionTranslation"]],
   ["autoTranslationSettings", ["autoTranslation"]],
   ["elementExclusionSettings", ["elementExclusions", "elementInclusions"]],

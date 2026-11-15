@@ -202,6 +202,7 @@ export type DualServiceProviderConfig = Extract<ProviderConfig, DualServiceConfi
 
 export interface ExtensionSettings {
   elementExclusions?: import("./element-exclusions").ElementRule[];
+  elementExclusionDefaultsVersion?: number;
   elementInclusions?: import("./element-exclusions").ElementRule[];
   frameTranslation?: import("./frame-session").FrameTranslationSettings;
   videoTranslation?: VideoTranslationSettings;
@@ -224,6 +225,8 @@ export interface ExtensionSettings {
   floatingBallEnabled: boolean;
   contextMenuTranslationEnabled?: boolean;
   imageTranslationEnabled?: boolean;
+  imageTranslationContextMenuEnabled?: boolean;
+  imageTranslationFloatingEnabled?: boolean;
   ocr?: import("./ocr-service").OcrSettings;
   translateCodeComments: boolean;
   translationDisplayMode: TranslationDisplayMode;

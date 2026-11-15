@@ -6,6 +6,7 @@ import { hasRuntimeContext, sendRuntimeRequest } from "./runtime";
 import { getImageRasterSize, renderImageTranslation } from "./image-rendering";
 import { isNonProseElement, isTranslationOptedOut } from "./content-policy";
 import { hasTouchInput, TOUCH_INPUT_QUERY, visibleViewport } from "../shared/touch";
+import { createXImageContextMenu, findXContextImage, type ContextImageTarget } from "./x-image-context-menu";
 
 interface ImageEntry {
   image: HTMLImageElement;
@@ -38,6 +39,7 @@ let host: HTMLDivElement | undefined;
 let sourceStyle: HTMLStyleElement | undefined;
 let root: ShadowRoot | undefined;
 let enabled = false;
+let floatingEnabled = true;
 let observer: MutationObserver | undefined;
 let resizeObserver: ResizeObserver | undefined;
 let scanTimer: number | undefined;
@@ -47,7 +49,9 @@ let pointer: { x: number; y: number } | undefined;
 let touchControls = false;
 let stopTouchMedia: (() => void) | undefined;
 let initialized = false;
-let contextTarget: { image: HTMLImageElement; source: string } | undefined;
+let contextTarget: ContextImageTarget | undefined;
+let contextMenuEnabled = true;
+let xImageMenu: ReturnType<typeof createXImageContextMenu>;
 
 export function initImageTranslation(): void {
   if (initialized || !hasRuntimeContext()) return;
@@ -68,18 +72,30 @@ export function initImageTranslation(): void {
     }
     // Even an unrelated update supersedes the initial read. Apply its current
     // switch value so initialization cannot remain disabled until a reload.
-    setImageTranslationEnabled(settings?.imageTranslationEnabled === true);
+    applyImageSettings(settings);
   });
   const initialRevision = revision;
   void sendRuntimeRequest<ExtensionSettings>({ type: "GET_SETTINGS" }).then((settings) => {
-    if (revision === initialRevision) setImageTranslationEnabled(settings.imageTranslationEnabled === true);
+    if (revision === initialRevision) applyImageSettings(settings);
   }).catch(() => undefined);
 }
 
-export function setImageTranslationEnabled(value: boolean): void {
-  if (value === enabled) return;
+function applyImageSettings(settings?: ExtensionSettings): void {
+  contextMenuEnabled = settings?.imageTranslationContextMenuEnabled !== false;
+  if (!contextMenuEnabled) { xImageMenu?.close(); xImageMenu = undefined; }
+  setImageTranslationEnabled(settings?.imageTranslationEnabled === true, settings?.imageTranslationFloatingEnabled !== false);
+}
+
+export function setImageTranslationEnabled(value: boolean, floating = true): void {
+  const floatingChanged = floatingEnabled !== floating;
+  floatingEnabled = floating;
+  if (value === enabled) {
+    if (enabled && floatingChanged) scanImages();
+    return;
+  }
   enabled = value;
   if (!enabled) {
+    xImageMenu?.close(); xImageMenu = undefined;
     restoreSourcePixels();
     observer?.disconnect(); resizeObserver?.disconnect();
     window.removeEventListener("scroll", scheduleLayout, true);
@@ -173,12 +189,14 @@ function scanImages(): void {
   if (host && !host.isConnected) document.documentElement.append(host);
   if (sourceStyle && !sourceStyle.isConnected) document.documentElement.append(sourceStyle);
   for (const [image, entry] of entries) {
-    if (!image.isConnected || entry.source !== imageSource(image) || isNonProseElement(image) || isTranslationOptedOut(image)) {
+    if (!image.isConnected || entry.source !== imageSource(image) || isNonProseElement(image) || isTranslationOptedOut(image)
+      || (!floatingEnabled && !entry.manual && !entry.busy && !entry.canvas)) {
       cancelButtonHide(entry);
       entry.generation += 1; entry.button.remove(); entry.status.remove(); entry.canvas?.remove();
       resizeObserver?.unobserve(image); entries.delete(image);
     }
   }
+  if (!floatingEnabled) { updateLayout(); return; }
   for (const image of document.images) {
     if (entries.has(image) || !imageSource(image) || !image.complete || !image.naturalWidth
       || image.naturalWidth < 80 || image.naturalHeight < 40
@@ -208,16 +226,20 @@ function createEntry(image: HTMLImageElement): ImageEntry {
 
 function rememberContextImage(event: MouseEvent): void {
   const image = event.composedPath().find((node): node is HTMLImageElement => node instanceof HTMLImageElement)
+    ?? findXContextImage(event)
     ?? document.elementsFromPoint?.(event.clientX, event.clientY).find((node): node is HTMLImageElement => node instanceof HTMLImageElement);
   contextTarget = image ? { image, source: imageSource(image) } : undefined;
+  if (!contextMenuEnabled || !hasRuntimeContext()) { xImageMenu?.close(); return; }
+  xImageMenu ??= createXImageContextMenu(target => translateContextImage(target.source, target));
+  xImageMenu?.open(event, image && !isNonProseElement(image) && !isTranslationOptedOut(image) ? contextTarget : undefined);
 }
 
-export async function translateContextImage(srcUrl: string): Promise<{ started: boolean }> {
+export async function translateContextImage(srcUrl: string, selected = contextTarget): Promise<{ started: boolean }> {
   try {
-    const selected = contextTarget;
     const settings = await sendRuntimeRequest<ExtensionSettings>({ type: "GET_SETTINGS" });
     if (!settings.imageTranslationEnabled) throw new Error(t("installOcrModelsAndEnableImageTranslationIn"));
-    setImageTranslationEnabled(true);
+    if (settings.imageTranslationContextMenuEnabled === false) return { started: false };
+    setImageTranslationEnabled(true, settings.imageTranslationFloatingEnabled !== false);
     let image: HTMLImageElement | undefined;
     if (selected && (selected.source === srcUrl || selected.image.src === srcUrl)) {
       if (!selected.image.isConnected || imageSource(selected.image) !== selected.source) throw new Error(t("theImageHasChangedRightClickItAgain"));
@@ -364,7 +386,7 @@ function updateHover(): void {
       hovered = Boolean((onImage && imageHit) || onButton);
     }
     const keyboardFocus = root?.activeElement === entry.button && entry.button.matches(":focus-visible");
-    if (!bounds) hideButton(entry);
+    if (!floatingEnabled || !bounds) hideButton(entry);
     else if (touchControls || hovered || keyboardFocus) {
       cancelButtonHide(entry);
       entry.button.hidden = false;

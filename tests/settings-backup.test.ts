@@ -9,6 +9,8 @@ import { stringify as stringifyToml } from "smol-toml";
 const now = new Date("2026-11-03T01:02:03.456Z");
 function fixture(): ExtensionSettings {
   const settings = structuredClone(DEFAULT_SETTINGS);
+  settings.imageTranslationContextMenuEnabled = false;
+  settings.imageTranslationFloatingEnabled = false;
   settings.appearance!.paragraphHighlightEnabled = false;
   settings.videoTranslation = { enabled: false, showOriginal: false, fontSize: 26, background: "none", preferredSource: "en", enabledSites: ["youtube.com"],
     originalPosition: "below", displayMode: "western", sourceStyle: { fontSize: 18, fontFamily: "serif", fontWeight: 400 },
@@ -61,6 +63,40 @@ describe("settings backup format", () => {
     const text = serializeSettingsBackup(backup).replace(/^paragraphHighlightEnabled = false\r?\n/mu, "");
     expect(parseSettingsBackup(text).settings.appearance?.paragraphHighlightEnabled).toBe(true);
     expect(parseSettingsBackup(serializeSettingsBackup(backup)).settings.appearance?.paragraphHighlightEnabled).toBe(false);
+  });
+
+  it("fills image controls in older backups and keeps explicit disabled controls", () => {
+    const text = serializeSettingsBackup(createSettingsBackup(fixture(), "1.23.0", now));
+    expect(parseSettingsBackup(text).settings).toMatchObject({
+      imageTranslationContextMenuEnabled: false, imageTranslationFloatingEnabled: false
+    });
+    const older = text.replace(/^imageTranslation(?:ContextMenu|Floating)Enabled = false\r?\n/gmu, "");
+    expect(parseSettingsBackup(older).settings).toMatchObject({
+      imageTranslationContextMenuEnabled: true, imageTranslationFloatingEnabled: true
+    });
+  });
+
+  it("migrates legacy region presets and preserves deleted or disabled presets in new backups", () => {
+    const settings = normalizeSettings({});
+    settings.elementExclusions![1].enabled = false;
+    settings.elementExclusions!.splice(2, 1);
+    const text = serializeSettingsBackup(createSettingsBackup(settings, "1.23.0", now));
+    expect(parseSettingsBackup(text).settings.elementExclusions).toEqual(settings.elementExclusions);
+    const legacy = text.replace(/^elementExclusionDefaultsVersion = 2\r?\n/mu, "");
+    const restored = parseSettingsBackup(legacy).settings;
+    expect(restored.elementExclusions?.map(rule => [rule.id, rule.enabled])).toEqual([
+      ["x-sidebar", true], ["x-news", false], ["x-follow", true], ["x-footer", true], ["x-trends", true]
+    ]);
+    expect(parseSettingsBackup(serializeSettingsBackup(createSettingsBackup(restored, "1.23.0", now))).settings).toEqual(restored);
+  });
+
+  it("imports version 1 region settings without restoring a deleted trends preset", () => {
+    const settings = normalizeSettings({});
+    settings.elementExclusions = settings.elementExclusions!.slice(0, 2);
+    const text = serializeSettingsBackup(createSettingsBackup(settings, "1.23.0", now))
+      .replace(/^elementExclusionDefaultsVersion = 2$/mu, "elementExclusionDefaultsVersion = 1");
+    expect(parseSettingsBackup(text).settings.elementExclusions?.map(rule => rule.id))
+      .toEqual(["x-sidebar", "x-news", "x-follow", "x-footer"]);
   });
 
   it.each([

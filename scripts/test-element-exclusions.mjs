@@ -24,12 +24,22 @@ const origin = `http://127.0.0.1:${server.address().port}`;
 const pageHtml = url => {
   const frame = url.pathname.endsWith('/frame');
   return `<!doctype html><html lang="en"><meta charset="utf-8"><title>Element exclusion fixture</title>
-    <style>body{margin:0;font:17px/1.6 Arial;color:#172026}header{position:fixed;inset:0 auto 0 0;width:220px;padding:24px;background:#f2f5f4}nav{display:grid;gap:20px}main{margin-left:280px;max-width:760px;padding:24px}p{margin:20px 0}.sponsored{padding:14px;border:1px solid #aaa}iframe{width:650px;height:220px}</style>
+    <style>body{margin:0;font:17px/1.6 Arial;color:#172026}header{position:fixed;inset:0 auto 0 0;width:220px;padding:24px;background:#f2f5f4}nav{display:grid;gap:20px}main{margin-left:280px;max-width:600px;padding:24px}p{margin:20px 0}.sponsored{padding:14px;border:1px solid #aaa}iframe{width:650px;height:220px}[data-testid="sidebarColumn"]{position:absolute;left:970px;top:24px;width:350px}[data-testid="sidebarColumn"]>div,[data-testid="sidebarColumn"]>section{padding:12px;border:1px solid #ddd;margin-bottom:16px}h2{font-size:22px;margin:0}</style>
     <body>${frame ? '<main style="margin:0"><p id="framePublic">Embedded public reading content.</p><p class="sponsored">Embedded excluded recommendation.</p></main>'
       : `<header role="banner"><nav aria-label="Primary"><a href="/home">Home</a><a href="/explore">Explore</a><a href="/notifications">Notifications</a></nav></header>
       <main><article><p id="public">Public article content before <span class="sponsored">Excluded inline label.</span> and after this region.</p>
         <p id="dynamic">Dynamic public article content.</p><div class="sponsored">Excluded recommendation text.</div></article>
-        ${url.hostname === 'example.com' ? '<iframe src="https://example.com/articles/frame"></iframe>' : ''}</main>`}</body></html>`;
+        ${url.hostname === 'example.com' ? '<iframe src="https://example.com/articles/frame"></iframe>' : ''}</main>
+      <aside data-testid="sidebarColumn">
+        <div id="premium"><h2>Subscribe to Premium</h2><p>Enjoy more premium features.</p></div>
+        <div id="news"><div data-testid="news_sidebar"></div><h2>Today’s News</h2><a id="news-link" href="/news">Technology news headline.</a><p>Three hours ago.</p></div>
+        <section id="trends"><h2>What’s happening</h2><div data-testid="trend"><p>Trending topic.</p><p>Many posts.</p></div>
+          <div><a href="/explore/tabs/for-you">Show more</a></div></section>
+        <aside id="follow" aria-label="おすすめユーザー"><h2>Who to follow</h2><ul><li data-testid="UserCell"><span>A recommended account.</span>
+          <button id="follow-button" data-testid="123-follow">Follow</button></li></ul><a href="/i/connect_people?user_id=123">Show more</a></aside>
+        <nav id="footer" aria-label="フッター"><a id="terms-link" href="https://x.com/tos">Terms</a><a href="https://x.com/privacy">Privacy</a>
+          <a href="https://help.x.com/rules-and-policies/x-cookies">Cookies</a><span>Accessibility</span><span>Ads info</span><button>More</button><span>© 2026 X Corp.</span></nav>
+      </aside>`}</body></html>`;
 };
 let context;
 try {
@@ -48,6 +58,16 @@ try {
     assert.equal(result?.ok, true, JSON.stringify(result)); return result.data;
   };
   const settings = await runtime({ type: 'GET_SETTINGS' });
+  assert.deepEqual(settings.elementExclusions.map(rule => rule.id), ['x-sidebar', 'x-news', 'x-trends', 'x-follow', 'x-footer']);
+  const legacy = structuredClone(settings);
+  legacy.elementExclusions = legacy.elementExclusions.slice(0, 1);
+  delete legacy.elementExclusionDefaultsVersion;
+  await options.evaluate(settings => chrome.storage.local.set({ 'wupage.settings': settings }), legacy);
+  assert.deepEqual((await runtime({ type: 'GET_SETTINGS' })).elementExclusions, settings.elementExclusions);
+  const versionOne = { ...legacy, elementExclusionDefaultsVersion: 1 };
+  await options.evaluate(settings => chrome.storage.local.set({ 'wupage.settings': settings }), versionOne);
+  assert.deepEqual((await runtime({ type: 'GET_SETTINGS' })).elementExclusions.map(rule => rule.id), ['x-sidebar', 'x-follow', 'x-footer']);
+  checks.push('legacy settings receive new presets; version 1 preserves previously deleted news and trends rules');
   settings.providers.push({ id: 'exclusion-test', type: 'http-template', label: 'Local test', method: 'POST', url: `${origin}/translate`,
     headers: { 'Content-Type': 'application/json' }, bodyTemplate: '{"texts":{{json texts}}}', responsePath: 'translations' });
   Object.assign(settings, { activeProviderId: 'exclusion-test', sourceLang: 'en', targetLang: 'zh-CN', cacheEnabled: false,
@@ -56,25 +76,26 @@ try {
     selectionTranslation: { ...settings.selectionTranslation, enabled: false } });
   await runtime({ type: 'SAVE_SETTINGS', settings }); await options.reload();
   await options.locator('#elementExclusionSettings:not([hidden])').waitFor();
-  assert.equal(await options.locator('.exclusion-rule').count(), 1);
-  assert.equal(await options.locator('.exclusion-rule [data-field="pattern"]').inputValue(), 'x.com');
-  assert.equal(await options.locator('.exclusion-rule-details').isHidden(), true);
+  assert.equal(await options.locator('.exclusion-rule').count(), 5);
+  const navRule = options.locator('[data-rule-id="exclude:x-sidebar"]');
+  assert.equal(await navRule.locator('[data-field="pattern"]').inputValue(), 'x.com');
+  assert.equal(await options.locator('.exclusion-rule-details').evaluateAll(nodes => nodes.every(node => node.hidden)), true);
   for (const width of [1400, 820, 390]) {
     await options.setViewportSize({ width, height: 1000 });
     assert.equal(await options.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, `options fit at ${width}px`);
     await options.screenshot({ path: path.join(output, `settings-${width}.png`), fullPage: true });
   }
   await options.setViewportSize({ width: 1400, height: 1000 });
-  await options.locator('.exclusion-rule-toggle').click();
-  assert.equal(await options.locator('.exclusion-rule-details').isVisible(), true);
+  await navRule.locator('.exclusion-rule-toggle').click();
+  assert.equal(await navRule.locator('.exclusion-rule-details').isVisible(), true);
   await options.screenshot({ path: path.join(output, 'settings-expanded-1400.png'), fullPage: true });
   await options.setViewportSize({ width: 390, height: 1000 });
   assert.equal(await options.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
   await options.screenshot({ path: path.join(output, 'settings-expanded-390.png'), fullPage: true });
   await options.setViewportSize({ width: 1400, height: 1000 });
-  await options.locator('.exclusion-rule-toggle').press('Enter');
-  assert.equal(await options.locator('.exclusion-rule-details').isHidden(), true);
-  checks.push('one collapsed X rule; details expand by click and keyboard; collapsed and expanded settings fit desktop and narrow layouts');
+  await navRule.locator('.exclusion-rule-toggle').press('Enter');
+  assert.equal(await navRule.locator('.exclusion-rule-details').isHidden(), true);
+  checks.push('five collapsed X rules; details expand by click and keyboard; collapsed and expanded settings fit desktop and narrow layouts');
 
   const page = await context.newPage(); await page.goto('https://x.com/home');
   const identity = verifyBrowserIdentity(target, await page.evaluate(() => navigator.userAgent));
@@ -93,21 +114,59 @@ try {
   const translated = (frame, selector) => frame.locator(selector).filter({ hasText: '译文：' }).first().waitFor();
   await wait(async () => { try { await action('GET_TRANSLATION_STATE'); return true; } catch { return false; } });
   const originalNav = await page.locator('header[role="banner"]').innerHTML();
+  const originalNews = await page.locator('#news').innerHTML(), originalTrends = await page.locator('#trends').innerHTML();
+  const originalFollow = await page.locator('#follow').innerHTML(), originalFooter = await page.locator('#footer').innerHTML();
   await action('TRANSLATE_PAGE');
   await translated(page, '#public');
   assert.equal(await page.locator('header[role="banner"]').innerHTML(), originalNav);
   assert.equal(requests.some(request => request.texts.some(text => /Home|Explore|Notifications/.test(text))), false);
+  await translated(page, '#premium');
+  assert.equal(await page.locator('#news').innerHTML(), originalNews);
+  assert.equal(await page.locator('#trends').innerHTML(), originalTrends);
+  assert.equal(await page.locator('#follow').innerHTML(), originalFollow);
+  assert.equal(await page.locator('#footer').innerHTML(), originalFooter);
+  await page.locator('#news-link').evaluate(link => link.addEventListener('click', event => { event.preventDefault(); link.dataset.clicked = 'yes'; }));
+  await page.locator('#news-link').click();
+  assert.equal(await page.locator('#news-link').getAttribute('data-clicked'), 'yes');
+  for (const selector of ['#follow-button', '#terms-link']) {
+    await page.locator(selector).evaluate(element => element.addEventListener('click', event => { event.preventDefault(); element.dataset.clicked = 'yes'; }));
+    await page.locator(selector).click();
+    assert.equal(await page.locator(selector).getAttribute('data-clicked'), 'yes');
+  }
+  await page.evaluate(() => {
+    document.querySelector('#news').insertAdjacentHTML('beforeend', '<p>Late news headline.</p>');
+    document.querySelector('#trends').insertAdjacentHTML('beforeend', '<div data-testid="trend"><p>Late trending topic.</p></div>');
+    document.querySelector('#follow ul').insertAdjacentHTML('beforeend', '<li data-testid="UserCell"><span>Late recommended account.</span><button data-testid="456-follow">Follow</button></li>');
+    document.querySelector('main').insertAdjacentHTML('beforeend', '<p id="late-x-public">Late public post on X.</p>');
+  });
+  await translated(page, '#late-x-public');
+  for (const text of ['Today’s News', 'Technology news headline.', 'Three hours ago.', 'What’s happening', 'Trending topic.', 'Many posts.', 'Late news headline.', 'Late trending topic.',
+    'Who to follow', 'A recommended account.', 'Late recommended account.', 'Follow', 'Show more', 'Terms', 'Privacy', 'Cookies', 'Accessibility', 'Ads info', 'More', '© 2026 X Corp.']) {
+    assert.equal(JSON.stringify(requests).includes(text), false, text);
+  }
+  checks.push('news, trends, follow suggestions and footer stay out of requests; show-more links, follow buttons and legal links remain original and clickable; late content is excluded');
   await page.screenshot({ path: path.join(output, 'x-preset.png') });
-  const preset = options.locator('.exclusion-rule input[type="checkbox"]');
-  await options.locator('.exclusion-rule .setting-toggle').click(); assert.equal(await preset.isChecked(), false); await options.locator('#save').click();
-  assert.equal(await options.locator('.exclusion-rule-details').isHidden(), true);
+  const preset = navRule.locator('input[type="checkbox"]');
+  await navRule.locator('.setting-toggle').click(); assert.equal(await preset.isChecked(), false); await options.locator('#save').click();
+  assert.equal(await navRule.locator('.exclusion-rule-details').isHidden(), true);
   await translated(page, 'header[role="banner"]');
-  await options.locator('.exclusion-rule .setting-toggle').click(); assert.equal(await preset.isChecked(), true); await options.locator('#save').click();
+  await navRule.locator('.setting-toggle').click(); assert.equal(await preset.isChecked(), true); await options.locator('#save').click();
   await wait(async () => await page.locator('header[role="banner"]').innerHTML() === originalNav);
   checks.push('X navigation remains original; disabling and enabling the preset updates an active page');
 
+  for (const [id, selector, other] of [['x-news', '#news', '#trends'], ['x-trends', '#trends', '#news'], ['x-follow', '#follow', '#footer'], ['x-footer', '#footer', '#follow']]) {
+    const rule = options.locator(`[data-rule-id="exclude:${id}"]`);
+    const original = await page.locator(selector).innerHTML(), otherOriginal = await page.locator(other).innerHTML();
+    await rule.locator('.setting-toggle').click(); await options.locator('#save').click();
+    await translated(page, selector);
+    assert.equal(await page.locator(other).innerHTML(), otherOriginal);
+    await rule.locator('.setting-toggle').click(); await options.locator('#save').click();
+    await wait(async () => await page.locator(selector).innerHTML() === original);
+  }
+  checks.push('news, trends, follow and footer presets can each be disabled and enabled independently on an active page');
+
   await options.locator('#addElementInclusion').click();
-  const inclusion = options.locator('.exclusion-rule').nth(1);
+  const inclusion = options.locator('.exclusion-rule').nth(5);
   await inclusion.locator('[data-field="name"]').fill('媒体下载器设置');
   await inclusion.locator('[data-field="pattern"]').fill('x.com');
   await inclusion.locator('[data-field="selectors"]').fill('[data-dialog="media"]');
@@ -145,12 +204,12 @@ try {
   checks.push('region rule translates a late dialog title and label, leaves fields untouched, and restores source on unmatch or removal');
 
   await options.locator('#addElementExclusion').click();
-  const custom = options.locator('.exclusion-rule').nth(1);
+  const custom = options.locator('.exclusion-rule').nth(5);
   await custom.locator('[data-field="name"]').fill('推荐区域');
   await custom.locator('[data-field="pattern"]').fill('example.com/articles/*');
   await custom.locator('[data-field="selectors"]').fill('.sponsored\n[data-region="ads"]');
   await options.locator('#save').click();
-  await wait(async () => (await runtime({ type: 'GET_SETTINGS' })).elementExclusions.length === 2);
+  await wait(async () => (await runtime({ type: 'GET_SETTINGS' })).elementExclusions.length === 6);
   const start = requests.length;
   await page.goto('https://example.com/articles/one');
   await wait(async () => { try { await action('GET_TRANSLATION_STATE'); return true; } catch { return false; } });
@@ -181,7 +240,7 @@ try {
   const selector = custom.locator('[data-field="selectors"]'); await selector.fill('div..invalid');
   await options.locator('#save').click();
   await options.locator('#elementExclusionStatus').filter({ hasText: 'CSS 选择器无效' }).waitFor();
-  assert.deepEqual((await runtime({ type: 'GET_SETTINGS' })).elementExclusions[1].selectors, ['.sponsored', '[data-region="ads"]']);
+  assert.deepEqual((await runtime({ type: 'GET_SETTINGS' })).elementExclusions[5].selectors, ['.sponsored', '[data-region="ads"]']);
   await selector.fill('.sponsored');
   while (await options.locator('.exclusion-rule-remove').count()) await options.locator('.exclusion-rule-remove').first().click();
   await options.locator('#save').click(); await wait(async () => (await runtime({ type: 'GET_SETTINGS' })).elementExclusions.length === 0);

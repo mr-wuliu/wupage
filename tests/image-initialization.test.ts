@@ -38,6 +38,18 @@ afterEach(() => {
 });
 
 describe("live image translation settings", () => {
+  it("updates floating controls live without restarting the image runtime", async () => {
+    finishRead(settings);
+    await vi.waitFor(() => expect(host()).not.toBeNull());
+    const initial = host();
+    const rightOnly = { ...settings, imageTranslationFloatingEnabled: false };
+    update(settings, rightOnly);
+    expect(host()).toBe(initial);
+    expect(host()?.shadowRoot?.querySelectorAll("button")).toHaveLength(0);
+    update(rightOnly, settings);
+    expect(host()).toBe(initial);
+    expect(host()?.shadowRoot?.querySelectorAll("button")).toHaveLength(1);
+  });
   it("applies an unrelated storage update while the initial settings read is pending", async () => {
     update(settings, { ...settings, floatingBallEnabled: !settings.floatingBallEnabled });
     expect(host()?.shadowRoot?.querySelectorAll("button")).toHaveLength(1);

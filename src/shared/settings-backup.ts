@@ -1,5 +1,6 @@
 import { t } from "./i18n";
 import { normalizeSettings } from "./settings";
+import { normalizeElementExclusions } from "./element-exclusions";
 import { BUILT_IN_PROVIDER_IDS, DEFAULT_SETTINGS } from "./defaults";
 import { COLOR_FIELDS, DEFAULT_APPEARANCE } from "./appearance";
 import { LOCAL_BINDINGS } from "./local-shortcuts";
@@ -174,6 +175,7 @@ const settingsShape = {
   pdfTranslationPageRadius: (v, p, s) => v === null ? null : number(0, 1000)(v, p, s),
   cacheEnabled: boolean, floatingBallEnabled: boolean, translateCodeComments: boolean,
   statisticsEnabled: optional(boolean), contextMenuTranslationEnabled: optional(boolean), imageTranslationEnabled: optional(boolean),
+  imageTranslationContextMenuEnabled: optional(boolean), imageTranslationFloatingEnabled: optional(boolean),
   ocr: optional(object({ mode: oneOf("builtin", "http"), endpoint: string, model: string, apiKey: string, modelRevision: string })),
   translationDisplayMode: oneOf("replace", "bilingual", "bilingual-accent"), providers: array(provider, 1000),
   shortcuts: optional(object(fields(TRANSLATION_SHORTCUTS.map(entry => entry.name), string))),
@@ -185,6 +187,7 @@ const settingsShape = {
     customSites: array(object({ id: string, pattern: string, enabled: boolean })),
     removedPresetSites: optional(strings), excludedSites: optional(strings) })),
   elementExclusions: elementRules, elementInclusions: elementRules,
+  elementExclusionDefaultsVersion: optional(number(0, Number.MAX_SAFE_INTEGER)),
   videoTranslation: optional(object({ enabled: boolean, showOriginal: boolean, fontSize: oneOf(18, 22, 26),
     background: oneOf("soft", "none"), preferredSource: string, enabledSites: strings,
     originalPosition: optional(oneOf("above", "below")),
@@ -216,9 +219,10 @@ function readSettings(value: unknown, strict: boolean): ExtensionSettings {
   }
   const normalized = normalizeSettings(parsed);
   // Reject malformed rules and shortcuts rather than silently replacing them
-  // with defaults. New built-in providers may still be added by normalization.
+  // with defaults. New built-in providers and region presets may be added.
   for (const key of ["autoTranslation", "elementExclusions", "elementInclusions", "shortcuts", "localShortcuts", "appearance", "frameTranslation", "videoTranslation"] as const) {
-    if (parsed[key] !== undefined && !sameValue(parsed[key], normalized[key])) invalid(`settings.${key}`);
+    const validated = key === "elementExclusions" ? normalizeElementExclusions(parsed[key]) : normalized[key];
+    if (parsed[key] !== undefined && !sameValue(parsed[key], validated)) invalid(`settings.${key}`);
   }
   return normalized;
 }

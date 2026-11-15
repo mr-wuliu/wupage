@@ -12,8 +12,22 @@ import {
 } from "../src/content/dom";
 import { configureElementRules, isElementExcluded } from "../src/content/element-exclusions";
 import { buildTranslationContext } from "../src/content/translation-context";
+import { normalizeElementExclusions } from "../src/shared/element-exclusions";
 
 const rule = (selectors: string[], pattern = "x.com") => [{ id: "custom", name: "Custom", pattern, selectors, enabled: true }];
+const sidebar = `<aside data-testid="sidebarColumn">
+  <div id="premium"><h2>Subscribe to Premium</h2><p>Enjoy more premium features.</p></div>
+  <div id="news"><div data-testid="news_sidebar"></div><h2>Today’s News</h2>
+    <a href="/news"><span>Technology news headline.</span></a><p>Three hours ago.</p></div>
+  <section id="trends"><h2>What’s happening</h2><div data-testid="trend"><span>Trending topic.</span><p>Many posts.</p></div>
+    <div><a href="/explore/tabs/for-you">Show more</a></div></section>
+  <aside id="follow" aria-label="おすすめユーザー"><h2>Who to follow</h2>
+    <ul><li data-testid="UserCell"><span>A recommended account.</span><button data-testid="123-follow">Follow</button></li></ul>
+    <a href="/i/connect_people?user_id=123">Show more</a></aside>
+  <nav id="footer" aria-label="フッター"><a href="https://x.com/tos">Terms</a><a href="https://x.com/privacy">Privacy</a>
+    <a href="https://help.x.com/rules-and-policies/x-cookies">Cookies</a><span>Accessibility</span><span>Ads info</span>
+    <button>More</button><span>© 2026 X Corp.</span></nav>
+</aside>`;
 beforeEach(() => {
   history.replaceState(null, "", "/home"); configureElementRules({});
   document.body.innerHTML = `<header role="banner"><nav><a href="/home">Home</a><a href="/explore">Explore</a></nav>
@@ -59,6 +73,57 @@ it("forces only visible text in a matching region and leaves inputs and exclusio
 afterEach(() => { clearTranslations(); configureElementRules({}); vi.restoreAllMocks(); document.body.replaceChildren(); });
 
 describe("configured element exclusions", () => {
+  it.each(["bilingual", "bilingual-accent", "replace"] as const)("preserves X sidebar cards, their controls and footer in %s mode", async mode => {
+    document.body.insertAdjacentHTML("beforeend", sidebar);
+    const news = document.querySelector("#news")!, trends = document.querySelector("#trends")!;
+    const originalNews = news.outerHTML, originalTrends = trends.outerHTML;
+    const follow = document.querySelector("#follow")!, footer = document.querySelector("#footer")!;
+    const originalFollow = follow.outerHTML, originalFooter = footer.outerHTML;
+    const segments = await collectTextSegmentsProgressive();
+    const texts = segments.map(segment => segment.text).join(" ");
+    expect(texts).toContain("Read this complete post");
+    expect(texts).toContain("Enjoy more premium features.");
+    for (const text of ["Today’s News", "Technology news headline.", "Three hours ago.", "What’s happening", "Trending topic.", "Many posts.",
+      "Who to follow", "A recommended account.", "Follow", "Show more", "Terms", "Privacy", "Cookies", "Accessibility", "Ads info", "More", "© 2026 X Corp."]) {
+      expect(texts).not.toContain(text);
+      expect(buildTranslationContext() ?? "").not.toContain(text);
+    }
+    expect(findTranslatableParagraph(news.querySelector("span"))).toBeNull();
+    expect(collectParagraphTextSegments(trends)).toEqual([]);
+    renderTranslations(segments.map(segment => ({ id: segment.id, text: `译文：${segment.text}` })), mode);
+    expect(news.outerHTML).toBe(originalNews);
+    expect(trends.outerHTML).toBe(originalTrends);
+    expect(follow.outerHTML).toBe(originalFollow);
+    expect(footer.outerHTML).toBe(originalFooter);
+    expect(document.querySelector("#post .wupage-translation")).not.toBeNull();
+  });
+
+  it("applies X presets to late cards and lets each rule be disabled independently", async () => {
+    const added = document.createElement("div"); added.innerHTML = sidebar;
+    document.body.append(added);
+    expect((await collectAdditionalTextSegmentsProgressive([added])).map(segment => segment.text).join(" "))
+      .not.toMatch(/Technology news headline|Trending topic|Show more|Follow|Terms/);
+    for (const [id, included, excluded] of [["x-news", "#news", "#trends"], ["x-trends", "#trends", "#news"],
+      ["x-follow", "#follow", "#footer"], ["x-footer", "#footer", "#follow"]]) {
+      const rules = normalizeElementExclusions(undefined);
+      rules.find(rule => rule.id === id)!.enabled = false;
+      configureElementRules({ elementExclusions: rules });
+      expect(isElementExcluded(document.querySelector(included)!)).toBe(false);
+      expect(isElementExcluded(document.querySelector(excluded)!)).toBe(true);
+      expect(collectParagraphTextSegments(document.querySelector(included)!)).not.toEqual([]);
+      configureElementRules({ elementExclusions: rules.filter(rule => rule.id !== id) });
+      expect(isElementExcluded(document.querySelector(included)!)).toBe(false);
+    }
+    // The same marker outside X's sidebar must not suppress ordinary posts.
+    const post = document.querySelector("#post")!;
+    post.insertAdjacentHTML("afterend", '<section id="post-trend"><p data-testid="trend">A post discussing trends.</p></section>');
+    post.insertAdjacentHTML("afterend", '<aside id="post-follow"><p data-testid="UserCell">An account mentioned in a post.</p></aside><nav id="post-footer"><a href="https://x.com/tos">Terms in a post.</a></nav>');
+    configureElementRules({});
+    expect(isElementExcluded(document.querySelector("#post-trend")!)).toBe(false);
+    expect(isElementExcluded(document.querySelector("#post-follow")!)).toBe(false);
+    expect(isElementExcluded(document.querySelector("#post-footer")!)).toBe(false);
+  });
+
   it.each(["bilingual", "bilingual-accent", "replace"] as const)("keeps the X navigation intact while translating posts in %s mode", async mode => {
     const nav = document.querySelector("header")!, original = nav.outerHTML;
     const segments = (await collectTextSegmentsProgressive());

@@ -214,10 +214,19 @@
     "message": "Selection translation"
   },
   "useTheButtonBesideAnImageToOverlay": {
-    "message": "Use the button beside an image to overlay its translation"
+    "message": "Translate image text using the context menu or floating controls"
   },
   "imageTranslation": {
     "message": "Image translation"
+  },
+  "imageTranslationControls": {
+    "message": "Image translation controls"
+  },
+  "imageTranslationContextMenu": {
+    "message": "Context menu"
+  },
+  "imageTranslationFloating": {
+    "message": "Floating controls"
   },
   "installOcrModels": {
     "message": "Install OCR models"
@@ -4102,7 +4111,7 @@
     "message": "PDFs open in a separate side-by-side translation view."
   },
   "imageTranslationEnabledClickTrBesideAnImage": {
-    "message": "Image translation enabled. Click Tr beside an image to overlay its translation."
+    "message": "Image translation enabled."
   },
   "imageTranslationDisabledOriginalImagesRestored": {
     "message": "Image translation disabled. Original images restored."
@@ -4446,6 +4455,18 @@
   },
   "xSidebarNavigation": {
     "message": "X sidebar navigation"
+  },
+  "xSidebarNews": {
+    "message": "X news"
+  },
+  "xSidebarTrends": {
+    "message": "X trends"
+  },
+  "xSidebarFollow": {
+    "message": "X follow suggestions"
+  },
+  "xSidebarFooter": {
+    "message": "X footer"
   },
   "embeddedPageTranslationIsOff": {
     "message": "Embedded page translation is off"
@@ -5331,7 +5352,7 @@
     }
   },
   "imageTranslationHelp": {
-    "message": "Use the button beside an image to overlay its translation"
+    "message": "Translate image text using the context menu or floating controls"
   },
   "confirmResetAllSettings": {
     "message": "Reset all settings?"

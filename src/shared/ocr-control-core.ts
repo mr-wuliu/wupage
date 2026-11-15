@@ -19,6 +19,8 @@ export function setImageTranslationToggle(toggle: HTMLButtonElement | HTMLInputE
   else if (toggle.getAttribute("aria-pressed") !== String(enabled)) toggle.setAttribute("aria-pressed", String(enabled));
 
   const feature = toggle.closest<HTMLElement>(".image-feature");
+  const controls = feature?.querySelector<HTMLFieldSetElement>("[data-image-translation-controls]");
+  if (controls) { controls.hidden = !enabled; controls.disabled = !enabled; }
   if (!feature?.hasAttribute("data-loading")) return;
   // Commit the saved position while transitions are disabled, then reveal it.
   void feature.offsetWidth;

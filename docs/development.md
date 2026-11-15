@@ -45,6 +45,8 @@ flowchart LR
 
 主要入口是 `src/background/index.ts`、`src/content/index.ts`，以及根目录的 `popup.html`、`options.html`、`pdf.html`。消息协议在 `src/shared/types.ts`，默认配置与旧设置兼容分别由 `defaults.ts`、`settings.ts` 管理。
 
+翻译区域的预置规则位于 `src/shared/element-exclusions.ts`，通过网站和 CSS 选择器复用内容排除逻辑。X 默认保留左侧导航、右侧新闻、趋势、推荐关注和页脚的原文，包含卡片内的关注按钮和更多入口；选择器使用 `data-testid` 或固定链接地址，不依赖界面语言或生成的类名。`elementExclusionDefaultsVersion` 标记新预置规则的迁移，按引入版本补充新增规则，保留同 ID 的修改与关闭状态、显式空列表及此前版本中删除的规则。配置备份保留此标记。`tests/element-exclusions*.test.ts` 和 `npm run test:element-exclusions`（Edge 加 `-- --edge`）验证配置、动态内容与实际扩展行为。
+
 新增界面文案时，在 `en/messages.json` 和 `zh_CN/messages.json` 中使用相同的消息键和占位符。静态页面用 `data-i18n` 标记可见文字，用 `data-i18n-aria-label` 等标记属性。动态控件调用 `src/shared/i18n.ts` 的 `t`，拼接 HTML 时使用会转义参数的 `htmlMessage`。翻译目标、网页原文和用户自定义名称独立于界面语言。
 
 视频字幕布局编辑位于 `src/content/video-layout.ts`，由 `VideoView` 挂载；`src/shared/video.ts` 定义按主机名保存的 `siteLayouts`。水平中心、底边和宽度使用视频区域百分比，字号使用像素；窗口缩放只约束当前显示位置，不改写已保存布局。编辑使用独立的稳定预览，只有点击完成才经原有设置队列写入，不重启翻译。设置备份支持可选布局字段并兼容旧备份。使用 `tests/video-layout.test.ts`、`tests/video-subtitles-ui.test.ts`、`tests/settings-backup.test.ts` 和 `npm run test:video` 验证交互、保存和真实播放器布局。
@@ -83,9 +85,11 @@ DeepL 适配位于 `src/background/providers/deepl.ts`，负责语言代码、�
 
 OCR 后端入口为 `src/background/ocr.ts`，HTTP 协议校验、请求及取消位于 `src/background/ocr-service.ts`，配置归一化位于 `src/shared/ocr-service.ts`，设置与样例预览位于 `src/options/ocr-service.ts`。[接口协议](ocr-service.md)约定像素坐标与大小限制。HTTP 模式不启动本地 OCR 运行环境，不将图片传给文本翻译服务，不自动重试或回退；存储变更取消过期识别任务，翻译入口在识别后及缓存写入前重复检查配置。模型缓存版本由用户维护，以处理服务端同名权重更新。`TEST_OCR_SERVICE` 与 `CANCEL_OCR_TEST` 仅接受扩展设置页的消息。
 
-`tests/ocr-service*.test.ts` 覆盖协议、异常响应、有界读取、认证、取消、缓存隔离、备份与设置。浏览器集成检查使用 `node scripts/test-ocr-service.mjs`，通过本机模拟 OCR 与翻译服务验证配置、识别预览、图片覆盖和窄屏布局，不下载模型、不联系真实服务。
+`tests/ocr-service*.test.ts` 覆盖协议、异常响应、有界读取、认证、取消、缓存隔离、备份与设置。浏览器集成检查使用 `node scripts/test-ocr-service.mjs`（Edge 加 `--edge`），通过本机模拟 OCR 与翻译服务验证配置、识别预览、图片覆盖和窄屏布局，不下载模型、不联系真实服务。检查同时覆盖图片翻译的右键菜单与悬浮窗独立开关、总开关保留子选项，以及关闭悬浮窗后保留已有译文；结果保存在 `.npm-cache/ocr-service/` 的对应浏览器目录。
 
 使用 `npm run test:settings-backup`、`npm run test:settings-backup:edge` 或 `npm run test:settings-backup:firefox` 验证实际下载、导入确认、配置与表单同步、缺失模型、后续普通保存及窄屏布局。测试使用独立浏览器配置和模拟凭据，不调用翻译服务。
+
+X 图片菜单适配位于 `src/content/x-image-context-menu.ts`。仅在 X 拦截图片右键且出现 `copyPhotoLinkContextMenuItem` 时注入图片翻译入口，保留原有操作，复用当前图片节点与来源快照。`tests/x-image-context-menu.test.ts` 覆盖菜单生命周期、重复图片、键盘及主机范围；构建后运行 `node scripts/test-x-image-menu.mjs`（Edge 加 `--edge`），用站点菜单结构样例、本地 OCR 与翻译服务检查实际右键、选中图片覆盖、入口开关、明暗主题和窄屏边界。报告与截图保存在 `.npm-cache/x-image-menu/`，样例不等同于实时站点验证。
 
 Chrome / Edge 使用后台 Service Worker，并通过 offscreen 文档承载需要 DOM 或 Worker 的本地能力；Firefox 使用后台事件页和隐藏 iframe。相关适配入口为 `build/manifest.ts` 与 `src/background/offscreen.ts`。
 

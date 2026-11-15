@@ -7,7 +7,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { browserTarget } from './lib/browser-target.mjs';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
-const output = path.join(root, '.npm-cache/ocr-service');
+const output = path.join(root, '.npm-cache/ocr-service', browserTarget().kind);
 await fs.mkdir(output, { recursive: true });
 const moduleName = process.env.PLAYWRIGHT_MODULE || 'playwright';
 const { chromium } = await import(path.isAbsolute(moduleName) ? pathToFileURL(moduleName).href : moduleName);
@@ -46,6 +46,15 @@ try {
   });
   const session = await context.browser().newBrowserCDPSession();
   const { id } = await session.send('Extensions.loadUnpacked', { path: path.join(root, 'dist') }); await session.detach();
+  const worker = context.serviceWorkers()[0] || await context.waitForEvent('serviceworker', { timeout: 15000 });
+  await worker.evaluate(() => {
+    globalThis.imageMenuUpdates = [];
+    const update = chrome.contextMenus.update.bind(chrome.contextMenus);
+    chrome.contextMenus.update = (id, properties, ...args) => {
+      if (id === 'wupage-translate-image') globalThis.imageMenuUpdates.push(properties);
+      return update(id, properties, ...args);
+    };
+  });
   const options = await context.newPage(); options.on('pageerror', error => errors.push(error.message));
   await options.goto(`chrome-extension://${id}/options.html`);
   await options.locator('#providerForm[data-provider-id]').waitFor({ state: 'attached' });
@@ -79,6 +88,9 @@ try {
   await options.setViewportSize({ width: 1200, height: 1100 });
   await options.locator('.settings-nav a[aria-controls="generalSettings"]').click();
   await options.locator('#imageTranslationEnabled').check({ force: true });
+  assert.equal(await options.locator('[data-image-translation-controls]').isVisible(), true);
+  assert.equal(await options.locator('#imageTranslationContextMenuEnabled').isChecked(), true);
+  assert.equal(await options.locator('#imageTranslationFloatingEnabled').isChecked(), true);
   await options.locator('#save').click();
   await options.waitForFunction(() => document.querySelector('#status').textContent.includes('已保存'));
   await options.reload();
@@ -100,6 +112,70 @@ try {
   await page.reload(); await page.locator('#sample').hover(); await button.waitFor({ state: 'visible' }); await button.click();
   await page.waitForFunction(() => document.querySelector('#wupage-image-tools')?.shadowRoot.querySelector('canvas'));
   assert.equal(requests.length, beforeCache, 'reopening must reuse the matching OCR cache');
+
+  const saveControls = async (menu, floating) => {
+    await options.locator('#imageTranslationContextMenuEnabled').setChecked(menu, { force: true });
+    await options.locator('#imageTranslationFloatingEnabled').setChecked(floating, { force: true });
+    await options.locator('#save').click();
+    await options.waitForFunction(() => document.querySelector('#status').textContent.includes('已保存'));
+    for (let attempt = 0; attempt < 100; attempt++) {
+      if (await worker.evaluate(() => globalThis.imageMenuUpdates.at(-1)?.visible) === menu) break;
+      await page.waitForTimeout(50);
+    }
+    assert.equal(await worker.evaluate(() => globalThis.imageMenuUpdates.at(-1)?.visible), menu);
+  };
+  // Saving the controls must not discard an already displayed translation.
+  await saveControls(true, false);
+  await page.waitForFunction(() => [...(document.querySelector('#wupage-image-tools')?.shadowRoot.querySelectorAll('button') || [])].every(button => button.hidden));
+  assert.equal(await page.locator('#wupage-image-tools canvas').isVisible(), true);
+  assert.equal(requests.length, beforeCache);
+  await options.screenshot({ path: path.join(output, 'image-controls-right-only.png'), fullPage: true });
+  await options.setViewportSize({ width: 360, height: 900 });
+  assert.equal(await options.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+  await options.screenshot({ path: path.join(output, 'image-controls-mobile.png'), fullPage: true });
+  await options.setViewportSize({ width: 1200, height: 1100 });
+  // Reloading in right-menu-only mode creates no automatic image buttons.
+  await page.reload(); await page.locator('#sample').hover();
+  await page.waitForFunction(() => document.querySelector('#wupage-image-tools'));
+  assert.equal(await page.locator('#wupage-image-tools button').count(), 0);
+  await page.locator('#sample').click({ button: 'right' }); await page.keyboard.press('Escape');
+  const imageSource = await page.locator('#sample').getAttribute('src');
+  const contextResult = await options.evaluate(async ({ origin, imageSource }) => {
+    const [tab] = await chrome.tabs.query({ url: `${origin}/*` });
+    return chrome.tabs.sendMessage(tab.id, { type: 'TRANSLATE_CONTEXT_IMAGE', srcUrl: imageSource }, { frameId: 0 });
+  }, { origin, imageSource });
+  assert.equal(contextResult.data.started, true);
+  await page.locator('#wupage-image-tools canvas').waitFor({ state: 'visible' });
+  assert.equal(await page.locator('#wupage-image-tools button:visible').count(), 0);
+  assert.equal(requests.length, beforeCache);
+  await page.screenshot({ path: path.join(output, 'right-only-translated.png') });
+  // Floating-only mode removes the browser menu and retains the image button.
+  await saveControls(false, true);
+  await page.locator('#sample').hover(); await button.waitFor({ state: 'visible' });
+  await page.reload(); await page.locator('#sample').hover(); await button.waitFor({ state: 'visible' }); await button.click();
+  await page.locator('#wupage-image-tools canvas').waitFor({ state: 'visible' });
+  // Both controls can be disabled, including across a parent toggle and reload.
+  await saveControls(false, false);
+  await page.waitForFunction(() => [...document.querySelector('#wupage-image-tools').shadowRoot.querySelectorAll('button')].every(button => button.hidden));
+  await options.locator('#imageTranslationEnabled').uncheck({ force: true });
+  assert.equal(await options.locator('[data-image-translation-controls]').isVisible(), false);
+  await options.locator('#save').click();
+  await options.waitForFunction(() => document.querySelector('#status').textContent.includes('已保存'));
+  await page.locator('#wupage-image-tools').waitFor({ state: 'detached' });
+  await options.reload();
+  await options.locator('#imageTranslationEnabled:enabled').waitFor({ state: 'attached' });
+  assert.equal(await options.locator('[data-image-translation-controls]').isVisible(), false);
+  await options.locator('#imageTranslationEnabled').check({ force: true });
+  assert.equal(await options.locator('#imageTranslationContextMenuEnabled').isChecked(), false);
+  assert.equal(await options.locator('#imageTranslationFloatingEnabled').isChecked(), false);
+  await saveControls(false, false);
+  await page.reload(); await page.locator('#sample').hover();
+  await page.waitForFunction(() => document.querySelector('#wupage-image-tools'));
+  assert.equal(await page.locator('#wupage-image-tools button').count(), 0);
+  await saveControls(true, true);
+  await page.locator('#sample').hover(); await button.waitFor({ state: 'visible' }); await button.click();
+  await page.locator('#wupage-image-tools canvas').waitFor({ state: 'visible' });
+
   await options.locator('.settings-nav a[aria-controls="providerSettings"]').click();
   await options.locator('#ocrServiceRevision').fill('2'); await options.locator('#save').click();
   await options.waitForFunction(() => document.querySelector('#status').textContent.includes('已保存'));
@@ -117,6 +193,7 @@ try {
   assert.deepEqual(errors, []);
   await fs.writeFile(path.join(output, 'report.json'), JSON.stringify({ passed: true, recognitionRequests: requests.length,
     translationRequests: translations.length, cacheReused: true, cacheVersionInvalidated: true, malformedResponseRejected: true,
+    imageControls: { rightOnly: true, floatingOnly: true, bothDisabled: true, parentTogglePreservesChoices: true, existingTranslationPreserved: true },
     mobileOverflow: false, errors }, null, 2));
   console.log(JSON.stringify({ passed: true, recognitionRequests: requests.length, translationRequests: translations.length, output }));
 } catch (error) {

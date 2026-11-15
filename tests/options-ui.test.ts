@@ -92,9 +92,29 @@ describe("options provider controls", () => {
     expect(translateCodeComments.checked).toBe(true);
     const imageTranslation = query<HTMLInputElement>("#imageTranslationEnabled");
     expect(imageTranslation.checked).toBe(false);
+    const imageControls = query<HTMLFieldSetElement>("[data-image-translation-controls]");
+    const imageMenu = query<HTMLInputElement>("#imageTranslationContextMenuEnabled");
+    const imageFloating = query<HTMLInputElement>("#imageTranslationFloatingEnabled");
+    expect(imageControls.hidden).toBe(true);
+    await vi.waitFor(() => expect(query("#status").textContent).toBe("已保存。"));
     imageTranslation.click();
+    expect(imageControls.hidden).toBe(false);
+    expect(imageControls.disabled).toBe(false);
+    expect(imageMenu.checked).toBe(true);
+    expect(imageFloating.checked).toBe(true);
+    imageFloating.click();
     click("#save");
-    await vi.waitFor(() => expect(stored.imageTranslationEnabled).toBe(true));
+    await vi.waitFor(() => expect(stored).toMatchObject({ imageTranslationEnabled: true,
+      imageTranslationContextMenuEnabled: true, imageTranslationFloatingEnabled: false }));
+    await vi.waitFor(() => expect(query("#status").textContent).toBe("已保存。"));
+    expect(imageTranslation.checked).toBe(true);
+    imageTranslation.click();
+    expect(imageControls.hidden).toBe(true);
+    click("#save");
+    await vi.waitFor(() => expect(stored).toMatchObject({ imageTranslationEnabled: false, imageTranslationFloatingEnabled: false }));
+    await vi.waitFor(() => expect(query("#status").textContent).toBe("已保存。"));
+    imageTranslation.click();
+    expect(imageFloating.checked).toBe(false);
     translateCodeComments.click();
     click("#save");
     await vi.waitFor(() => expect(stored.translateCodeComments).toBe(false));
@@ -222,7 +242,7 @@ describe("options provider controls", () => {
           .toBe(value === "enabled");
       });
     }
-  });
+  }, 10000);
 });
 
 function click(selector: string): void {

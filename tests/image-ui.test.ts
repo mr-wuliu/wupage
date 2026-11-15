@@ -4,7 +4,7 @@ import { setImageTranslationEnabled, translateContextImage } from "../src/conten
 import { DEFAULT_SETTINGS } from "../src/shared/defaults";
 import { renderImageTranslation, wrapImageText } from "../src/content/image-rendering";
 import { sendRuntimeRequest } from "../src/content/runtime";
-import type { ImageTextRegion, TranslateImageResponse } from "../src/shared/types";
+import type { ExtensionSettings, ImageTextRegion, TranslateImageResponse } from "../src/shared/types";
 vi.mock("../src/content/runtime", () => ({ sendRuntimeRequest: vi.fn(), hasRuntimeContext: () => true }));
 
 const region: ImageTextRegion = { box: [100, 100, 700, 200], text: "Hello world", translation: "你好，世界", foreground: "#111111", background: "#ffffff", align: "left", bold: false };
@@ -169,11 +169,50 @@ describe("image translation controls", () => {
     expect(background.style.backgroundImage).toContain(image.src);
   });
 
-  function contextMessages() {
+  function contextMessages(controls: Partial<ExtensionSettings> = {}) {
     vi.mocked(sendRuntimeRequest).mockImplementation(async (request) => request.type === "GET_SETTINGS"
-      ? { ...DEFAULT_SETTINGS, imageTranslationEnabled: true }
+      ? { ...DEFAULT_SETTINGS, imageTranslationEnabled: true, ...controls }
       : { regions: [region], targetLang: "zh-CN", cached: false });
   }
+  it("translates only the right-clicked duplicate with floating controls disabled", async () => {
+    contextMessages({ imageTranslationFloatingEnabled: false });
+    const second = document.querySelector("img")!.cloneNode() as HTMLImageElement;
+    Object.defineProperties(second, { complete: { value: true }, naturalWidth: { value: 800 }, naturalHeight: { value: 400 } });
+    document.body.append(second);
+    setImageTranslationEnabled(true, false);
+    expect(shadow().querySelector("button")).toBeNull();
+    second.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true }));
+    expect(await translateContextImage(second.src)).toEqual({ started: true });
+    await vi.waitFor(() => expect(shadow().querySelector("canvas")).not.toBeNull());
+    expect(shadow().querySelectorAll("button")).toHaveLength(1);
+    await movePointer();
+    expect(button().hidden).toBe(true);
+    expect(shadow().querySelector("canvas")!.hidden).toBe(false);
+    setImageTranslationEnabled(true, true);
+    expect(shadow().querySelectorAll("button")).toHaveLength(2);
+    setImageTranslationEnabled(true, false);
+    expect(shadow().querySelectorAll("button")).toHaveLength(1);
+    expect(shadow().querySelector("canvas")!.hidden).toBe(false);
+    expect(vi.mocked(sendRuntimeRequest).mock.calls.filter(([request]) => request.type === "TRANSLATE_IMAGE")).toHaveLength(1);
+  });
+  it("ignores a context request after that control is disabled while floating controls remain usable", async () => {
+    contextMessages({ imageTranslationContextMenuEnabled: false });
+    setImageTranslationEnabled(true);
+    expect(await translateContextImage(document.querySelector("img")!.src)).toEqual({ started: false });
+    expect(vi.mocked(sendRuntimeRequest).mock.calls.some(([request]) => request.type === "TRANSLATE_IMAGE")).toBe(false);
+    button().click();
+    await vi.waitFor(() => expect(shadow().querySelector("canvas")).not.toBeNull());
+  });
+  it("hides floating controls immediately without removing an existing translation or repeating OCR", async () => {
+    setImageTranslationEnabled(true);
+    button().click();
+    await vi.waitFor(() => expect(shadow().querySelector("canvas")).not.toBeNull());
+    setImageTranslationEnabled(true, false);
+    await movePointer();
+    expect(button().hidden).toBe(true);
+    expect(shadow().querySelector("canvas")!.hidden).toBe(false);
+    expect(sendRuntimeRequest).toHaveBeenCalledTimes(1);
+  });
   it("translates the right-clicked duplicate and keeps repeat menu clicks showing the translation", async () => {
     contextMessages();
     const second = document.querySelector("img")!.cloneNode() as HTMLImageElement;

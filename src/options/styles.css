@@ -688,6 +688,23 @@ button.auto-translation-help-trigger:focus-visible { outline: 2px solid var(--wp
   gap: 6px;
 }
 
+.image-feature-options {
+  min-width: 0;
+  margin: 0 14px 8px 28px;
+  padding: 0 0 0 14px;
+  border: 0;
+  border-left: 2px solid var(--wp-border, #d7dedb);
+}
+
+.image-feature-options .setting-toggle {
+  box-sizing: border-box;
+  min-height: 38px;
+  margin: 0;
+  padding: 4px 0;
+  border: 0;
+  background: transparent;
+}
+
 .general-toggles > .setting-toggle:hover {
   background: var(--wp-soft, #f8faf9);
 }

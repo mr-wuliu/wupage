@@ -65,8 +65,7 @@ try {
   console.warn("WuPage page menu:", error);
 }
 watchInterfaceLanguage(() => {
-  try { refreshImageContextMenu(); }
-  catch (error) { console.warn("WuPage image menu:", error); }
+  void refreshImageContextMenu().catch(error => console.warn("WuPage image menu:", error));
   void refreshPageContextMenu().catch(error => console.warn("WuPage page menu:", error));
 });
 

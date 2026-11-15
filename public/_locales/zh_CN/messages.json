@@ -214,10 +214,19 @@
     "message": "划词翻译"
   },
   "useTheButtonBesideAnImageToOverlay": {
-    "message": "开启后，点击图片旁的按钮翻译并覆盖原文"
+    "message": "通过右键菜单或悬浮窗翻译图片文字"
   },
   "imageTranslation": {
     "message": "图片翻译"
+  },
+  "imageTranslationControls": {
+    "message": "图片翻译入口"
+  },
+  "imageTranslationContextMenu": {
+    "message": "右键菜单"
+  },
+  "imageTranslationFloating": {
+    "message": "悬浮窗"
   },
   "installOcrModels": {
     "message": "安装 OCR 模型"
@@ -4102,7 +4111,7 @@
     "message": "PDF 使用独立的双栏翻译页面。"
   },
   "imageTranslationEnabledClickTrBesideAnImage": {
-    "message": "图片翻译已开启，点击图片旁的“译”按钮即可覆盖翻译。"
+    "message": "图片翻译已开启。"
   },
   "imageTranslationDisabledOriginalImagesRestored": {
     "message": "图片翻译已关闭，已恢复原图。"
@@ -4446,6 +4455,18 @@
   },
   "xSidebarNavigation": {
     "message": "X 侧边导航栏"
+  },
+  "xSidebarNews": {
+    "message": "X 新闻"
+  },
+  "xSidebarTrends": {
+    "message": "X 趋势"
+  },
+  "xSidebarFollow": {
+    "message": "X 推荐关注"
+  },
+  "xSidebarFooter": {
+    "message": "X 页脚"
   },
   "embeddedPageTranslationIsOff": {
     "message": "已关闭嵌入页面翻译"
@@ -5331,7 +5352,7 @@
     }
   },
   "imageTranslationHelp": {
-    "message": "点击图片旁按钮，覆盖原文"
+    "message": "通过右键菜单或悬浮窗翻译图片文字"
   },
   "confirmResetAllSettings": {
     "message": "完全重置设置？"
