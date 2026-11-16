@@ -1104,6 +1104,9 @@
   "translateImageWithWupage": {
     "message": "使用 WuPage 翻译图片"
   },
+  "imageTranslationUnavailableOnThisPage": {
+    "message": "图片翻译（此页面不支持）"
+  },
   "imageRecognitionReturnedIncompleteJson": {
     "message": "图片识别结果不是完整 JSON。"
   },

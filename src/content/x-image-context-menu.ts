@@ -29,8 +29,10 @@ export function createXImageContextMenu(translate: (target: ContextImageTarget) 
 } | undefined {
   if (!isX()) return;
   let stop = () => {};
-  return { close: () => stop(), open(event, target) {
+  let generation = 0;
+  return { close: () => { generation++; stop(); }, open(event, target) {
     stop();
+    const currentGeneration = ++generation;
     if (!target) return;
     const selected = target;
     let active = true;
@@ -86,11 +88,11 @@ export function createXImageContextMenu(translate: (target: ContextImageTarget) 
       item.addEventListener("click", click => {
         click.preventDefault(); click.stopPropagation();
         if (!active) return;
-        // Escape uses X's own dismissal/focus handling; never click its copy
-        // action or replace the site's menu/backdrop to close the popup.
-        native.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", code: "Escape", bubbles: true, cancelable: true }));
         close();
-        void translate(selected);
+        // Finish dismissing the site's popup before OCR or its status UI starts.
+        // Removing our row alone leaves the original photo actions on screen.
+        void dismissPhotoMenu(nextMenu, native, () => generation === currentGeneration)
+          .then(() => translate(selected));
       });
       native.after(item);
       restoreMenu = fitMenu(menu);
@@ -126,6 +128,44 @@ function visible(element: HTMLElement): boolean {
   if (!element.isConnected || !element.getClientRects().length || element.closest('[hidden],[aria-hidden="true"]')) return false;
   const css = window.getComputedStyle(element);
   return css.display !== "none" && css.visibility !== "hidden" && css.visibility !== "collapse";
+}
+
+async function dismissPhotoMenu(menu: HTMLElement, native: HTMLElement, current: () => boolean): Promise<void> {
+  const open = () => current() && visible(menu) && menu.contains(native);
+  const settle = () => new Promise<void>(resolve => window.setTimeout(resolve, 0));
+  for (const type of ["keydown", "keyup"]) {
+    if (!open()) return;
+    native.dispatchEvent(new KeyboardEvent(type, { key: "Escape", code: "Escape", keyCode: 27, which: 27,
+      bubbles: true, cancelable: true }));
+    // React may commit the close after this event, rather than during dispatch.
+    await settle();
+  }
+  if (!open()) return;
+  const layer = menu.closest<HTMLElement>('[role="group"]');
+  if (!layer || layer.querySelectorAll('[role="menu"]').length !== 1) return;
+  const mask = [...layer.querySelectorAll<HTMLElement>('[data-testid="mask"]')]
+    .find(element => !element.contains(menu) && !menu.contains(element)
+      && element.closest('[role="group"]') === layer && visible(element));
+  const view = visibleViewport();
+  const plainMask = [...layer.querySelectorAll<HTMLDivElement>("div")].find(element => {
+    if (element.contains(menu) || menu.contains(element) || element.childElementCount || element.textContent?.trim()
+      || element.hasAttribute("role") || !visible(element)) return false;
+    const css = window.getComputedStyle(element), rect = element.getBoundingClientRect();
+    return (css.position === "fixed" || css.position === "absolute")
+      && rect.left <= view.left && rect.top <= view.top && rect.right >= view.right && rect.bottom >= view.bottom;
+  });
+  // Some X variants listen on the full layer instead of a separate mask.
+  // Never click through to the photo, or invoke an existing menu action.
+  const backdrop = mask ?? plainMask ?? (layer.closest("#layers") ? layer : undefined);
+  if (!backdrop) return;
+  for (const type of ["pointerdown", "mousedown", "pointerup", "mouseup", "click"]) {
+    if (!open() || !backdrop.isConnected) return;
+    const options = { bubbles: true, cancelable: true, button: 0, buttons: type.endsWith("down") ? 1 : 0 };
+    backdrop.dispatchEvent(type.startsWith("pointer")
+      ? new PointerEvent(type, { ...options, pointerId: 1, pointerType: "mouse", isPrimary: true })
+      : new MouseEvent(type, options));
+    await settle();
+  }
 }
 
 function fitMenu(menu: HTMLElement): () => void {

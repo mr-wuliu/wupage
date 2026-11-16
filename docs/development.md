@@ -89,7 +89,9 @@ OCR 后端入口为 `src/background/ocr.ts`，HTTP 协议校验、请求及取�
 
 使用 `npm run test:settings-backup`、`npm run test:settings-backup:edge` 或 `npm run test:settings-backup:firefox` 验证实际下载、导入确认、配置与表单同步、缺失模型、后续普通保存及窄屏布局。测试使用独立浏览器配置和模拟凭据，不调用翻译服务。
 
-X 图片菜单适配位于 `src/content/x-image-context-menu.ts`。仅在 X 拦截图片右键且出现 `copyPhotoLinkContextMenuItem` 时注入图片翻译入口，保留原有操作，复用当前图片节点与来源快照。`tests/x-image-context-menu.test.ts` 覆盖菜单生命周期、重复图片、键盘及主机范围；构建后运行 `node scripts/test-x-image-menu.mjs`（Edge 加 `--edge`），用站点菜单结构样例、本地 OCR 与翻译服务检查实际右键、选中图片覆盖、入口开关、明暗主题和窄屏边界。报告与截图保存在 `.npm-cache/x-image-menu/`，样例不等同于实时站点验证。
+X 图片菜单适配位于 `src/content/x-image-context-menu.ts`。仅在 X 拦截图片右键且出现 `copyPhotoLinkContextMenuItem` 时注入图片翻译入口，保留原有操作，复用当前图片节点与来源快照。翻译前先让站点关闭菜单；Esc 未被处理时，向当前菜单层的遮罩或外层发送关闭交互，不点击复制、发帖或图片。异步关闭通过代次区分，避免影响随后重开的菜单。`tests/x-image-context-menu.test.ts` 覆盖菜单生命周期、重复图片、键盘及主机范围；构建后运行 `node scripts/test-x-image-menu.mjs`（Edge 加 `--edge`），用站点菜单结构样例、本地 OCR 与翻译服务检查实际右键、选中图片覆盖、入口开关、明暗主题、窄屏边界，以及忽略模拟 Esc 时不同遮罩事件的关闭行为。报告与截图保存在 `.npm-cache/x-image-menu/`，样例不等同于实时站点验证。
+
+图片右键菜单通过 `src/shared/content-access.ts` 识别当前浏览器的已知受限域名与内置页面，随标签切换、导航及窗口焦点更新可用状态。受限页显示禁用原因；点击处理还会检查主页面和目标框架，避免旧菜单把浏览器限制误导到 OCR 设置。普通网页缺失内容脚本时仍提示刷新，继承来源的空白框架保留支持。`tests/content-access.test.ts`、`tests/image-context-menu.test.ts` 覆盖这些分支；构建后运行 `node scripts/test-image-menu-access.mjs --edge`（Chromium 去掉 `--edge`），以独立扩展副本和配置访问真实商店页面，验证连接确实被拒绝、没有设置页跳转及普通网页与商店之间的菜单切换。该检查需要联网打开公开商店，但不识别或上传商店图片，报告保存在 `.npm-cache/image-menu-access/`。
 
 Chrome / Edge 使用后台 Service Worker，并通过 offscreen 文档承载需要 DOM 或 Worker 的本地能力；Firefox 使用后台事件页和隐藏 iframe。相关适配入口为 `build/manifest.ts` 与 `src/background/offscreen.ts`。
 

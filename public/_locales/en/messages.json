@@ -1104,6 +1104,9 @@
   "translateImageWithWupage": {
     "message": "Translate image with WuPage"
   },
+  "imageTranslationUnavailableOnThisPage": {
+    "message": "Image translation (unavailable on this page)"
+  },
   "imageRecognitionReturnedIncompleteJson": {
     "message": "Image recognition returned incomplete JSON."
   },

@@ -16,7 +16,8 @@ const { chromium } = await import(path.isAbsolute(moduleName) ? pathToFileURL(mo
 const requests = [], errors = [], checks = [];
 const server = createServer(async (request, response) => {
   let body = ''; for await (const chunk of request) body += chunk;
-  const input = JSON.parse(body); requests.push({ path: request.url, texts: input.texts });
+  const input = JSON.parse(body); requests.push({ path: request.url, texts: input.texts,
+    ...(request.url === '/ocr' ? { openMenus: await page.locator('[role=menu]').count() } : {}) });
   response.setHeader('Content-Type', 'application/json');
   if (request.url === '/ocr') response.end(JSON.stringify({ schemaVersion: 1, coordinateSpace: 'pixel',
     width: input.image.width, height: input.image.height,
@@ -38,18 +39,21 @@ img{opacity:0;pointer-events:none}#layers>[role=group]{position:fixed;inset:0;z-
 </style><main><article><strong>Photo menu</strong><p>Right-click a photo.</p><div data-testid="tweetPhoto" id="first"><div class="pixels"></div><img alt="Photo"></div>
 <div data-testid="tweetPhoto" id="second"><div class="pixels"></div><img alt="Duplicate photo"></div></article></main><div id="layers"></div>
 <script>
-window.photoClicks=0;window.copies=0;window.delay=0;
+window.photoClicks=0;window.copies=0;window.posts=0;window.delay=0;
+window.ignoreSyntheticEscape=false;window.maskKind='testid';window.dismissOn='click';window.withPostPhoto=false;
 const canvas=document.createElement('canvas');canvas.width=640;canvas.height=180;
 const ctx=canvas.getContext('2d');ctx.fillStyle='#e8f5f5';ctx.fillRect(0,0,640,180);ctx.fillStyle='#172033';ctx.font='42px sans-serif';ctx.fillText('Hello photo',30,95);
 const source=canvas.toDataURL();
 window.closeMenu=()=>document.querySelector('#layers').replaceChildren();
 window.mountMenu=(x,y)=>{
  const group=document.createElement('div');group.setAttribute('role','group');group.tabIndex=0;
- group.innerHTML='<div class="backdrop"></div><div role="menu"><div><div data-testid="Dropdown"><div role="menuitem" tabindex="0" data-testid="copyPhotoLinkContextMenuItem"><div dir="ltr">Copy photo link<span class="wupage-translation" aria-hidden="true"> 复制照片链接</span></div></div></div></div></div>';
+ group.innerHTML='<div class="backdrop" '+(window.maskKind==='testid'?'data-testid="mask"':'')+'></div><div role="menu"><div><div data-testid="Dropdown"><div role="menuitem" tabindex="0" data-testid="copyPhotoLinkContextMenuItem"><div dir="ltr">Copy photo link<span class="wupage-translation" aria-hidden="true"> 复制照片链接</span></div></div>'+(window.withPostPhoto?'<div role="menuitem" tabindex="0" id="post-photo"><div dir="ltr">Post Photo</div></div>':'')+'</div></div></div>';
  const menu=group.querySelector('[role=menu]');menu.style.left=x+'px';menu.style.top=y+'px';
- group.querySelector('.backdrop').onclick=window.closeMenu;
+ if(window.maskKind==='layer'){group.querySelector('.backdrop').remove();group.addEventListener(window.dismissOn,event=>{if(event.target===group)window.closeMenu()})}
+ else group.querySelector('.backdrop').addEventListener(window.dismissOn,window.closeMenu);
  group.querySelector('[data-testid=copyPhotoLinkContextMenuItem]').onclick=()=>{window.copies++;window.closeMenu()};
- group.addEventListener('keydown',event=>{if(event.key==='Escape')window.closeMenu()});
+ const post=group.querySelector('#post-photo');if(post)post.onclick=()=>{window.posts++;window.closeMenu()};
+ group.addEventListener('keydown',event=>{if(event.key==='Escape'&&(!window.ignoreSyntheticEscape||event.isTrusted))window.closeMenu()});
  document.querySelector('#layers').replaceChildren(group);group.querySelector('[role=menuitem]').focus();
 };
 for(const photo of document.querySelectorAll('[data-testid=tweetPhoto]')){
@@ -122,6 +126,25 @@ try {
   await action.press('Escape');
   await page.locator('[role=menu]').waitFor({ state: 'detached' });
   checks.push('arrow keys include the injected row and Escape closes the site menu');
+
+  for (const [maskKind, dismissOn] of [['testid', 'click'], ['testid', 'pointerdown'], ['testid', 'mousedown'], ['plain', 'click'], ['layer', 'click']]) {
+    await page.reload(); await page.waitForFunction(() => window.fixtureReady);
+    await page.locator('#wupage-image-tools').waitFor({ state: 'attached' });
+    await page.evaluate(({ maskKind, dismissOn }) => {
+      window.ignoreSyntheticEscape = true; window.maskKind = maskKind; window.dismissOn = dismissOn; window.withPostPhoto = true;
+    }, { maskKind, dismissOn });
+    await rightClick();
+    assert.equal(await page.locator('#post-photo').count(), 1);
+    await action.click();
+    await page.locator('#layers > [role=group]').waitFor({ state: 'detached' });
+    await page.locator('#wupage-image-tools canvas').waitFor({ state: 'visible' });
+    assert.deepEqual(await page.evaluate(() => ({ copies: window.copies, posts: window.posts, photoClicks: window.photoClicks })),
+      { copies: 0, posts: 0, photoClicks: 0 });
+    assert.equal(requests.filter(request => request.path === '/ocr').every(request => request.openMenus === 0), true);
+    checks.push(`ignored synthetic Escape: ${maskKind}/${dismissOn} closes menu and backdrop before OCR, without copy or post actions`);
+  }
+  await page.reload(); await page.waitForFunction(() => window.fixtureReady);
+  await page.locator('#wupage-image-tools').waitFor({ state: 'attached' });
 
   await page.evaluate(() => { window.delay = 100; document.body.classList.add('dark'); });
   await page.setViewportSize({ width: 390, height: 700 });

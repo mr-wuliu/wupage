@@ -8,13 +8,19 @@ vi.mock("../src/shared/settings", () => ({ getSettings: vi.fn() }));
 vi.mock("../src/ocr/model-store", () => ({ installedRevision: vi.fn() }));
 const info = { menuItemId: IMAGE_MENU_ID, srcUrl: "https://pbs.twimg.com/media/test?format=jpg&name=large", frameId: 3, editable: false };
 const tab = { id: 42 } as chrome.tabs.Tab;
+const queryTabs = vi.fn<() => Promise<chrome.tabs.Tab[]>>();
 beforeEach(() => {
   vi.resetAllMocks();
   vi.mocked(getSettings).mockResolvedValue({ ...DEFAULT_SETTINGS, imageTranslationEnabled: true });
   vi.mocked(installedRevision).mockResolvedValue("v1");
+  vi.stubGlobal("navigator", { userAgent: "Chrome/130 Edg/130" });
+  queryTabs.mockResolvedValue([{ ...tab, url: "https://example.com/", active: true }]);
   vi.stubGlobal("chrome", {
     runtime: { getURL: (path: string) => `chrome-extension://test/${path}` },
-    tabs: { sendMessage: vi.fn(async () => ({ ok: true, data: { started: true } })), create: vi.fn() },
+    tabs: { sendMessage: vi.fn(async () => ({ ok: true, data: { started: true } })), create: vi.fn(),
+      query: queryTabs,
+      onActivated: { addListener: vi.fn() }, onUpdated: { addListener: vi.fn() } },
+    windows: { onFocusChanged: { addListener: vi.fn() } },
     storage: { onChanged: { addListener: vi.fn() } },
     contextMenus: { update: vi.fn((_id, _properties, callback) => { callback?.(); }),
       create: vi.fn((_properties, callback) => { Reflect.deleteProperty(chrome.runtime, "lastError"); callback?.(); }), onClicked: { addListener: vi.fn() } }
@@ -42,6 +48,31 @@ describe("image context menu", () => {
   it("routes the exact source URL to the clicked tab and frame", async () => {
     await handleImageMenuClick(info, tab);
     expect(chrome.tabs.sendMessage).toHaveBeenCalledWith(42, { type: "TRANSLATE_CONTEXT_IMAGE", srcUrl: info.srcUrl }, { frameId: 3 });
+    expect(chrome.tabs.create).not.toHaveBeenCalled();
+  });
+  it("disables the image menu on the Edge store and restores it when switching to a normal page", async () => {
+    const store = "https://microsoftedge.microsoft.com/addons/Microsoft-Edge-Extensions-Home";
+    queryTabs.mockResolvedValue([{ ...tab, url: store, active: true }]);
+    initImageContextMenu(); await refreshImageContextMenu();
+    expect(chrome.contextMenus.update).toHaveBeenLastCalledWith(IMAGE_MENU_ID,
+      expect.objectContaining({ visible: true, enabled: false, title: "图片翻译（此页面不支持）" }), expect.any(Function));
+    queryTabs.mockResolvedValue([{ ...tab, url: "https://example.com/", active: true }]);
+    vi.mocked(chrome.tabs.onActivated.addListener).mock.calls[0][0]({ tabId: 42, windowId: 1 });
+    await vi.waitFor(() => expect(chrome.contextMenus.update).toHaveBeenLastCalledWith(IMAGE_MENU_ID,
+      expect.objectContaining({ enabled: true, title: "使用 WuPage 翻译图片" }), expect.any(Function)));
+    queryTabs.mockResolvedValue([{ ...tab, url: store, active: true }]);
+    vi.mocked(chrome.tabs.onUpdated.addListener).mock.calls[0][0](42, { status: "complete" }, { ...tab, active: true });
+    await vi.waitFor(() => expect(chrome.contextMenus.update).toHaveBeenLastCalledWith(IMAGE_MENU_ID,
+      expect.objectContaining({ enabled: false }), expect.any(Function)));
+  });
+  it.each(["tab", "page", "frame"])("does not redirect a restricted %s to OCR setup or refresh", async source => {
+    const store = "https://microsoftedge.microsoft.com/addons/Microsoft-Edge-Extensions-Home";
+    vi.mocked(installedRevision).mockResolvedValue(undefined);
+    vi.mocked(chrome.tabs.sendMessage).mockRejectedValue(new Error("Could not establish connection. Receiving end does not exist."));
+    await handleImageMenuClick({ ...info, ...(source === "page" ? { pageUrl: store } : source === "frame" ? { frameUrl: store } : {}) },
+      { ...tab, ...(source === "tab" ? { url: store } : {}) });
+    expect(installedRevision).not.toHaveBeenCalled();
+    expect(chrome.tabs.sendMessage).not.toHaveBeenCalled();
     expect(chrome.tabs.create).not.toHaveBeenCalled();
   });
   it.each([
@@ -81,5 +112,15 @@ describe("image context menu", () => {
     vi.mocked(chrome.tabs.sendMessage).mockResolvedValueOnce(undefined);
     await handleImageMenuClick(info, tab);
     expect(chrome.tabs.create).toHaveBeenCalledWith({ url: "chrome-extension://test/options.html?imageTranslationNotice=refresh" });
+  });
+  it("keeps the refresh guidance for a rejected connection on an ordinary page", async () => {
+    vi.mocked(chrome.tabs.sendMessage).mockRejectedValue(new Error("Could not establish connection. Receiving end does not exist."));
+    await handleImageMenuClick({ ...info, pageUrl: "https://example.com/" }, tab);
+    expect(chrome.tabs.create).toHaveBeenCalledWith({ url: "chrome-extension://test/options.html?imageTranslationNotice=refresh" });
+  });
+  it("accepts inherited-origin frames on an ordinary page", async () => {
+    await handleImageMenuClick({ ...info, pageUrl: "https://example.com/", frameUrl: "about:blank" }, tab);
+    expect(chrome.tabs.sendMessage).toHaveBeenCalled();
+    expect(chrome.tabs.create).not.toHaveBeenCalled();
   });
 });

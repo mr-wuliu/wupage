@@ -72,9 +72,86 @@ describe("X photo context menu", () => {
     await vi.waitFor(() => expect(document.querySelector(selector)).not.toBeNull());
     const copy = vi.fn(); document.querySelector('[data-testid="copyPhotoLinkContextMenuItem"]')!.addEventListener("click", copy);
     document.querySelector<HTMLButtonElement>(selector)!.click();
+    await vi.waitFor(() => expect(translate).toHaveBeenCalledOnce());
     expect(translate).toHaveBeenCalledExactlyOnceWith({ image: document.getElementById("duplicate"), source: "https://pbs.twimg.com/media/sample.jpg" });
     expect(copy).not.toHaveBeenCalled();
     expect(document.querySelector('[role="menu"]')).toBeNull();
+  });
+
+  it.each(["click", "pointerdown", "mousedown"])("dismisses through the backdrop's %s handler when synthetic Escape is ignored", async trigger => {
+    renderMenu = false; rightClick();
+    const layer = document.createElement("div"); layer.setAttribute("role", "group");
+    const mask = document.createElement("div"); mask.dataset.testid = "mask";
+    const menu = document.createElement("div"); menu.setAttribute("role", "menu");
+    menu.innerHTML = '<div role="menuitem" data-testid="copyPhotoLinkContextMenuItem">Copy photo link</div><div role="menuitem" id="post-photo">Post Photo</div>';
+    layer.append(mask, menu); document.body.append(layer);
+    const copy = vi.fn(), post = vi.fn();
+    menu.querySelector('[data-testid="copyPhotoLinkContextMenuItem"]')!.addEventListener("click", copy);
+    menu.querySelector("#post-photo")!.addEventListener("click", post);
+    mask.addEventListener(trigger, () => { window.setTimeout(() => layer.remove(), 0); });
+    await vi.waitFor(() => expect(document.querySelector(selector)).not.toBeNull());
+    const atTranslation = vi.fn();
+    translate.mockImplementationOnce(async () => { atTranslation(document.querySelector('[role="menu"]')); return {}; });
+    document.querySelector<HTMLButtonElement>(selector)!.click();
+    await vi.waitFor(() => expect(document.querySelector('[role="menu"]')).toBeNull());
+    expect(translate).toHaveBeenCalledOnce();
+    expect(atTranslation).toHaveBeenCalledExactlyOnceWith(null);
+    expect(copy).not.toHaveBeenCalled(); expect(post).not.toHaveBeenCalled();
+  });
+
+  it.each(["plain-mask", "layer"])("supports the %s outside-dismiss variant without clicking page content", async kind => {
+    renderMenu = false; rightClick();
+    const layers = document.createElement("div"); layers.id = "layers";
+    const layer = document.createElement("div"); layer.setAttribute("role", "group");
+    const mask = document.createElement("div");
+    const menu = document.createElement("div"); menu.setAttribute("role", "menu");
+    menu.innerHTML = '<div role="menuitem" data-testid="copyPhotoLinkContextMenuItem">Copy photo link</div>';
+    const outside = vi.fn(); document.querySelector("#pixels")!.addEventListener("click", outside);
+    if (kind === "plain-mask") {
+      mask.style.position = "fixed";
+      vi.spyOn(mask, "getBoundingClientRect").mockReturnValue(new DOMRect(0, 0, innerWidth, innerHeight));
+      mask.addEventListener("click", () => layer.remove());
+    } else layer.addEventListener("click", event => { if (event.target === layer) layer.remove(); });
+    layer.append(mask, menu); layers.append(layer); document.body.append(layers);
+    await vi.waitFor(() => expect(document.querySelector(selector)).not.toBeNull());
+    document.querySelector<HTMLButtonElement>(selector)!.click();
+    await vi.waitFor(() => expect(translate).toHaveBeenCalledOnce());
+    expect(document.querySelector('[role="menu"]')).toBeNull();
+    expect(outside).not.toHaveBeenCalled();
+  });
+
+  it("accepts legacy Escape key codes and a keyup-only dismissal handler", async () => {
+    renderMenu = false; rightClick();
+    const menu = document.createElement("div"); menu.setAttribute("role", "menu");
+    menu.innerHTML = '<div role="menuitem" data-testid="copyPhotoLinkContextMenuItem">Copy photo link</div>';
+    menu.addEventListener("keyup", event => { if (event.keyCode === 27 && event.which === 27) menu.remove(); });
+    document.body.append(menu);
+    await vi.waitFor(() => expect(document.querySelector(selector)).not.toBeNull());
+    document.querySelector<HTMLButtonElement>(selector)!.click();
+    await vi.waitFor(() => expect(translate).toHaveBeenCalledOnce());
+    expect(menu.isConnected).toBe(false);
+  });
+
+  it("does not dismiss a newly opened menu that reuses the same site elements", async () => {
+    renderMenu = false;
+    document.body.insertAdjacentHTML("beforeend", '<div data-testid="tweetPhoto"><img id="duplicate" src="https://pbs.twimg.com/media/sample.jpg"></div>');
+    rightClick();
+    const layer = document.createElement("div"); layer.setAttribute("role", "group");
+    layer.innerHTML = '<div data-testid="mask"></div><div role="menu"><div role="menuitem" data-testid="copyPhotoLinkContextMenuItem">Copy photo link</div></div>';
+    const dismiss = vi.fn(() => layer.remove());
+    layer.querySelector('[data-testid="mask"]')!.addEventListener("click", dismiss);
+    document.body.append(layer);
+    await vi.waitFor(() => expect(document.querySelector(selector)).not.toBeNull());
+    document.querySelector<HTMLButtonElement>(selector)!.click();
+    rightClick("duplicate");
+    await vi.waitFor(() => expect(translate).toHaveBeenCalledOnce());
+    expect(translate).toHaveBeenLastCalledWith(expect.objectContaining({ image: document.querySelector("#photo") }));
+    expect(dismiss).not.toHaveBeenCalled(); expect(layer.isConnected).toBe(true);
+    await vi.waitFor(() => expect(document.querySelector(selector)).not.toBeNull());
+    document.querySelector<HTMLButtonElement>(selector)!.click();
+    await vi.waitFor(() => expect(translate).toHaveBeenCalledTimes(2));
+    expect(translate).toHaveBeenLastCalledWith(expect.objectContaining({ image: document.querySelector("#duplicate") }));
+    expect(dismiss).toHaveBeenCalledOnce();
   });
 
   it("keeps the native copy action unchanged", async () => {
