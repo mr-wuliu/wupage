@@ -20,6 +20,12 @@ from zipfile import ZipFile
 API_ROOT = 'https://api.addons.microsoftedge.microsoft.com/v1'
 
 
+class EdgeOperationError(RuntimeError):
+    def __init__(self, result):
+        self.result = result
+        super().__init__('Edge operation failed: ' + json.dumps(result, ensure_ascii=False))
+
+
 def validate_package(package, tag):
     if not re.fullmatch(r'v[0-9]+\.[0-9]+\.[0-9]+', tag):
         raise ValueError('Only stable v<major>.<minor>.<patch> releases can be submitted.')
@@ -52,7 +58,8 @@ class EdgeClient:
             with urlopen(request, timeout=120) as response:
                 return response.status, response.headers, response.read()
         except HTTPError as error:
-            detail = error.read().decode('utf-8', errors='replace')
+            with error:
+                detail = error.read().decode('utf-8', errors='replace')
             if error.code in (401, 403):
                 detail = 'Check EDGE_CLIENT_ID and EDGE_API_KEY, including the API key expiry date. ' + detail
             raise RuntimeError(f'Edge API {method} {path}: HTTP {error.code}. {detail}') from None
@@ -88,7 +95,7 @@ class EdgeClient:
             if status == 'Succeeded':
                 return
             if status != 'InProgress':
-                raise RuntimeError('Edge operation failed: ' + json.dumps(result, ensure_ascii=False))
+                raise EdgeOperationError(result)
             time.sleep(interval)
         raise TimeoutError(
             f'Timed out waiting for Edge operation {path}. '
@@ -99,19 +106,29 @@ class EdgeClient:
 def publish_package(client, package_path, tag):
     package = Path(package_path).read_bytes()
     validate_package(package, tag)
-    print(f'Uploading the GitHub Release package for {tag}.')
-    upload = client.start_operation(
-        '/submissions/draft/package', package, 'application/zip'
-    )
-    client.wait_for_operation(upload)
-    print('Package upload succeeded. Submitting for Microsoft certification.')
-    submission = client.start_operation(
-        '/submissions',
-        json.dumps({'notes': f'WuPage {tag}. Package matches the corresponding GitHub Release.'}).encode(),
-        'application/json',
-    )
-    client.wait_for_operation(submission)
+    try:
+        print(f'Uploading the GitHub Release package for {tag}.')
+        upload = client.start_operation(
+            '/submissions/draft/package', package, 'application/zip'
+        )
+        client.wait_for_operation(upload)
+        print('Package upload succeeded. Submitting for Microsoft certification.')
+        submission = client.start_operation(
+            '/submissions',
+            json.dumps({'notes': f'WuPage {tag}. Package matches the corresponding GitHub Release.'}).encode(),
+            'application/json',
+        )
+        client.wait_for_operation(submission)
+    except EdgeOperationError as error:
+        # Only this explicit terminal business result is a deferral. Unknown
+        # failures, authentication errors and uncertain timeouts must still fail.
+        if error.result.get('status') != 'Failed' or error.result.get('errorCode') != 'InProgressSubmission':
+            raise
+        print(f'::warning::Microsoft Edge Add-ons: {tag} was NOT submitted. '
+              'Another submission is still in progress. Retry this tag after it finishes in Partner Center.')
+        return 'deferred'
     print(f'{tag} submitted successfully. Store availability depends on Microsoft certification.')
+    return 'submitted'
 
 
 def main():
@@ -123,15 +140,31 @@ def main():
     if len(sys.argv) != 2:
         raise ValueError('Usage: python3 scripts/publish-edge.py <release.zip>')
     client = EdgeClient(config['EDGE_PRODUCT_ID'], config['EDGE_CLIENT_ID'], config['EDGE_API_KEY'])
-    publish_package(client, sys.argv[1], config['RELEASE_TAG'])
+    status = publish_package(client, sys.argv[1], config['RELEASE_TAG'])
+    if status not in ('submitted', 'deferred'):
+        raise RuntimeError('Edge publishing returned an unknown submission result.')
+    result_output = os.environ.get('GITHUB_OUTPUT')
+    if result_output:
+        with open(result_output, 'a', encoding='utf-8') as output:
+            output.write(f'submission_status={status}\n')
     summary = os.environ.get('GITHUB_STEP_SUMMARY')
     if summary:
         with open(summary, 'a', encoding='utf-8') as output:
-            output.write(
-                f"Microsoft Edge Add-ons: **{config['RELEASE_TAG']} submitted for certification**.\n\n"
-                'The upload and submission operations succeeded. '
-                'Microsoft certification and store rollout are still pending.\n'
-            )
+            if status == 'deferred':
+                output.write(
+                    f"## Microsoft Edge Add-ons: {config['RELEASE_TAG']} deferred\n\n"
+                    '**This version was NOT submitted for certification.** '
+                    'Partner Center returned `InProgressSubmission`: another submission is still in progress.\n\n'
+                    'After the existing submission finishes, run **Publish to Microsoft Edge Add-ons** '
+                    f"with tag `{config['RELEASE_TAG']}` to retry the existing Release package. "
+                    'No rebuild is needed. No automatic retry or cancellation was performed.\n'
+                )
+            else:
+                output.write(
+                    f"Microsoft Edge Add-ons: **{config['RELEASE_TAG']} submitted for certification**.\n\n"
+                    'The upload and submission operations succeeded. '
+                    'Microsoft certification and store rollout are still pending.\n'
+                )
 
 
 if __name__ == '__main__':

@@ -2,9 +2,12 @@ import contextlib
 import importlib.util
 import io
 import json
+import os
 from pathlib import Path
+import tempfile
 import unittest
 from unittest.mock import patch
+from urllib.error import HTTPError, URLError
 from zipfile import ZipFile
 
 
@@ -43,7 +46,8 @@ class PublishEdgeTests(unittest.TestCase):
         reader.start()
         self.addCleanup(reader.stop)
         self.client = publish_edge.EdgeClient(PRODUCT_ID, 'test-client', 'test-key')
-        output = contextlib.redirect_stdout(io.StringIO())
+        self.output = io.StringIO()
+        output = contextlib.redirect_stdout(self.output)
         output.__enter__()
         self.addCleanup(output.__exit__, None, None, None)
 
@@ -52,6 +56,23 @@ class PublishEdgeTests(unittest.TestCase):
         with ZipFile(buffer, 'w') as archive:
             archive.writestr(manifest_path, json.dumps({'version': version, **extra}))
         self.package_bytes = buffer.getvalue()
+
+    @contextlib.contextmanager
+    def action_environment(self):
+        with tempfile.TemporaryDirectory() as directory:
+            result = Path(directory) / 'output.txt'
+            summary = Path(directory) / 'summary.md'
+            environment = {
+                'EDGE_PRODUCT_ID': PRODUCT_ID,
+                'EDGE_CLIENT_ID': 'test-client',
+                'EDGE_API_KEY': 'test-key',
+                'RELEASE_TAG': 'v1.1.3',
+                'GITHUB_OUTPUT': str(result),
+                'GITHUB_STEP_SUMMARY': str(summary),
+            }
+            with patch.dict(os.environ, environment, clear=True), \
+                    patch.object(publish_edge.sys, 'argv', ['publish-edge.py', str(self.package)]):
+                yield result, summary
 
     def test_upload_finishes_before_submission_and_uses_v11_authentication(self):
         responses = [
@@ -63,7 +84,8 @@ class PublishEdgeTests(unittest.TestCase):
         ]
         with patch.object(publish_edge, 'urlopen', side_effect=responses) as send, \
                 patch.object(publish_edge.time, 'sleep'):
-            publish_edge.publish_package(self.client, self.package, 'v1.1.3')
+            result = publish_edge.publish_package(self.client, self.package, 'v1.1.3')
+        self.assertEqual(result, 'submitted')
         requests = [call.args[0] for call in send.call_args_list]
         self.assertEqual([r.get_method() for r in requests], ['POST', 'GET', 'GET', 'POST', 'GET'])
         self.assertEqual(requests[0].data, self.package_bytes)
@@ -85,15 +107,93 @@ class PublishEdgeTests(unittest.TestCase):
                 publish_edge.publish_package(self.client, self.package, 'v1.1.3')
         self.assertEqual(send.call_count, 2)
 
-    def test_failed_submission_is_reported(self):
-        responses = [
-            Response(202, location=UPLOAD_ID), Response(body={'status': 'Succeeded'}),
-            Response(202, location=SUBMIT_ID),
-            Response(body={'status': 'Failed', 'errorCode': 'InProgressSubmission'}),
+    def test_action_distinguishes_submitted_from_deferred_without_retrying(self):
+        cases = [
+            ({'status': 'Succeeded'}, 'submitted'),
+            ({'status': 'Failed', 'errorCode': 'InProgressSubmission',
+              'message': "Can't publish extension as your extension submission is in progress. "
+                         'Please try again later.'}, 'deferred'),
         ]
-        with patch.object(publish_edge, 'urlopen', side_effect=responses):
-            with self.assertRaisesRegex(RuntimeError, 'InProgressSubmission'):
-                publish_edge.publish_package(self.client, self.package, 'v1.1.3')
+        for terminal_result, expected in cases:
+            with self.subTest(expected=expected), self.action_environment() as (result, summary):
+                self.output.seek(0)
+                self.output.truncate()
+                responses = [
+                    Response(202, location=UPLOAD_ID), Response(body={'status': 'Succeeded'}),
+                    Response(202, location=SUBMIT_ID), Response(body=terminal_result),
+                ]
+                with patch.object(publish_edge, 'urlopen', side_effect=responses) as send, \
+                        patch.object(publish_edge.time, 'sleep') as sleep:
+                    publish_edge.main()
+                self.assertEqual(send.call_count, 4)
+                sleep.assert_not_called()
+                self.assertEqual(result.read_text(encoding='utf-8'), f'submission_status={expected}\n')
+                text = summary.read_text(encoding='utf-8')
+                self.assertIn('v1.1.3', text)
+                if expected == 'deferred':
+                    self.assertIn('NOT submitted for certification', text)
+                    self.assertIn('InProgressSubmission', text)
+                    self.assertIn('No automatic retry or cancellation', text)
+                    self.assertIn('::warning::', self.output.getvalue())
+                    self.assertNotIn('submitted successfully', self.output.getvalue())
+                else:
+                    self.assertIn('submitted for certification', text)
+                    self.assertNotIn('::warning::', self.output.getvalue())
+
+    def test_upload_blocked_by_existing_submission_never_submits(self):
+        responses = [Response(202, location=UPLOAD_ID), Response(body={
+            'status': 'Failed', 'errorCode': 'InProgressSubmission',
+        })]
+        with patch.object(publish_edge, 'urlopen', side_effect=responses) as send:
+            result = publish_edge.publish_package(self.client, self.package, 'v1.1.3')
+        self.assertEqual(result, 'deferred')
+        self.assertEqual(send.call_count, 2)
+
+    def test_other_operation_failures_remain_errors_without_success_outputs(self):
+        cases = [
+            # The generic upload failure observed in v1.21.0 is still an error.
+            {'status': 'Failed', 'message': 'An error occurred while performing the operation',
+             'errorCode': None, 'errors': None},
+            {'status': 'Failed', 'errorCode': 'InvalidPackage'},
+            {'status': 'Failed', 'message': 'InProgressSubmission'},
+            {'status': 'Failed', 'errorCode': 'inprogresssubmission'},
+            {'status': 'Cancelled', 'errorCode': 'InProgressSubmission'},
+            {'errorCode': 'InProgressSubmission'},
+        ]
+        for terminal_result in cases:
+            for stage in ('upload', 'submission'):
+                with self.subTest(result=terminal_result, stage=stage), \
+                        self.action_environment() as (result, summary):
+                    responses = []
+                    if stage == 'submission':
+                        responses.extend([
+                            Response(202, location=UPLOAD_ID), Response(body={'status': 'Succeeded'}),
+                        ])
+                    responses.extend([Response(202, location=SUBMIT_ID), Response(body=terminal_result)])
+                    with patch.object(publish_edge, 'urlopen', side_effect=responses) as send:
+                        with self.assertRaises(publish_edge.EdgeOperationError):
+                            publish_edge.main()
+                    self.assertEqual(send.call_count, len(responses))
+                    self.assertFalse(result.exists())
+                    self.assertFalse(summary.exists())
+
+    def test_http_and_network_errors_are_not_deferred_or_retried(self):
+        cases = [
+            HTTPError(self.client.base_url, 401, 'Unauthorized', {}, io.BytesIO(b'expired key')),
+            HTTPError(self.client.base_url, 409, 'Conflict', {}, io.BytesIO(b'InProgressSubmission')),
+            URLError('connection interrupted'),
+            TimeoutError('request timed out'),
+        ]
+        for error in cases:
+            with self.subTest(error=error), self.action_environment() as (result, summary):
+                with patch.object(publish_edge, 'urlopen', side_effect=error) as send:
+                    with self.assertRaises((RuntimeError, URLError, TimeoutError)):
+                        publish_edge.main()
+                send.assert_called_once()
+                if isinstance(error, HTTPError):
+                    self.assertTrue(error.fp.closed)
+                self.assertFalse(result.exists())
+                self.assertFalse(summary.exists())
 
     def test_invalid_release_packages_never_contact_the_api(self):
         cases = [
@@ -156,6 +256,21 @@ class PublishEdgeTests(unittest.TestCase):
                 patch.object(publish_edge, 'urlopen', return_value=Response(body={'status': 'InProgress'})):
             with self.assertRaisesRegex(TimeoutError, 'Partner Center'):
                 self.client.wait_for_operation(f'/submissions/operations/{SUBMIT_ID}')
+
+    def test_action_polling_timeout_does_not_report_success_or_retry_submission(self):
+        responses = [
+            Response(202, location=UPLOAD_ID), Response(body={'status': 'Succeeded'}),
+            Response(202, location=SUBMIT_ID), Response(body={'status': 'InProgress'}),
+        ]
+        with self.action_environment() as (result, summary), \
+                patch.object(publish_edge.time, 'monotonic', side_effect=[0, 0, 0, 0, 601]), \
+                patch.object(publish_edge.time, 'sleep'), \
+                patch.object(publish_edge, 'urlopen', side_effect=responses) as send:
+            with self.assertRaisesRegex(TimeoutError, 'Partner Center'):
+                publish_edge.main()
+            self.assertEqual(send.call_count, 4)
+            self.assertFalse(result.exists())
+            self.assertFalse(summary.exists())
 
 
 if __name__ == '__main__':

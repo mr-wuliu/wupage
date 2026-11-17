@@ -282,3 +282,40 @@ jobs:
     secrets:
       AMO_JWT_ISSUER: ${{ secrets.AMO_JWT_ISSUER }}
       AMO_JWT_SECRET: ${{ secrets.AMO_JWT_SECRET }}
+
+  release-summary:
+    name: Summarize release and store submissions
+    needs: [release, publish-edge, publish-firefox]
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Report package publication separately from store acceptance
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+          RELEASE_PUBLISHED: ${{ needs.release.outputs.published }}
+          EDGE_RESULT: ${{ needs.publish-edge.result }}
+          EDGE_STATUS: ${{ needs.publish-edge.outputs.submission_status }}
+          FIREFOX_RESULT: ${{ needs.publish-firefox.result }}
+        run: |
+          python3 - <<'PY'
+          import os
+          edge = os.environ['EDGE_STATUS']
+          if edge == 'deferred':
+              edge = 'Deferred — NOT submitted; another submission is in progress. Retry this tag after it finishes.'
+          elif edge == 'submitted':
+              edge = 'Submitted for certification; store rollout is pending.'
+          else:
+              edge = os.environ['EDGE_RESULT']
+          firefox = os.environ['FIREFOX_RESULT']
+          if firefox == 'success':
+              firefox = 'Submission workflow completed; review, signing and availability are separate steps.'
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a', encoding='utf-8') as out:
+              out.write(f"## Release {os.environ['RELEASE_TAG']}\n\n")
+              out.write('| Stage | Result |\n| --- | --- |\n')
+              published = 'Published' if os.environ['RELEASE_PUBLISHED'] == 'true' else 'Not published'
+              out.write(f'| GitHub packages | {published} |\n')
+              out.write(f'| Microsoft Edge Add-ons | {edge} |\n')
+              out.write(f'| Firefox Add-ons | {firefox} |\n')
+          PY

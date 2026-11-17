@@ -2,6 +2,10 @@ name: Publish to Microsoft Edge Add-ons
 
 on:
   workflow_call:
+    outputs:
+      submission_status:
+        description: 'submitted or deferred (another submission is still in progress)'
+        value: ${{ jobs.publish.outputs.submission_status }}
     inputs:
       tag:
         description: Existing stable GitHub Release tag
@@ -32,6 +36,8 @@ jobs:
     name: Upload release ZIP and submit for certification
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    outputs:
+      submission_status: ${{ steps.submit.outputs.submission_status }}
     steps:
       - name: Check out publishing script
         uses: actions/checkout@v4
@@ -68,6 +74,7 @@ jobs:
           (cd release && sha256sum --check "${archive}.sha256")
 
       - name: Upload package and submit for Microsoft certification
+        id: submit
         env:
           EDGE_PRODUCT_ID: ${{ vars.EDGE_PRODUCT_ID }}
           EDGE_CLIENT_ID: ${{ secrets.EDGE_CLIENT_ID }}

@@ -117,6 +117,7 @@ git push origin main v1.1.0
 
 - 未配置 `EDGE_PRODUCT_ID` 时自动跳过商店提交；配置后缺少凭据会明确报错。预发布版本不提交商店。
 - 商店发布与网站同步分别执行；GitHub Release 已创建时，网站同步失败不会阻止商店提交。
-- 自动化成功表示已提交审核，上线仍需等待微软审核及商店分发。已有版本正在审核时，微软可能拒绝新的提交；处理完成后再重试。
+- 商店工作流通过 `submission_status` 输出区分 `submitted`（已提交审核）与 `deferred`（暂缓，本版尚未提交）。只有操作返回 `status: Failed` 且 `errorCode: InProgressSubmission` 时，记录警告与暂缓摘要并正常结束；不会取消现有审核或自动重试。其他失败、凭据错误和超时仍中止工作流，不按错误消息文本推断暂缓。标签发布摘要分别展示 GitHub 安装包、Edge 与 Firefox 的结果。
+- `submitted` 仍需等待微软审核及商店分发；`deferred` 需等现有提交处理完成，再用相同标签手动运行商店工作流，无需重新打包。工作流正常结束不代表商店已经上线，须以摘要中的提交状态为准。
 - 如果仅商店提交失败，可在 GitHub **Actions → Publish to Microsoft Edge Add-ons → Run workflow** 中输入已有正式版标签，单独重试，无需重建 Release。若之前提交超时，请先在 Partner Center 确认是否已经受理。
 - API Key 有有效期，请按 Partner Center 显示的到期时间更新 `EDGE_API_KEY`；Client ID 如有变化也需同步更新。商店简介、截图等元数据仍需在 Partner Center 维护。
