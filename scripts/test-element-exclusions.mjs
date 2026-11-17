@@ -49,7 +49,7 @@ try {
     ...target.chromiumOptions, headless: true, viewport: { width: 1400, height: 1000 },
     ignoreDefaultArgs: ['--disable-extensions'], args: ['--lang=zh-CN', '--enable-unsafe-extension-debugging']
   });
-  await context.route(/^https:\/\/(?:x\.com|example\.com)\//, route => route.fulfill({ contentType: 'text/html', body: pageHtml(new URL(route.request().url())) }));
+  await context.route(/^https?:\/\/(?:x\.com|example\.com|news\.example\.org)\//, route => route.fulfill({ contentType: 'text/html', body: pageHtml(new URL(route.request().url())) }));
   const session = await context.browser().newBrowserCDPSession();
   const { id } = await session.send('Extensions.loadUnpacked', { path: path.join(root, 'dist') }); await session.detach();
   const options = await context.newPage(); await options.goto(`chrome-extension://${id}/options.html#elementExclusionSettings`);
@@ -237,16 +237,50 @@ try {
   checks.push('custom rules apply to matching paths and iframe documents; excluded regions stay out of texts and context; attribute changes and late content are handled');
 
   await action('CLEAR_TRANSLATION');
+  const site = custom.locator('[data-field="pattern"]');
+  const scopeCases = [
+    { pattern: '', normalized: '*', urls: [['https://x.com/reading', true], ['https://example.com/home', true]] },
+    { pattern: 'example.*', urls: [['https://example.com/home', true], ['https://x.com/reading', false]] },
+    { pattern: '*://*.example.org/docs/*', urls: [['http://news.example.org/docs/guide', true], ['https://news.example.org/other', false]] },
+    { pattern: String.raw`/^https?:\/\/example\.com\/docs\/[0-9]+(?:\?[^#]*)?$/i`, urls: [['https://example.com/docs/123?lang=en', true], ['https://example.com/docs/abc', false]] }
+  ];
+  for (const scope of scopeCases) {
+    await site.fill(scope.pattern);
+    await custom.locator('[data-field="selectors"]').fill('.sponsored');
+    await options.locator('#save').click();
+    try { await wait(async () => (await runtime({ type: 'GET_SETTINGS' })).elementExclusions[5].pattern === (scope.normalized ?? scope.pattern)); }
+    catch (error) {
+      throw new Error(JSON.stringify({ pattern: scope.pattern, rules: (await runtime({ type: 'GET_SETTINGS' })).elementExclusions,
+        status: await options.locator('#status').textContent(), regionStatus: await options.locator('#elementExclusionStatus').textContent() }), { cause: error });
+    }
+    for (const [address, excluded] of scope.urls) {
+      const requestStart = requests.length;
+      await page.goto(address);
+      await wait(async () => { try { await action('GET_TRANSLATION_STATE'); return true; } catch { return false; } });
+      await action('TRANSLATE_PAGE');
+      await translated(page, '#public');
+      if (excluded) {
+        assert.equal(await page.locator('article > .sponsored').textContent(), 'Excluded recommendation text.');
+        assert.equal(JSON.stringify(requests.slice(requestStart)).includes('Excluded recommendation text.'), false);
+      } else await translated(page, 'article > .sponsored');
+      await action('CLEAR_TRANSLATION');
+    }
+  }
+  checks.push('global empty scope, domain/protocol/path wildcards, and URL regexes save and match across websites; unmatched pages translate normally');
+  await site.fill('/[/'); await options.locator('#save').click();
+  await options.locator('#elementExclusionStatus').filter({ hasText: '正则表达式无效' }).waitFor();
+  assert.equal((await runtime({ type: 'GET_SETTINGS' })).elementExclusions[5].pattern, scopeCases.at(-1).pattern);
+  await site.fill('example.com/articles/*');
   const selector = custom.locator('[data-field="selectors"]'); await selector.fill('div..invalid');
   await options.locator('#save').click();
   await options.locator('#elementExclusionStatus').filter({ hasText: 'CSS 选择器无效' }).waitFor();
-  assert.deepEqual((await runtime({ type: 'GET_SETTINGS' })).elementExclusions[5].selectors, ['.sponsored', '[data-region="ads"]']);
+  assert.deepEqual((await runtime({ type: 'GET_SETTINGS' })).elementExclusions[5].selectors, ['.sponsored']);
   await selector.fill('.sponsored');
   while (await options.locator('.exclusion-rule-remove').count()) await options.locator('.exclusion-rule-remove').first().click();
   await options.locator('#save').click(); await wait(async () => (await runtime({ type: 'GET_SETTINGS' })).elementExclusions.length === 0);
   await options.reload(); await options.locator('#elementExclusionSettings:not([hidden])').waitFor();
   assert.equal(await options.locator('.exclusion-rule').count(), 0);
-  checks.push('invalid selectors cannot be saved; deleting presets persists after reload');
+  checks.push('invalid regexes and selectors cannot be saved; deleting presets persists after reload');
   await fs.writeFile(path.join(output, 'report.json'), JSON.stringify({ ...identity, fixture: true, checks, requests: requests.length }, null, 2));
   console.log(JSON.stringify({ ...identity, checks, output }, null, 2));
 } catch (error) {

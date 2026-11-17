@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { captureSelectionSource, replaceSelectionSource, selectionReplacementAvailable, selectionSourceUnchanged } from "../src/content/selection-source";
 
 beforeEach(() => { document.body.innerHTML = '<input value="before selected phrase after"><p>public prose</p>'; });
-afterEach(() => { vi.restoreAllMocks(); window.getSelection()?.removeAllRanges(); document.body.replaceChildren(); });
+afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); window.getSelection()?.removeAllRanges(); document.body.replaceChildren(); });
 
 function control() { return document.querySelector("input")!; }
 function capture(start = 7, end = 22) {
@@ -90,5 +90,72 @@ describe("editable selection sources", () => {
     expect(selectionSourceUnchanged(source)).toBe(true);
     document.querySelector("span")!.setAttribute("style", "font-weight:bold");
     expect(selectionSourceUnchanged(source)).toBe(false);
+  });
+});
+
+describe("component selection sources", () => {
+  it.each(["open", "closed", "legacy-options"])("resolves an unfocused nested %s selection without collecting surrounding text", mode => {
+    const host = document.createElement("bili-comments"); document.body.append(host);
+    const first = host.attachShadow({ mode: mode === "closed" ? "closed" : "open" });
+    const inner = document.createElement("bili-rich-text"); first.append(inner);
+    const second = inner.attachShadow({ mode: mode === "closed" ? "closed" : "open" });
+    second.innerHTML = '<p>before <span>selected comment text</span> after</p><p>Unselected private text</p>';
+    const text = second.querySelector("span")!.firstChild!;
+    const knownRoots = new Map<Element, ShadowRoot>([[host, first], [inner, second]]);
+    vi.stubGlobal("chrome", { runtime: { id: "test" }, dom: { openOrClosedShadowRoot: (element: Element) => knownRoots.get(element) ?? null } });
+    const scopes: ShadowRoot[][] = [];
+    const read = vi.fn((...args: unknown[]) => {
+      if (mode === "legacy-options" && !(args[0] instanceof ShadowRoot) && args.length) throw new TypeError("Expected ShadowRoot");
+      const roots = mode === "legacy-options" ? args as ShadowRoot[] : (args[0] as GetComposedRangesOptions).shadowRoots!;
+      scopes.push([...roots]);
+      if (roots.includes(second)) return [new StaticRange({ startContainer: text, startOffset: 0, endContainer: text, endOffset: text.textContent!.length })];
+      if (roots.includes(first)) return [new StaticRange({ startContainer: first, startOffset: 0, endContainer: first, endOffset: 1 })];
+      const index = [...document.body.childNodes].indexOf(host);
+      return [new StaticRange({ startContainer: document.body, startOffset: index, endContainer: document.body, endOffset: index + 1 })];
+    });
+    const oldRange = document.createRange(); oldRange.setStartBefore(host); oldRange.collapse(true);
+    const getRangeAt = vi.fn(() => oldRange);
+    vi.spyOn(window, "getSelection").mockReturnValue({ isCollapsed: true, rangeCount: 1, getRangeAt, getComposedRanges: read } as unknown as Selection);
+    const source = captureSelectionSource();
+    expect(source).toMatchObject({ kind: "range", text: "selected comment text", startNode: text, endNode: text });
+    expect(scopes).toEqual([[], [first], [first, second]]);
+    expect(getRangeAt).not.toHaveBeenCalled();
+    expect(document.activeElement).toBe(document.body);
+    expect(second.querySelector("p")!.textContent).toBe("before selected comment text after");
+  });
+
+  it("retains precise offsets and formatting inside a component", () => {
+    const host = document.createElement("comment-content"); document.body.append(host);
+    const tree = host.attachShadow({ mode: "open" }); tree.innerHTML = '<p>before <b>selected phrase</b> after</p>';
+    const start = tree.querySelector("b")!.firstChild!, end = tree.querySelector("p")!.lastChild!;
+    const snapshot = new StaticRange({ startContainer: start, startOffset: 3, endContainer: end, endOffset: 3 });
+    vi.spyOn(window, "getSelection").mockReturnValue({ rangeCount: 1, isCollapsed: true, getComposedRanges: () => [snapshot] } as unknown as Selection);
+    expect(captureSelectionSource()?.text).toBe("ected phrase af");
+    expect(tree.innerHTML).toBe('<p>before <b>selected phrase</b> after</p>');
+  });
+
+  it("rejects endpoints in different component trees instead of collapsing or broadening the selection", () => {
+    const one = document.createElement("comment-one"), two = document.createElement("comment-two"); document.body.append(one, two);
+    const a = one.attachShadow({ mode: "open" }), b = two.attachShadow({ mode: "open" });
+    a.textContent = "First comment"; b.textContent = "Second comment";
+    const snapshot = new StaticRange({ startContainer: a.firstChild!, startOffset: 2, endContainer: b.firstChild!, endOffset: 4 });
+    vi.spyOn(window, "getSelection").mockReturnValue({ rangeCount: 1, getComposedRanges: () => [snapshot] } as unknown as Selection);
+    expect(captureSelectionSource()).toBeUndefined();
+  });
+
+  it("does not fall back to surrounding prose if the composed selection is unavailable", () => {
+    const range = document.createRange(); range.selectNodeContents(document.body);
+    const getRangeAt = vi.fn(() => range);
+    vi.spyOn(window, "getSelection").mockReturnValue({ rangeCount: 1, isCollapsed: false, getRangeAt,
+      getComposedRanges: () => { throw new Error("Selection changed"); } } as unknown as Selection);
+    expect(captureSelectionSource()).toBeUndefined(); expect(getRangeAt).not.toHaveBeenCalled();
+  });
+
+  it("keeps password controls and multiple selections excluded before reading component text", () => {
+    const read = vi.fn();
+    vi.spyOn(window, "getSelection").mockReturnValue({ rangeCount: 2, getComposedRanges: read } as unknown as Selection);
+    expect(captureSelectionSource()).toBeUndefined();
+    control().type = "password"; control().focus(); control().select();
+    expect(captureSelectionSource()).toBeUndefined(); expect(read).not.toHaveBeenCalled();
   });
 });

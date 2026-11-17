@@ -227,7 +227,8 @@
               <button id="addElementExclusion" type="button" class="secondary exclusion-rule-add"><span data-wupage-icon="plus" aria-hidden="true"></span><span data-i18n="addRegionExclusion">添加保留原文规则</span></button>
               <button id="addElementInclusion" type="button" class="secondary exclusion-rule-add"><span data-wupage-icon="plus" aria-hidden="true"></span><span data-i18n="addRegionInclusion">添加补译规则</span></button>
             </div>
-            <p class="hint" data-i18n="enterADomainOrUrlPatternExampleCom">网站可填写域名或网址路径。example.com 包含子域名，https://example.com/docs/* 可限定页面范围。</p>
+            <p id="elementExclusionSiteHelp" class="hint" data-i18n="enterADomainOrUrlPatternExampleCom">网站留空或填写 * 可作用于所有网站。example.com 包含子域名；支持 *.example.com、example.*、*://*.example.com/docs/* 等通配符。</p>
+            <p id="elementExclusionRegexHelp" class="hint" data-i18n="regionSiteRegexHelp">正则使用 /表达式/ 或 /表达式/i，例如 /^https?:\/\/(www\.)?example\.(com|org)\/docs\//i，匹配完整网址（含查询参数和片段）。仅作用于 HTTP/HTTPS 页面；不支持前后查找和反向引用。</p>
             <p id="elementExclusionSelectorHelp" class="hint" data-i18n="regionRuleSelectorHelp">每行填写一个 CSS 选择器，例如 .sidebar 或 [role="dialog"]。规则作用于匹配区域及其子元素，包括后续加载的内容。两种规则重叠时，保留原文优先。</p>
             <p class="hint" data-i18n="regionRuleForceHelp">补译在网页或段落翻译时生效，可处理网站标记为不翻译的可见文字。输入值、编辑区和隐藏文字仍会跳过。</p>
             <p class="hint" data-i18n="chooseSaveBelowToApplyPagesBeingTranslated">修改后点击页面底部「保存」。正在翻译的页面会按新规则重新处理。</p>

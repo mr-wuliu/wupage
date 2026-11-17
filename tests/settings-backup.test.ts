@@ -32,6 +32,15 @@ function fixture(): ExtensionSettings {
 }
 
 describe("settings backup format", () => {
+  it("round-trips global, wildcard and regex region rules without changing regex escapes", () => {
+    const settings = fixture();
+    settings.elementExclusions = ["*", "example.*", String.raw`/^https?:\/\/(www\.)?example\.(com|org)\//i`]
+      .map((pattern, i) => ({ id: `scope-${i}`, name: `Scope ${i}`, pattern, selectors: [".sidebar"], enabled: true }));
+    settings.elementInclusions = [{ ...settings.elementExclusions[2], selectors: [".dialog"] }];
+    const backup = createSettingsBackup(settings, "1.23.0", now, { includeKeys: true });
+    expect(parseSettingsBackup(serializeSettingsBackup(backup)).settings).toEqual(settings);
+  });
+
   it("round-trips every supported setting and arbitrary credential carrier without modifying its source", () => {
     const settings = fixture(), before = structuredClone(settings);
     const backup = createSettingsBackup(settings, "1.6.1", now, { includeKeys: true });

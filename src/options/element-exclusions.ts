@@ -1,6 +1,6 @@
 import { t } from "../shared/i18n";
 import { ELEMENT_EXCLUSION_DEFAULTS_VERSION, normalizeElementExclusions, normalizeElementInclusions, type ElementRule, type ElementRuleSettings } from "../shared/element-exclusions";
-import { normalizeSitePattern } from "../shared/auto-translation";
+import { normalizeRegionSitePattern } from "../shared/region-site-pattern";
 import { randomId } from "../shared/random-id";
 import { uiIconMarkup } from "../shared/ui-icons";
 
@@ -67,7 +67,8 @@ export function setupElementRuleControls(root: HTMLElement, reveal: (field: HTML
         control.setAttribute("aria-label", t("rule", index + 1, caption)); label.append(control); grid.append(label); return control;
       };
       const name = input(t("name"), rule.name, "", 80); name.dataset.field = "name";
-      const pattern = input(t("site"), rule.pattern, t("exampleComOrHttpsExampleComDocs"), 2048); pattern.dataset.field = "pattern";
+      const pattern = input(t("site"), rule.pattern, t("regionSitePlaceholder"), 2048); pattern.dataset.field = "pattern";
+      pattern.setAttribute("aria-describedby", "elementExclusionSiteHelp elementExclusionRegexHelp elementExclusionStatus");
       const actionLabel = document.createElement("label"); actionLabel.textContent = t("regionRuleAction");
       const action = document.createElement("select"); action.dataset.field = "action";
       action.setAttribute("aria-label", t("rule", index + 1, t("regionRuleAction")));
@@ -82,7 +83,8 @@ export function setupElementRuleControls(root: HTMLElement, reveal: (field: HTML
       const updateSummary = (): void => {
         const include = action.value === "include";
         title.textContent = name.value.trim() || t("newRule");
-        website.textContent = `${t(ACTION_LABEL[include ? "include" : "exclude"])} · ${pattern.value.trim() || t("siteNotEntered")}`;
+        const site = pattern.value.trim();
+        website.textContent = `${t(ACTION_LABEL[include ? "include" : "exclude"])} · ${!site || site === "*" ? t("allRegionWebsites") : site}`;
         selectors.placeholder = include ? '.settings-dialog\n[role="dialog"] .field-label' : '.sidebar\n[data-region="recommendations"]';
         title.title = title.textContent; website.title = website.textContent;
       };
@@ -129,7 +131,7 @@ export function setupElementRuleControls(root: HTMLElement, reveal: (field: HTML
         const entries = result[rule.action];
         if (entries.length >= 100) fail(controls.action, t("tooManyRegionRulesForAction"));
         let pattern: string;
-        try { pattern = normalizeSitePattern(rule.pattern); }
+        try { pattern = normalizeRegionSitePattern(rule.pattern); }
         catch (error) { return fail(controls.pattern, t("ruleError", index + 1, error instanceof Error ? error.message : String(error))); }
         const selectors = [...new Set(rule.selectors.map(selector => selector.trim()).filter(Boolean))];
         if (!selectors.length) fail(controls.selectors, t("ruleEnterAtLeastOneCssSelector", index + 1));

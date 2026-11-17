@@ -409,7 +409,22 @@
     "message": "Add rule"
   },
   "enterADomainOrUrlPatternExampleCom": {
-    "message": "Enter a domain or URL pattern. example.com includes subdomains. Use https://example.com/docs/* to limit a rule to specific pages."
+    "message": "Leave Site empty or enter * for all websites. example.com includes subdomains. Wildcards include *.example.com, example.*, and *://*.example.com/docs/*."
+  },
+  "regionSitePlaceholder": {
+    "message": "Empty or * for all websites"
+  },
+  "allRegionWebsites": {
+    "message": "All websites"
+  },
+  "regionSiteRegexHelp": {
+    "message": "Use /pattern/ or /pattern/i for a regular expression, e.g. /^https?:\\/\\/(www\\.)?example\\.(com|org)\\/docs\\//i. It searches the full URL, including the query and fragment. Only HTTP/HTTPS pages are matched. Lookarounds and backreferences are not supported."
+  },
+  "invalidRegionSiteRegex": {
+    "message": "Invalid or overly complex regular expression. Use /pattern/ or /pattern/i. Lookarounds and backreferences are not supported."
+  },
+  "invalidRegionSiteGlob": {
+    "message": "Invalid website wildcard. Use *, *.example.com, example.*, or *://*.example.com/docs/*."
   },
   "regionRuleSelectorHelp": {
     "message": "Enter one CSS selector per line, such as .sidebar or [role=\"dialog\"]. Rules cover matching areas and their descendants, including content loaded later. Keep original takes priority when rules overlap."

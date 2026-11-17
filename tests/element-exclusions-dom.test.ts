@@ -10,7 +10,7 @@ import {
   invalidateStaleSegments,
   renderTranslations
 } from "../src/content/dom";
-import { configureElementRules, isElementExcluded } from "../src/content/element-exclusions";
+import { configureElementRules, forcedTextRoot, isElementExcluded } from "../src/content/element-exclusions";
 import { buildTranslationContext } from "../src/content/translation-context";
 import { normalizeElementExclusions } from "../src/shared/element-exclusions";
 
@@ -35,6 +35,23 @@ beforeEach(() => {
     <aside><p>Keep this unrelated sidebar readable.</p></aside>`;
   vi.spyOn(window, "getComputedStyle").mockReturnValue({ display: "block", visibility: "visible", opacity: "1" } as CSSStyleDeclaration);
   vi.spyOn(Element.prototype, "getBoundingClientRect").mockReturnValue(new DOMRect(0, 0, 600, 30));
+});
+
+it("applies global and wildcard rules per document, including cross-site frames and SPA path changes", () => {
+  configureElementRules({ elementExclusions: rule([".sponsored"], "*"), elementInclusions: rule([".dialog"], "*://*.example.org/docs/*") });
+  const frame = document.createElement("iframe"); frame.src = "https://news.example.org/docs/guide"; document.body.append(frame);
+  const child = frame.contentDocument!;
+  child.append(child.createElement("html")); child.documentElement.append(child.createElement("body"));
+  child.body.innerHTML = '<div class="dialog"><p class="sponsored">Private label</p><p id="public">Public label</p></div>';
+  expect(isElementExcluded(child.querySelector(".sponsored")!)).toBe(true);
+  expect(forcedTextRoot(child.querySelector("#public")!)).toBe(child.querySelector(".dialog"));
+  expect(forcedTextRoot(document.querySelector("#post")!)).toBeNull();
+  configureElementRules({ elementExclusions: rule(["main"], String.raw`/^https?:\/\/x\.com\/docs\/[0-9]+$/`) });
+  expect(isElementExcluded(document.querySelector("#post")!)).toBe(false);
+  history.replaceState(null, "", "/docs/123");
+  expect(isElementExcluded(document.querySelector("#post")!)).toBe(true);
+  history.replaceState(null, "", "/docs/abc");
+  expect(isElementExcluded(document.querySelector("#post")!)).toBe(false);
 });
 
 it("forces only visible text in a matching region and leaves inputs and exclusions untouched", async () => {

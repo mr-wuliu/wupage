@@ -47,6 +47,8 @@ flowchart LR
 
 翻译区域的预置规则位于 `src/shared/element-exclusions.ts`，通过网站和 CSS 选择器复用内容排除逻辑。X 默认保留左侧导航、右侧新闻、趋势、推荐关注和页脚的原文，包含卡片内的关注按钮和更多入口；选择器使用 `data-testid` 或固定链接地址，不依赖界面语言或生成的类名。`elementExclusionDefaultsVersion` 标记新预置规则的迁移，按引入版本补充新增规则，保留同 ID 的修改与关闭状态、显式空列表及此前版本中删除的规则。配置备份保留此标记。`tests/element-exclusions*.test.ts` 和 `npm run test:element-exclusions`（Edge 加 `-- --edge`）验证配置、动态内容与实际扩展行为。
 
+翻译区域的网站匹配由 `src/shared/region-site-pattern.ts` 处理：空值归一为 `*`，支持域名、路径与协议通配符，以及 `/pattern/`、`/pattern/i` 正则；保留自动翻译网站规则原有的匹配语义。正则通过 [RE2JS](https://github.com/le0pard/re2js) 执行，不启用前后查找和反向引用；限制表达式长度、编译程序大小和缓存数量。所有规则仅匹配 HTTP/HTTPS 文档，子框架按自己的地址匹配。通配符忽略查询与片段，正则搜索规范化后的完整 URL。`tests/region-site-pattern.test.ts` 验证兼容性、边界、错误表达式和回溯压力样本，配置备份测试验证正则转义往返保持一致。
+
 新增界面文案时，在 `en/messages.json` 和 `zh_CN/messages.json` 中使用相同的消息键和占位符。静态页面用 `data-i18n` 标记可见文字，用 `data-i18n-aria-label` 等标记属性。动态控件调用 `src/shared/i18n.ts` 的 `t`，拼接 HTML 时使用会转义参数的 `htmlMessage`。翻译目标、网页原文和用户自定义名称独立于界面语言。
 
 视频字幕布局编辑位于 `src/content/video-layout.ts`，由 `VideoView` 挂载；`src/shared/video.ts` 定义按主机名保存的 `siteLayouts`。水平中心、底边和宽度使用视频区域百分比，字号使用像素；窗口缩放只约束当前显示位置，不改写已保存布局。编辑使用独立的稳定预览，只有点击完成才经原有设置队列写入，不重启翻译。设置备份支持可选布局字段并兼容旧备份。使用 `tests/video-layout.test.ts`、`tests/video-subtitles-ui.test.ts`、`tests/settings-backup.test.ts` 和 `npm run test:video` 验证交互、保存和真实播放器布局。
@@ -137,6 +139,8 @@ Chrome / Edge 在扩展管理页开启开发人员模式，加载 `dist/`；具�
 ## 验证改动
 
 划词翻译的选区快照和回填位于 `src/content/selection-source.ts`。普通输入框保存原值及字符偏移，可编辑区域保存原范围和编辑器内容；回填前校验快照，并优先通过浏览器编辑操作保留输入通知和撤销记录。编辑区选区直接使用当前翻译服务，正文继续保留单词查词。`npm run test:selection` 使用本地样例和模拟服务验证部分选区、受控输入通知、表单值、原生撤销、只读及密码框、嵌入页面和窄屏布局；可加 `-- --edge` 验证 Edge。`npm run test:selection:firefox` 使用同类本地输入样例验证 Firefox 的回填及撤销。
+
+网页组件内的划词通过 `Selection.getComposedRanges()` 读取，沿选区边界逐层解析开放或封闭的 Shadow DOM，不扫描整个页面。Bilibili 等评论组件里的实际选区可能被旧的 `isCollapsed` / `getRangeAt()` 报告为空范围，因此不能先用这些旧结果排除选区。实现兼容早期参数形式及无此 API 的浏览器；端点分属不同组件树时不扩大或提交选区。构建后运行 `node scripts/test-selection-components.mjs`（Edge 加 `--edge`），以本地评论样例和模拟翻译服务验证原生鼠标选区、四层组件、封闭组件、插槽、反向选择、圆点与下划线，以及保存开关后的即时生效，报告位于 `.npm-cache/selection-components/`。
 
 先运行受影响模块的测试，例如：
 

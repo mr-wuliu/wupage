@@ -45,6 +45,60 @@ function editingHost(node: Node): HTMLElement | undefined {
   return host;
 }
 
+/** Resolve only the roots at the selection boundaries, without scanning the page. */
+function composedSelectionRange(selection: Selection): Range | undefined {
+  const roots = new Set<ShadowRoot>();
+  let legacy = false;
+  const read = () => {
+    if (!legacy) {
+      try { return selection.getComposedRanges({ shadowRoots: [...roots] }); }
+      catch { legacy = true; }
+    }
+    // Early implementations accepted individual roots rather than an options object.
+    return (selection.getComposedRanges as unknown as (...roots: ShadowRoot[]) => StaticRange[]).call(selection, ...roots);
+  };
+  const include = (node: Node | undefined) => {
+    if (!node) return;
+    const tree = node.getRootNode();
+    if (tree instanceof ShadowRoot) roots.add(tree);
+    if (node instanceof Element) {
+      const root = componentShadowRoot(node);
+      if (root) roots.add(root);
+    }
+  };
+  for (let depth = 0; depth < 32; depth++) {
+    const ranges = read();
+    if (ranges.length !== 1) return;
+    const snapshot = ranges[0], count = roots.size;
+    for (const [node, offset] of [[snapshot.startContainer, snapshot.startOffset], [snapshot.endContainer, snapshot.endOffset]] as const) {
+      include(node);
+      include(node.childNodes[offset]);
+      include(node.childNodes[offset - 1]);
+    }
+    if (roots.size !== count) continue;
+    // A DOM Range cannot retain endpoints in different component trees. Do not
+    // silently collapse it or submit surrounding, unselected component content.
+    if (snapshot.collapsed || snapshot.startContainer.getRootNode() !== snapshot.endContainer.getRootNode()) return;
+    const range = document.createRange();
+    range.setStart(snapshot.startContainer, snapshot.startOffset);
+    range.setEnd(snapshot.endContainer, snapshot.endOffset);
+    return range;
+  }
+}
+
+function selectedRange(active: Element | null): Range | undefined {
+  const tree = active?.getRootNode();
+  const root = tree instanceof ShadowRoot ? tree as ShadowRoot & { getSelection?: () => Selection | null } : undefined;
+  const selection = root?.getSelection?.() ?? window.getSelection();
+  if (!selection || selection.rangeCount > 1) return;
+  try {
+    // isCollapsed/getRangeAt can describe a collapsed host boundary even while
+    // the user has selected text inside a nested component (e.g. Bilibili comments).
+    if (typeof selection.getComposedRanges === "function") return composedSelectionRange(selection);
+    if (!selection.isCollapsed && selection.rangeCount === 1) return selection.getRangeAt(0).cloneRange();
+  } catch { /* A detached or changing selection must not become a broader query. */ }
+}
+
 /** Capture only an explicit selection inside one field/editor, never a draft crossed by a prose selection. */
 export function captureSelectionSource(): SelectionSource | undefined {
   const active = activeElement();
@@ -56,10 +110,8 @@ export function captureSelectionSource(): SelectionSource | undefined {
     return { kind: "control", element: active, value: active.value, start, end, text: active.value.slice(start, end) };
   }
   if (closest(active, CONTROLS)) return;
-  const root = active?.getRootNode() as (ShadowRoot & { getSelection?: () => Selection | null }) | undefined;
-  const selection = root?.getSelection?.() ?? window.getSelection();
-  if (!selection || selection.isCollapsed || selection.rangeCount !== 1) return;
-  const range = selection.getRangeAt(0);
+  const range = selectedRange(active);
+  if (!range || range.collapsed) return;
   const editor = editingHost(range.startContainer);
   if (editor !== editingHost(range.endContainer)) return;
   if (active && editingHost(active) && editingHost(active) !== editor) return;

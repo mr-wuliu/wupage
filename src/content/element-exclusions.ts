@@ -1,5 +1,5 @@
 import { normalizeElementExclusions, normalizeElementInclusions, type ElementRule, type ElementRuleSettings } from "../shared/element-exclusions";
-import { matchesSitePattern } from "../shared/auto-translation";
+import { matchesRegionSitePattern } from "../shared/region-site-pattern";
 import { composedParent } from "./dom-roots";
 
 let rules = { exclude: normalizeElementExclusions(undefined), include: normalizeElementInclusions(undefined) };
@@ -13,7 +13,7 @@ function selectorsFor(document: Document): RegionSelectors {
   const cached = documents.get(document);
   if (cached?.address === address) return cached.selectors;
   const probe = document.createElement("div");
-  const matching = (entries: ElementRule[]): string[] => [...new Set(entries.filter(rule => rule.enabled && matchesSitePattern(rule.pattern, address))
+  const matching = (entries: ElementRule[]): string[] => [...new Set(entries.filter(rule => rule.enabled && matchesRegionSitePattern(rule.pattern, address))
     .flatMap(rule => rule.selectors))].filter(selector => {
       try { probe.matches(selector); return true; } catch { return false; }
     });

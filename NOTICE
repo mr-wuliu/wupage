@@ -25,5 +25,5 @@ Third-party materials retain their respective licenses and copyright notices.
 Their notices are included with the corresponding resources, including:
 - bergamot-runtime/: Mozilla Public License 2.0 and upstream source information.
 - ocr-runtime/: OpenCV and ONNX Runtime licenses and notices.
-- licenses/: UI icon licenses.
+- licenses/: UI icon and RE2JS licenses.
 - pdf-fonts/: SIL Open Font License and optional font provenance.

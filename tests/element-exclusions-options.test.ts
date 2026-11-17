@@ -67,6 +67,34 @@ it("reveals invalid website or selector fields instead of saving a broken rule",
   expect(controls.read().elementExclusions[0].selectors).toEqual([".valid", "[data-ad]"]);
 });
 
+it("saves global, wildcard and regex scopes for both actions and reports invalid regexes", () => {
+  const reveal = vi.fn();
+  const controls = setupElementRuleControls(field("#elementExclusionSettings"), reveal);
+  controls.render({ elementExclusions: [] });
+  field<HTMLButtonElement>("#addElementExclusion").click();
+  const pattern = field<HTMLInputElement>('[data-field="pattern"]');
+  const selectors = field<HTMLTextAreaElement>('[data-field="selectors"]'); selectors.value = ".sidebar";
+  expect(pattern.placeholder).toBe("留空或 * 表示所有网站");
+  expect(field<HTMLElement>(".exclusion-rule-site").textContent).toBe("保留原文 · 所有网站");
+  expect(controls.read().elementExclusions[0].pattern).toBe("*");
+  for (const value of ["*", "*://*.example.com/docs/*", String.raw`/^https?:\/\/example\.(com|org)\//i`]) {
+    pattern.value = value;
+    expect(controls.read().elementExclusions[0].pattern).toBe(value);
+    const action = field<HTMLSelectElement>('[data-field="action"]'); action.value = "include";
+    expect(controls.read().elementInclusions[0].pattern).toBe(value);
+    action.value = "exclude";
+  }
+  pattern.value = "/[/";
+  expect(() => controls.read()).toThrow("正则表达式无效");
+  expect(pattern.getAttribute("aria-invalid")).toBe("true");
+  expect(reveal).toHaveBeenLastCalledWith(pattern);
+  pattern.value = ""; pattern.dispatchEvent(new Event("input"));
+  expect(pattern.hasAttribute("aria-invalid")).toBe(false);
+  const saved = controls.read(); controls.render(saved);
+  expect(field<HTMLElement>(".exclusion-rule-site").textContent).toBe("保留原文 · 所有网站");
+  expect(controls.read()).toEqual(saved);
+});
+
 it("expands details on demand and retains unsaved edits when collapsed or other rules are added", () => {
   const controls = setupElementRuleControls(field("#elementExclusionSettings"), () => {});
   controls.render({});

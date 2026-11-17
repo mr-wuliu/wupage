@@ -136,6 +136,7 @@
     "onnxruntime-web": "1.30.0",
     "pdf-lib": "^1.17.1",
     "pdfjs-dist": "6.2.108",
+    "re2js": "2.10.0",
     "smol-toml": "1.9.1"
   }
 }

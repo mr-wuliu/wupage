@@ -409,7 +409,22 @@
     "message": "添加规则"
   },
   "enterADomainOrUrlPatternExampleCom": {
-    "message": "网站可填写域名或网址路径。example.com 包含子域名，https://example.com/docs/* 可限定页面范围。"
+    "message": "网站留空或填写 * 可作用于所有网站。example.com 包含子域名；支持 *.example.com、example.*、*://*.example.com/docs/* 等通配符。"
+  },
+  "regionSitePlaceholder": {
+    "message": "留空或 * 表示所有网站"
+  },
+  "allRegionWebsites": {
+    "message": "所有网站"
+  },
+  "regionSiteRegexHelp": {
+    "message": "正则使用 /表达式/ 或 /表达式/i，例如 /^https?:\\/\\/(www\\.)?example\\.(com|org)\\/docs\\//i，匹配完整网址（含查询参数和片段）。仅作用于 HTTP/HTTPS 页面；不支持前后查找和反向引用。"
+  },
+  "invalidRegionSiteRegex": {
+    "message": "正则表达式无效或过于复杂。请使用 /表达式/ 或 /表达式/i；不支持前后查找和反向引用。"
+  },
+  "invalidRegionSiteGlob": {
+    "message": "网站通配符无效。可使用 *、*.example.com、example.* 或 *://*.example.com/docs/*。"
   },
   "regionRuleSelectorHelp": {
     "message": "每行填写一个 CSS 选择器，例如 .sidebar 或 [role=\"dialog\"]。规则作用于匹配区域及其子元素，包括后续加载的内容。两种规则重叠时，保留原文优先。"

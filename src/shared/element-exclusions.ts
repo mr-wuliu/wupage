@@ -1,5 +1,5 @@
 import { t } from "./i18n";
-import { matchesSitePattern, normalizeSitePattern } from "./auto-translation";
+import { matchesRegionSitePattern, normalizeRegionSitePattern } from "./region-site-pattern";
 
 export interface ElementRule {
   id: string;
@@ -61,7 +61,7 @@ function normalizeRules(value: unknown, defaults: ElementRule[], prefix: string)
   for (const entry of entries.slice(0, 100)) {
     if (!entry || typeof entry !== "object" || typeof entry.pattern !== "string" || !Array.isArray(entry.selectors)) continue;
     try {
-      const pattern = normalizeSitePattern(entry.pattern);
+      const pattern = normalizeRegionSitePattern(entry.pattern);
       const selectors = [...new Set<string>(entry.selectors.filter((selector: unknown): selector is string => typeof selector === "string")
         .map((selector: string) => selector.trim()).filter((selector: string) => selector.length > 0 && selector.length <= 4096))].slice(0, 100);
       if (!selectors.length) continue;
@@ -82,6 +82,6 @@ export function elementRuleIdentity(settings: ElementRuleSettings, address?: str
 }
 
 function enabledRules(rules: ElementRule[], address?: string): Array<[string, string[]]> {
-  return rules.filter(rule => rule.enabled && (address === undefined || matchesSitePattern(rule.pattern, address)))
+  return rules.filter(rule => rule.enabled && (address === undefined || matchesRegionSitePattern(rule.pattern, address)))
     .map(rule => [rule.pattern, rule.selectors]);
 }

@@ -70,4 +70,17 @@ describe("element exclusion settings", () => {
     expect(elementRuleIdentity(includes, "https://example.com/")).toBe(elementRuleIdentity({}, "https://example.com/"));
     expect(elementRuleIdentity(includes, "https://x.com/home")).not.toBe(elementRuleIdentity({}, "https://x.com/home"));
   });
+
+  it("normalizes all-site scopes and ignores invalid regex imports without broadening them", () => {
+    const rules = normalizeElementExclusions(["", "*://*.example.org/*", "/docs/[0-9]+$/", "/[/"]
+      .map((pattern, i) => ({ id: `scope-${i}`, pattern, selectors: [".private"], enabled: true })));
+    expect(rules.map(rule => rule.pattern)).toEqual(["*", "*://*.example.org/*", "/docs/[0-9]+$/"]);
+    expect(normalizeElementExclusions(rules)).toEqual(rules);
+    const settings = { elementExclusions: [], elementInclusions: [rules[1], rules[2]] };
+    const empty = { elementExclusions: [], elementInclusions: [] };
+    expect(elementRuleIdentity(settings, "https://example.net/")).toBe(elementRuleIdentity(empty));
+    expect(elementRuleIdentity(settings, "https://example.net/docs/123")).not.toBe(elementRuleIdentity(empty));
+    expect(elementRuleIdentity(settings, "http://www.example.org/other")).not.toBe(elementRuleIdentity(empty));
+    expect(elementRuleIdentity({ ...settings, elementExclusions: [rules[0]] }, "https://anywhere.net/")).not.toBe(elementRuleIdentity(empty));
+  });
 });
