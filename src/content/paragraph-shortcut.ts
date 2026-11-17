@@ -47,5 +47,14 @@ export async function translateShortcutParagraphs(): Promise<void> {
     if (paragraph) targets.add(paragraph);
   }
   if (!targets.size) throw new Error(t("hoverOverAParagraphOrSelectItsText"));
-  await Promise.all([...targets].map(target => translateParagraph(target)));
+  // A source span and its sibling translation can resolve to nested targets.
+  // Toggle only the outer boundary, otherwise the second target can translate
+  // again immediately after the first one restores the same paragraph.
+  const paragraphs = [...targets].filter(target => {
+    for (let parent = target.parentElement; parent; parent = parent.parentElement) {
+      if (targets.has(parent)) return false;
+    }
+    return true;
+  });
+  await Promise.all(paragraphs.map(target => translateParagraph(target)));
 }

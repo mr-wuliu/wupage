@@ -58,6 +58,22 @@ describe("paragraph translation shortcut", () => {
     expect(hasTranslationsIn(document.querySelector("#third")!)).toBe(false);
   });
 
+  it.each(["bilingual", "bilingual-accent", "replace"] as const)("restores overlapping inline source boundaries once in %s mode", async mode => {
+    setPageTranslationDisplayMode(mode);
+    document.body.innerHTML = '<main><div id="lines"><span style="display:inline">First authored sentence with enough text.<br>Second authored sentence on its own line.<br></span></div><p id="outside">Leave this paragraph alone.</p></main>';
+    const lines = document.querySelector("#lines")!;
+    const original = lines.innerHTML;
+    const choose = () => { const range = document.createRange(); range.selectNodeContents(lines); select(range); };
+    choose(); await translateShortcutParagraphs();
+    expect(document.querySelectorAll(".wupage-translation")).toHaveLength(1);
+    expect(requests()).toHaveLength(1);
+    choose(); await translateShortcutParagraphs();
+    expect(document.querySelectorAll(".wupage-translation")).toHaveLength(0);
+    expect(lines.innerHTML).toBe(original);
+    expect(requests()).toHaveLength(1);
+    expect(document.querySelector("#outside")!.textContent).toBe("Leave this paragraph alone.");
+  });
+
   it("does not include a paragraph when the selection ends at its first character", async () => {
     const range = document.createRange(); range.setStart(document.querySelector("#first")!.firstChild!, 0);
     range.setEnd(document.querySelector("#second")!.firstChild!, 0); select(range);

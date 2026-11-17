@@ -86,14 +86,15 @@ try {
                 const card=document.querySelector('.image-feature-row').getBoundingClientRect();
                 const components=['.image-feature-label','.ocr-help-trigger','.ocr-model-action','.image-feature .setting-toggle-control']
                   .map(selector=>document.querySelector(selector).getBoundingClientRect());
-                return {overflow:document.documentElement.scrollWidth>innerWidth,tops:rects.map(rect=>rect.top),
+                return {overflow:document.documentElement.scrollWidth>innerWidth,
+                  rowsOrdered:rects.every((rect,index)=>index===0||rect.top>=rects[index-1].bottom-1),
                   componentsInside:components.every(rect=>rect.left>=card.left&&rect.right<=card.right&&rect.top>=card.top&&rect.bottom<=card.bottom),
                   ordered:components.every((rect,index)=>index===0||rect.left>=components[index-1].right)};
               });
               assert.equal(layout.overflow,false);
               assert.equal(layout.componentsInside,true);
               assert.equal(layout.ordered,true);
-              if(width>=1200)assert.ok(layout.tops.every(top=>Math.abs(top-layout.tops[0])<1),'all four general controls must share a row');
+              assert.ok(layout.rowsOrdered,'general settings rows must not overlap, including expanded image sub-options');
               await page.locator('#generalSettings').screenshot({path:path.join(output,`general-${width}.png`)});
             }
             await page.locator('.ocr-help-trigger').click();

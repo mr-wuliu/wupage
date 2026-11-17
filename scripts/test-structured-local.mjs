@@ -34,15 +34,15 @@ globalThis.Worker=class{
   terminate(){this.worker.terminate();}
 };
 const {LocalTranslationEngine}=await import(pathToFileURL(path.join(output,'engine-check.mjs')).href);
-await build({stdin:{contents:"export {normalizeProtectedText} from './src/shared/protected-text.ts';export {translateProtectedText} from './src/background/protected-translation.ts';",resolveDir:root,loader:'ts'},outfile:path.join(output,'protected-check.mjs'),bundle:true,platform:'node',format:'esm'});
-const {normalizeProtectedText,translateProtectedText}=await import(pathToFileURL(path.join(output,'protected-check.mjs')).href);
+await build({stdin:{contents:"export {normalizeProtectedText} from './src/shared/protected-text.ts';export {translateTextWithRecovery} from './src/background/protected-translation.ts';",resolveDir:root,loader:'ts'},outfile:path.join(output,'protected-check.mjs'),bundle:true,platform:'node',format:'esm'});
+const {normalizeProtectedText,translateTextWithRecovery}=await import(pathToFileURL(path.join(output,'protected-check.mjs')).href);
 const engine=new LocalTranslationEngine();
 try{
   const texts=['Read ⟪WUPAGEOPEN0⟫the complete guide⟪WUPAGECLOSE0⟫ now.','Click ⟪WUPAGEOPEN0⟫Save⟪WUPAGECLOSE0⟫ to keep changes.'];
   const route=[model];
   const raw=await engine.translate(route,texts);
   let calls=0;
-  const translations=await translateProtectedText({texts,sourceLang:'en',targetLang:'zh-CN',preservePlaceholders:true},request=>{calls++;return engine.translate(route,request.texts);});
+  const translations=await translateTextWithRecovery({texts,sourceLang:'en',targetLang:'zh-CN',preservePlaceholders:true},request=>{calls++;return engine.translate(route,request.texts);});
   translations.forEach((text,index)=>{assert.match(text,/\p{Script=Han}/u);assert.equal(normalizeProtectedText(texts[index],text),text);});
   const report={passed:true,engine:'Bergamot 0.4.9',model:'cached en-zh-Hans',htmlAlignment:true,rawAlignmentAccepted:raw.filter((text,index)=>normalizeProtectedText(texts[index],text)!==undefined).length,protectedRecoveryCalls:calls,translations};
   await fs.writeFile(path.join(output,'local-model-report.json'),JSON.stringify(report,null,2));

@@ -110,7 +110,8 @@ try {
   await waitFor(inspect, value => value.translations.length > 3, 'fixture translations'); await delay(1000);
   const first = await inspect(); await capture(baseline ? 'baseline-fixture.png' : 'fixture.png');
   if (!baseline) {
-    assert.ok(requestedSegments().some(text => /^Bare introduction with a reference and emphasized words remains one complete paragraph\.$/.test(text)), 'one bare paragraph');
+    assert.ok(requestedSegments().some(text => /^Bare introduction with a reference and emphasized words remains one complete paragraph\.$/.test(
+      text.replace(/⟪WUPAGE(?:OPEN|CLOSE)\d+⟫/gu, ''))), 'one bare paragraph');
     assert.ok(first.translations.some(t => t.text.includes('tail and improves') && t.formulas === 1), 'abstract formula');
     assert.ok(first.translations.some(t => t.text.includes('retains both formulas') && t.formulas === 2), 'inline math');
     assert.ok(first.translations.some(t => t.text.includes('denotes an input') && t.formulas === 1), 'prose after equation');

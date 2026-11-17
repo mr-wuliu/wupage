@@ -835,16 +835,16 @@ export function clearTranslationsIn(element: Element): void {
   }
   restoreTrackedAttributesIn(element);
   restoreReplacedSourcesIn(element);
-  const targetId = element.getAttribute(TARGET_ATTR);
-  if (targetId) {
-    findTargetTranslations(targetId).forEach((node) => node.remove());
+  for (const target of [element, ...element.querySelectorAll(`[${TARGET_ATTR}]`)]) {
+    const targetId = target.getAttribute(TARGET_ATTR);
+    if (targetId) findTargetTranslations(targetId).forEach((node) => node.remove());
+    target.removeAttribute(TARGET_ATTR);
   }
   element.querySelectorAll(`.${TRANSLATION_CLASS}`).forEach((node) => node.remove());
   element.querySelectorAll(`[${TRANSLATED_ATTR}]`).forEach((node) => {
     node.removeAttribute(TRANSLATED_ATTR);
   });
   element.removeAttribute(TRANSLATED_ATTR);
-  element.removeAttribute(TARGET_ATTR);
   trackedNodes = trackedNodes.filter((tracked) => !element.contains(tracked.node));
   trackedGroups = trackedGroups.filter((group) => !group.nodes.some((tracked) => element.contains(tracked.node)));
   trackedAttributes = trackedAttributes.filter((tracked) =>

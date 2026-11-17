@@ -608,6 +608,10 @@ async function renderPdfPageOnce(pageState: PdfPageState): Promise<void> {
   pageState.canvas.height = Math.floor(viewport.height);
   pageState.canvas.style.width = `${Math.floor(viewport.width / outputScale)}px`;
   pageState.canvas.style.height = `${Math.floor(viewport.height / outputScale)}px`;
+  // Match the transparent rotated-glyph layer's grayscale antialiasing. An
+  // opaque source canvas uses LCD color fringes in Chromium on Windows, so
+  // otherwise unchanged chart labels differ when composed into the translation.
+  pageState.canvas.getContext("2d", { alpha: true });
   await page.render({ canvas: pageState.canvas, viewport }).promise;
   await renderOriginalTextLayer(pageState, cssViewport);
   await renderPageWithoutText(page, pageState.translatedBaseCanvas, viewport);

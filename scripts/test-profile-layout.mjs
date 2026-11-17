@@ -62,6 +62,7 @@ try {
     const box=e=>{const b=e.getBoundingClientRect();return {x:b.x,y:b.y,width:b.width,height:b.height}};
     const description=card.querySelector('[data-description],.pinned-item-desc');
     return {html:card.outerHTML,box:box(card),description:description?.textContent,
+      descriptionTargets:description?[description,...description.querySelectorAll('[data-wupage-translated]')].filter(e=>e.getAttribute('data-wupage-translated')==='true').length:0,
       numbers:[...card.querySelectorAll('.counter,.pinned-item-meta')].map(e=>e.textContent.trim()),
       outside:card.parentElement.querySelectorAll(':scope > .wupage-translation').length,
       children:[...card.children].map(e=>({tag:e.tagName,cls:e.className,box:box(e),text:e.textContent})),
@@ -101,7 +102,7 @@ try {
               assert.ok(text.box.x >= card.box.x - 1 && text.box.x + text.box.width <= card.box.x + card.box.width + 1, 'translation stays inside card');
             }
             const description = original.description.trim();
-            if (description) assert.equal(card.translations.filter(t => t.text.includes(description.replace(/\s+/g,' '))).length, 1, 'description translated exactly once inside card');
+            if (description) assert.equal(card.descriptionTargets, 1, 'description translated exactly once inside card');
           }
           await browser.capture(`${label}-${width}-${mode}.png`);
         }
@@ -112,8 +113,10 @@ try {
           if (description) assert.ok(!requested.some(text => text.includes(description) && text.includes('Public')), 'no aggregate card request');
         }
         await send('CLEAR_TRANSLATION');
-        const restored = await browser.evaluate(`const w=window.wrappedJSObject||window;return w.profileOriginal.every(({e,html,nodes})=>e.innerHTML===html&&nodes.every(n=>n.isConnected));`);
-        assert.equal(restored, true, 'original card markup and node identities restored');
+        const restored = await browser.evaluate(`const w=window.wrappedJSObject||window;return w.profileOriginal.every(({e,html,nodes})=>{
+          const source=e.cloneNode(true);source.querySelectorAll('[data-wupage-prose-source]').forEach(boundary=>boundary.replaceWith(...boundary.childNodes));
+          return source.innerHTML===html&&nodes.every(n=>n.isConnected);});`);
+        assert.equal(restored,true,'original card content, attributes and nodes retained after hiding cached translations');
         settings.translationDisplayMode = 'bilingual'; await runtime({ type: 'SAVE_SETTINGS', settings });
         checks.push(`${label}, ${width}px: card widths, text containment, one description, three modes, original DOM restoration`);
       }

@@ -44,9 +44,22 @@ const server = createServer(async (request, response) => {
     calls.push(input);
     if (input.texts.includes("Old pending message.")) await new Promise(resolve => { releaseSlow = resolve; });
     const translations = input.texts.map(text => {
-      if (commentSources.includes(text)) return commentTranslation;
+      const plain = text.replace(/⟪WUPAGE(?:OPEN|CLOSE|BREAK)\d+⟫/gu, "").replace(/\s+/gu, " ").trim();
+      if (commentSources.includes(plain)) {
+        const parts = text.split(/(⟪WUPAGE(?:OPEN|CLOSE|BREAK)\d+⟫)/gu);
+        let remaining = parts.filter(part => !part.startsWith("⟪WUPAGE") && /\p{L}/u.test(part)).length, offset = 0;
+        const translated = [...commentTranslation];
+        return parts.map(part => {
+          if (part.startsWith("⟪WUPAGE") || !/\p{L}/u.test(part)) return part;
+          const end = offset + Math.ceil((translated.length - offset) / remaining--);
+          const value = translated.slice(offset, end).join(""); offset = end; return value;
+        }).join("");
+      }
       if (text === "Short source.") return "A translated sentence that needs to wrap naturally inside a narrow container. ".repeat(6);
       if (!text.includes("WUPAGE")) return `译文：${text}`;
+      // Preserve structured inline markup; corrupt only the code-token sample
+      // that this fixture deliberately uses to exercise recovery.
+      if (text.includes("WUPAGEOPEN")) return `译文：${text}`;
       if (!damagedOnce) {
         damagedOnce = true;
         return "⟪WUPAGE0⟫ 替代 ⟪WUPAGE0⟫。";
@@ -100,7 +113,9 @@ try {
   assert.equal(result.data.failed, 0);
   assert.equal(result.data.translated, 4);
   assert.equal(damagedOnce, true);
-  assert.equal(calls.filter(call => call.texts.length === 1 && call.texts[0].includes("WUPAGE")).length, 1);
+  // The first request may already contain just this segment. Count its single
+  // recovery independently of how the scheduler groups the initial batch.
+  assert.equal(calls.filter(call => call.texts.some(text => text.startsWith("Use ⟪WUPAGE0⟫"))).length, 2);
   assert.equal(calls.some(call => /Unsent|Hidden private/u.test(JSON.stringify(call))), false);
   assert.deepEqual(await page.locator(".wupage-translation code").allTextContents(), ["second()", "first()"]);
 
@@ -117,7 +132,8 @@ try {
         .every(node => node.dataset.wupageDisplayMode === mode), mode);
       await page.waitForTimeout(250);
       assert.equal(calls.length, before, `Switching modes must reuse translations (${width}, ${mode}): ${JSON.stringify(calls)}`);
-      assert.equal(await page.locator(".wupage-translation").count(), 4);
+      // Replace mode can update inline text without creating a copied wrapper.
+      assert.equal(await page.locator('[data-wupage-translated="true"]').count(), 4);
       assert.equal(await page.locator(".wupage-translation-pending").count(), 0);
       assert.equal(await page.locator("main").evaluate(node => node.scrollWidth > node.clientWidth + 1), false);
       modeReports.push({ width, mode });
@@ -164,8 +180,8 @@ try {
       }, mode);
       await page.waitForFunction(mode => [...document.querySelectorAll(".wupage-translation")]
         .every(node => node.dataset.wupageDisplayMode === mode), mode);
-      const items = await page.locator("#updates > li").evaluateAll(items => items.map(item => {
-        const output = item.querySelector(".wupage-translation");
+      const items = await page.locator("#updates > li").evaluateAll((items, mode) => items.map(item => {
+        const output = item.querySelector(".wupage-translation") ?? (mode === "replace" ? item : null);
         const sourceRects = [];
         const walker = document.createTreeWalker(item, NodeFilter.SHOW_TEXT);
         while (walker.nextNode()) {
@@ -175,13 +191,16 @@ try {
           range.selectNodeContents(text);
           sourceRects.push(...range.getClientRects());
         }
-        return { mode: output.dataset.wupageMode, display: getComputedStyle(output).display,
+        return { translated:item.matches('[data-wupage-translated="true"]')||!!item.querySelector('[data-wupage-translated="true"]'),
+          mode: output.dataset.wupageMode, display: getComputedStyle(output).display,
           top: output.getBoundingClientRect().top, sourceBottom: Math.max(...sourceRects.map(rect => rect.bottom)) };
-      }));
+      }), mode);
       for (const item of items) {
-        assert.equal(item.mode, "block");
-        assert.equal(item.display, mode === "replace" ? "inline" : "block");
-        if (mode !== "replace") assert.ok(item.top >= item.sourceBottom - 1, `Translation must follow the source: ${JSON.stringify(item)}`);
+        assert.equal(item.translated,true);
+        if (mode !== "replace") {
+          assert.equal(item.mode, "block"); assert.equal(item.display,"block");
+          assert.ok(item.top >= item.sourceBottom - 1, `Translation must follow the source: ${JSON.stringify(item)}`);
+        }
       }
       assert.deepEqual(await page.locator("nav .wupage-translation, td .wupage-translation")
         .evaluateAll(outputs => outputs.map(output => getComputedStyle(output).display)), ["inline", "inline"]);
@@ -223,8 +242,8 @@ try {
       }, mode);
       await page.waitForFunction(mode => [...document.querySelectorAll(".wupage-translation")]
         .every(node => node.dataset.wupageDisplayMode === mode), mode);
-      const comments = await page.locator("#comments #content-text").evaluateAll(hosts => hosts.map(host => {
-        const output = host.querySelector(".wupage-translation");
+      const comments = await page.locator("#comments #content-text").evaluateAll((hosts, mode) => hosts.map(host => {
+        const output = host.querySelector(".wupage-translation") ?? (mode === "replace" ? host : null);
         const rect = output.getBoundingClientRect();
         const sourceRects = [];
         const walker = document.createTreeWalker(host, NodeFilter.SHOW_TEXT);
@@ -236,12 +255,15 @@ try {
           sourceRects.push(...range.getClientRects());
         }
         return { outputs: host.querySelectorAll(".wupage-translation").length,
+          translated:host.matches('[data-wupage-translated="true"]')||!!host.querySelector('[data-wupage-translated="true"]'),
           insideHost: output.parentElement === host, mode: output.dataset.wupageMode,
           display: getComputedStyle(output).display, top: rect.top,
           sourceBottom: Math.max(...sourceRects.map(rect => rect.bottom)) };
-      }));
+      }), mode);
       assert.equal(comments.length, 6);
       for (const comment of comments) {
+        assert.equal(comment.translated,true);
+        if (mode === "replace" && comment.outputs === 0) continue;
         assert.equal(comment.outputs, 1);
         assert.equal(comment.insideHost, true);
         assert.equal(comment.mode, "block");
@@ -250,7 +272,7 @@ try {
           `Comment translation must start below the source: ${JSON.stringify({ width, mode, comment })}`);
       }
       assert.deepEqual(await page.locator("#comments a").evaluateAll(links => links.map(link => link.getAttribute("href"))),
-        ["/watch?v=example", "/watch?v=example"]);
+        Array(mode === "replace" ? 2 : 4).fill("/watch?v=example"));
       assert.equal(await page.locator("#nowrap-source .wupage-translation").evaluate(node => getComputedStyle(node).whiteSpace), "normal");
       assert.equal(await page.locator("main").evaluate(node => node.scrollWidth > node.clientWidth + 1), false);
       assert.equal(calls.length, commentRequests, "Comment mode changes must reuse translations");

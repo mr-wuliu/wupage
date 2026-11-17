@@ -176,8 +176,9 @@ try{
    checks.push('youtube: growing ASR keeps the first word fixed with both languages left aligned');
    await view.locator('.toggle').evaluate(button=>button.click());
    translationDelay=700;
+   const delayedStart=calls.length;
    await page.evaluate(()=>{
-    const words='that auto generates this new support structure that saves time when printing and makes it much easier to remove the finished part from the printer so you can continue with your next project without spending a long time cutting away unnecessary material from every surface'.split(' ');
+    const words='This printer automatically builds a temporary support structure that keeps every overhang stable and saves material while printing and makes it much easier to remove the finished part from the printer so you can continue with your next project without spending a long time cutting away unnecessary material from every surface'.split(' ');
     let index=5;window.asrDone=false;window.captionOverride=words.slice(0,index).join(' ');
     window.asrTimer=setInterval(()=>{
      index++;window.captionOverride=words.slice(Math.max(0,index-12),index).join(index%2?'\n':' ');
@@ -185,7 +186,10 @@ try{
     },180);
    });
    await view.locator('.toggle').evaluate(button=>button.click());
-   await page.waitForFunction(()=>!window.asrDone&&document.querySelector('[data-wupage-video]').shadowRoot.querySelector('.translation span').textContent.startsWith('译：'));
+   // A long translation is paginated; a later visible page need not contain
+   // the fixture prefix from the first page.
+   await page.waitForFunction(()=>!window.asrDone&&document.querySelector('[data-wupage-video]').shadowRoot.querySelector('.translation span').textContent.trim());
+   assert.ok(calls.length>delayedStart,'the uncached rolling utterance sends a new translation request');
    assert.equal(await view.getAttribute('data-subtitle-source'),'live');
    checks.push('youtube: rolling ASR remains translated with 700ms responses and changing line wraps');
    await page.locator('.ytp-subtitles-button').click();
@@ -201,5 +205,10 @@ try{
  await fs.writeFile(path.join(output,'report.json'),JSON.stringify({passed:true,checks,requests:calls.length,errors},null,2));
  console.log(JSON.stringify({passed:true,checks,requests:calls.length}));
 }catch(error){
- await fs.writeFile(path.join(output,'report.json'),JSON.stringify({passed:false,checks,errors,failure:String(error)},null,2));throw error;
+ const states=await Promise.all((context?.pages()??[]).map(page=>page.evaluate(()=>{
+  const host=document.querySelector('[data-wupage-video]'),root=host?.shadowRoot;
+  return {url:location.href,done:window.asrDone,source:root?.querySelector('.source span')?.textContent,
+   translation:root?.querySelector('.translation span')?.textContent,enabled:host?.getAttribute('data-enabled')};
+ }).catch(()=>null)));
+ await fs.writeFile(path.join(output,'report.json'),JSON.stringify({passed:false,checks,errors,failure:String(error),states,calls},null,2));throw error;
 }finally{await context?.close();await new Promise(resolve=>server.close(resolve));}

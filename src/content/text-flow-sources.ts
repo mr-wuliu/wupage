@@ -18,6 +18,7 @@ const EXCLUDED = "pre,code,kbd,samp,nav,header,footer,aside,button,summary,label
 /** Adapt anonymous ranges to the existing renderer without cloning author nodes. */
 export function materializeTextFlow(unit: TextFlow): Element | null {
   if (unit.whole) return unit.container;
+  if (!unit.nodes.some(hasProseText)) return null;
   const meaningful = unit.nodes.filter(node => !(node instanceof Text && !node.data.trim()));
   const child = meaningful.length === 1 && meaningful[0];
   if (child instanceof Element && new TextFlowSnapshot().isWhole(child)) return child;
@@ -27,6 +28,12 @@ export function materializeTextFlow(unit: TextFlow): Element | null {
     || /^(?:(?:inline-)?(?:flex|grid|table)|table-(?:row|row-group|header-group|footer-group))$/u.test(getComputedStyle(element).display)
     || unit.nodes.some(node => node.parentNode !== element)) return null;
   return wrapProseSource(element, [...unit.nodes]);
+}
+
+function hasProseText(node: Node): boolean {
+  if (node instanceof Text) return /\p{L}/u.test(node.data);
+  if (!(node instanceof Element) || node.matches("svg,math,canvas,script,style,noscript,template")) return false;
+  return [...node.childNodes].some(hasProseText);
 }
 
 function wrapProseSource(element: Element, nodes: ChildNode[]): Element {

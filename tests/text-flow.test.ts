@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { TextFlowSnapshot, textNodeAtPoint } from "../src/content/text-flow";
+import { materializeTextFlow } from "../src/content/text-flow-sources";
 import {
   clearTranslations, collectParagraphTextSegments, collectTextSegmentsProgressive, collectAdditionalTextSegmentsProgressive,
   findTranslatableParagraph, invalidateStaleSegments, renderTranslations, setTranslationDisplayMode
@@ -16,6 +17,19 @@ beforeEach(() => {
 afterEach(() => { clearTranslations(); vi.restoreAllMocks(); document.body.replaceChildren(); });
 
 describe("layout text flows", () => {
+  it("leaves standalone SVG and MathML atoms in their original parent without creating prose wrappers", async () => {
+    document.body.innerHTML = '<main><p>Read this public paragraph before continuing.</p><svg width="180" height="30"><text y="20">Diagram label</text></svg>\n<div><math><mi>alpha</mi></math></div><div contenteditable="plaintext-only">Private draft</div></main>';
+    const svg = document.querySelector("svg")!, math = document.querySelector("math")!;
+    const parents = [svg.parentNode, math.parentNode], original = document.body.innerHTML;
+    const segments = await collectTextSegmentsProgressive();
+    expect(segments.map(segment => segment.text)).toEqual(["Read this public paragraph before continuing."]);
+    expect([svg.parentNode, math.parentNode]).toEqual(parents);
+    expect(document.querySelector("[data-wupage-prose-source]")).toBeNull();
+    expect(materializeTextFlow({ container: svg.parentElement!, nodes: [svg], whole: false })).toBeNull();
+    clearTranslations();
+    expect(document.body.innerHTML).toBe(original);
+  });
+
   it.each(["div", "span", "section"])("finds an anonymous opening and tail in an ordinary %s inside a layout table", async tag => {
     document.body.innerHTML = `<table><tr><td><div>Example author</div><${tag} id="body">An opening sentence with <a href="/ref">a reference</a> and <em>important details</em>.<p>${following}</p>A final unwrapped paragraph.</${tag}><div>Reply controls</div></td></tr></table>`;
     const body = document.querySelector("#body")!;

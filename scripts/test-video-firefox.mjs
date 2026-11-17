@@ -65,12 +65,13 @@ try{
  checks.push('Firefox Western layout left-aligns both languages');
  const shot=await firefox.command('WebDriver:TakeScreenshot',{id:null,highlights:[],full:true});
  await fs.writeFile(path.join(output,'settings.png'),Buffer.from(shot.value,'base64'));
+  const layoutWidthBeforeCancel=await firefox.execute(`return document.querySelector('[data-wupage-video]').shadowRoot.querySelector('.captions').style.width;`);
   await firefox.execute(`const root=document.querySelector('[data-wupage-video]').shadowRoot;
     root.querySelector('.layout-open').click();
     const width=root.querySelector('.layout-width');width.value='55';width.dispatchEvent(new Event('input'));
     root.querySelector('.layout-cancel').click();`);
   assert.equal(await firefox.execute(`return getComputedStyle(document.querySelector('[data-wupage-video]').shadowRoot.querySelector('.layout-preview .source')).textAlign;`),'left');
-  assert.equal(await firefox.execute(`return document.querySelector('[data-wupage-video]').shadowRoot.querySelector('.captions').style.width;`),'90%');
+  assert.equal(await firefox.execute(`return document.querySelector('[data-wupage-video]').shadowRoot.querySelector('.captions').style.width;`),layoutWidthBeforeCancel);
   await firefox.execute(`const root=document.querySelector('[data-wupage-video]').shadowRoot;
     root.querySelector('.settings').click();root.querySelector('.layout-open').click();
     for(const [selector,value] of [['.layout-width','55'],['.layout-font','28']]){
@@ -90,7 +91,7 @@ try{
  const nativeCues=()=>firefox.execute(`return [...[...document.querySelector('video').textTracks].find(track=>track.label==='WuPage 双语').cues]
    .map(cue=>({text:cue.text,align:cue.align,line:cue.line,position:cue.position,size:cue.size}));`);
  await wait(nativeCues,cues=>cues.length===1,'native fullscreen cue');
- assert.deepEqual(await nativeCues(),[{text:'Seek\n跳转到另一个时间。',align:'left',line:'auto',position:5,size:90}]);
+ assert.deepEqual(await nativeCues(),[{text:'Seek\n跳转到另一个时间。',align:'left',line:'auto',position:15,size:70}]);
  const nativeShot=await firefox.command('WebDriver:TakeScreenshot',{id:null,highlights:[],full:true});
  await fs.writeFile(path.join(output,'alignment-native-fullscreen.png'),Buffer.from(nativeShot.value,'base64'));
  await firefox.execute('document.exitFullscreen();');

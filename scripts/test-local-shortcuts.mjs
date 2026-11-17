@@ -12,7 +12,8 @@ await fs.mkdir(output,{recursive:true});
 const server=createServer(async(req,res)=>{
   if(req.url==='/translate'&&req.method==='POST'){
     let raw='';for await(const part of req)raw+=part;const data=JSON.parse(raw);calls.push(data);
-    res.writeHead(200,{'content-type':'application/json'}).end(JSON.stringify({translations:data.texts.map(text=>'译文：'+text)}));return;
+    res.writeHead(200,{'content-type':'application/json'}).end(JSON.stringify({translations:data.texts.map(text=>text.includes('⟪WUPAGESEGMENT')
+      ?text.replace(/(⟪WUPAGESEGMENT\d+⟫\n)/gu,'$1译文：'):'译文：'+text)}));return;
   }
   res.writeHead(200,{'content-type':'text/html;charset=utf-8'});
   res.end(`<!doctype html><html lang="en"><meta charset="utf-8"><style>body{margin:36px;font:18px/1.7 Arial}iframe{display:block;width:650px;height:170px}p{max-width:720px}</style><body>
@@ -56,17 +57,20 @@ try{
   await waitFor(()=>browser.evaluate('return document.querySelector("#wupage-floating-hitbox")?.dataset.positionReady==="true"&&!!document.querySelector("#wupage-selection-tools");'),Boolean,'page tools');
   await runtime({type:'SET_PARAGRAPH_MODE',enabled:true});
   await waitFor(()=>browser.evaluate('return document.documentElement.classList.contains("wupage-paragraph-mode")&&document.querySelector("iframe").contentDocument.documentElement.classList.contains("wupage-paragraph-mode");'),Boolean,'paragraph mode in top and embedded documents');
+  await browser.evaluate(`const w=window.wrappedJSObject||window;w.localClickEvents=[];
+    for(const d of [document,document.querySelector('iframe').contentDocument])d.addEventListener('click',event=>w.localClickEvents.push({frame:d!==document,
+      target:event.target.id,alt:event.altKey,shift:event.shiftKey,ctrl:event.ctrlKey,prevented:event.defaultPrevented,x:event.clientX,y:event.clientY}),true);`);
   const clickParagraph=async(frame,custom)=>{
     const point=await browser.evaluate(`const f=document.querySelector('iframe'),d=${frame?'f.contentDocument':'document'},r=d.querySelector('#paragraph').getBoundingClientRect(),outer=${frame?'f.getBoundingClientRect()':'{left:0,top:0}'};return {x:outer.left+r.left+r.width/2+${frame?'f.clientLeft':'0'},y:outer.top+r.top+r.height/2+${frame?'f.clientTop':'0'}};`);
     await browser.pointer([{type:'move',...point},{type:'down'},{type:'up'}],custom?['Alt','Shift']:['Control']);
   };
   await clickParagraph(false,false);await delay(160);assert.equal(calls.length,0,'old Ctrl click is disabled');
   await clickParagraph(false,true);
-  await waitFor(()=>browser.evaluate('return document.querySelectorAll(".wupage-translation").length;'),value=>value===1,'custom top paragraph click');
+  await waitFor(()=>browser.evaluate('return document.querySelectorAll(".wupage-translation:not(.wupage-translation-pending)").length;'),value=>value===1,'custom top paragraph click');
   await clickParagraph(true,false);await delay(160);
   assert.equal(await browser.evaluate('return document.querySelector("iframe").contentDocument.querySelectorAll(".wupage-translation").length;'),0);
   await clickParagraph(true,true);
-  await waitFor(()=>browser.evaluate('return document.querySelector("iframe").contentDocument.querySelectorAll(".wupage-translation").length;'),value=>value===1,'custom iframe paragraph click');
+  await waitFor(()=>browser.evaluate('return document.querySelector("iframe").contentDocument.querySelectorAll(".wupage-translation:not(.wupage-translation-pending)").length;'),value=>value===1,'custom iframe paragraph click');
   assert.match(await browser.evaluate('return document.querySelector("#wupage-paragraph-mode-hint").textContent;'),/Alt.*Shift/);
   checks.push('custom modifier click works immediately in top and embedded documents; old Ctrl click does not translate; hints follow the configuration');
   await runtime({type:'SET_PARAGRAPH_MODE',enabled:false});
@@ -81,6 +85,11 @@ try{
   await browser.press('Escape');assert.equal(await browser.evaluate('return document.querySelector("#wupage-selection-tools").shadowRoot.querySelector(".card").hidden;'),false);
   await browser.press('Alt+Escape');assert.equal(await browser.evaluate('return document.querySelector("#wupage-selection-tools").shadowRoot.querySelector(".card").hidden;'),true);
   checks.push('actual custom card submission and dismissal work, old shortcuts stop working, and ordinary text editing stays local');
+  // Paragraph-click checks leave actual translations visible. Restore them
+  // before testing a fresh page start through the floating control.
+  await browser.api(`const tab=(await chrome.tabs.query({})).find(tab=>tab.url===input[0]);
+    const result=await chrome.tabs.sendMessage(tab.id,{type:'CLEAR_TRANSLATION'});if(!result.ok)throw new Error(result.error);`,[origin+'/article']);
+  await waitFor(()=>browser.evaluate('return document.querySelectorAll(".wupage-translation").length;'),value=>value===0,'paragraph results restored before floating scenario');
   await browser.evaluate('getSelection()?.removeAllRanges();document.querySelector("#wupage-floating-ball").focus();');
   const beforeBall=calls.length;await browser.press('Enter');await delay(160);assert.equal(calls.length,beforeBall,'unbound native Enter cannot activate the floating button');
   await browser.press('Alt+Shift+K');
@@ -103,4 +112,8 @@ try{
   checks.push('live settings updates replace dismissal keys and disable paragraph clicks in top and embedded content without reloading');
   console.log(JSON.stringify({...identity,checks,calls:calls.length,output},null,2));
   await fs.writeFile(path.join(output,'report.json'),JSON.stringify({...identity,checks},null,2));
-}catch(error){await browser?.capture('failure.png').catch(()=>{});throw error;}finally{await browser?.close();await new Promise(resolve=>server.close(resolve));}
+}catch(error){
+ const events=await browser?.evaluate('return (window.wrappedJSObject||window).localClickEvents;').catch(()=>undefined);
+ await fs.writeFile(path.join(output,'failure.json'),JSON.stringify({error:String(error),events,calls},null,2));
+ await browser?.capture('failure.png').catch(()=>{});throw error;
+}finally{await browser?.close();await new Promise(resolve=>server.close(resolve));}

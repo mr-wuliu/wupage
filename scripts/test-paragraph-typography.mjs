@@ -78,6 +78,8 @@ try {
       await browser.resize(1400, 1200);
       await browser.navigate(live ? 'https://rust-lang.org/' : `${origin}/fixture`);
       await waitFor(() => browser.evaluate('return !!document.querySelector("#wupage-translation-style");'), Boolean, 'content runtime');
+      await waitFor(() => browser.evaluate(`const event=new KeyboardEvent('keydown',{key:'Q',code:'KeyQ',altKey:true,shiftKey:true,repeat:true,bubbles:true,cancelable:true});
+        document.dispatchEvent(event);return event.defaultPrevented;`),Boolean,'shortcut bindings ready');
       if (live) await browser.evaluate(`const hero=[...document.querySelectorAll('h2')].find(e=>e.textContent.includes('A language empowering'));
         if(!hero)throw new Error('Rust hero missing');hero.id='rust-hero';hero.setAttribute('data-typography','');
         document.querySelectorAll('h2,h3,p').forEach(e=>{if(e.closest('main'))e.setAttribute('data-typography','');});`);

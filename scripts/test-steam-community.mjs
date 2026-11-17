@@ -60,8 +60,8 @@ try {
     };
     await waitFor(async () => { try { await action('GET_TRANSLATION_STATE'); return true; } catch { return false; } }, 'extension ready');
     const samples = await browser.evaluate(`const normal=text=>text.replace(/\\s+/g,' ').trim();
-      window.steamTestTargets=[];
-      const add=(element,source=element?.textContent)=>{if(element&&normal(source||''))window.steamTestTargets.push({element,source:normal(source)});};
+      (window.wrappedJSObject||window).steamTestTargets=[];
+      const add=(element,source=element?.textContent)=>{if(element&&normal(source||''))(window.wrappedJSObject||window).steamTestTargets.push({element,source:normal(source)});};
       if(${JSON.stringify(name)}==='community'){
         add(document.querySelector('.apphub_StoreAppText'));add(document.querySelector('.apphub_CardContentNewsTitle'));
         const body=document.querySelector('.Announcement_Card .apphub_CardTextContent');
@@ -70,7 +70,7 @@ try {
         const titles=[...document.querySelectorAll('a[href*="filedetails"]')].filter(e=>{
           const box=e.getBoundingClientRect();return e.textContent.trim()&&box.width>0&&box.height>0&&box.left>=0&&box.right<=innerWidth;
         });
-        const seen=new Set();for(const element of titles){const text=normal(element.textContent);if(!seen.has(text)){add(element);seen.add(text);}if(window.steamTestTargets.length>=8)break;}
+        const seen=new Set();for(const element of titles){const text=normal(element.textContent);if(!seen.has(text)){add(element);seen.add(text);}if((window.wrappedJSObject||window).steamTestTargets.length>=8)break;}
         for(const label of ['Store Page','All','Mods','Mod Features','Learn More']){
           const element=[...document.querySelectorAll('a,div,span')].find(element=>normal(element.textContent).toLowerCase()===label.toLowerCase()
             && ![...element.children].some(child=>normal(child.textContent).toLowerCase()===label.toLowerCase())
@@ -81,28 +81,28 @@ try {
         add(document.querySelector('.workshopItemTitle'));
         const description=document.querySelector('.workshopItemDescription');
         const walker=document.createTreeWalker(description,NodeFilter.SHOW_TEXT);
-        while(walker.nextNode()&&window.steamTestTargets.length<3){const node=walker.currentNode;
+        while(walker.nextNode()&&(window.wrappedJSObject||window).steamTestTargets.length<3){const node=walker.currentNode;
           if(normal(node.textContent).length>25)add(node.parentElement,node.textContent);}
       }
-      return window.steamTestTargets.map(({source,element})=>({source,tag:element.tagName,class:element.className}));`);
+      return (window.wrappedJSObject||window).steamTestTargets.map(({source,element})=>({source,tag:element.tagName,class:element.className}));`);
     assert.ok(samples.length >= (name === 'community' ? 4 : 3), JSON.stringify(samples));
-    if (name === 'workshop') pages.push(['item', await browser.evaluate('return window.steamTestTargets[0].element.href;')]);
+    if (name === 'workshop') pages.push(['item', await browser.evaluate('return (window.wrappedJSObject||window).steamTestTargets[0].element.href;')]);
     await browser.capture(`${name}-before.png`);
     const result = await action('TRANSLATE_PAGE');
     assert.equal(result.failed, 0, JSON.stringify(result));
     for (let index = 0; index < samples.length; index++) {
-      if (name !== 'community') await browser.evaluate(`window.steamTestTargets[${index}].element.scrollIntoView({block:'center'});`);
-      await waitFor(() => browser.evaluate(`const {source}=window.steamTestTargets[${index}];
+      if (name !== 'community') await browser.evaluate(`(window.wrappedJSObject||window).steamTestTargets[${index}].element.scrollIntoView({block:'center'});`);
+      await waitFor(() => browser.evaluate(`const {source}=(window.wrappedJSObject||window).steamTestTargets[${index}];
         const normal=text=>text.replace(/\\s+/g,' ').trim();
         return [...document.querySelectorAll('.wupage-translation:not(.wupage-translation-pending)')]
-          .some(element=>normal(element.textContent).includes('验证译文：'+source));`), `${name} translates ${samples[index].source}`);
+          .some(element=>normal(element.textContent).includes('验证译文：')&&normal(element.textContent).includes(source));`), `${name} translates ${samples[index].source}`);
     }
     await browser.evaluate('window.scrollTo(0,0);'); await pause(250);
     await browser.capture(`${name}-after.png`);
     const translated = await browser.evaluate('return document.querySelectorAll(".wupage-translation:not(.wupage-translation-pending)").length;');
     await action('CLEAR_TRANSLATION');
     const restored = await browser.evaluate(`const normal=text=>text.replace(/\\s+/g,' ').trim();
-      return window.steamTestTargets.every(({source,element})=>normal(element.textContent).includes(source))
+      return (window.wrappedJSObject||window).steamTestTargets.every(({source,element})=>normal(element.textContent).includes(source))
         &&!document.querySelector('.wupage-translation');`);
     assert.equal(restored, true, `${name} restores original content`);
     reports.push({ name, url, samples, translated, restored });
