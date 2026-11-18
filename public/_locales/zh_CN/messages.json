@@ -2222,6 +2222,9 @@
   "bilingualSubtitles": {
     "message": "双语字幕"
   },
+  "closeFloatingVideoControls": {
+    "message": "关闭视频悬浮工具栏"
+  },
   "closeSubtitleSettings": {
     "message": "关闭字幕设置"
   },

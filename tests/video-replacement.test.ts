@@ -10,7 +10,7 @@ const flush = async () => { for (let index = 0; index < 30; index++) await Promi
 beforeEach(() => {
   vi.useFakeTimers();
   vi.stubGlobal('chrome', {runtime:{id:'wupage'},storage:{onChanged:{addListener:vi.fn(),removeListener:vi.fn()}}});
-  document.body.innerHTML = '<div style="position:relative"><video></video><div class="vjs-text-track-display">First lecture.</div></div>';
+  document.body.innerHTML = '<div style="position:relative"><video src="lecture.webm"></video><div class="vjs-text-track-display">First lecture.</div></div>';
   vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, 0, 640, 360));
   vi.spyOn(HTMLElement.prototype, 'getClientRects').mockReturnValue([new DOMRect(0, 0, 640, 360)] as unknown as DOMRectList);
   vi.mocked(sendRuntimeRequest).mockImplementation(async request => request.type === 'GET_SETTINGS' ? structuredClone(DEFAULT_SETTINGS)
@@ -25,7 +25,7 @@ it.each(['replacement', 'reattachment'])('preserves manual translation after an 
   const video=document.querySelector('video')!,container=video.parentElement!;
   video.remove();await vi.advanceTimersByTimeAsync(120);
   expect(container.querySelector('[data-wupage-video]')).toBeNull();
-  container.prepend(kind==='replacement'?document.createElement('video'):video);
+  container.prepend(kind==='replacement'?video.cloneNode():video);
   container.querySelector('.vjs-text-track-display')!.textContent='Second lecture.';
   await vi.advanceTimersByTimeAsync(600);await flush();
   const host=document.querySelector('[data-wupage-video]')!;
@@ -37,7 +37,8 @@ it('keeps a manual stop when the following lecture replaces the video', async ()
   manager.open();await flush();await vi.advanceTimersByTimeAsync(500);
   document.querySelector('[data-wupage-video]')!.shadowRoot!.querySelector<HTMLButtonElement>('.toggle')!.click();
   const count=vi.mocked(sendRuntimeRequest).mock.calls.filter(([r])=>r.type==='TRANSLATE_VIDEO_SUBTITLES').length;
-  document.querySelector('video')!.replaceWith(document.createElement('video'));
+  const video=document.querySelector('video')!;
+  video.replaceWith(video.cloneNode());
   await vi.advanceTimersByTimeAsync(800);await flush();
   expect(document.querySelector('[data-wupage-video]')?.hasAttribute('data-enabled')).toBe(false);
   expect(vi.mocked(sendRuntimeRequest).mock.calls.filter(([r])=>r.type==='TRANSLATE_VIDEO_SUBTITLES')).toHaveLength(count);

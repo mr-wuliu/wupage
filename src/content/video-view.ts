@@ -26,12 +26,14 @@ const styles = `
   * { box-sizing: border-box; } [hidden] { display: none !important; }
   .toolbar { position: absolute; right: 14px; top: var(--wp-toolbar-top,14px); display: flex; gap: 1px; align-items: center; color: #fff; background: #172024eb; border: 1px solid #ffffff29; border-radius: 9px; box-shadow: 0 3px 12px #0003; opacity: 0; transform: translateY(-3px); transition: opacity .16s,transform .16s; pointer-events: none; }
   :host([data-controls]) .toolbar, .toolbar:hover, .toolbar:focus-within, :host([data-panel]) .toolbar, :host([data-error]) .toolbar, :host([data-waiting]) .toolbar { opacity: 1; transform: none; pointer-events: auto; }
+  .toolbar[hidden], :host([data-docked]) .dismiss { display: none; }
   button, select, input { font: inherit; } button { cursor: pointer; } button:disabled { opacity: .5; cursor: default; }
   .toolbar button { border: 0; color: inherit; background: transparent; min-height: 34px; padding: 7px 10px; font: 500 12px/20px system-ui,sans-serif; }
   .toolbar button:hover { background: #ffffff18; } .toggle { display: flex; gap: 7px; align-items: center; border-radius: 8px 0 0 8px; }
   .mark { display: grid; place-items: center; width: 20px; height: 18px; border: 1px solid #ffffffa8; border-radius: 4px; font-size: 12px; }
   :host([data-enabled]) .mark { color: #172024; background: #a9ead3; border-color: #a9ead3; }
-  .settings { display: grid; place-items: center; border-left: 1px solid #ffffff1c !important; border-radius: 0 8px 8px 0; } .settings svg { width: 15px; height: 15px; }
+  .settings, .dismiss { display: grid; place-items: center; border-left: 1px solid #ffffff1c !important; }
+  .dismiss { border-radius: 0 8px 8px 0; } .settings svg, .dismiss svg { width: 15px; height: 15px; }
   button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid #a9ead3; outline-offset: 2px; }
   .captions,.layout-preview { position: absolute; left: 50%; bottom: max(10%, 46px); transform: translateX(-50%); width: ${DEFAULT_VIDEO_LAYOUT.width}%; text-align: center; color: #fff; font: 600 clamp(14px,3cqw,var(--wp-video-font,22px))/1.4 system-ui,sans-serif; text-shadow: 0 1px 3px #000,0 0 2px #000; }
   .captions,.layout-preview { display: flex; flex-direction: column; gap: 5px; }
@@ -57,7 +59,7 @@ const styles = `
   details { margin-top: 12px; border-top: 1px solid #ffffff1f; padding-top: 10px; } summary { color: #c4d2cd; cursor: pointer; font-size: 12px; }
   .panel-action { margin-top: 10px; color: #e8f1ee; background: #233135; border: 1px solid #50615e; border-radius: 6px; padding: 6px 10px; }
   .offset { width: 100%; height: 32px; border: 1px solid #50615e; border-radius: 6px; background: #233135; color: #fff; padding: 5px 8px; }
-  .notice { position: absolute; top: 58px; right: 14px; max-width: min(300px,calc(100% - 28px)); padding: 9px 12px; background: #172024ed; border: 1px solid #ffffff29; border-radius: 8px; color: #e4eeea; font: 12px/1.5 system-ui,sans-serif; pointer-events: auto; }
+  .notice { position: absolute; top: 58px; right: 14px; max-width: min(300px,calc(100% - 28px)); padding: 9px 12px; background: #172024ed; border: 1px solid #ffffff29; border-radius: 8px; color: #e4eeea; font: 12px/1.5 system-ui,sans-serif; pointer-events: none; }
   :host([data-docked]) { position: relative !important; inset: auto !important; display: inline-flex !important; vertical-align: top !important; flex: 0 0 auto !important; width: auto !important; height: var(--wp-native-control-height,100%) !important; transform: translateY(var(--wp-native-control-offset,0px)) !important; pointer-events: inherit !important; container-type: normal !important; z-index: auto !important; }
   :host([data-docked]) .toolbar { position: static; height: 100%; background: transparent; border: 0; box-shadow: none; border-radius: 0; opacity: 1; transform: none; transition: none; pointer-events: inherit; }
   :host([data-docked]) .toolbar button { height: 100%; min-height: 0; min-width: 34px; padding: 0 7px; border-radius: 0; }
@@ -72,6 +74,7 @@ const styles = `
   :host([data-native-hidden]) { pointer-events: none !important; }
   @media (prefers-reduced-motion: reduce) { .toolbar { transition: none; } .frame { animation: none !important; } }
   @media (pointer: coarse) { .toolbar button, :host([data-docked]) .toolbar button { min-width: 44px; min-height: 44px; } }
+  @container (max-width: 200px) { .toolbar button { min-width: 0; padding-inline: 8px; } }
   ${VIDEO_LAYOUT_STYLES}
 `;
 
@@ -113,6 +116,7 @@ export class VideoView {
         <button class="toggle" type="button" aria-label="${htmlMessage("translateVideoSubtitles")}" aria-pressed="false" title="${htmlMessage("translateVideoSubtitles")}"><span class="mark" aria-hidden="true">${htmlMessage("translateBadge")}</span></button>
         <button class="frame" type="button" aria-label="${htmlMessage("pauseAndTranslateFrame")}" aria-pressed="false" title="${htmlMessage("pauseAndTranslateFrame")}">${uiIconMarkup("display")}</button>
         <button class="settings" type="button" aria-label="${htmlMessage("subtitleSettings")}" title="${htmlMessage("subtitleSettings")}" aria-expanded="false">${uiIconMarkup("settings")}</button>
+        <button class="dismiss" type="button" aria-label="${htmlMessage("closeFloatingVideoControls")}" title="${htmlMessage("closeFloatingVideoControls")}">${uiIconMarkup("cross")}</button>
       </div>
       <div class="captions" role="region" aria-label="${htmlMessage("bilingualSubtitles")}" hidden><div class="source" dir="auto"><span></span></div><div class="translation" dir="auto"><span></span></div></div>
       <section class="panel" popover="manual" aria-label="${htmlMessage("subtitleSettings")}" hidden>
@@ -162,6 +166,9 @@ export class VideoView {
     this.on(this.toggle, "click", () => actions.toggle());
     this.on(this.frameButton, "click", () => { this.layoutEditor.cancel(); actions.frame(); });
     this.on(this.settingsButton, "click", () => this.setPanel(this.panel.hidden));
+    this.on(query(".dismiss"), "click", () => {
+      this.layoutEditor.cancel(); this.setPanel(false); this.toolbar.hidden = true; this.setControls(false);
+    });
     this.on(query(".close"), "click", () => this.setPanel(false));
     this.on(this.retry, "click", () => actions.retry());
     this.on(target, "change", () => actions.settings({ targetLang: target.value }));
@@ -203,7 +210,9 @@ export class VideoView {
     target.addEventListener(type, callback, capture); this.cleanups.push(() => target.removeEventListener(type, callback, capture));
   }
 
-  setControls(show: boolean): void { this.host.toggleAttribute("data-controls", show); }
+  get controlsDismissed(): boolean { return this.toolbar.hidden; }
+  restoreControls(): void { this.toolbar.hidden = false; }
+  setControls(show: boolean): void { this.host.toggleAttribute("data-controls", show && !this.controlsDismissed); }
   focus(): void { this.setControls(true); this.toggle.focus(); }
   get panelOpen(): boolean { return !this.panel.hidden || this.layoutEditor.editing; }
   resizeLayout(): void { this.layoutEditor.resize(); }
@@ -286,7 +295,7 @@ export class VideoView {
   }
 
   setPanel(open: boolean): void {
-    if (open === !this.panel.hidden) return;
+    if ((open && this.controlsDismissed) || open === !this.panel.hidden) return;
     if (open) {
       this.layoutEditor.cancel();
       this.panel.hidden = false;
