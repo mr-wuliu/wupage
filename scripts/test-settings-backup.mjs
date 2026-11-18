@@ -43,7 +43,7 @@ try {
     settings.providers[0].serviceMode='api'; settings.providers[0].api={apiKey:'fixture-service-secret',endpoint:'https://translation.example/CaseSensitive'};
     settings.providers.push({type:'http-template',id:'custom-backup-test',label:'<b>Example</b>',method:'POST',
       url:'https://user:fixture-password@translation.example/Path@proxy?signature=fixture-url-secret',
-      headers:{Authorization:'fixture-opaque-secret','X-Client':'backup-client'},bodyTemplate:'{"api_key":"fixture-template-secret","q":{{json texts}}}',responsePath:'translations'});
+      headers:{Authorization:'fixture-opaque-secret','X-Workspace-Access':'fixture-workspace-secret'},bodyTemplate:'{"api_key":"fixture-template-secret","q":{{json texts}}}',responsePath:'translations'});
     const result=await chrome.runtime.sendMessage({type:'SAVE_SETTINGS',settings}); if(!result.ok)throw new Error(result.error);
     await chrome.storage.local.set({'backup-test-unrelated':'keep-me'}); return settings;`, ['多行提示词 """\n保留中文、引号与 C:\\Users\\test\n{{targetLang}}']);
   await browser.navigate(url);
@@ -73,16 +73,16 @@ try {
   assert.equal(keyless.version, 1); assert.equal(keyless.includesKeys, false);
   assert.equal(keyless.settings.pdfTranslationPageRadius, 'all');
   assert.equal(keyless.settings.targetLang, 'fr'); assert.equal(keyless.settings.chunkSize, seed.chunkSize);
-  for (const secret of ['llm','header','body','service','url','opaque','template']) assert.ok(!defaultText.includes(`fixture-${secret}-secret`));
+  for (const secret of ['llm','header','body','service','url','opaque','template','workspace']) assert.ok(!defaultText.includes(`fixture-${secret}-secret`));
   assert.ok(!defaultText.includes('fixture-password')); assert.ok(!defaultText.includes('keep-me'));
-  assert.equal(keyless.settings.providers.find(p=>p.id==='custom-backup-test').url, 'https://user:@translation.example/Path@proxy?signature=');
-  assert.deepEqual({...keyless.settings.providers.find(p=>p.id==='custom-backup-test').headers}, {Authorization:'','X-Client':'backup-client'});
-  assert.equal(keyless.settings.providers.find(p=>p.id==='custom-backup-test').bodyTemplate, '{"api_key":"","q":{{json texts}}}');
-  assert.equal(keyless.settings.providers.find(p=>p.id==='deepseek').systemPrompt, seed.providers.find(p=>p.id==='deepseek').systemPrompt);
-  assert.deepEqual({...keyless.settings.providers.find(p=>p.id==='deepseek').requestTemplate}, {enabled:true,headers:'{"X-Signature2":"","X-Client":"backup-client"}',body:'{"token":"","context":"{{context}}"}'});
-  assert.equal(keyless.settings.providers[0].api.endpoint, 'https://translation.example/CaseSensitive');
+  assert.equal(keyless.settings.providers.find(p=>p.id==='custom-backup-test').url, '');
+  assert.deepEqual({...keyless.settings.providers.find(p=>p.id==='custom-backup-test').headers}, {});
+  assert.equal(keyless.settings.providers.find(p=>p.id==='custom-backup-test').bodyTemplate, '');
+  assert.equal(keyless.settings.providers.find(p=>p.id==='deepseek').systemPrompt, '');
+  assert.equal(keyless.settings.providers.find(p=>p.id==='deepseek').requestTemplate, undefined);
+  assert.equal(keyless.settings.providers[0].api.endpoint, undefined);
   assert.ok(stringifyToml(await stored()).includes('fixture-llm-secret'), 'export must not modify stored credentials');
-  checks.push('default download clears credentials while retaining endpoints, custom headers, templates, prompts and every other saved option');
+  checks.push('default download omits credentials and custom request settings while keeping general preferences');
 
   await click('exportSettings'); await preview();
   assert.equal(await browser.evaluate('return document.getElementById("settingsBackupIncludeKeys").checked;'), false);
@@ -95,7 +95,7 @@ try {
   assert.ok(text.includes('systemPrompt = """'));
   assert.equal(backup.settings.providers.find(p=>p.type==='deepseek').systemPrompt, seed.providers.find(p=>p.type==='deepseek').systemPrompt);
   assert.equal(backup.settings.targetLang, 'fr'); assert.equal(backup.settings.chunkSize, seed.chunkSize);
-  for (const secret of ['llm','header','body','service','url','opaque','template']) assert.ok(text.includes(`fixture-${secret}-secret`));
+  for (const secret of ['llm','header','body','service','url','opaque','template','workspace']) assert.ok(text.includes(`fixture-${secret}-secret`));
   assert.ok(text.includes('fixture-password')); assert.ok(!text.includes('keep-me'));
   checks.push('explicit opt-in download includes every credential carrier, excludes drafts and unrelated storage');
 
@@ -146,9 +146,9 @@ try {
 
   await choose(defaultText); await preview();
   assert.equal(await browser.evaluate('return document.getElementById("settingsBackupKeysField").hidden;'), true);
-  assert.match(await browser.evaluate('return document.getElementById("settingsBackupWarning").textContent;'), /不包含密钥.*清空本机旧凭据/);
+  assert.match(await browser.evaluate('return document.getElementById("settingsBackupWarning").textContent;'), /清空本机旧凭据/);
   await click('confirmSettingsBackup');
-  await waitFor('return !document.getElementById("settingsBackupDialog").open && document.getElementById("status").textContent.includes("无密钥备份");');
+  await waitFor('return !document.getElementById("settingsBackupDialog").open && document.getElementById("status").textContent.includes("清空本机旧凭据");');
   for (const secret of ['llm','header','body','service','url','opaque','template']) assert.ok(!stringifyToml(await stored()).includes(`fixture-${secret}-secret`));
   await navigate('generalSettings'); await click('save');
   await waitFor('return document.getElementById("status").textContent==="已保存。";');

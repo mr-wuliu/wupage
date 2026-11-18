@@ -7,7 +7,8 @@ import { clearStatistics, getStatistics, initStatistics, statisticsPageKey } fro
 import type { RuntimeRequest, RuntimeResponse } from "../shared/types";
 import { createProvider } from "./providers";
 import { loadImageData, translateImageWithSettings } from "./image-translation";
-import { clearTranslationCache, getTranslationDebugSnapshot, translateWithSettings } from "./translation";
+import { getTranslationDebugSnapshot, translateWithSettings } from "./translation";
+import { clearTranslationCache, currentCacheGeneration, initTranslationCache } from "./translation-cache";
 import { getOcrStatus, requestOcr } from "./ocr";
 import { cancelOcrTest, initOcrService, ocrRevision, testOcrService } from "./ocr-service";
 import { normalizeOcrSettings, ocrSettingsIdentity, validateOcrService } from "../shared/ocr-service";
@@ -29,8 +30,9 @@ import { captureVideoFrame } from "./video-frame";
 import { installPdfTranslation } from "./pdf-translation";
 
 installPdfTranslation(async (request, sender, signal) => {
+  const cacheGeneration = currentCacheGeneration();
   await initializeInterfaceLanguage();
-  return translateWithSettings(await getSettings(), request, { signal, statisticsPageKey: statisticsPageKey(sender) });
+  return translateWithSettings(await getSettings(), request, { signal, statisticsPageKey: statisticsPageKey(sender), cacheGeneration });
 });
 
 chrome.runtime.onMessage.addListener((request: RuntimeRequest, sender, sendResponse) => {
@@ -46,6 +48,7 @@ chrome.runtime.onMessage.addListener((request: RuntimeRequest, sender, sendRespo
 try { frameSessions.install(); }
 catch (error) { console.warn("WuPage frame integration:", error); }
 initStatistics();
+initTranslationCache();
 initOcrService();
 try { initVideoSettings(); chrome.tabs?.onRemoved?.addListener(clearVideoTab); }
 catch (error) { console.warn("WuPage video integration:", error); }
@@ -70,6 +73,7 @@ watchInterfaceLanguage(() => {
 });
 
 async function handleMessage(request: RuntimeRequest, sender: chrome.runtime.MessageSender): Promise<unknown> {
+  const cacheGeneration = currentCacheGeneration();
   await initializeInterfaceLanguage();
   if (isFrameRequest(request)) return frameSessions.handle(request, sender);
   switch (request.type) {
@@ -184,7 +188,7 @@ async function handleMessage(request: RuntimeRequest, sender: chrome.runtime.Mes
     }
     case "TRANSLATE_BATCH": {
       const settings = await getSettings();
-      return frameSessions.translate(request, sender, signal => translateWithSettings(settings, request, { signal, statisticsPageKey: statisticsPageKey(sender) }));
+      return frameSessions.translate(request, sender, signal => translateWithSettings(settings, request, { signal, statisticsPageKey: statisticsPageKey(sender), cacheGeneration }));
     }
     case "LOAD_IMAGE": {
       const settings = await getSettings();
@@ -192,7 +196,7 @@ async function handleMessage(request: RuntimeRequest, sender: chrome.runtime.Mes
       return loadImageData(request.url);
     }
     case "TRANSLATE_IMAGE":
-      return translateImageWithSettings(await getSettings(), request, statisticsPageKey(sender));
+      return translateImageWithSettings(await getSettings(), request, statisticsPageKey(sender), cacheGeneration);
     case "GET_STATISTICS":
       return getStatistics();
     case "CLEAR_STATISTICS":

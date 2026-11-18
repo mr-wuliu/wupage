@@ -16,13 +16,15 @@ describe("DeepL and Index-Translate settings", () => {
       } });
     const backup = createSettingsBackup(settings, "1.10.0", new Date("2026-11-07T00:00:00Z"), { includeKeys: includeSecrets });
     const text = serializeSettingsBackup(backup);
-    if (!includeSecrets) expect(text).not.toMatch(/deepl-secret|index-secret/);
+    if (!includeSecrets) expect(text).not.toMatch(/deepl-secret|index-secret|localhost:8088|localhost:8000|max_tokens/);
     const restored = normalizeSettings(parseSettingsBackup(text).settings);
     expect(restored.activeProviderId).toBe("deepl");
-    expect(restored.providers.find(p => p.type === "deepl")).toMatchObject({ endpoint: "http://localhost:8088/v2", apiKey: includeSecrets ? "deepl-secret:fx" : "" });
-    expect(restored.providers.find(p => p.type === "index-translate")).toMatchObject({ baseURL: "http://localhost:8000/v1",
+    expect(restored.providers.find(p => p.type === "deepl")).toMatchObject({
+      endpoint: includeSecrets ? "http://localhost:8088/v2" : "", apiKey: includeSecrets ? "deepl-secret:fx" : ""
+    });
+    expect(restored.providers.find(p => p.type === "index-translate")).toMatchObject({ baseURL: includeSecrets ? "http://localhost:8000/v1" : "",
       apiKey: includeSecrets ? "index-secret" : "", model: "IndexTeam/Index-Translate-9B", customModels: ["IndexTeam/Index-Translate-9B"],
-      requestTemplate: { enabled: true, headers: '{"Authorization":"Bearer {{apiKey}}"}', body: '{"max_tokens":4096}' } });
+      requestTemplate: includeSecrets ? { enabled: true, headers: '{"Authorization":"Bearer {{apiKey}}"}', body: '{"max_tokens":4096}' } : undefined });
   });
 
   it("adds new providers to existing settings without changing the selected service", () => {

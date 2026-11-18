@@ -1,4 +1,4 @@
-import { isAutoTranslationWebsiteExcluded, languageFamily, matchesAutoTranslationSite, normalizeAutoTranslation } from "../shared/auto-translation";
+import { chineseScriptFromText, isAutoTranslationWebsiteExcluded, languageFamily, matchesAutoTranslationSite, normalizeAutoTranslation } from "../shared/auto-translation";
 import { SETTINGS_KEY } from "../shared/defaults";
 import type { ExtensionSettings } from "../shared/types";
 import { hasPageTranslations } from "./dom";
@@ -119,6 +119,8 @@ export function initAutoTranslation(overrides: Partial<AutoTranslationDependenci
         if (!candidates.length) return;
         const signature = `${document.documentElement.lang}\n${current.targetLang}\n${candidates.join("\n")}`;
         if (signature === lastSample) return;
+        const targetFamily = languageFamily(current.targetLang);
+        const target = targetFamily === "zh" ? "zh-Hans" : targetFamily;
         let foreign = false;
         for (const sample of candidates) {
           let language = "";
@@ -128,7 +130,14 @@ export function initAutoTranslation(overrides: Partial<AutoTranslationDependenci
             if (best && best.percentage >= 70 && best.language !== "und") language = languageFamily(best.language);
           } else language = languageFamily(document.documentElement.lang);
           if (disposed || version !== generation) return;
-          if (language && language !== "und" && language !== languageFamily(current.targetLang)) { foreign = true; break; }
+          if (language === "zh" && (target === "zh-Hans" || target === "zh-Hant")) {
+            language = chineseScriptFromText(sample) ?? "";
+            if (!language) {
+              const declared = languageFamily(document.documentElement.lang);
+              if (declared === "zh-Hans" || declared === "zh-Hant") language = declared;
+            }
+          }
+          if (language && language !== "und" && language !== target) { foreign = true; break; }
         }
         if (!foreign) {
           lastSample = signature; return;

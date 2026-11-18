@@ -1,10 +1,11 @@
 import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
-import { DEFAULT_SETTINGS } from "../src/shared/defaults";
+import { CACHE_PREFIX, DEFAULT_SETTINGS, SETTINGS_KEY } from "../src/shared/defaults";
 import { installedRevision } from "../src/ocr/model-store";
 import { recognizeImage } from "../src/background/ocr";
 import { translateWithSettings } from "../src/background/translation";
 import { translateImageWithSettings } from "../src/background/image-translation";
 import { needsImageTranslation } from "../src/ocr/regions";
+import { clearTranslationCache } from "../src/background/translation-cache";
 
 vi.mock("../src/ocr/model-store", () => ({ installedRevision: vi.fn() }));
 vi.mock("../src/background/ocr", () => ({ recognizeImage: vi.fn() }));
@@ -15,7 +16,8 @@ let stored: Record<string, unknown>;
 beforeEach(() => {
   vi.resetAllMocks();
   stored = {};
-  vi.stubGlobal("chrome", { storage: { local: { get: async (key: string) => ({ [key]: stored[key] }), set: async (value: object) => Object.assign(stored, value) } } });
+  vi.stubGlobal("chrome", { storage: { local: { get: async (key: string | null) => key === null ? { ...stored } : { [key]: stored[key] },
+    set: async (value: object) => Object.assign(stored, value), remove: async (keys: string[]) => { keys.forEach(key => delete stored[key]); } } } });
   vi.mocked(installedRevision).mockResolvedValue("v1");
   vi.mocked(recognizeImage).mockResolvedValue({ revision: "v1", lines: [
     { text: "Cache performance", score: .99, poly: [[100,100],[300,100],[300,125],[100,125]] },
@@ -38,8 +40,23 @@ describe("local OCR image translation", () => {
     const result = await translateImageWithSettings(settings, request);
     expect(result.regions).toHaveLength(1);
     expect(result.regions[0]).toMatchObject({ text: "Cache performance", translation: "缓存性能", box: [99,198,202,54], sampleColors: true });
-    expect(translateWithSettings).toHaveBeenCalledWith(settings, expect.objectContaining({ texts: ["Cache performance"] }));
+    expect(translateWithSettings).toHaveBeenCalledWith(settings, expect.objectContaining({ texts: ["Cache performance"] }), expect.anything());
     expect(JSON.stringify(vi.mocked(translateWithSettings).mock.calls)).not.toContain("base64");
+  });
+  it.each(["clear", "disable"])("does not restore image cache entries when users %s while OCR is running", async action => {
+    const recognized = vi.mocked(recognizeImage).getMockImplementation()!;
+    let release!: () => void;
+    vi.mocked(recognizeImage).mockImplementationOnce(async (...args) => {
+      await new Promise<void>(resolve => { release = resolve; });
+      return recognized(...args);
+    });
+    const pending = translateImageWithSettings(settings, request);
+    await vi.waitFor(() => expect(release).toBeTypeOf("function"));
+    if (action === "clear") await clearTranslationCache();
+    else stored[SETTINGS_KEY] = { ...settings, cacheEnabled: false };
+    release();
+    expect((await pending).regions[0].translation).toBe("缓存性能");
+    expect(Object.keys(stored).some(key => key.startsWith(CACHE_PREFIX))).toBe(false);
   });
   it("requires installed models and enabled mode before recognizing or calling a provider", async () => {
     await expect(translateImageWithSettings({ ...settings, imageTranslationEnabled: false }, request)).rejects.toThrow("开启");
@@ -139,7 +156,7 @@ describe("local OCR image translation", () => {
     expect(translateWithSettings).toHaveBeenCalledWith(settings, expect.objectContaining({
       texts: ["New feature.", "『Quoted title』 continues!"],
       context: expect.stringContaining("New feature.\n『Quoted title』 continues!")
-    }));
+    }), expect.anything());
     expect(JSON.stringify(vi.mocked(translateWithSettings).mock.calls)).not.toContain("base64");
   });
 });

@@ -3,10 +3,16 @@ import { DEFAULT_SETTINGS } from "../src/shared/defaults";
 import { BUILT_IN_SCHEMES } from "../src/shared/appearance";
 import { normalizeSettings } from "../src/shared/settings";
 import { createSettingsBackup, parseSettingsBackup, serializeSettingsBackup, SETTINGS_BACKUP_MAX_BYTES, settingsBackupFilename } from "../src/shared/settings-backup";
+import { withoutSettingsKeys } from "../src/shared/settings-backup-credentials";
 import type { ExtensionSettings } from "../src/shared/types";
 import { stringify as stringifyToml } from "smol-toml";
 
 const now = new Date("2026-11-03T01:02:03.456Z");
+function legacyBackup(settings: ExtensionSettings) {
+  const backup = createSettingsBackup(settings, "1.6.1", now, { includeKeys: true });
+  return { ...backup, includesKeys: false, settings: withoutSettingsKeys(backup.settings) };
+}
+
 function fixture(): ExtensionSettings {
   const settings = structuredClone(DEFAULT_SETTINGS);
   settings.imageTranslationContextMenuEnabled = false;
@@ -150,12 +156,17 @@ describe("settings backup format", () => {
     expect(() => parseSettingsBackup(text)).toThrow("5 MiB");
   });
 
-  it("omits credentials by default while retaining all other configuration", () => {
-    const settings = fixture(), before = structuredClone(settings);
+  it("omits arbitrary request data from the default backup and retains unrelated preferences", () => {
+    const settings = fixture();
+    settings.imageTranslationEnabled = true;
+    settings.ocr = { mode: "http", endpoint: "https://example.invalid/ocr/private-path", apiKey: "ocr-dummy-key",
+      model: "private-ocr-model", modelRevision: "private-ocr-revision" };
+    const before = structuredClone(settings);
     const backup = createSettingsBackup(settings, "1.6.1", now);
     expect(backup.includesKeys).toBe(false);
     const text = serializeSettingsBackup(backup);
-    for (const secret of ["saved-key", "azure-key", "signing-key", "password", "short-secret", "opaque-value", "plain-value"]) {
+    for (const secret of ["saved-key", "azure-key", "signing-key", "password", "short-secret", "opaque-value", "plain-value",
+      "another-secret", "X-Private", "private-path", "ocr-dummy-key", "private-ocr-model", "private-ocr-revision"]) {
       expect(text).not.toContain(secret);
     }
     expect(settings).toEqual(before);
@@ -166,12 +177,13 @@ describe("settings backup format", () => {
       expect(restored[key]).toEqual(settings[key]);
     }
     expect(restored.providers.find(p => p.type === "deepseek")).toMatchObject({ apiKey: "", baseURL: "https://api.deepseek.com" });
-    expect(restored.providers[0]).toMatchObject({ serviceMode: "api", api: { endpoint: "https://api.example.com", region: "eastasia", apiKey: "", secretAccessKey: "" } });
+    expect(restored.providers[0]).toMatchObject({ serviceMode: "api", api: { region: "eastasia", apiKey: "", secretAccessKey: "" } });
+    expect(restored.providers[0]).not.toHaveProperty("api.endpoint");
     expect(restored.providers.find(p => p.id === "custom-http")).toMatchObject({
-      url: "https://user:@example.com/Api@proxy?signature=", headers: { "X-Signature2": "", "Content-Type": "application/json" },
-      bodyTemplate: '{"api_key":"","q":{{json texts}}}', responsePath: "translations" });
-    expect(restored.providers.find(p => p.type === "deepseek")).toMatchObject({ requestTemplate: {
-      enabled: true, headers: '{"X-Private":"another-secret"}', body: '{"token":""}' } });
+      url: "", headers: {}, bodyTemplate: "", responsePath: "translations" });
+    expect(restored.providers.find(p => p.type === "deepseek")).toMatchObject({ requestTemplate: undefined });
+    expect(restored).toMatchObject({ imageTranslationEnabled: false, ocr: { mode: "builtin", endpoint: "", apiKey: "" } });
+    expect(restored).toEqual(backup.settings);
   });
 
   it.each([
@@ -184,7 +196,7 @@ describe("settings backup format", () => {
     const http = settings.providers.find(p => p.id === "custom-http")!;
     Object.assign(http, { headers: { "X-Signature2": "short", "X-Client": "public-client", "Content-Type": "text/plain" },
       url: "https://service.example/path/v2?mode=translate#endpoint", bodyTemplate: template.replace("<secret>", "template-credential") });
-    const backup = createSettingsBackup(settings, "1.6.1", now);
+    const backup = legacyBackup(settings);
     const text = serializeSettingsBackup(backup);
     expect(text).not.toMatch(/template-credential|saved-key/);
     expect(backup.settings.providers.find(p => p.id === "custom-http"))
@@ -193,12 +205,12 @@ describe("settings backup format", () => {
     expect(() => parseSettingsBackup(text)).not.toThrow();
   });
 
-  it("retains custom addresses, prompts, disabled templates and key references", () => {
+  it("restores custom addresses, prompts, disabled templates and key references from older keyless backups", () => {
     const settings = fixture();
     const llm = settings.providers.find(p => p.type === "deepseek")!;
     Object.assign(llm, { baseURL: "https://key-user:key-pass:more@example.com/api/private-path", systemPrompt: "Translate carefully with context. saved-key",
       requestTemplate: { enabled: false, headers: '{"Authorization":"Bearer {{apiKey}}", "X-Client":"custom"}', body: '{"context":"{{context}}"}' } });
-    const file = createSettingsBackup(settings, "1.6.1", now);
+    const file = legacyBackup(settings);
     expect(serializeSettingsBackup(file)).not.toMatch(/key-pass|saved-key/);
     expect(file.settings.providers.find(p => p.type === "deepseek"))
       .toMatchObject({ baseURL: "https://key-user:@example.com/api/private-path", apiKey: "", systemPrompt: "Translate carefully with context. ",
@@ -212,7 +224,7 @@ describe("settings backup format", () => {
     expect(() => parseSettingsBackup(serializeSettingsBackup(file))).toThrow("settings.credentials");
   });
 
-  it("round-trips all configuration unchanged when no credentials are configured", () => {
+  it("opens older keyless backups with custom request settings intact", () => {
     const settings = structuredClone(DEFAULT_SETTINGS);
     Object.assign(settings.providers.find(p => p.type === "deepseek")!, {
       baseURL: "https://proxy.example/CaseSensitive/v1?mode=batch", systemPrompt: "自定义提示词\n{{targetLang}}",
@@ -222,7 +234,7 @@ describe("settings backup format", () => {
     settings.providers.push({ type: "http-template", id: "public-template", label: "配置", method: "POST", url: "https://api.example/Translate?mode=batch#config",
       headers: { "Content-Type": "application/json", "X-Client": "custom-client" }, bodyTemplate: '{"text":{{json texts}},"option":true}', responsePath: "data.translations" });
     const normalized = normalizeSettings(settings);
-    const backup = createSettingsBackup(normalized, "1.6.1", now);
+    const backup = legacyBackup(normalized);
     expect(backup.settings).toEqual(normalized);
     expect(parseSettingsBackup(serializeSettingsBackup(backup)).settings).toEqual(normalized);
   });
@@ -230,7 +242,7 @@ describe("settings backup format", () => {
   it.each(["Authorization", "Proxy-Authorization", "X-Api-Key", "Ocp-Apim-Subscription-Key", "X-Goog-Api-Key", "X-Signature2"])("keeps the %s header name and non-authentication headers while clearing its secret value", name => {
     const settings = fixture();
     Object.assign(settings.providers.find(p => p.id === "custom-http")!, { headers: { [name]: "private-header", "X-Client": "client", "Content-Type": "application/json" } });
-    const file = createSettingsBackup(settings, "1.6.1", now);
+    const file = legacyBackup(settings);
     expect(file.settings.providers.find(p => p.id === "custom-http")).toMatchObject({ headers: { [name]: "", "X-Client": "client", "Content-Type": "application/json" } });
     expect(parseSettingsBackup(serializeSettingsBackup(file)).settings).toEqual(file.settings);
   });
@@ -239,7 +251,7 @@ describe("settings backup format", () => {
     const settings = fixture();
     Object.assign(settings.providers.find(p => p.id === "custom-http")!, {
       url: "https://API.example/Keep%2fCase?%61pi_key=encoded%2Bsecret&token=%7B%7BapiKey%7D%7D&mode=fast#config" });
-    const backup = createSettingsBackup(settings, "1.6.1", now);
+    const backup = legacyBackup(settings);
     expect(backup.settings.providers.find(p => p.id === "custom-http")).toMatchObject({
       url: "https://API.example/Keep%2fCase?%61pi_key=&token=%7B%7BapiKey%7D%7D&mode=fast#config" });
     expect(parseSettingsBackup(serializeSettingsBackup(backup)).settings).toEqual(backup.settings);
@@ -249,7 +261,7 @@ describe("settings backup format", () => {
     const settings = structuredClone(DEFAULT_SETTINGS);
     Object.assign(settings.providers.find(p => p.type === "deepseek")!, { apiKey: "a", systemPrompt: "Translate a paragraph with a model.",
       requestTemplate: { enabled: true, headers: '{"X-Client":"a-client"}', body: '{"api_key":"a","q":{{json texts}}}' } });
-    expect(createSettingsBackup(settings, "1.6.1", now).settings.providers.find(p => p.type === "deepseek"))
+    expect(legacyBackup(settings).settings.providers.find(p => p.type === "deepseek"))
       .toMatchObject({ apiKey: "", systemPrompt: "Translate a paragraph with a model.",
         requestTemplate: { enabled: true, headers: '{"X-Client":"a-client"}', body: '{"api_key":"","q":{{json texts}}}' } });
   });
@@ -259,7 +271,7 @@ describe("settings backup format", () => {
     Object.assign(settings.providers.find(p => p.type === "deepseek")!, { apiKey: secret,
       requestTemplate: { enabled: true, headers: JSON.stringify({ "X-Custom": secret, "X-Client": "custom" }),
         body: '{"opaque":' + JSON.stringify(secret) + ',"q":{{json texts}}}' } });
-    const file = createSettingsBackup(settings, "1.6.1", now);
+    const file = legacyBackup(settings);
     expect(file.settings.providers.find(p => p.type === "deepseek"))
       .toMatchObject({ requestTemplate: { enabled: true, headers: '{"X-Custom":"","X-Client":"custom"}', body: '{"opaque":"","q":{{json texts}}}' } });
     expect(parseSettingsBackup(serializeSettingsBackup(file)).settings).toEqual(file.settings);
@@ -270,7 +282,7 @@ describe("settings backup format", () => {
     Object.assign(settings.providers.find(p => p.type === "deepseek")!, {
       requestTemplate: { enabled: true, headers: '{}',
         body: '{"url":"https://user:private-password@example.com?api_key=private-key&mode=batch","token":"{{ apiKey }}","q":{{json texts}}}' } });
-    const file = createSettingsBackup(settings, "1.6.1", now);
+    const file = legacyBackup(settings);
     expect(file.settings.providers.find(p => p.type === "deepseek")).toMatchObject({ requestTemplate: {
       enabled: true, headers: '{}', body: '{"url":"https://user:@example.com?api_key=&mode=batch","token":"{{ apiKey }}","q":{{json texts}}}' } });
     expect(parseSettingsBackup(serializeSettingsBackup(file)).settings).toEqual(file.settings);

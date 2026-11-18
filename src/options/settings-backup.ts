@@ -135,5 +135,5 @@ function message(error: unknown): string { return error instanceof Error ? error
 function exportWarning(includeKeys: boolean): string {
   return includeKeys
     ? t("thisUnencryptedTomlBackupIncludesSavedSettingsCredentials")
-    : t("thisBackupKeepsSavedServiceAddressesHeadersTemplates");
+      : t("thisBackupOmitsCredentialsAndCustomRequestSettings");
 }

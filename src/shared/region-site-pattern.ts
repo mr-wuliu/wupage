@@ -1,5 +1,5 @@
 import { RE2JS } from "re2js";
-import { matchesSitePattern, normalizeSitePattern } from "./auto-translation";
+import { hasSitePatternProtocol, matchesSitePattern, normalizeSitePattern } from "./auto-translation";
 import { t } from "./i18n";
 
 interface CompiledPattern { pattern: string; matches: (url: URL) => boolean }
@@ -43,7 +43,7 @@ function parse(input: string): CompiledPattern {
 
   const anyProtocol = input.startsWith("*://");
   const address = anyProtocol ? input.slice(4) : input;
-  const explicitProtocol = /^[a-z][a-z\d+.-]*:\/\//i.test(address);
+  const explicitProtocol = hasSitePatternProtocol(address);
   if (anyProtocol && explicitProtocol) throw new Error(t("invalidRegionSiteGlob"));
   const authorityStart = explicitProtocol ? address.indexOf("://") + 3 : 0;
   const end = address.slice(authorityStart).search(/[/?#]/u);

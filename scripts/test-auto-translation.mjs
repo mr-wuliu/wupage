@@ -12,6 +12,7 @@ const moduleName=process.env.PLAYWRIGHT_MODULE||'playwright';
 const {chromium}=await import(path.isAbsolute(moduleName)?pathToFileURL(moduleName).href:moduleName);
 const english='A quiet afternoon is a good time to read. Automatic translation helps readers explore articles in other languages while keeping the original text available for comparison.';
 const chinese='这是一个中文页面，内容已经使用读者所选择的目标语言，不应再次发起自动翻译。浏览器应根据实际正文识别语言，而不是只相信网页可能填写错误的语言标签。';
+const traditional='這是一篇以繁體中文撰寫的文章。作者介紹臺灣讀者如何瀏覽網頁、閱讀新聞、選擇翻譯語言，並在閱讀時比較原文與譯文。文章還說明擴充功能如何處理不同地區的文字，讓使用者能保留原本的閱讀習慣。';
 const requests=[];
 const translation='.wupage-translation:not(.wupage-translation-pending)';
 const server=createServer(async(req,res)=>{
@@ -23,7 +24,7 @@ const server=createServer(async(req,res)=>{
       (text.match(/⟪WUPAGESEGMENT\d+⟫/g)||['']).map(marker=>marker+'\n'+translated).join('\n'))}));return;
   }
   res.setHeader('content-type','text/html;charset=utf-8');
-  const body=req.url==='/zh'?chinese:req.url==='/unknown'?'1234567890 '.repeat(20):english;
+  const body=req.url==='/zh'?chinese:req.url==='/zh-hant'?traditional:req.url==='/unknown'?'1234567890 '.repeat(20):english;
   res.end(`<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Automatic translation</title></head><body><main>${req.url==='/dynamic'?'':`<p>${body}</p>`}</main>${req.url==='/dynamic'?`<script>setTimeout(()=>{document.querySelector('main').innerHTML='<p>${english}</p>';},800)</script>`:''}</body></html>`);
 });
 await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
@@ -70,6 +71,8 @@ try{
   await options.locator('#autoTranslateSites input[data-preset="github.com"]').check();
   await options.locator('#addAutoTranslateSite').click();
   await options.locator('.auto-site-row:nth-last-child(2) .auto-site-pattern').fill(origin+'/allow/*');
+  await options.locator('#addAutoTranslateSite').click();
+  await options.locator('.auto-site-row:nth-last-child(2) .auto-site-pattern').fill(new URL(origin).host+'/source/https://reference.invalid/*');
   await options.locator('#save').click();
   await options.waitForFunction(()=>document.querySelector('#status').textContent==='已保存。');
   await options.reload();await options.locator('.auto-site-row').first().waitFor();
@@ -80,7 +83,7 @@ try{
   const presetRows=await options.locator('#autoTranslateSites > .auto-site-row').evaluateAll(rows=>rows.map(row=>{
     const {x,y,width,bottom}=row.getBoundingClientRect();return {x,y,width,bottom};
   }));
-  assert.equal(presetRows.length,7);
+  assert.equal(presetRows.length,8);
   for(let i=1;i<presetRows.length;i++){
     assert.equal(presetRows[i].x,presetRows[0].x);
     assert.equal(presetRows[i].width,presetRows[0].width);
@@ -114,6 +117,9 @@ try{
   assert.equal(await allowed.locator('.wupage-translation').count(),0);
   assert.equal(requests.length,baseline,'manual restoration was overridden');await allowed.close();
 
+  const nestedUrl=await openPage('/source/https://reference.invalid/article');
+  await nestedUrl.locator(translation).first().waitFor({timeout:12000});await nestedUrl.close();
+
   const spa=await openPage('/allow/spa');
   await spa.locator(translation).first().waitFor({timeout:12000});baseline=requests.length;
   await spa.evaluate(()=>{history.pushState({},'','/deny');document.querySelector('main').innerHTML='<p>A new page outside the selected path must stay in its original language.</p>';});
@@ -129,6 +135,9 @@ try{
     const page=await openPage(route);baseline=requests.length;await page.waitForTimeout(1000);
     assert.equal(requests.length,baseline,`unexpected automatic request on ${route}`);await page.close();
   }
+  const traditionalPage=await openPage('/zh-hant');
+  await traditionalPage.locator(translation).first().waitFor({timeout:12000});await traditionalPage.close();
+  assert.ok(requests.flat().some(text=>text.includes('這是一篇以繁體中文撰寫的文章')));
   const foreign=await openPage('/foreign');await foreign.locator(translation).first().waitFor({timeout:12000});await foreign.close();
   const dynamic=await openPage('/dynamic');await dynamic.locator(translation).first().waitFor({timeout:12000});await dynamic.close();
   await options.evaluate(async()=>{
@@ -228,7 +237,7 @@ try{
   await quick.close();
   assert.deepEqual(errors,[]);
   const report={passed:true,persistedRules:true,inlineSiteEditing:true,deletedPresetPreserved:true,conditionalLanguageCheckbox:true,defaultLanguageSelection:true,narrowWidths:[390,320],siteMatch:true,manualStopRespected:true,
-    spaPathBoundaries:true,targetLanguageSkipped:true,unknownLanguageSkipped:true,foreignLanguage:true,dynamicContent:true,
+    spaPathBoundaries:true,nestedUrlPath:true,targetLanguageSkipped:true,unknownLanguageSkipped:true,foreignLanguage:true,chineseScriptConversion:true,dynamicContent:true,
     popupSwitch:true,floatingSwitch:true,firstUseLanguageRule:true,pageActionSynchronized:true,addCurrentSite:true,duplicateSitePrevented:true,addedRuleInSettings:true,siteAdditionStartsTranslation:true,siteToggleExclusion:true,exclusionOverridesLanguage:true,exclusionPersists:true,requests:requests.length};
   await fs.writeFile(path.join(output,'report.json'),JSON.stringify(report,null,2));console.log(JSON.stringify({...report,output}));
 }catch(error){

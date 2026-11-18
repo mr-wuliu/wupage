@@ -1,9 +1,10 @@
 import { readFile } from "node:fs/promises";
 import fontkit from "@pdf-lib/fontkit";
-import { describe, expect, it } from "vitest";
-import { PDFDocument, StandardFonts, PDFName, PDFRawStream, PDFDict, decodePDFRawStream } from "pdf-lib";
+import { describe, expect, it, vi } from "vitest";
+import { PDFDocument, StandardFonts, PDFName, PDFRawStream, PDFDict, PDFString, degrees, decodePDFRawStream } from "pdf-lib";
 import { removePdfText } from "../src/pdf/content-stream";
 import { buildSearchablePdf } from "../src/pdf/vector-export";
+import type { RasterPdfPage } from "../src/pdf/export";
 
 // fontkit reads OpenType containers rather than standalone PDF CFF streams.
 // Reuse the fixture's container, pointing only its CFF record at the exported
@@ -24,6 +25,41 @@ function fontWithCff(container: Uint8Array, cff: Uint8Array) {
 }
 
 describe("searchable PDF export", () => {
+  it.each([
+    { rotation: 0, bounds: [0, 30, 40, 50], missingGlyph: false },
+    { rotation: 90, bounds: [30, 160, 50, 200], missingGlyph: true }
+  ])("preserves clickable HTTP links with rotation $rotation and clips to the visible page", async ({ rotation, bounds, missingGlyph }) => {
+    const source = await PDFDocument.create(), page = source.addPage([400, 500]);
+    page.setCropBox(40, 60, 200, 300);
+    page.setRotation(degrees(rotation));
+    const url = "https://example.invalid/article?q=report";
+    for (const address of [url, "about:blank"]) {
+      page.node.addAnnot(source.context.register(source.context.obj({
+        Type: "Annot", Subtype: "Link", Rect: [30, 90, 80, 110], A: { S: "URI", URI: PDFString.of(address) }
+      })));
+    }
+    const original = await source.save();
+    const { getDocument } = await import("pdfjs-dist/legacy/build/pdf.mjs");
+    const input = getDocument({ data: original.slice() });
+    const viewport = (await (await input.promise).getPage(1)).getViewport({ scale: 1 });
+    await input.destroy();
+    const loadImage = vi.fn(async () => new Uint8Array(Buffer.from(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=", "base64")));
+    const font = new Uint8Array(await readFile("tests/fixtures/pdf-export-font.otf"));
+    async function* pages(): AsyncGenerator<RasterPdfPage> {
+      yield { width: viewport.width, height: viewport.height, format: "png", loadImage,
+        scene: { unchanged: false, images: [], transform: Array.from(viewport.transform),
+          text: [{ text: missingGlyph ? "。" : "译文", x: 20, y: 80, width: 30, size: 14, color: [0, 0, 0] }] } };
+      expect(loadImage).toHaveBeenCalledTimes(Number(missingGlyph));
+    }
+    const output = getDocument({ data: await buildSearchablePdf(pages(), "Linked translation", original, font) });
+    try {
+      const annotations = await (await (await output.promise).getPage(1)).getAnnotations();
+      expect(annotations).toHaveLength(1);
+      expect(annotations[0]).toMatchObject({ url, rect: bounds });
+    } finally { await output.destroy(); }
+  });
+
   it.each(["译文", ""])("uses the raster preview for missing characters, retaining supported text: %s", async supportedText => {
     const source = await PDFDocument.create(); source.addPage([400,500]);
     const png = new Uint8Array(Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=", "base64"));

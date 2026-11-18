@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from "vite
 import { DEFAULT_SETTINGS } from "../src/shared/defaults";
 import type { RuntimeRequest, RuntimeResponse } from "../src/shared/types";
 import { pdfPortFixture } from "./helpers/pdf-port";
+import type { RasterPdfPage } from "../src/pdf/export";
 
 const { getDocument, buildRasterPdf, composeTranslatedPageCanvas, downloadPdfBytes } = vi.hoisted(() => ({
   getDocument: vi.fn(), buildRasterPdf: vi.fn(), composeTranslatedPageCanvas: vi.fn(), downloadPdfBytes: vi.fn()
@@ -27,6 +28,8 @@ vi.mock("../src/pdf/export", async (importOriginal) => ({
 describe("PDF full document download", () => {
   let sendMessage: Mock<(request: RuntimeRequest) => Promise<RuntimeResponse>>;
   let stored: typeof DEFAULT_SETTINGS;
+  let exportedPageCount: number;
+  let showPreview: (target: Element) => void;
 
   beforeEach(() => {
     document.open();
@@ -42,6 +45,9 @@ describe("PDF full document download", () => {
     });
     vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(null);
     vi.stubGlobal("IntersectionObserver", class {
+      constructor(callback: (entries: Array<Pick<IntersectionObserverEntry, "target" | "isIntersecting">>) => void) {
+        showPreview = target => callback([{ target, isIntersecting: true }]);
+      }
       observe() {} unobserve() {} disconnect() {}
     });
     vi.stubGlobal("ResizeObserver", class {
@@ -70,8 +76,15 @@ describe("PDF full document download", () => {
     });
     vi.stubGlobal("chrome", { runtime: { id: "test-extension", sendMessage, connect: pdfPortFixture(sendMessage) } });
     vi.stubGlobal("fetch", vi.fn(async () => new Response("%PDF-test")));
-    buildRasterPdf.mockReset().mockResolvedValue(new Uint8Array([2]));
-    composeTranslatedPageCanvas.mockReset().mockImplementation((canvas) => canvas);
+    exportedPageCount = 0;
+    buildRasterPdf.mockReset().mockImplementation(async (pages: AsyncIterable<RasterPdfPage>) => {
+      for await (const page of pages) {
+        if ("loadImage" in page) await page.loadImage();
+        exportedPageCount++;
+      }
+      return new Uint8Array([2]);
+    });
+    composeTranslatedPageCanvas.mockReset().mockImplementation(() => document.createElement("canvas"));
     downloadPdfBytes.mockReset();
   });
 
@@ -120,7 +133,9 @@ describe("PDF full document download", () => {
     expect(requests().map((request) => request.texts[0]).sort()).toEqual([
       "Page 1 contents.", "Page 2 contents.", "Page 3 contents."
     ]);
-    expect(buildRasterPdf.mock.calls[0][0]).toHaveLength(4); // Blank pages keep their place.
+    expect(exportedPageCount).toBe(4); // Blank pages keep their place.
+    expect([...document.querySelectorAll<HTMLCanvasElement>(".original-panel canvas")].map(canvas => canvas.width))
+      .toEqual([0, 0, 0, 0]); // The fixture keeps every page outside the preview observer.
     expect(stored.pdfTranslationPageRadius).toBe(0);
     expect(download().disabled).toBe(false);
     expect(translate().disabled).toBe(false);
@@ -129,6 +144,9 @@ describe("PDF full document download", () => {
 
   it("reuses completed pages and their edits, and does not retranslate on repeated downloads", async () => {
     await launch();
+    const shell = document.querySelector<HTMLElement>('article[data-page="1"] .original-panel .canvas-shell')!;
+    showPreview(shell);
+    await vi.waitFor(() => expect(shell.classList.contains("is-rendered")).toBe(true));
     translate().click();
     await vi.waitFor(() => expect(translate().disabled).toBe(false));
     expect(requests()).toHaveLength(1);

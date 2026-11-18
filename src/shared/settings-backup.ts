@@ -7,7 +7,7 @@ import { LOCAL_BINDINGS } from "./local-shortcuts";
 import { LOCAL_SHORTCUTS, TRANSLATION_SHORTCUTS } from "./shortcuts";
 import type { ExtensionSettings, ProviderConfig } from "./types";
 import { parse as parseToml, stringify as stringifyToml, TomlError } from "smol-toml";
-import { withoutSettingsKeys } from "./settings-backup-credentials";
+import { shareableSettings, withoutSettingsKeys } from "./settings-backup-credentials";
 
 export const SETTINGS_BACKUP_MAX_BYTES = 5 * 1024 * 1024;
 export const SETTINGS_BACKUP_KIND = "wupage-settings-backup";
@@ -31,7 +31,7 @@ export function createSettingsBackup(settings: ExtensionSettings, extensionVersi
   const saved = readSettings(normalizeSettings(settings), false);
   const backup: SettingsBackup = {
     kind: SETTINGS_BACKUP_KIND, version: 1, includesKeys, extensionVersion, createdAt: now.toISOString(),
-    settings: includesKeys ? saved : withoutSettingsKeys(saved)
+    settings: includesKeys ? saved : normalizeSettings(shareableSettings(saved))
   };
   checkTree(backup);
   serializeSettingsBackup(backup);

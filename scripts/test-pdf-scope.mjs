@@ -150,10 +150,17 @@ try {
   assert.equal(calls.length, 40, "Export must translate every remaining page");
   assert.equal(new Set(calls).size, 40, "Export must reuse completed translations");
   assert.equal(await edited.textContent(), "手动校对的译文");
-  assert.equal(await reader.locator(".translation-block-text").count(), 40);
+  const lastPage = reader.locator('article[data-page="40"]');
+  assert.equal(await lastPage.locator(".original-panel canvas").evaluate(canvas => canvas.width), 0,
+    "Export-only pages must release their canvases");
+  assert.equal(await lastPage.locator(".translation-block-text").count(), 0);
   assert.equal(await reader.evaluate(async () => (await chrome.runtime.sendMessage({ type: "GET_SETTINGS" })).data.pdfTranslationPageRadius), 0);
   await exportDocument("full-translated-repeat.pdf");
   assert.equal(calls.length, 40, "Repeated downloads must preserve translations and edits");
+  await scrollTo(40);
+  await lastPage.locator(".translation-block-text").waitFor();
+  assert.match(await lastPage.locator(".translation-block-text").textContent(), /40/);
+  assert.equal(calls.length, 40, "Opening a released preview must reuse its translated text");
 
   await options.locator("#pdfTranslationScope").selectOption("unlimited");
   assert.equal(await options.locator("#pdfTranslationPageRadiusField").isVisible(), false);
@@ -196,7 +203,7 @@ try {
   await exportDocument("direct-translated.pdf");
   assert.equal(calls.length, 40);
   assert.equal(new Set(calls).size, 40);
-  assert.equal(await reader.locator(".translation-block-text").count(), 40);
+  assert.equal(await lastPage.locator(".original-panel canvas").evaluate(canvas => canvas.width), 0);
 
   // Normal document-open entry points start the configured nearby range automatically.
   const pdfBytes = await fs.readFile(file);

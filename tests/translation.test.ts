@@ -2,6 +2,73 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ExtensionSettings } from "../src/shared/types";
 import { getTranslationDebugSnapshot, groupTexts, translateWithSettings } from "../src/background/translation";
 import { googleHtmlReply, withGoogleAuth } from "./helpers/google-web";
+import { CACHE_PREFIX, DEFAULT_SETTINGS, SETTINGS_KEY } from "../src/shared/defaults";
+import { clearTranslationCache, currentCacheGeneration, initTranslationCache, writeTranslationCache } from "../src/background/translation-cache";
+
+it.each(["clear", "disable", "disable and re-enable"])("leaves in-flight results out of storage after users %s the cache", async action => {
+  const settings: ExtensionSettings = { ...structuredClone(DEFAULT_SETTINGS), activeProviderId: "test-http",
+    providers: [{ type: "http-template", id: "test-http", label: "Test", url: "https://example.invalid/translate",
+      method: "POST", headers: {}, bodyTemplate: '{"texts":{{json texts}}}', responsePath: "translations" }] };
+  const existingKey = `${CACHE_PREFIX}existing`;
+  const storage: Record<string, unknown> = { [existingKey]: "Existing result", [SETTINGS_KEY]: settings };
+  let notify!: (changes: Record<string, chrome.storage.StorageChange>, area: string) => void;
+  vi.stubGlobal("chrome", { storage: { onChanged: { addListener: (listener: typeof notify) => { notify = listener; } }, local: {
+    get: async (keys: string | string[] | null) => keys === null ? { ...storage } :
+      Object.fromEntries([keys].flat().map(key => [key, storage[key]])),
+    set: async (items: Record<string, unknown>) => { Object.assign(storage, items); },
+    remove: async (keys: string[]) => { keys.forEach(key => delete storage[key]); }
+  } } });
+  initTranslationCache();
+  const changeCache = (enabled: boolean) => {
+    const oldValue = storage[SETTINGS_KEY];
+    const newValue = { ...settings, cacheEnabled: enabled };
+    storage[SETTINGS_KEY] = newValue;
+    notify({ [SETTINGS_KEY]: { oldValue, newValue } }, "local");
+  };
+  let start!: () => void, reply!: (result: Response) => void;
+  const started = new Promise<void>(resolve => { start = resolve; });
+  const response = new Promise<Response>(resolve => { reply = resolve; });
+  vi.stubGlobal("fetch", vi.fn(() => { start(); return response; }));
+  try {
+    const pending = translateWithSettings(settings, { texts: ["Slow translation."], sourceLang: "en", targetLang: "zh-CN" });
+    await started;
+    if (action === "clear") expect(await clearTranslationCache()).toEqual({ removed: 1 });
+    else if (action === "disable") storage[SETTINGS_KEY] = { ...settings, cacheEnabled: false };
+    else { changeCache(false); changeCache(true); }
+    reply(Response.json({ translations: ["译文"] }));
+    expect((await pending).translations).toEqual(["译文"]);
+    expect(Object.keys(storage).filter(key => key.startsWith(CACHE_PREFIX)))
+      .toEqual(action === "clear" ? [] : [existingKey]);
+    if (action !== "disable") {
+      vi.stubGlobal("fetch", vi.fn(async () => Response.json({ translations: ["第二条译文"] })));
+      const next = await translateWithSettings(settings, { texts: ["New translation."], sourceLang: "en", targetLang: "zh-CN" });
+      expect(next.translations).toEqual(["第二条译文"]);
+      expect(Object.values(storage)).toContain("第二条译文");
+    }
+  } finally { vi.unstubAllGlobals(); }
+});
+
+it("waits for a storage write already in progress before confirming that the cache was cleared", async () => {
+  const key = `${CACHE_PREFIX}pending-write`;
+  const stored: Record<string, unknown> = { unrelated: true };
+  let start!: () => void, finish!: () => void;
+  const started = new Promise<void>(resolve => { start = resolve; });
+  const finished = new Promise<void>(resolve => { finish = resolve; });
+  vi.stubGlobal("chrome", { storage: { local: {
+    get: async (filter: string | null) => filter === null ? { ...stored } : {},
+    set: async (items: Record<string, unknown>) => { start(); await finished; Object.assign(stored, items); },
+    remove: async (keys: string[]) => { keys.forEach(key => delete stored[key]); }
+  } } });
+  try {
+    const write = writeTranslationCache({ [key]: "Translation" }, currentCacheGeneration());
+    await started;
+    const clear = clearTranslationCache();
+    finish();
+    await write;
+    expect(await clear).toEqual({ removed: 1 });
+    expect(stored).toEqual({ unrelated: true });
+  } finally { vi.unstubAllGlobals(); }
+});
 
 describe("groupTexts", () => {
   it("groups texts without exceeding max chars when possible", () => {

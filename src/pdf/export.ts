@@ -3,24 +3,29 @@ import { paintFormulaText } from "./math-rendering";
 import type { PdfTextBlock } from "./model";
 import type { PdfExportScene, PdfExportText } from "./vector-export";
 import { validateTranslationLayout } from "./layout-quality";
+import type { PDFPage } from "pdf-lib";
 
-export interface RasterPdfPage {
+export type RasterPdfPage = {
   width: number;
   height: number;
-  imageBytes: Uint8Array;
   format: "jpeg" | "png";
   scene?: PdfExportScene;
+} & ({ imageBytes: Uint8Array } | { loadImage: () => Promise<Uint8Array> });
+
+export async function drawRasterPdfPage(page: PDFPage, source: RasterPdfPage): Promise<void> {
+  const bytes = "imageBytes" in source ? source.imageBytes : await source.loadImage();
+  const image = source.format === "png" ? await page.doc.embedPng(bytes) : await page.doc.embedJpg(bytes);
+  page.drawImage(image, { x: 0, y: 0, width: source.width, height: source.height });
 }
 
 export async function buildRasterPdf(
-  pages: RasterPdfPage[],
+  pages: Iterable<RasterPdfPage> | AsyncIterable<RasterPdfPage>,
   title: string,
   sourceBytes?: Uint8Array,
   fontBytes?: Uint8Array,
   onFontFallback?: (pages: number[]) => void
 ): Promise<Uint8Array> {
-  if (!pages.length) throw new Error(t("noPdfPagesToExport"));
-  if (fontBytes && pages.some((page) => page.scene)) {
+  if (fontBytes) {
     const { buildSearchablePdf } = await import("./vector-export");
     return buildSearchablePdf(pages, title, sourceBytes, fontBytes, onFontFallback);
   }
@@ -30,19 +35,11 @@ export async function buildRasterPdf(
   document.setCreator("WuPage");
   document.setProducer("WuPage PDF Translator");
 
-  for (const source of pages) {
-    const image = source.format === "png"
-      ? await document.embedPng(source.imageBytes)
-      : await document.embedJpg(source.imageBytes);
+  for await (const source of pages) {
     const page = document.addPage([source.width, source.height]);
-    page.drawImage(image, {
-      x: 0,
-      y: 0,
-      width: source.width,
-      height: source.height
-    });
+    await drawRasterPdfPage(page, source);
   }
-
+  if (!document.getPageCount()) throw new Error(t("noPdfPagesToExport"));
   return document.save({ useObjectStreams: true });
 }
 

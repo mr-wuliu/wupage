@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { addAutoTranslationWebsite, currentWebsitePattern, excludeAutoTranslationWebsite, hasAutoTranslationWebsite, isAutoTranslationWebsiteExcluded, languageFamily, matchesAutoTranslationSite, matchesSitePattern, normalizeAutoTranslation, normalizeSitePattern, setAutoTranslationEnabled } from "../src/shared/auto-translation";
 import { normalizeSettings } from "../src/shared/settings";
+import { matchesRegionSitePattern, normalizeRegionSitePattern } from "../src/shared/region-site-pattern";
 
 describe("automatic translation site rules", () => {
   it.each([
@@ -34,6 +35,19 @@ describe("automatic translation site rules", () => {
   it("normalizes domains, Unicode hosts and paths without changing path case", () => {
     expect(normalizeSitePattern(" HTTPS://Example.COM/Docs/** ")).toBe("https://example.com/Docs/*");
     expect(normalizeSitePattern("例子.测试")).toContain("xn--");
+  });
+
+  it("accepts a URL in the path of a rule with or without a leading protocol", () => {
+    const pattern = "example.invalid/docs/https://reference.invalid/*";
+    expect(normalizeSitePattern(pattern)).toBe(pattern);
+    expect(normalizeRegionSitePattern(pattern)).toBe(pattern);
+    for (const matches of [matchesSitePattern, matchesRegionSitePattern]) {
+      const address = "example.invalid/docs/https://reference.invalid/article";
+      expect(matches(pattern, `http://${address}`)).toBe(true);
+      expect(matches(pattern, `https://${address}`)).toBe(true);
+      expect(matches(`https://${pattern}`, `http://${address}`)).toBe(false);
+      expect(matches(`https://${pattern}`, `https://${address}`)).toBe(true);
+    }
   });
 
   it("keeps old installations disabled and normalizes only valid rules", () => {

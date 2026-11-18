@@ -85,6 +85,7 @@ interface PdfPageState {
   translations?: string[];
   translationContext?: string;
   renderedTranslationContext?: string;
+  previewRequested?: boolean;
   translationPending?: boolean;
   translationProgress?: PdfQueuePageStatus;
   translationDraft?: { context: string; page: PdfQueuePage; inputs: Map<number, PdfDocumentParagraphInput> };
@@ -103,6 +104,9 @@ interface PdfTranslationSession {
   context: string;
   readingPage: number;
   scopePages: PdfPageState[];
+  scopeProgress: Map<number, { completed: number; total: number; failed: number }>;
+  completed: number;
+  total: number;
   failed: Set<PdfPageState>;
   followReading: boolean;
   scrolling: boolean;
@@ -574,8 +578,9 @@ function setupRenderObserver(): void {
   renderObserver = new IntersectionObserver((entries) => {
     for (const entry of entries) {
       if (!entry.isIntersecting) continue;
-      const pageState = pageStates.find((state) => state.canvasShell === entry.target);
-      if (!pageState) continue;
+      const pageState = pageStates[Number(entry.target.closest<HTMLElement>(".page-row")?.dataset.page) - 1];
+      if (!pageState || pageState.canvasShell !== entry.target) continue;
+      pageState.previewRequested = true;
       renderObserver?.unobserve(entry.target);
       void renderPdfPage(pageState).catch(error => renderPageError(pageState, error));
     }
@@ -584,20 +589,21 @@ function setupRenderObserver(): void {
 
 async function renderPdfPage(pageState: PdfPageState): Promise<void> {
   if (!pdfDocument || renderedPages.has(pageState.pageNumber)) return;
-  const activeTask = pageRenderTasks.get(pageState.pageNumber);
+  const tasks = pageRenderTasks;
+  const activeTask = tasks.get(pageState.pageNumber);
   if (activeTask) return activeTask;
-  const task = renderPdfPageOnce(pageState);
-  pageRenderTasks.set(pageState.pageNumber, task);
+  const task = renderPdfPageOnce(pageState, pdfDocument);
+  tasks.set(pageState.pageNumber, task);
   try {
     await task;
   } finally {
-    pageRenderTasks.delete(pageState.pageNumber);
+    tasks.delete(pageState.pageNumber);
   }
 }
 
-async function renderPdfPageOnce(pageState: PdfPageState): Promise<void> {
-  if (!pdfDocument) return;
-  const page = await pdfDocument.getPage(pageState.pageNumber);
+async function renderPdfPageOnce(pageState: PdfPageState, documentProxy: PDFDocumentProxy): Promise<void> {
+  const page = await documentProxy.getPage(pageState.pageNumber);
+  if (pdfDocument !== documentProxy) return;
   const baseViewport = page.getViewport({ scale: 1 });
   const cssWidth = Math.max(320, Math.min(900, pageState.canvasShell.clientWidth || 720));
   const outputScale = Math.min(window.devicePixelRatio || 1, 2);
@@ -613,12 +619,15 @@ async function renderPdfPageOnce(pageState: PdfPageState): Promise<void> {
   // otherwise unchanged chart labels differ when composed into the translation.
   pageState.canvas.getContext("2d", { alpha: true });
   await page.render({ canvas: pageState.canvas, viewport }).promise;
+  if (pdfDocument !== documentProxy) return;
   await renderOriginalTextLayer(pageState, cssViewport);
+  if (pdfDocument !== documentProxy) { pageState.originalTextLayerObserver?.disconnect(); return; }
   await renderPageWithoutText(page, pageState.translatedBaseCanvas, viewport);
   if (pageState.blocks.some(block => block.backgroundText)) {
     pageState.backgroundTextCanvas = document.createElement("canvas");
     await renderRotatedPdfText(page, pageState.backgroundTextCanvas, viewport);
   }
+  if (pdfDocument !== documentProxy) return;
   renderedPages.add(pageState.pageNumber);
   pageState.canvasShell.classList.add("is-rendered");
   if (pageState.translations || pageState.translationDraft?.page.values.some((value, index) => pageState.blocks[index].translatable && value !== undefined)) renderTranslatedPdfPage(pageState);
@@ -997,7 +1006,10 @@ async function translateDocument(forDownload = false): Promise<PdfTranslationSes
       try {
         if (status.completed === status.total) {
           session.failed.delete(page);
-          renderPageTranslations(page, entry.values as string[], session.context);
+          if (page.translations !== entry.values || page.translationContext !== session.context
+            || page.translatedCanvasShell.classList.contains("has-error")) {
+            renderPageTranslations(page, entry.values as string[], session.context);
+          }
         } else {
           if (status.error) session.failed.add(page);
           else session.failed.delete(page);
@@ -1014,7 +1026,15 @@ async function translateDocument(forDownload = false): Promise<PdfTranslationSes
         session.pauseError = queue.pauseError; session.followReading = false; session.scrolling = false;
         window.clearTimeout(translationScrollTimer);
       }
-      pumpTranslationQueue(session);
+      const previous = session.scopeProgress.get(entry.pageNumber);
+      if (previous) {
+        const failed = Number(session.failed.has(page));
+        session.completed += status.completed - previous.completed;
+        session.total += status.total - previous.total;
+        session.failedPages += failed - previous.failed;
+        Object.assign(previous, { completed: status.completed, total: status.total, failed });
+      }
+      scheduleTranslationProgress(session);
     },
     onIdle: () => { if (translationSession === session && session.busy) finishTranslationBatch(session); }
   });
@@ -1023,7 +1043,7 @@ async function translateDocument(forDownload = false): Promise<PdfTranslationSes
     queue,
     runId, forDownload, finished, resolveFinished,
     radius: forDownload ? null : settings.pdfTranslationPageRadius, requestOptions, context,
-    readingPage: startingPage, scopePages: [], failed: new Set(),
+    readingPage: startingPage, scopePages: [], scopeProgress: new Map(), completed: 0, total: 0, failed: new Set(),
     followReading: !forDownload, scrolling: false, busy: true, translated: 0, cached: 0, failedPages: 0
   };
   translationSession = session;
@@ -1077,6 +1097,8 @@ function refreshTranslationRange(session: PdfTranslationSession): void {
     return page.translationDraft.page;
   };
   const selected = session.scopePages.filter(page => page.blocks.some(block => block.translatable));
+  session.scopeProgress = new Map(selected.map(page => [page.pageNumber, { completed: 0, total: 0, failed: 0 }]));
+  session.completed = session.total = session.failedPages = 0;
   const scope = new Set(selected.map(page => page.pageNumber));
   const owners = new Set(selected.map(page => page.pageNumber));
   for (const page of selected) for (const incoming of documentParagraphs[page.pageNumber - 1].incoming) owners.add(incoming.pageNumber);
@@ -1092,21 +1114,29 @@ function refreshTranslationRange(session: PdfTranslationSession): void {
   session.queue.setScope(selected.map(ensureDraft), session.readingPage, registered);
 }
 
+let scheduledTranslationProgress: PdfTranslationSession | undefined;
+function scheduleTranslationProgress(session: PdfTranslationSession): void {
+  if (scheduledTranslationProgress === session) return;
+  scheduledTranslationProgress = session;
+  queueMicrotask(() => {
+    if (scheduledTranslationProgress !== session) return;
+    scheduledTranslationProgress = undefined;
+    pumpTranslationQueue(session);
+  });
+}
+
 function pumpTranslationQueue(session: PdfTranslationSession): void {
   if (translationSession !== session || session.runId !== translationRun || session.scrolling
     || (downloadButton.classList.contains("is-loading") && !session.forDownload)) return;
   if (session.queue.busy && !session.busy) {
     session.busy = true;
-    session.translated = session.cached = session.failedPages = 0;
+    session.translated = session.cached = 0;
   }
-  session.failedPages = session.scopePages.filter(page => session.failed.has(page)).length;
   if (session.queue.busy) {
     translateButton.disabled = true;
     translateButton.classList.add("is-loading");
     updateDownloadButtonState();
-    const scope = session.scopePages.map(page => page.translationProgress).filter((status): status is PdfQueuePageStatus => Boolean(status));
-    const total = scope.reduce((sum, status) => sum + status.total, 0);
-    const completed = scope.reduce((sum, status) => sum + status.completed, 0);
+    const { completed, total } = session;
     progressBar.style.width = `${Math.round(completed / Math.max(1, total) * 100)}%`;
     const label = session.radius === null ? t("entireDocument")
       : t("documentPageRange", session.scopePages[0].pageNumber, session.scopePages.at(-1)!.pageNumber);
@@ -1131,8 +1161,7 @@ function finishTranslationBatch(session: PdfTranslationSession): void {
   if (session.pauseError) {
     showStatus(t("translationPausedCompletedParagraphsResolveTheIssueAnd", formatTranslationError(session.pauseError), session.translated), "error", true);
   } else if (session.failedPages) {
-    const remaining = session.scopePages.reduce((sum, page) => sum + (page.translationProgress
-      ? page.translationProgress.total - page.translationProgress.completed : 0), 0);
+    const remaining = session.total - session.completed;
     showStatus(t("translationFinishedSuccessfulParagraphsFailedAcrossPagesCompleted", session.translated, remaining, session.failedPages), "error");
   } else {
     const detail = session.radius === null || !session.followReading ? "" : t("scrollToTranslateNearbyPagesAutomatically");
@@ -1187,8 +1216,6 @@ async function downloadTranslatedDocument(): Promise<void> {
   sourceLang.disabled = targetLang.disabled = provider.disabled = true;
   enhanceProviderSelect(provider, settings.providers);
   progressBar.style.width = "0%";
-  const rasterPages: RasterPdfPage[] = [];
-
   try {
     const choice = await fontControl.prepareExport();
     if (!choice || pdfDocument !== documentProxy) return;
@@ -1204,32 +1231,12 @@ async function downloadTranslatedDocument(): Promise<void> {
       throw new Error(t("untranslatedPagesChooseDownloadTranslationAgainToRetry", incompletePages.length));
     }
     downloadButton.textContent = t("generating");
-    for (let index = 0; index < pageStates.length; index += 1) {
-      const page = pageStates[index];
-      if (!renderedPages.has(page.pageNumber)) await renderPdfPage(page);
-      if (translationSession !== session || pdfDocument !== documentProxy) return;
-      const canvas = page.translations
-        ? composeTranslatedPageCanvas(page.translatedCanvas, page.translationLayer)
-        : page.canvas;
-      const imageBytes = await canvasToJpegBytes(canvas);
-      if (translationSession !== session || pdfDocument !== documentProxy) return;
-      rasterPages.push({
-        width: page.pdfWidth,
-        height: page.pdfHeight,
-        imageBytes,
-        format: "jpeg",
-        scene: choice.fontBytes ? await collectPdfExportScene(page.canvas, page.translationLayer, page.blocks, page.pdfWidth, page.pdfHeight,
-          Array.from((await documentProxy.getPage(page.pageNumber)).getViewport({ scale: 1 }).transform ?? []), page.backgroundTextCanvas) : undefined
-      });
-      const percentage = Math.round(((index + 1) / pageStates.length) * 85);
-      progressBar.style.width = `${percentage}%`;
-      showStatus(t("generatingTranslatedPdfPageOf", index + 1, pageStates.length), "info", true);
-    }
-
     const fileName = translatedPdfFileName(currentDocumentName);
     let fontFallbackPages: number[] = [];
-    const bytes = await buildRasterPdf(rasterPages, fileName.replace(/\.pdf$/iu, ""),
-      choice.fontBytes ? await documentProxy.getData?.() : undefined, choice.fontBytes, pages => { fontFallbackPages = pages; });
+    const sourceBytes = choice.fontBytes ? await documentProxy.getData?.() : undefined;
+    const pages = exportPdfPages(pageStates, documentProxy, session.controller.signal, Boolean(choice.fontBytes), Boolean(sourceBytes));
+    const bytes = await buildRasterPdf(pages, fileName.replace(/\.pdf$/iu, ""), sourceBytes, choice.fontBytes,
+      pages => { fontFallbackPages = pages; });
     if (translationSession !== session || pdfDocument !== documentProxy) return;
     progressBar.style.width = "100%";
     downloadPdfBytes(bytes, fileName);
@@ -1237,7 +1244,7 @@ async function downloadTranslatedDocument(): Promise<void> {
     showStatus(fontFallbackPages.length ? t("translatedPdfReadyWithFontFallback", fileName, fontFallbackPages.length)
       : t("translatedPdfReady", fileName), "success");
   } catch (error) {
-    showStatus(t("downloadFailed", error instanceof Error ? error.message : String(error)), "error");
+    if (pdfDocument === documentProxy) showStatus(t("downloadFailed", error instanceof Error ? error.message : String(error)), "error");
   } finally {
     fontControl.setExporting(false);
     downloadButton.classList.remove("is-loading");
@@ -1261,6 +1268,53 @@ async function downloadTranslatedDocument(): Promise<void> {
       }
     }, 1200);
   }
+}
+
+async function* exportPdfPages(pages: PdfPageState[], documentProxy: PDFDocumentProxy, signal: AbortSignal,
+  searchable: boolean, canCopyUnchanged: boolean): AsyncGenerator<RasterPdfPage> {
+  for (const [index, page] of pages.entries()) {
+    signal.throwIfAborted();
+    progressBar.style.width = `${Math.round((index + 1) / pages.length * 85)}%`;
+    showStatus(t("generatingTranslatedPdfPageOf", index + 1, pages.length), "info", true);
+    const geometry = { width: page.pdfWidth, height: page.pdfHeight, format: "jpeg" as const };
+    const unchanged = page.blocks.every(block => !block.translatable);
+    if (searchable && canCopyUnchanged && unchanged) {
+      yield { ...geometry, imageBytes: new Uint8Array(), scene: { text: [], images: [], transform: [], unchanged } };
+      continue;
+    }
+    const wasRendered = renderedPages.has(page.pageNumber);
+    try {
+      if (!wasRendered) await renderPdfPage(page);
+      signal.throwIfAborted();
+      const scene = searchable ? await collectPdfExportScene(page.canvas, page.translationLayer, page.blocks, page.pdfWidth, page.pdfHeight,
+        Array.from((await documentProxy.getPage(page.pageNumber)).getViewport({ scale: 1 }).transform ?? []), page.backgroundTextCanvas) : undefined;
+      signal.throwIfAborted();
+      yield { ...geometry, scene, loadImage: async () => {
+        signal.throwIfAborted();
+        if (!page.translations) return canvasToJpegBytes(page.canvas);
+        const canvas = composeTranslatedPageCanvas(page.translatedCanvas, page.translationLayer);
+        try { return await canvasToJpegBytes(canvas); }
+        finally { canvas.width = canvas.height = 0; }
+      } };
+    } finally {
+      if (!wasRendered && !page.previewRequested && pdfDocument === documentProxy) releaseExportPage(page);
+    }
+  }
+}
+
+function releaseExportPage(page: PdfPageState): void {
+  renderedPages.delete(page.pageNumber);
+  page.originalTextLayerObserver?.disconnect();
+  page.translationLayerObserver?.disconnect();
+  page.originalTextLayerObserver = page.translationLayerObserver = undefined;
+  for (const canvas of [page.canvas, page.translatedCanvas, page.translatedBaseCanvas, page.backgroundTextCanvas]) {
+    if (canvas) canvas.width = canvas.height = 0;
+  }
+  page.backgroundTextCanvas = page.renderViewport = page.renderedTranslationContext = undefined;
+  page.originalTextLayer.replaceChildren();
+  page.translationLayer.replaceChildren();
+  page.canvasShell.classList.remove("is-rendered");
+  if (page.translations) renderPageTranslations(page, page.translations, page.translationContext!);
 }
 
 function updateDownloadButtonState(): void {

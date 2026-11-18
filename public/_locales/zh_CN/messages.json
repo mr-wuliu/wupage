@@ -3363,7 +3363,7 @@
     "message": "此备份包含密钥，将覆盖本机凭据。"
   },
   "thisBackupOmitsCredentialsImportingClearsExistingCredentials": {
-    "message": "此备份不包含密钥，将清空本机旧凭据；其他配置按备份恢复，密钥需重新填写。"
+    "message": "导入此备份会清空本机旧凭据。服务地址、请求配置和密钥可能需要重新填写。"
   },
   "importingImmediatelyReplacesAllSettingsAndDiscardsUnsaved": {
     "message": "$ARG1$导入会立即覆盖全部设置，并丢弃当前未保存的编辑。仅导入可信来源的备份；文件中的服务地址决定后续翻译请求和密钥的接收方。建议先导出当前设置。",
@@ -3392,13 +3392,13 @@
     "message": "已生成包含密钥的完整备份，请查看浏览器下载记录。文件未加密，请妥善保管。"
   },
   "settingsBackupCreatedWithoutCredentialsFindItIn": {
-    "message": "已生成不含密钥的设置备份，其余配置已保留，请查看浏览器下载记录。"
+    "message": "已生成不含密钥的设置备份，请查看浏览器下载记录。"
   },
   "settingsImportedAndSaved": {
     "message": "已导入并保存设置。"
   },
   "settingsRestoredThisBackupOmittedCredentialsSoPrevious": {
-    "message": "无密钥备份已清空本机旧凭据，其他配置已恢复，密钥需重新填写。"
+    "message": "已恢复设置并清空本机旧凭据。请重新配置缺少请求设置或密钥的服务。"
   },
   "ocrModelsAreMissingOnThisDeviceInstall": {
     "message": "本机未安装 OCR 模型，图片翻译保持关闭；安装模型后可重新开启。"
@@ -3409,8 +3409,8 @@
   "thisUnencryptedTomlBackupIncludesSavedSettingsCredentials": {
     "message": "备份包含全部已保存设置，以及密钥、请求头和模板等敏感信息，以未加密 TOML 保存。请妥善保管，不要公开分享。当前未保存的编辑不会导出。"
   },
-  "thisBackupKeepsSavedServiceAddressesHeadersTemplates": {
-    "message": "备份不包含密钥，保留服务地址、请求头、模板、提示词及其他已保存设置，仅清空密钥字段和可识别的认证值。分享前请检查自定义内容中手动嵌入的敏感信息。当前未保存的编辑不会导出。"
+  "thisBackupOmitsCredentialsAndCustomRequestSettings": {
+    "message": "备份不包含密钥、自定义服务地址、请求头、模板、提示词或自定义 OCR 配置。分享前请检查名称和网站规则。当前未保存的编辑不会导出。"
   },
   "shortcutsEnabledSaveToApply": {
     "message": "快捷键已开启，点击「保存」后生效。"

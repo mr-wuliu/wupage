@@ -6,7 +6,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createServer } from 'node:http';
 import { createHash } from 'node:crypto';
-import { PDFDocument, StandardFonts, rgb, degrees } from 'pdf-lib';
+import { PDFDocument, PDFString, StandardFonts, rgb, degrees } from 'pdf-lib';
 import { createCanvas } from '@napi-rs/canvas';
 import { getDocument } from 'pdfjs-dist/legacy/build/pdf.mjs';
 import { browserTarget } from './lib/browser-target.mjs';
@@ -75,6 +75,12 @@ cropped.drawRectangle({x:70,y:500,width:180,height:45,color:rgb(0.1,0.7,0.3)});
 const rotated = source.addPage([600,800]);rotated.setRotation(degrees(90));
 rotated.drawText('Upright text on a rotated page.',{x:120,y:100,size:14,rotate:degrees(90),font:regular});
 rotated.drawRectangle({x:240,y:300,width:180,height:45,color:rgb(0.1,0.7,0.3)});
+const fixtureLink = 'https://example.invalid/pdf-source';
+for (const [linkPage, rect] of [[cropped, [45, 613, 170, 637]], [rotated, [107, 100, 125, 220]]]) {
+  linkPage.node.addAnnot(source.context.register(source.context.obj({
+    Type: 'Annot', Subtype: 'Link', Rect: rect, Border: [0, 0, 0], A: { S: 'URI', URI: PDFString.of(fixtureLink) }
+  })));
+}
 // A page with only a numeric label and artwork needs no provider request,
 // but its translated panel and exported page must still preserve the source.
 const retained = source.addPage([600,800]);
@@ -343,8 +349,13 @@ try{
   const texts=[];for(let i=1;i<=pdf.numPages;i++)texts.push((await(await pdf.getPage(i)).getTextContent()).items.map(item=>item.str??'').join(''));
   assert.equal(texts.length,pages);assert.ok(texts.some(text=>text.includes('译文')),'Chinese text remains searchable');
   if(document.id==='fixture'){
-   const crop=(await pdf.getPage(3)).getViewport({scale:1}),rotation=(await pdf.getPage(4)).getViewport({scale:1});
+   const croppedPage=await pdf.getPage(3),rotatedPage=await pdf.getPage(4);
+   const crop=croppedPage.getViewport({scale:1}),rotation=rotatedPage.getViewport({scale:1});
    assert.deepEqual([crop.width,crop.height],[500,600]);assert.deepEqual([rotation.width,rotation.height],[800,600]);
+   assert.deepEqual((await croppedPage.getAnnotations()).map(({url,rect})=>({url,rect})),
+    [{url:fixtureLink,rect:[0,533,120,557]}]);
+   assert.deepEqual((await rotatedPage.getAnnotations()).map(({url,rect})=>({url,rect})),
+    [{url:fixtureLink,rect:[100,475,220,493]}]);
    assert.ok(texts[0].includes('Smith J. Clinical measurements.'),'references retain their original text');
    assert.ok(texts[0].includes('PPV')&&texts[0].includes('NPV')&&texts[0].includes('RNN'));
    assert.ok(!texts.join('').includes('付费观看')&&!texts.join('').includes('净现值'));

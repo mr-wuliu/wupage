@@ -20,6 +20,7 @@ import { LOCAL_MODELS } from "../local/models";
 import { DOUBAO_PROTOCOL_VERSION } from "../shared/doubao";
 import { withDoubaoDeadline } from "./doubao";
 import { createStatisticsRecorder, type StatisticsRecorder } from "./statistics";
+import { currentCacheGeneration, writeTranslationCache } from "./translation-cache";
 
 const GLOBAL_LIMITER = Symbol("global-translation-limiter");
 const providerLimiters = new Map<string | symbol, ProviderLimiter>();
@@ -37,6 +38,7 @@ export interface TranslationTaskOptions {
   priority?: boolean;
   persistentCache?: boolean;
   statisticsPageKey?: string;
+  cacheGeneration?: number;
 }
 
 export async function translateWithSettings(
@@ -45,6 +47,7 @@ export async function translateWithSettings(
   options: TranslationTaskOptions = {}
 ): Promise<TranslateBatchResponse> {
   const { signal } = options;
+  const cacheGeneration = options.cacheGeneration ?? currentCacheGeneration();
   signal?.throwIfAborted();
   const providerId = request.providerId ?? settings.activeProviderId;
   const providerConfig = settings.providers.find((provider) => provider.id === providerId);
@@ -57,21 +60,21 @@ export async function translateWithSettings(
       // The article endpoint detects its own source language. Browser detection
       // must not gate short paragraphs, titles, or mixed-language batches.
       const sourceLang = request.sourceLang ?? "auto";
-      return translateConfigured(settings, { ...request, sourceLang, context: undefined }, providerConfig, { ...options, signal: requestSignal });
+      return translateConfigured(settings, { ...request, sourceLang, context: undefined }, providerConfig, { ...options, cacheGeneration, signal: requestSignal });
     }, signal);
   }
-  return translateConfigured(settings, request, providerConfig, options);
+  return translateConfigured(settings, request, providerConfig, { ...options, cacheGeneration });
 }
 
 async function translateConfigured(
   settings: ExtensionSettings,
   request: TranslateBatchRequest,
   providerConfig: ProviderConfig,
-  options: TranslationTaskOptions = {}
+  options: TranslationTaskOptions & { cacheGeneration: number }
 ): Promise<TranslateBatchResponse> {
   const { signal } = options;
   signal?.throwIfAborted();
-  const useCache = settings.cacheEnabled && options.persistentCache !== false;
+  const useCache = settings.cacheEnabled && options.persistentCache !== false && options.cacheGeneration === currentCacheGeneration();
   const providerId = providerConfig.id;
   const provider = createProvider(providerConfig);
   const statistics = createStatisticsRecorder(settings);
@@ -138,7 +141,7 @@ async function translateConfigured(
     output[sourceIndex] = translation;
     if (useCache) pendingCacheWrites[cacheKeys[sourceIndex]] = translation;
   }
-  await writeCachedTranslations(pendingCacheWrites);
+  await writeTranslationCache(pendingCacheWrites, options.cacheGeneration, signal);
 
   signal?.throwIfAborted();
   await statistics?.result(request.pageSession?.id ?? options.statisticsPageKey, cachedTranslations.size, output.length);
@@ -158,13 +161,6 @@ export function getTranslationDebugSnapshot(): TranslationDebugSnapshot {
     activeCount,
     queuedCount
   };
-}
-
-export async function clearTranslationCache(): Promise<{ removed: number }> {
-  const items = await chrome.storage.local.get(null);
-  const keys = Object.keys(items).filter((key) => key.startsWith(CACHE_PREFIX));
-  if (keys.length) await chrome.storage.local.remove(keys);
-  return { removed: keys.length };
 }
 
 async function runProviderTask(
@@ -491,34 +487,6 @@ function parseContextualTranslation(value: string, expectedLength: number): stri
 async function readCachedTranslations(keys: string[]): Promise<Record<string, unknown>> {
   // One storage round trip per batch instead of one per text.
   return chrome.storage.local.get(keys).catch(() => ({} as Record<string, unknown>));
-}
-
-async function writeCachedTranslations(items: Record<string, string>): Promise<void> {
-  if (!Object.keys(items).length) return;
-  // Cache quota/availability must not discard an otherwise valid translation.
-  try {
-    await chrome.storage.local.set(items);
-  } catch {
-    // A full quota used to disable the cache silently and permanently; free the
-    // oldest half and retry once so translation memory keeps working.
-    await pruneCachedTranslations();
-    await chrome.storage.local.set(items).catch(() => undefined);
-  }
-}
-
-async function pruneCachedTranslations(): Promise<void> {
-  const keys = (await readCacheKeys()).filter((key) => key.startsWith(CACHE_PREFIX));
-  if (!keys.length) return;
-  // Persisted keys come back in insertion order, so the head holds the oldest
-  // entries; dropping half of them keeps the freshest translations.
-  await chrome.storage.local.remove(keys.slice(0, Math.ceil(keys.length / 2))).catch(() => undefined);
-}
-
-async function readCacheKeys(): Promise<string[]> {
-  const local = chrome.storage.local as typeof chrome.storage.local & { getKeys?: () => Promise<string[]> };
-  if (typeof local.getKeys === "function") return local.getKeys().catch(() => [] as string[]);
-  const items = await chrome.storage.local.get(null).catch(() => ({} as Record<string, unknown>));
-  return Object.keys(items);
 }
 
 function asCachedTranslation(value: unknown): string | undefined {

@@ -2,6 +2,14 @@ import { t } from "./i18n";
 import type { AutoTranslationSettings, AutoTranslationSite } from "./types";
 import { randomId } from "./random-id";
 
+export function hasSitePatternProtocol(value: string): boolean {
+  return /^[a-z][a-z\d+.-]*:\/\//iu.test(value);
+}
+
+function sitePatternUrl(value: string): URL {
+  return new URL(hasSitePatternProtocol(value) ? value : `https://${value}`);
+}
+
 export const AUTO_TRANSLATION_PRESETS = [
   { domain: "github.com", label: "GitHub" },
   { domain: "stackoverflow.com", label: "Stack Overflow" },
@@ -14,9 +22,9 @@ export const AUTO_TRANSLATION_PRESETS = [
 export function normalizeSitePattern(value: string): string {
   const input = value.trim();
   if (!input || input.length > 2048) throw new Error(t("enterAValidSiteDomainOrUrl"));
-  const explicitProtocol = /^[a-z][a-z\d+.-]*:\/\//i.test(input);
+  const explicitProtocol = hasSitePatternProtocol(input);
   let parsed: URL;
-  try { parsed = new URL(explicitProtocol ? input : `https://${input}`); }
+  try { parsed = sitePatternUrl(input); }
   catch { throw new Error(t("enterAValidSiteDomainOrHttpHttps")); }
   if (!["http:", "https:"].includes(parsed.protocol) || parsed.username || parsed.password || parsed.search || parsed.hash) {
     throw new Error(t("enterAnHttpHttpsDomainOrPathWithout"));
@@ -37,8 +45,8 @@ export function normalizeSitePattern(value: string): string {
 export function matchesSitePattern(pattern: string, address: string): boolean {
   try {
     const normalized = normalizeSitePattern(pattern);
-    const explicitProtocol = normalized.includes("://");
-    const rule = new URL(explicitProtocol ? normalized : `https://${normalized}`);
+    const explicitProtocol = hasSitePatternProtocol(normalized);
+    const rule = sitePatternUrl(normalized);
     const url = new URL(address);
     const port = explicitPort(normalized);
     if (!["http:", "https:"].includes(url.protocol) || (explicitProtocol && rule.protocol !== url.protocol)
@@ -81,7 +89,7 @@ export function normalizeAutoTranslation(value: unknown): AutoTranslationSetting
     if (typeof site !== "string") continue;
     try {
       const pattern = normalizeSitePattern(site);
-      const url = new URL(pattern.includes("://") ? pattern : `https://${pattern}`);
+      const url = sitePatternUrl(pattern);
       if (url.pathname === "/" && !url.hostname.startsWith("*.")) excluded.add(currentWebsitePattern(url.href)!);
     } catch { /* Ignore invalid imported exclusions. */ }
   }
@@ -129,7 +137,7 @@ export function currentWebsitePattern(address: string | undefined): string | und
 }
 
 function coversWebsite(pattern: string, address: string): boolean {
-  const rule = new URL(pattern.includes("://") ? pattern : `https://${pattern}`);
+  const rule = sitePatternUrl(pattern);
   return ["/", "/*"].includes(rule.pathname) && matchesSitePattern(pattern, address);
 }
 
@@ -158,7 +166,7 @@ export function addAutoTranslationWebsite(value: unknown, address: string | unde
   if (hasAutoTranslationWebsite(settings, address)) return settings;
   const hostname = new URL(address!).hostname;
   const existing = settings.customSites.find(site => {
-    const rule = new URL(site.pattern.includes("://") ? site.pattern : `https://${site.pattern}`);
+    const rule = sitePatternUrl(site.pattern);
     return rule.hostname === hostname && coversWebsite(site.pattern, address!);
   });
   if (existing) return { ...settings, customSites: settings.customSites.map(site => site === existing ? { ...site, enabled: true } : site) };
@@ -179,5 +187,19 @@ export function excludeAutoTranslationWebsite(value: unknown, address: string | 
 }
 
 export function languageFamily(language: string): string {
-  return language.trim().toLowerCase().replace(/_/g, "-").split("-")[0];
+  const [family, ...subtags] = language.trim().toLowerCase().replaceAll("_", "-").split("-");
+  if (family !== "zh") return family;
+  if (subtags.includes("hans")) return "zh-Hans";
+  if (subtags.includes("hant") || subtags.some(tag => ["tw", "hk", "mo", "cht"].includes(tag))) return "zh-Hant";
+  if (subtags.some(tag => ["cn", "sg", "my", "chs"].includes(tag))) return "zh-Hans";
+  return "zh";
+}
+
+export function chineseScriptFromText(text: string): "zh-Hans" | "zh-Hant" | undefined {
+  // Some detectors return only "zh". Use distinct common variant characters as
+  // evidence, leaving shared characters and evenly mixed passages undecided.
+  const simplified = new Set(text.match(/[这国学体语写读听视网电经实应机处书观东万连续记会设关点数识话来随选个无办为见离资讯导开区际还进产从两时当场长种众发对让请问将条声图现样节频页汉简译报维护给获过扩范务总优]/gu)).size;
+  const traditional = new Set(text.match(/[這國學體語寫讀聽視網電經實應機處書觀東萬連續記會設關點數識話來隨選個無辦為見離資訊導開區際還進產從兩時當場長種眾發對讓請問將條聲圖現樣節頻頁漢簡譯報維護給獲過擴範務總優]/gu)).size;
+  if (simplified >= 2 && simplified > traditional * 2) return "zh-Hans";
+  if (traditional >= 2 && traditional > simplified * 2) return "zh-Hant";
 }

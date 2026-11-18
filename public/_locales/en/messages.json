@@ -3363,7 +3363,7 @@
     "message": "This backup includes credentials and will overwrite the ones stored here."
   },
   "thisBackupOmitsCredentialsImportingClearsExistingCredentials": {
-    "message": "This backup omits credentials. Importing clears existing credentials and restores other settings. Enter credentials again afterward."
+    "message": "Importing this backup clears existing credentials. You may need to re-enter service addresses, request settings, and credentials."
   },
   "importingImmediatelyReplacesAllSettingsAndDiscardsUnsaved": {
     "message": "$ARG1$ Importing immediately replaces all settings and discards unsaved edits. Import only trusted backups. Service addresses in the file determine where future requests and credentials are sent. Consider exporting your current settings first.",
@@ -3398,7 +3398,7 @@
     "message": "Settings imported and saved."
   },
   "settingsRestoredThisBackupOmittedCredentialsSoPrevious": {
-    "message": "Settings restored. This backup omitted credentials, so previous credentials were cleared. Enter them again."
+    "message": "Settings restored and existing credentials cleared. Reconfigure any services whose request settings or credentials were omitted."
   },
   "ocrModelsAreMissingOnThisDeviceInstall": {
     "message": "OCR models are missing on this device. Install them to enable image translation."
@@ -3409,8 +3409,8 @@
   "thisUnencryptedTomlBackupIncludesSavedSettingsCredentials": {
     "message": "This unencrypted TOML backup includes saved settings, credentials, request headers and templates. Keep it secure and avoid sharing it publicly. Unsaved edits are excluded."
   },
-  "thisBackupKeepsSavedServiceAddressesHeadersTemplates": {
-    "message": "This backup keeps saved service addresses, headers, templates, prompts and other settings. Credential fields and recognized authentication values are cleared. Check custom content for embedded secrets before sharing. Unsaved edits are excluded."
+  "thisBackupOmitsCredentialsAndCustomRequestSettings": {
+    "message": "This backup omits credentials, custom service addresses, headers, request templates, prompts, and custom OCR configuration. Review names and site rules before sharing. Unsaved edits are excluded."
   },
   "shortcutsEnabledSaveToApply": {
     "message": "Shortcuts enabled. Save to apply."

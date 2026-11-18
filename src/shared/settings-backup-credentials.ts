@@ -1,4 +1,43 @@
 import type { ExtensionSettings } from "./types";
+import { DEFAULT_SETTINGS } from "./defaults";
+import { DEFAULT_OCR_SETTINGS } from "./ocr-service";
+import { supportsServiceMode, translationApiOptions } from "./translation-service";
+
+/** Keep only exact public defaults in fields that can contain arbitrary request data. */
+export function shareableSettings(settings: ExtensionSettings): ExtensionSettings {
+  const result = structuredClone(settings);
+  for (const provider of result.providers) {
+    const defaults = DEFAULT_SETTINGS.providers.find(entry => entry.id === provider.id && entry.type === provider.type);
+    if ("apiKey" in provider) provider.apiKey = "";
+    if ("endpoint" in provider && provider.endpoint !== (defaults && "endpoint" in defaults ? defaults.endpoint : undefined)) {
+      provider.endpoint = "";
+    }
+    if ("baseURL" in provider) {
+      if (!defaults || !("baseURL" in defaults) || provider.baseURL !== defaults.baseURL) provider.baseURL = "";
+      if (!defaults || !("systemPrompt" in defaults) || provider.systemPrompt !== defaults.systemPrompt) provider.systemPrompt = "";
+      delete provider.requestTemplate;
+    }
+    if (supportsServiceMode(provider) && provider.api) {
+      const publicEndpoint = defaults && supportsServiceMode(defaults) ? translationApiOptions(defaults).endpoint : undefined;
+      if (provider.api.endpoint !== publicEndpoint) delete provider.api.endpoint;
+      delete provider.api.folderId;
+      for (const field of ["apiKey", "accessKeyId", "secretAccessKey"] as const) {
+        if (provider.api[field] !== undefined) provider.api[field] = "";
+      }
+    }
+    if (provider.type === "http-template") {
+      const publicHeaders = defaults?.type === "http-template" ? defaults.headers : {};
+      provider.url = "";
+      provider.headers = Object.fromEntries(Object.entries(publicHeaders).filter(([name, value]) => provider.headers[name] === value));
+      if (defaults?.type !== "http-template" || provider.bodyTemplate !== defaults.bodyTemplate) provider.bodyTemplate = "";
+    }
+  }
+  if (result.ocr) {
+    if (result.ocr.mode === "http") result.imageTranslationEnabled = false;
+    result.ocr = { ...DEFAULT_OCR_SETTINGS };
+  }
+  return result;
+}
 
 function credentialName(name: string): boolean {
   const key = name.toLowerCase().replace(/[^a-z0-9]/gu, "");
@@ -22,7 +61,7 @@ function mapRequestText(value: string, transform: (text: string) => string): str
   return result + transform(value.slice(offset));
 }
 
-/** Preserve configuration and template syntax; redact credential values only. */
+/** Recognize credential fields in version 1 backups, including legacy exports. */
 export function withoutSettingsKeys(settings: ExtensionSettings): ExtensionSettings {
   const result = structuredClone(settings);
   const secrets = new Set<string>();

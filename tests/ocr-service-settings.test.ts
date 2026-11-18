@@ -8,10 +8,11 @@ const ocr = { ...DEFAULT_OCR_SETTINGS, mode: "http" as const, endpoint: "https:/
 afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); vi.resetModules(); vi.doUnmock("../src/ocr/model-store"); });
 
 describe("OCR service settings", () => {
-  it("round-trips full backups and removes credentials from ordinary backups", () => {
-    const settings = { ...DEFAULT_SETTINGS, ocr: { ...ocr, endpoint: ocr.endpoint + "?apiKey=secret-query&language=en" } };
+  it("round-trips full backups and omits custom OCR configuration from ordinary backups", () => {
+    const settings = { ...DEFAULT_SETTINGS, imageTranslationEnabled: true,
+      ocr: { ...ocr, endpoint: ocr.endpoint + "?apiKey=secret-query&language=en" } };
     const backup = createSettingsBackup(settings, "1.20.0");
-    expect(backup.settings.ocr).toMatchObject({ apiKey: "", endpoint: ocr.endpoint + "?apiKey=&language=en", model: ocr.model });
+    expect(backup.settings).toMatchObject({ imageTranslationEnabled: false, ocr: DEFAULT_OCR_SETTINGS });
     expect(parseSettingsBackup(serializeSettingsBackup(backup)).settings.ocr).toEqual(backup.settings.ocr);
     const full = createSettingsBackup(settings, "1.20.0", undefined, { includeKeys: true });
     expect(parseSettingsBackup(serializeSettingsBackup(full)).settings.ocr).toEqual(settings.ocr);

@@ -64,6 +64,31 @@ describe("automatic page translation", () => {
     expect(detect).toHaveBeenCalledTimes(1);
   });
 
+  it.each([["zh-TW", "zh-CN", true], ["zh-CN", "zh-TW", true],
+    ["zh-Hant-HK", "zh-TW", false], ["zh-Hans-SG", "zh-CN", false]])(
+    "compares detected Chinese %s with target %s before deciding to translate", async (language, target, expected) => {
+      settings.targetLang = target;
+      detect.mockResolvedValue({ languages: [{ language, percentage: 99 }] });
+      mount({ nonTargetLanguage: true }); await settle();
+      expect(detect).toHaveBeenCalledOnce();
+      expect(start).toHaveBeenCalledTimes(Number(expected));
+    }
+  );
+
+  it.each([
+    ["這篇文章介紹臺灣讀者如何在瀏覽器閱讀新聞、選擇翻譯語言，以及如何同時比較原文與譯文。", "zh-CN", true],
+    ["这篇文章介绍读者如何在浏览器阅读新闻、选择翻译语言，以及如何同时比较原文与译文。", "zh-TW", true],
+    ["這篇文章介紹臺灣讀者如何在瀏覽器閱讀新聞、選擇翻譯語言，以及如何同時比較原文與譯文。", "zh-TW", false],
+    ["春雨落在小河上。山中只有流水的回音，白石小路通向河岸的小屋。夕光照在屋前，山色依然清淡。", "zh-TW", false],
+  ])("uses local script evidence in %j for a generic Chinese detection and target %s", async (text, target, expected) => {
+    settings.targetLang = target;
+    document.querySelector("p")!.textContent = text;
+    detect.mockResolvedValue({ languages: [{ language: "zh", percentage: 100 }] });
+    mount({ nonTargetLanguage: true }); await settle();
+    expect(detect).toHaveBeenCalledOnce();
+    expect(start).toHaveBeenCalledTimes(Number(expected));
+  });
+
   it("skips uncertain language and ignores extension UI and hidden content", async () => {
     document.body.innerHTML = '<div id="wupage-floating-menu">A very long English interface that must not decide the page language.</div><main><p hidden>Hidden English text that must not count towards language detection.</p><p>短文</p></main>';
     mount({ nonTargetLanguage: true }); await settle();
