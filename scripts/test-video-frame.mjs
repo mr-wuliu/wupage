@@ -42,7 +42,7 @@ const server = createServer(async (request, response) => {
   }
   response.end(`<!doctype html><meta charset="utf-8"><title>Paused video frame</title>
     <style>body{margin:24px;background:#1c2431;color:#eef3f5;font:16px Arial}h1{font-size:22px}#player{position:relative;width:min(800px,100%);background:white}video{display:block;width:100%;aspect-ratio:16/9;object-fit:contain}button{padding:8px;margin-top:16px}</style>
-    <h1>Outside the video</h1><div id="player"><video muted playsinline loop></video></div><button id="fullscreen">Player fullscreen</button>
+    <h1>Outside the video</h1><div id="player"><video controls muted playsinline loop></video></div><button id="fullscreen">Player fullscreen</button>
     <script>
       document.querySelector('#fullscreen').onclick=()=>document.querySelector('#player').requestFullscreen();
       (async()=>{

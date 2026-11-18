@@ -265,11 +265,7 @@ describe("player subtitle controls", () => {
     const host = document.querySelector('[data-wupage-video]')!;
     const player = video.parentElement!;
     expect(host.hasAttribute('data-controls')).toBe(false);
-    const touch = (type: string) => {
-      const event = new Event(type, { bubbles: true });
-      Object.defineProperty(event, 'pointerType', { value: 'touch' });
-      return event;
-    };
+    const touch = (type: string) => new PointerEvent(type, { bubbles: true, pointerType: 'touch', clientX: 320, clientY: 180 });
     video.addEventListener('pointerdown', event => event.stopPropagation());
     video.dispatchEvent(touch('pointerdown'));
     expect(host.hasAttribute('data-controls')).toBe(true);

@@ -86,9 +86,10 @@ export class PlayerSubtitleController {
     }
     this.nativeStyle.dataset.wupageVideoStyle = this.view.id;
     container.append(this.nativeStyle, this.view.host);
-    this.on(container, "pointermove", () => this.showControls());
-    this.on(container, "pointerenter", () => this.showControls());
-    this.on(container, "pointerdown", () => this.showControls(), true);
+    const pointer = (event: Event) => this.updatePointerControls(event as PointerEvent);
+    this.on(container, "pointermove", pointer);
+    this.on(container, "pointerenter", pointer);
+    this.on(container, "pointerdown", pointer, true);
     this.on(container, "pointerleave", event => {
       if ((event as PointerEvent).pointerType !== "touch" && !this.view.panelOpen) this.view.setControls(false);
     });
@@ -138,7 +139,10 @@ export class PlayerSubtitleController {
     }
     return false;
   }
-  open(): void { this.showControls(); if (!this.enabled) void this.start(); else this.view.setPanel(true); }
+  open(): void {
+    this.view.restoreControls(); this.position(); this.showControls();
+    if (!this.enabled) void this.start(); else this.view.setPanel(true);
+  }
 
   private on(target: EventTarget, type: string, callback: EventListener, capture = false): void {
     const listener: EventListener = event => { if (this.activeContext()) callback(event); };
@@ -151,7 +155,15 @@ export class PlayerSubtitleController {
     return true;
   }
 
+  private updatePointerControls(event: PointerEvent): void {
+    if (this.view.controlsDismissed || this.view.host.hidden || this.view.panelOpen) return;
+    const { left, top, right, bottom } = this.video.getBoundingClientRect();
+    if (event.clientX >= left && event.clientX < right && event.clientY >= top && event.clientY < bottom) this.showControls();
+    else this.view.setControls(false);
+  }
+
   private showControls(): void {
+    if (this.view.controlsDismissed) return;
     clearTimeout(this.controlsTimer); this.view.setControls(true);
     if (!this.nativeDock) this.mountControls();
     this.controlsTimer = setTimeout(() => { if (!this.view.panelOpen) this.view.setControls(false); }, 2600);
@@ -480,8 +492,7 @@ export class PlayerSubtitleController {
     // Full-page players can keep all content fixed, leaving the HTML box height zero.
     const bounds = parent === fullscreen && (parent === document.documentElement || parent === document.body)
       ? new DOMRect(0, 0, innerWidth, innerHeight) : parent.getBoundingClientRect();
-    let rect = this.video.getBoundingClientRect();
-    if (rect.bottom <= bounds.top || rect.top >= bounds.bottom) rect = bounds;
+    const rect = this.video.getBoundingClientRect();
     const scaleX = parent.clientWidth ? bounds.width / parent.clientWidth : 1;
     const scaleY = parent.clientHeight ? bounds.height / parent.clientHeight : 1;
     this.view.host.style.setProperty("--wp-layer-left", `${(rect.left - bounds.left) / (scaleX || 1) + parent.scrollLeft}px`);

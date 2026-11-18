@@ -32,7 +32,7 @@ afterEach(() => {
 
 it("stops discovery after reload, including in hidden tabs, without recreating orphan controls", async () => {
   vi.spyOn(document, "visibilityState", "get").mockReturnValue("hidden");
-  document.body.innerHTML = '<div><video></video></div>';
+  document.body.innerHTML = '<div><video src="main.webm"></video></div>';
   manager = new VideoSubtitleManager();
   const player = vi.mocked(PlayerSubtitleController).mock.results[0].value;
   vi.mocked(sendRuntimeRequest).mockClear();
@@ -50,29 +50,29 @@ it("stops discovery after reload, including in hidden tabs, without recreating o
 });
 
 it("discovers a video inserted into an already mounted open shadow root", async () => {
-  document.body.innerHTML = '<div class="main"><video></video></div><div id="shadow-player"></div>';
+  document.body.innerHTML = '<div class="main"><video src="main.webm"></video></div><div id="shadow-player"></div>';
   const shadow = document.querySelector("#shadow-player")!.attachShadow({ mode: "open" });
   manager = new VideoSubtitleManager();
   expect(PlayerSubtitleController).toHaveBeenCalledTimes(1);
-  shadow.innerHTML = '<div style="position:relative"><video></video></div>';
+  shadow.innerHTML = '<div style="position:relative"><video src="embedded.webm"></video></div>';
   await vi.advanceTimersByTimeAsync(200);
   expect(PlayerSubtitleController).toHaveBeenCalledTimes(2);
 });
 
 it("discovers a late shadow-root video while an existing player stays connected", async () => {
-  document.body.innerHTML = '<div><video></video></div><div id="late-player"></div>';
+  document.body.innerHTML = '<div><video src="main.webm"></video></div><div id="late-player"></div>';
   manager = new VideoSubtitleManager();
   expect(PlayerSubtitleController).toHaveBeenCalledTimes(1);
-  document.querySelector("#late-player")!.attachShadow({ mode: "open" }).innerHTML = '<div><video></video></div>';
+  document.querySelector("#late-player")!.attachShadow({ mode: "open" }).innerHTML = '<div><video src="embedded.webm"></video></div>';
   await vi.advanceTimersByTimeAsync(6100);
   expect(PlayerSubtitleController).toHaveBeenCalledTimes(2);
 });
 
 it("defers periodic discovery while hidden and resumes when the page becomes visible", async () => {
   const visibility = vi.spyOn(document, "visibilityState", "get").mockReturnValue("hidden");
-  document.body.innerHTML = '<div><video></video></div><div id="late-player"></div>';
+  document.body.innerHTML = '<div><video src="main.webm"></video></div><div id="late-player"></div>';
   manager = new VideoSubtitleManager();
-  document.querySelector("#late-player")!.attachShadow({ mode: "open" }).innerHTML = '<div><video></video></div>';
+  document.querySelector("#late-player")!.attachShadow({ mode: "open" }).innerHTML = '<div><video src="embedded.webm"></video></div>';
   await vi.advanceTimersByTimeAsync(6100);
   expect(PlayerSubtitleController).toHaveBeenCalledTimes(1);
   visibility.mockReturnValue("visible");
@@ -82,7 +82,7 @@ it("defers periodic discovery while hidden and resumes when the page becomes vis
 });
 
 it("reinitializes discovery after a page returns from the browser back-forward cache", async () => {
-  document.body.innerHTML = '<div><video></video></div>';
+  document.body.innerHTML = '<div><video src="main.webm"></video></div>';
   initVideoSubtitles();
   await vi.advanceTimersByTimeAsync(0);
   expect(PlayerSubtitleController).toHaveBeenCalledTimes(1);
@@ -97,13 +97,13 @@ it("reinitializes discovery after a page returns from the browser back-forward c
 });
 
 it("removes video controls when globally disabled and restores discovery when enabled again", async () => {
-  document.body.innerHTML = '<div><video></video></div>';
+  document.body.innerHTML = '<div><video src="main.webm"></video></div>';
   initVideoSubtitles(); await vi.advanceTimersByTimeAsync(0);
   const first = vi.mocked(PlayerSubtitleController).mock.results[0].value;
   changed({ [SETTINGS_KEY]: { newValue: { ...DEFAULT_SETTINGS, videoTranslation: normalizeVideoTranslation({ enabled: false }) } } }, "local");
   expect(first.dispose).toHaveBeenCalledOnce();
   await expect(openVideoSubtitles()).resolves.toEqual({ opened: false });
-  document.querySelector('video')!.replaceWith(document.createElement('video'));
+  document.querySelector('video')!.replaceWith(document.querySelector('video')!.cloneNode());
   await vi.advanceTimersByTimeAsync(6100);
   expect(PlayerSubtitleController).toHaveBeenCalledTimes(1);
   changed({ [SETTINGS_KEY]: { newValue: DEFAULT_SETTINGS } }, "local");
@@ -111,7 +111,7 @@ it("removes video controls when globally disabled and restores discovery when en
 });
 
 it("keeps controls absent when a disable arrives before the initial settings read finishes", async () => {
-  document.body.innerHTML = '<div><video></video></div>';
+  document.body.innerHTML = '<div><video src="main.webm"></video></div>';
   let finish!: (value: typeof DEFAULT_SETTINGS) => void;
   vi.mocked(sendRuntimeRequest).mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
   initVideoSubtitles();
@@ -122,17 +122,18 @@ it("keeps controls absent when a disable arrives before the initial settings rea
 });
 
 it("keeps a manually enabled session when a site replaces the video element", async () => {
-  document.body.innerHTML = '<div><video></video></div>';
+  document.body.innerHTML = '<div><video src="main.webm"></video></div>';
   manager = new VideoSubtitleManager();
   vi.mocked(PlayerSubtitleController).mock.results[0].value.enabled = true;
-  document.querySelector('video')!.replaceWith(document.createElement('video'));
+  const video = document.querySelector('video')!;
+  video.replaceWith(video.cloneNode());
   await vi.advanceTimersByTimeAsync(200);
   expect(PlayerSubtitleController).toHaveBeenCalledTimes(2);
   expect(vi.mocked(PlayerSubtitleController).mock.results[1].value.start).toHaveBeenCalledOnce();
 });
 
 it("opens the main paused video rather than a small autoplay preview", () => {
-  document.body.innerHTML = '<div><video id="main"></video></div><div><video id="preview"></video></div>';
+  document.body.innerHTML = '<div><video id="main" src="main.webm"></video></div><div><video id="preview" src="preview.webm"></video></div>';
   const preview = document.querySelector<HTMLVideoElement>('#preview')!;
   Object.defineProperty(preview, 'paused', { value: false });
   vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
@@ -144,7 +145,7 @@ it("opens the main paused video rather than a small autoplay preview", () => {
 });
 
 it("replaces inactive offscreen controllers when scrolling a long video feed", async () => {
-  document.body.innerHTML = Array.from({ length: 13 }, (_, index) => `<div><video id="video-${index}"></video></div>`).join('');
+  document.body.innerHTML = Array.from({ length: 13 }, (_, index) => `<div><video id="video-${index}" src="${index}.webm"></video></div>`).join('');
   const videos = [...document.querySelectorAll('video')];
   let scrolled = false;
   vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
@@ -157,4 +158,32 @@ it("replaces inactive offscreen controllers when scrolling a long video feed", a
   scrolled = true; window.dispatchEvent(new Event('scroll')); await vi.advanceTimersByTimeAsync(200);
   expect(vi.mocked(PlayerSubtitleController).mock.calls.some(([video]) => video === videos[12])).toBe(true);
   expect(vi.mocked(PlayerSubtitleController).mock.results.slice(0, 12).filter(result => result.value.dispose.mock.calls.length)).toHaveLength(1);
+});
+
+it("ignores empty and decorative videos while accepting playable media sources", () => {
+  document.body.innerHTML = `
+    <video id="empty" controls src=" "><source src=""></video>
+    <video id="background" muted loop src="background.webm"></video>
+    <video id="native" controls muted loop><source src="main.webm"></video>
+    <div class="video-js"><video id="custom" muted loop src="custom.webm"></video></div>
+    <video id="stream"></video>`;
+  Object.defineProperty(document.querySelector("#stream"), "srcObject", { value: {} });
+  manager = new VideoSubtitleManager();
+  expect(vi.mocked(PlayerSubtitleController).mock.calls.map(([video]) => video.id)).toEqual(["native", "custom", "stream"]);
+});
+
+it("discovers a shadow video when its source is populated and removes controls when cleared", async () => {
+  document.body.innerHTML = '<div id="host"></div>';
+  const shadow = document.querySelector("#host")!.attachShadow({ mode: "open" });
+  shadow.innerHTML = '<video controls><source></video>';
+  manager = new VideoSubtitleManager();
+  expect(manager.open()).toBe(false);
+  const source = shadow.querySelector("source")!;
+  source.src = "lazy.webm";
+  await vi.advanceTimersByTimeAsync(200);
+  expect(PlayerSubtitleController).toHaveBeenCalledOnce();
+  source.remove();
+  await vi.advanceTimersByTimeAsync(200);
+  expect(vi.mocked(PlayerSubtitleController).mock.results[0].value.dispose).toHaveBeenCalledOnce();
+  expect(manager.open()).toBe(false);
 });

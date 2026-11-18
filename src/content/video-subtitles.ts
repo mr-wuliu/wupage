@@ -1,5 +1,6 @@
 import { PlayerSubtitleController } from "./video-player";
 import { playerContainer, queryVideoRoots, videoPlatform } from "../video/platforms";
+import { hasCustomPlayer } from "../video/player-controls";
 import { sendRuntimeRequest } from "./runtime";
 import { normalizeVideoTranslation, videoPriority } from "../shared/video";
 import { SETTINGS_KEY } from "../shared/defaults";
@@ -10,6 +11,10 @@ import { hasExtensionContext } from "../shared/extension-context";
 
 let current: VideoSubtitleManager | undefined;
 let feature: { ready: Promise<void> } | undefined;
+
+const videoObservation: MutationObserverInit = {
+  childList: true, subtree: true, attributes: true, attributeFilter: ["src", "controls", "loop", "muted"]
+};
 
 export async function initEmbeddedVideoSubtitles(): Promise<void> {
   await initializeInterfaceLanguage();
@@ -72,11 +77,12 @@ export class VideoSubtitleManager {
 
   constructor() {
     this.observer = new MutationObserver(records => {
-      if (records.some(record => [...record.addedNodes, ...record.removedNodes].some(node => node instanceof Element
-        && !node.matches("[data-wupage-video],[data-wupage-video-style]")
-        && (node.matches("video,disney-web-player") || !!node.querySelector("video") || !!node.shadowRoot)))) this.schedule();
+      if (records.some(record => record.target instanceof HTMLVideoElement
+        || (record.target instanceof HTMLSourceElement && record.target.parentElement instanceof HTMLVideoElement)
+        || [...record.addedNodes, ...record.removedNodes].some(node => node instanceof Element
+          && !node.matches("[data-wupage-video],[data-wupage-video-style]")
+          && (node.matches("video,disney-web-player") || !!node.querySelector("video") || !!node.shadowRoot)))) this.schedule();
     });
-    this.observer.observe(document.documentElement, { childList: true, subtree: true });
     this.timer = setInterval(() => {
       if (!hasExtensionContext()) { this.dispose(); return; }
       // attachShadow() does not mutate the light DOM. Revisit connected hosts
@@ -93,6 +99,7 @@ export class VideoSubtitleManager {
     document.addEventListener("visibilitychange", this.navigate);
     document.addEventListener("loadedmetadata", this.navigate, true);
     document.addEventListener("playing", this.navigate, true);
+    document.addEventListener("emptied", this.navigate, true);
     this.refresh();
   }
 
@@ -104,10 +111,20 @@ export class VideoSubtitleManager {
   refresh(): void {
     if (this.disposed) return;
     if (!hasExtensionContext()) { this.dispose(); return; }
+    const platform = videoPlatform();
     this.observer.disconnect();
-    const candidates = queryVideoRoots(document, root => this.observer.observe(root, { childList: true, subtree: true }))
+    const candidates = queryVideoRoots(document, root => this.observer.observe(root, videoObservation))
+      .filter(video => {
+        if (video.title === "Advertisement") return false;
+        const hasSource = video.currentSrc || video.srcObject || video.getAttribute("src")?.trim()
+          || [...video.children].some(child => child instanceof HTMLSourceElement && child.getAttribute("src")?.trim());
+        if (!hasSource) return false;
+        // Muted loops are often decorative. Keep native controls, caption tracks and recognized custom players.
+        return !video.loop || !(video.muted || video.defaultMuted) || video.controls || hasCustomPlayer(video, platform)
+          || Array.from(video.textTracks).some(track => track.kind === "subtitles" || track.kind === "captions");
+      })
       .map(video => ({ video, rect: video.getBoundingClientRect() }))
-      .filter(({ video, rect }) => video.title !== "Advertisement" && rect.width >= 160 && rect.height >= 90)
+      .filter(({ rect }) => rect.width >= 160 && rect.height >= 90)
       .map(({ video, rect }) => ({ video, score: this.rank(video, rect) }))
       .sort((a, b) => Number(!!this.players.get(b.video)?.enabled) - Number(!!this.players.get(a.video)?.enabled) || b.score - a.score)
       .slice(0, 12);
@@ -118,7 +135,6 @@ export class VideoSubtitleManager {
     }
     for (const { video } of candidates) {
       if (this.players.has(video)) continue;
-      const platform = videoPlatform();
       const player = new PlayerSubtitleController(video, playerContainer(video, platform), platform, video === candidates[0].video);
       this.players.set(video, player);
       if (this.resumePlayback) { this.resumePlayback = false; void player.start(); }
@@ -162,6 +178,7 @@ export class VideoSubtitleManager {
     document.removeEventListener("visibilitychange", this.navigate);
     document.removeEventListener("loadedmetadata", this.navigate, true);
     document.removeEventListener("playing", this.navigate, true);
+    document.removeEventListener("emptied", this.navigate, true);
     for (const player of this.players.values()) player.dispose(); this.players.clear();
     this.announce(); if (current === this) current = undefined;
   }

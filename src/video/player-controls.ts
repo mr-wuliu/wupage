@@ -31,7 +31,11 @@ const COMMON_CONTROLS: ControlRule[] = [
   { selector: ".shaka-controls-button-panel", before: ".shaka-caption-button,.shaka-overflow-menu-button,.shaka-fullscreen-button" },
   { selector: 'media-control-bar', before: "media-captions-button,media-settings-menu-button,media-fullscreen-button" }
 ];
-const PLAYER_SCOPE = ".html5-video-player,.bpx-player-container,.bilibili-player-video-wrap,.video-js,.plyr,.jwplayer,.dplayer,.art-video-player,.xgplayer,.shaka-video-container,media-controller";
+const PLAYER_SCOPE = ".html5-video-player,.bpx-player-container,.bilibili-player-video-wrap,.video-js,.plyr,.jwplayer,.dplayer,.art-video-player,.xgplayer,.shaka-video-container,media-controller,[data-testid='videoPlayer']";
+
+export function hasCustomPlayer(video: HTMLVideoElement, platform?: VideoPlatform): boolean {
+  return !!video.closest(platform ? `${platform.player},${PLAYER_SCOPE}` : PLAYER_SCOPE);
+}
 
 export function playerContains(element: Element, descendant: Node): boolean {
   let node: Node = descendant;
