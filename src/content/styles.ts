@@ -870,6 +870,47 @@ const CONTENT_CSS = `
       outline-offset: 2px;
     }
 
+    #wupage-floating-menu .wupage-floating-feature {
+      display: flex;
+      min-width: 0;
+      border: 2px solid var(--wp-accent, #116466);
+      border-radius: 8px;
+      background: var(--wp-selected, #e4eeeb);
+      color: var(--wp-accent, #116466);
+    }
+    #wupage-floating-menu .wupage-floating-feature .wupage-feature-button {
+      flex: 1;
+      min-height: 36px;
+      padding: 0 3px;
+      border: 0;
+      background: transparent;
+      box-shadow: none;
+    }
+    #wupage-floating-visibility {
+      position: relative;
+      display: grid;
+      place-items: center;
+      flex: 0 0 28px;
+      border-left: 1px solid var(--wp-border, #c9d1cf);
+      font-size: 13px;
+    }
+    #wupage-floating-visibility select {
+      all: initial;
+      position: absolute;
+      inset: 0;
+      box-sizing: border-box;
+      width: 100%;
+      height: 100%;
+      opacity: 0;
+      cursor: pointer;
+      font: 14px system-ui, sans-serif;
+    }
+    #wupage-floating-visibility:focus-within {
+      outline: 2px solid var(--wp-accent, #116466);
+      outline-offset: 2px;
+    }
+    #wupage-floating-menu[data-touch="true"] #wupage-floating-visibility { flex-basis: 44px; }
+
     #wupage-floating-menu .wupage-feature-indicator {
       position: relative;
       flex: 0 0 auto;

@@ -13,6 +13,7 @@ import { DEFAULT_OCR_SETTINGS } from "../shared/ocr-service";
 import { setupLocalModelControl } from "../local/control";
 import { ensureProviderIconStyles, providerIconMarkup } from "../shared/provider-icons";
 import { setupAutoTranslationControls } from "./auto-translation";
+import { setupExcludedSites } from "./excluded-sites";
 import { setupElementRuleControls } from "./element-exclusions";
 import { renderProviderUsage, updateProviderScheduling } from "./provider-usage";
 import { setupSettingsNavigation } from "./navigation";
@@ -51,6 +52,7 @@ const pdfTranslationPageRadius = query<HTMLInputElement>("#pdfTranslationPageRad
 const pdfTranslationPageRadiusField = query<HTMLElement>("#pdfTranslationPageRadiusField");
 const cacheEnabled = query<HTMLInputElement>("#cacheEnabled");
 const floatingBallEnabled = query<HTMLInputElement>("#floatingBallEnabled");
+const floatingBallExclusions = setupExcludedSites(query<HTMLElement>("#floatingBallExclusions"));
 const selectionTranslationEnabled = query<HTMLInputElement>("#selectionTranslationEnabled");
 const selectionTranslationFields = query<HTMLFieldSetElement>("#selectionTranslationFields");
 const selectionDictionary = query<HTMLSelectElement>("#selectionDictionary");
@@ -251,6 +253,7 @@ function renderGeneralPageSettings(value: ExtensionSettings): void {
   renderLanguageOptions(sourceLang, value.sourceLang, SOURCE_LANGUAGES);
   cacheEnabled.checked = value.cacheEnabled;
   floatingBallEnabled.checked = value.floatingBallEnabled;
+  floatingBallExclusions.render(value.floatingBallExcludedSites);
   setImageTranslationToggle(imageTranslationEnabled, value.imageTranslationEnabled === true);
   imageTranslationContextMenuEnabled.checked = value.imageTranslationContextMenuEnabled !== false;
   imageTranslationFloatingEnabled.checked = value.imageTranslationFloatingEnabled !== false;
@@ -1102,6 +1105,7 @@ function readSettingsFromForm(): ExtensionSettings {
     cacheEnabled: cacheEnabled.checked,
     statisticsEnabled: statisticsControls.read(),
     floatingBallEnabled: floatingBallEnabled.checked,
+    floatingBallExcludedSites: floatingBallExclusions.read(),
     selectionTranslation: {
       enabled: selectionTranslationEnabled.checked,
       provider: selectionDictionary.value as DictionaryProvider,

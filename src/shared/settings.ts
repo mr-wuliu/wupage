@@ -1,7 +1,7 @@
 import { INTERFACE_LANGUAGE_KEY, t, type InterfaceLanguage } from "./i18n";
 import { DEFAULT_SETTINGS, SETTINGS_KEY } from "./defaults";
 import { isLlmProvider } from "./performance";
-import { normalizeAutoTranslation } from "./auto-translation";
+import { normalizeAutoTranslation, normalizeExcludedSites } from "./auto-translation";
 import { normalizeSelectionTranslation } from "./dictionary";
 import { normalizeAppearance } from "./appearance";
 import { normalizeShortcutEnabled, normalizeShortcuts } from "./shortcuts";
@@ -69,6 +69,7 @@ export function normalizeSettings(value: unknown): ExtensionSettings {
     shortcutEnabled: normalizeShortcutEnabled(input.shortcutEnabled, input.shortcuts, input.localShortcuts),
     appearance: normalizeAppearance(input.appearance),
     autoTranslation: normalizeAutoTranslation(input.autoTranslation),
+    floatingBallExcludedSites: normalizeExcludedSites(input.floatingBallExcludedSites),
     frameTranslation: normalizeFrameTranslation(input.frameTranslation),
     selectionTranslation: normalizeSelectionTranslation(input.selectionTranslation),
     targetLang: readString(input.targetLang, DEFAULT_SETTINGS.targetLang),

@@ -95,6 +95,47 @@ describe("floating translation interactions", () => {
     expect(new Set(ids).size).toBe(ids.length);
   });
 
+  function chooseVisibility(scope: "page" | "site"): void {
+    const picker = query<HTMLSelectElement>("#wupage-floating-menu [data-role='floating-visibility']");
+    picker.value = scope;
+    picker.dispatchEvent(new Event("change", { bubbles: true }));
+  }
+
+  it("offers temporary hiding in the panel and keeps only the translate button on the ball", () => {
+    vi.useFakeTimers();
+    const menu = hover();
+    vi.advanceTimersByTime(500);
+    expect(menu.hidden).toBe(false);
+    expect(Array.from(query("#wupage-floating-hitbox").children)).toEqual([query("#wupage-floating-ball")]);
+    chooseVisibility("page");
+    storageChanged({ [SETTINGS_KEY]: { newValue: stored } }, "local");
+    vi.advanceTimersByTime(600);
+    expect(query<HTMLElement>("#wupage-floating-hitbox").hidden).toBe(true);
+    expect(menu.hidden).toBe(true);
+    expect(vi.mocked(sendRuntimeRequest).mock.calls.some(([request]) => request.type === "SAVE_SETTINGS")).toBe(false);
+    expect(translationRequests()).toHaveLength(0);
+  });
+
+  it("hides the current host and port until its exact exclusion is removed", async () => {
+    const menu = query<HTMLElement>("#wupage-floating-menu");
+    const hitbox = query<HTMLElement>("#wupage-floating-hitbox");
+    const unrelated = "other." + location.host;
+    stored.floatingBallExcludedSites = [unrelated];
+    storageChanged({ [SETTINGS_KEY]: { newValue: stored } }, "local");
+    query("#wupage-floating-ball").dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown" }));
+    expect(menu.hidden).toBe(false);
+    chooseVisibility("site");
+    await vi.waitFor(() => expect(hitbox.hidden).toBe(true));
+    expect(stored.floatingBallEnabled).toBe(true);
+    expect(stored.floatingBallExcludedSites).toEqual([unrelated, location.host]);
+    expect(menu.hidden).toBe(true);
+    stored.floatingBallExcludedSites = [unrelated];
+    storageChanged({ [SETTINGS_KEY]: { newValue: stored } }, "local");
+    expect(hitbox.hidden).toBe(false);
+    expect(menu.hidden).toBe(true);
+    expect(translationRequests()).toHaveLength(0);
+  });
+
   it("initializes the menu before a first translation failure reveals it without hovering", async () => {
     const menu = query<HTMLElement>("#wupage-floating-menu");
     expect(menu.hidden).toBe(true);
