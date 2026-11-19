@@ -345,6 +345,7 @@ const CONTENT_CSS = `
       text-transform: none;
       user-select: none;
       -webkit-user-select: none;
+      -webkit-tap-highlight-color: transparent !important;
       -webkit-touch-callout: none;
       white-space: nowrap;
       touch-action: none;
