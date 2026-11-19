@@ -36,6 +36,7 @@ const server = createServer(async (request, response) => {
     <title>Tablet reading fixture</title><style>
       body{margin:0;background:#edf2f8;color:#172026;font:18px/1.7 system-ui}
       main{max-width:760px;margin:48px auto;padding:24px;background:white;border-radius:16px}
+      button{-webkit-tap-highlight-color:rgba(51,181,229,.4)!important}
     </style></head><body><main><h1>A quiet place to read</h1>
     <p>Good translation helps people read and understand ideas across languages.</p>
     </main></body></html>`);
@@ -77,6 +78,8 @@ try {
   const ball = page.locator('#wupage-floating-ball');
   const menu = page.locator('#wupage-floating-menu');
   await ball.waitFor({ state: 'visible' });
+  assert.equal(await ball.evaluate(el => getComputedStyle(el).webkitTapHighlightColor), 'rgba(0, 0, 0, 0)',
+    'Tapping the round button must not paint the rectangular browser highlight');
   const touch = await context.newCDPSession(page);
   const touchPoint = async () => {
     const box = await ball.boundingBox();
