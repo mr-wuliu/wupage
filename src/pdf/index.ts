@@ -325,6 +325,9 @@ async function openPdfUrl(value: string, autoTranslate: boolean, operation: Abor
     showLoading(local ? t("readingLocalPdf") : t("downloadingPdf"), local ? t("readingLocalDocument") : t("readingOnlineDocument"));
     assertCurrentOpen(operation);
     const response = await fetchWithTimeout(url.toString(), PDF_DOWNLOAD_TIMEOUT_MS, operation.signal);
+    if (response.status === 403 && (url.searchParams.has("X-Amz-Signature") || url.searchParams.has("X-Goog-Signature"))) {
+      throw new Error(t("pdfTemporaryLinkDenied"));
+    }
     if (!response.ok) throw new Error(t("couldNotReadFileHttp", response.status));
     const contentType = response.headers.get("content-type") ?? "";
     if (contentType && !contentType.includes("pdf") && !url.pathname.toLowerCase().endsWith(".pdf")) {

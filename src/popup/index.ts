@@ -8,7 +8,7 @@ import "./styles.css";
 import "../shared/appearance.css";
 import { setupAppearance } from "../shared/appearance-runtime";
 import { setImageTranslationToggle, setupOcrControl } from "../shared/ocr-control";
-import { getExtensionDetailsUrl, isLikelyPdfUrl, openPdfWorkspaceInNewTab } from "../pdf/launch";
+import { getExtensionDetailsUrl, getPdfTabSource, isLikelyPdfUrl, openPdfWorkspaceInNewTab } from "../pdf/launch";
 import { localProviderNotice, renderLocalModelNotice } from "../shared/local-notice";
 import { enhanceProviderSelect } from "../shared/provider-picker";
 import { addAutoTranslationWebsite, currentWebsitePattern, excludeAutoTranslationWebsite, hasAutoTranslationWebsite, normalizeAutoTranslation, setAutoTranslationEnabled } from "../shared/auto-translation";
@@ -420,7 +420,7 @@ async function openPdfTranslator(): Promise<void> {
   const pageUrl = new URL(chrome.runtime.getURL("pdf.html"));
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   if (tab?.url && isLikelyPdfUrl(tab.url)) {
-    pageUrl.searchParams.set("url", tab.url);
+    pageUrl.searchParams.set("url", await getPdfTabSource(tab.id, tab.url));
     pageUrl.searchParams.set("translate", "1");
   }
   await chrome.tabs.create({ url: pageUrl.toString() });

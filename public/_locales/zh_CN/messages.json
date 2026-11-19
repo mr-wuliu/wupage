@@ -3749,6 +3749,9 @@
   "readingOnlineDocument": {
     "message": "正在读取在线文档…"
   },
+  "pdfTemporaryLinkDenied": {
+    "message": "临时下载链接被拒绝（HTTP 403），可能已过期。请重新打开发布网站提供的原始 PDF 链接，或将原始链接粘贴到此页。"
+  },
   "couldNotReadFileHttp": {
     "message": "读取失败（HTTP $ARG1$）",
     "placeholders": {

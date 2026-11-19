@@ -562,6 +562,13 @@ describe("PDF source opening", () => {
     expect(document.querySelector<HTMLButtonElement>("#translateDocument")!.disabled).toBe(true);
   });
 
+  it("points to the publisher link when a manually entered signed URL has expired", async () => {
+    fetchPdf.mockResolvedValue(new Response(null, { status: 403 }));
+    await launch("https://download.example/temporary.pdf?X-Amz-Signature=expired");
+    await vi.waitFor(() => expect(document.querySelector("#statusToast")?.textContent).toContain("原始 PDF 链接"));
+    expect(getDocument).not.toHaveBeenCalled();
+  });
+
   it("reports a missing local file without attempting translation", async () => {
     fetchPdf.mockRejectedValue(new Error("File not found"));
     await launch(fileUrl);
