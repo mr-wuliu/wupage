@@ -81,6 +81,35 @@ try {
   const menu = page.locator('#wupage-floating-menu');
   const hitbox = page.locator('#wupage-floating-hitbox');
   await ball.waitFor({state:'visible'});
+  const sibling = await context.newPage();
+  await sibling.goto(origin + '/another-page');
+  const siblingBall = sibling.locator('#wupage-floating-hitbox');
+  await siblingBall.waitFor({ state: 'visible' });
+  await ball.hover();
+  await menu.waitFor({ state: 'visible' });
+  const visibility = menu.locator('#wupage-floating-visibility-select');
+  await visibility.selectOption('page');
+  await hitbox.waitFor({ state: 'hidden' });
+  assert.equal(await siblingBall.isVisible(), true);
+  await page.reload();
+  await ball.hover();
+  await menu.waitFor({ state: 'visible' });
+  await visibility.click();
+  await page.keyboard.press('End');
+  await page.keyboard.press('Enter');
+  await hitbox.waitFor({ state: 'hidden' });
+  await siblingBall.waitFor({ state: 'hidden' });
+  await sibling.reload();
+  await sibling.locator('#wupage-floating-hitbox[data-position-ready="true"]').waitFor({ state: 'attached' });
+  assert.equal(await siblingBall.isVisible(), false);
+  await sibling.goto(origin.replace('127.0.0.1', 'localhost'));
+  await siblingBall.waitFor({ state: 'visible' });
+  await sibling.close();
+  await control.reload();
+  await control.locator('#floatingBallExclusions button').click();
+  await control.locator('#save').click();
+  await hitbox.waitFor({ state: 'visible' });
+  assert.equal(calls, 0, 'visibility controls must not start translation');
   const message = request => worker.evaluate(async ({origin,request}) => {
     const [tab] = await chrome.tabs.query({url:`${origin}/*`});
     return chrome.tabs.sendMessage(tab.id,request);
@@ -413,7 +442,8 @@ try {
     'display modes','restore original','drag suppression','drag position persistence','keyboard','failure and retry',
     'popup state synchronization','popup translation toggle','popup floating visibility','popup paragraph mode',
     'popup stop while translating','popup late response suppressed','persistent cache and clear','debug panel',
-    'language persistence','open settings','390px viewport','320px short viewport','hide preference persistence'];
+    'language persistence','open settings','390px viewport','320px short viewport','hide preference persistence',
+    'temporary hiding resets on reload','exact-site exclusions across tabs','restore the floating button from settings'];
   await fs.writeFile(path.join(output,'report.json'), JSON.stringify({passed:true,calls,hoverElapsed,errors,checks},null,2));
   console.log(JSON.stringify({passed:true,calls,output}));
 } catch(error) {

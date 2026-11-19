@@ -18,6 +18,7 @@ beforeEach(async () => {
   document.open(); document.write(readFileSync("options.html", "utf8")); document.close();
   stored = normalizeSettings({ ...structuredClone(DEFAULT_SETTINGS), activeProviderId: "deepseek",
     sourceLang: "en", targetLang: "ja", cacheEnabled: false, floatingBallEnabled: false, translateCodeComments: false,
+    floatingBallExcludedSites: ["one.example", "two.example"],
     imageTranslationContextMenuEnabled: false, imageTranslationFloatingEnabled: false,
     translationDisplayMode: "replace", frameTranslation: { enabled: false, excludeMatches: ["example.com"] },
     selectionTranslation: { enabled: true, provider: "bing", style: "underline" },
@@ -62,7 +63,7 @@ async function save(): Promise<void> {
 }
 
 it.each<[string, (keyof ExtensionSettings)[]]>([
-  ["generalSettings", ["sourceLang", "targetLang", "translationDisplayMode", "imageTranslationEnabled", "imageTranslationContextMenuEnabled", "imageTranslationFloatingEnabled", "cacheEnabled", "floatingBallEnabled", "translateCodeComments", "frameTranslation"]],
+  ["generalSettings", ["sourceLang", "targetLang", "translationDisplayMode", "imageTranslationEnabled", "imageTranslationContextMenuEnabled", "imageTranslationFloatingEnabled", "cacheEnabled", "floatingBallEnabled", "floatingBallExcludedSites", "translateCodeComments", "frameTranslation"]],
   ["selectionTranslationSettings", ["selectionTranslation"]],
   ["autoTranslationSettings", ["autoTranslation"]],
   ["elementExclusionSettings", ["elementExclusions", "elementInclusions"]],
@@ -78,6 +79,14 @@ it.each<[string, (keyof ExtensionSettings)[]]>([
   const expected = { ...before, ...Object.fromEntries(keys.map(key => [key, structuredClone(DEFAULT_SETTINGS[key])])) };
   expect(stored).toEqual(normalizeSettings(expected));
   expect(document.querySelector("#shortcutSettings #resetShortcuts")).toBeNull();
+});
+
+it("restores a site while preserving an exclusion added from another tab before saving", async () => {
+  query<HTMLButtonElement>("#floatingBallExclusions button").click();
+  expect(stored.floatingBallExcludedSites).toEqual(["one.example", "two.example"]);
+  stored.floatingBallExcludedSites!.push("three.example");
+  await save();
+  expect(stored.floatingBallExcludedSites).toEqual(["two.example", "three.example"]);
 });
 
 it("keeps invalid drafts on other pages untouched and does not validate them during a local reset", () => {

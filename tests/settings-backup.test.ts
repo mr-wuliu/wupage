@@ -17,6 +17,7 @@ function fixture(): ExtensionSettings {
   const settings = structuredClone(DEFAULT_SETTINGS);
   settings.imageTranslationContextMenuEnabled = false;
   settings.imageTranslationFloatingEnabled = false;
+  settings.floatingBallExcludedSites = ["docs.example.com", "localhost:443"];
   settings.appearance!.paragraphHighlightEnabled = false;
   settings.videoTranslation = { enabled: false, showOriginal: false, fontSize: 26, background: "none", preferredSource: "en", enabledSites: ["youtube.com"],
     originalPosition: "below", displayMode: "western", sourceStyle: { fontSize: 18, fontFamily: "serif", fontWeight: 400 },

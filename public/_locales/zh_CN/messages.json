@@ -1,4 +1,17 @@
 {
+  "hideFloatingBall": {
+    "message": "隐藏悬浮球"
+  },
+  "hideFloatingBallUntilReload": {
+    "message": "本页暂时隐藏，刷新后恢复"
+  },
+  "alwaysHideFloatingBallOn": {
+    "message": "在 $SITE$ 始终隐藏",
+    "placeholders": { "site": { "content": "$1" } }
+  },
+  "floatingBallExcludedSites": {
+    "message": "隐藏悬浮球的网站"
+  },
   "textTranslationService": {
     "message": "文本翻译服务"
   },
@@ -1454,7 +1467,7 @@
     "message": "翻译功能"
   },
   "hideTheFloatingButtonTurnItOnAgain": {
-    "message": "隐藏悬浮球，可在扩展弹窗中重新开启"
+    "message": "在所有网站关闭悬浮球，可在扩展弹窗中重新开启"
   },
   "clickTheFloatingButtonToTranslateThePage": {
     "message": "点击悬浮球即可翻译全文"

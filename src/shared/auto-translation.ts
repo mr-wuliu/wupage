@@ -79,20 +79,27 @@ function explicitPort(pattern: string): string {
   return match ? String(Number(match[1])) : "";
 }
 
+export function normalizeExcludedSites(value: unknown): string[] {
+  const excluded = new Set<string>();
+  if (Array.isArray(value)) for (const site of value) {
+    if (typeof site !== "string") continue;
+    try {
+      const pattern = normalizeSitePattern(site);
+      const url = sitePatternUrl(pattern);
+      if (url.pathname === "/" && !url.hostname.startsWith("*.")) {
+        excluded.add(hasSitePatternProtocol(pattern) ? normalizeSitePattern(url.host) : pattern);
+      }
+    } catch { /* Ignore invalid imported exclusions. */ }
+  }
+  return [...excluded];
+}
+
 export function normalizeAutoTranslation(value: unknown): AutoTranslationSettings {
   const input = value && typeof value === "object" ? value as Record<string, unknown> : {};
   const presets = new Set(AUTO_TRANSLATION_PRESETS.map(site => site.domain));
   const removed = Array.isArray(input.removedPresetSites)
     ? [...new Set(input.removedPresetSites.filter((site): site is string => typeof site === "string" && presets.has(site)))] : [];
-  const excluded = new Set<string>();
-  if (Array.isArray(input.excludedSites)) for (const site of input.excludedSites) {
-    if (typeof site !== "string") continue;
-    try {
-      const pattern = normalizeSitePattern(site);
-      const url = sitePatternUrl(pattern);
-      if (url.pathname === "/" && !url.hostname.startsWith("*.")) excluded.add(currentWebsitePattern(url.href)!);
-    } catch { /* Ignore invalid imported exclusions. */ }
-  }
+  const excluded = normalizeExcludedSites(input.excludedSites);
   const patterns = new Set<string>();
   const ids = new Set<string>();
   const customSites: AutoTranslationSite[] = [];
@@ -113,7 +120,7 @@ export function normalizeAutoTranslation(value: unknown): AutoTranslationSetting
     presetSites: Array.isArray(input.presetSites) ? [...new Set(input.presetSites.filter((site): site is string => typeof site === "string" && presets.has(site) && !removed.includes(site)))] : [],
     customSites,
     ...(removed.length ? { removedPresetSites: removed } : {}),
-    ...(excluded.size ? { excludedSites: [...excluded] } : {})
+    ...(excluded.length ? { excludedSites: excluded } : {})
   };
 }
 

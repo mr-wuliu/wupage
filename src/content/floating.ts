@@ -90,6 +90,9 @@ let paragraphHighlightEnabled = true;
 let paragraphModeRevision = 0;
 let unsubscribeParagraphMode: (() => void) | undefined;
 let floatingBallEnabled = true;
+let hiddenOnPage = false;
+let excludedOnSite = false;
+let currentSite: string | undefined;
 let shortcutEnabled = normalizeShortcutEnabled(undefined);
 let localShortcuts = normalizeLocalShortcuts(undefined);
 let settingsSnapshot = createSettingsSnapshot(readSettings);
@@ -106,6 +109,8 @@ const expandedDebugTaskIds = new Set<number>();
 
 export function initFloatingBall(): void {
   if (document.getElementById(FLOATING_ID)) return;
+  hiddenOnPage = excludedOnSite = false;
+  currentSite = currentWebsitePattern(window.location.href);
   cancelMenuOpen();
   cancelMenuClose();
   cancelLongPress();
@@ -245,10 +250,7 @@ function subscribeToPositionChanges(button: HTMLElement): void {
       shortcutEnabled = normalizeShortcutEnabled(settings.shortcutEnabled, settings.shortcuts, localShortcuts);
       syncParagraphHighlight(settings);
       if (!shortcutEnabled["paragraph-click"]) setActiveParagraph(null);
-      floatingBallEnabled = settings.floatingBallEnabled;
-      applyFloatingBallVisibility();
-      const menu = document.getElementById("wupage-floating-menu");
-      if (menu) applyMenuSettings(menu, settings);
+      applyMenuSettings(document.getElementById("wupage-floating-menu"), settings);
     }
     if (dragging) return;
     const position = changes[POSITION_KEY]?.newValue;
@@ -435,10 +437,19 @@ function createMenu(): void {
         <span>${htmlMessage("contextMenu")}</span>
         <span class="wupage-feature-indicator" aria-hidden="true"></span>
       </button>
-      <button type="button" data-action="close" data-touch-extra class="wupage-feature-button" aria-pressed="true" title="${htmlMessage("hideTheFloatingButtonTurnItOnAgain")}">
-        <span>${htmlMessage("floatingButton")}</span>
-        <span class="wupage-feature-indicator" aria-hidden="true"></span>
-      </button>
+      <div class="wupage-floating-feature" data-touch-extra>
+        <button type="button" data-action="close" class="wupage-feature-button" aria-pressed="true" title="${htmlMessage("hideTheFloatingButtonTurnItOnAgain")}">
+          <span>${htmlMessage("floatingButton")}</span>
+        </button>
+        <span id="wupage-floating-visibility" title="${htmlMessage("hideFloatingBall")}">
+          ${uiIconMarkup("arrow-down-03")}
+          <select id="wupage-floating-visibility-select" data-role="floating-visibility" aria-label="${htmlMessage("hideFloatingBall")}">
+            <option value="" selected disabled hidden>${htmlMessage("hideFloatingBall")}</option>
+            <option value="page">${htmlMessage("hideFloatingBallUntilReload")}</option>
+            ${currentSite ? `<option value="site">${htmlMessage("alwaysHideFloatingBallOn", currentSite)}</option>` : ""}
+          </select>
+        </span>
+      </div>
       <button type="button" data-action="selection-translation" class="wupage-feature-button" title="${htmlMessage("showADictionaryOrTranslationShortcutWhenText")}">
         <span>${htmlMessage("selectionTranslation")}</span><span class="wupage-feature-indicator" aria-hidden="true"></span>
       </button>
@@ -494,6 +505,19 @@ function createMenu(): void {
       void updateFloatingSettings(menu, { activeProviderId: target.value }).catch(showMenuError);
     }
     if (target.dataset.role === "display-mode") void updateDisplayMode(menu, target).catch(showMenuError);
+    if (target.dataset.role === "floating-visibility") {
+      const scope = target.value;
+      target.value = "";
+      if (scope === "page") {
+        hiddenOnPage = true;
+        applyFloatingBallVisibility();
+      } else if (scope === "site" && currentSite) {
+        const site = currentSite;
+        void updateFloatingSettings(menu, settings => ({
+          floatingBallExcludedSites: [...new Set([...(settings.floatingBallExcludedSites ?? []), site])]
+        })).catch(showMenuError);
+      }
+    }
   });
   menu.addEventListener("click", (event) => {
     const target = event.target instanceof Element ? event.target.closest("button") : null;
@@ -585,7 +609,7 @@ function updateHighlight(): void {
 function openMenu(): void {
   cancelMenuOpen();
   cancelMenuClose();
-  if (dragging || !floatingBallEnabled || document.fullscreenElement) return;
+  if (dragging || !canShowFloatingBall()) return;
   const menu = document.getElementById("wupage-floating-menu");
   const button = document.getElementById(FLOATING_ID);
   if (!menu || !button) return;
@@ -598,7 +622,7 @@ function scheduleMenuOpen(): void {
   cancelMenuClose();
   cancelMenuOpen();
   const menu = document.getElementById("wupage-floating-menu");
-  if (dragging || !floatingBallEnabled || !menu || !menu.hidden) return;
+  if (dragging || !canShowFloatingBall() || !menu || !menu.hidden) return;
   menuOpenTimer = window.setTimeout(() => {
     menuOpenTimer = undefined;
     openMenu();
@@ -692,7 +716,11 @@ async function updateMenuState(menu: HTMLElement): Promise<void> {
   applyMenuSettings(menu, settings);
 }
 
-function applyMenuSettings(menu: HTMLElement, settings: ExtensionSettings): void {
+function applyMenuSettings(menu: HTMLElement | null, settings: ExtensionSettings): void {
+  floatingBallEnabled = settings.floatingBallEnabled;
+  excludedOnSite = currentSite !== undefined && settings.floatingBallExcludedSites?.includes(currentSite) === true;
+  applyFloatingBallVisibility();
+  if (!menu) return;
   const automatic = menu.querySelector<HTMLButtonElement>("[data-action='auto-translation']");
   if (automatic) automatic.setAttribute("aria-pressed", String(settings.autoTranslation?.enabled === true));
   menu.dataset.doubaoProvider = String(settings.providers.find((provider) => provider.id === settings.activeProviderId)?.type === "doubao-web");
@@ -869,7 +897,7 @@ function setButtonPosition(button: HTMLElement, left: number, top: number): void
 }
 
 function setMenuOpen(menu: HTMLElement, open: boolean): void {
-  open = open && floatingBallEnabled && !document.fullscreenElement;
+  open = open && canShowFloatingBall();
   cancelMenuOpen();
   cancelMenuClose();
   if (!open) cancelLongPress();
@@ -1055,7 +1083,7 @@ function showMenuError(error: unknown): void {
 function revealMenu(): void {
   const menu = document.getElementById("wupage-floating-menu");
   const ball = document.getElementById(FLOATING_ID);
-  if (menu && ball && floatingBallEnabled && !dragging) {
+  if (menu && ball && canShowFloatingBall() && !dragging) {
     const wasOpen = !menu.hidden;
     setMenuOpen(menu, true);
     positionMenu(menu, ball, wasOpen);
@@ -1390,24 +1418,26 @@ async function syncFloatingBallFromSettings(): Promise<void> {
   syncParagraphHighlight(settings);
   localShortcuts = normalizeLocalShortcuts(settings.localShortcuts);
   shortcutEnabled = normalizeShortcutEnabled(settings.shortcutEnabled, settings.shortcuts, localShortcuts);
-  floatingBallEnabled = settings.floatingBallEnabled;
-  const menu = document.getElementById("wupage-floating-menu");
-  if (menu) applyMenuSettings(menu, settings);
-  applyFloatingBallVisibility();
+  applyMenuSettings(document.getElementById("wupage-floating-menu"), settings);
+}
+
+function canShowFloatingBall(): boolean {
+  return floatingBallEnabled && !hiddenOnPage && !excludedOnSite && !document.fullscreenElement;
 }
 
 function applyFloatingBallVisibility(): void {
   const hitbox = document.getElementById(FLOATING_HITBOX_ID);
   const menu = document.getElementById("wupage-floating-menu");
-  const visible = floatingBallEnabled && !document.fullscreenElement;
+  const visible = canShowFloatingBall();
   if (hitbox) {
+    if (!visible && !hitbox.hidden) setActiveParagraph(null);
     hitbox.hidden = !visible || hitbox.dataset.positionReady !== "true";
   }
   if (!visible) {
+    document.getElementById("wupage-touch-hint")?.remove();
     cancelMenuOpen();
     cancelLongPress();
     if (menu) setMenuOpen(menu, false);
-    setActiveParagraph(null);
   }
 }
 

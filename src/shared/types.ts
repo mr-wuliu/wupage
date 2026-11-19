@@ -223,6 +223,7 @@ export interface ExtensionSettings {
   /** Local usage statistics are collected only after explicit opt-in. */
   statisticsEnabled?: boolean;
   floatingBallEnabled: boolean;
+  floatingBallExcludedSites?: string[];
   contextMenuTranslationEnabled?: boolean;
   imageTranslationEnabled?: boolean;
   imageTranslationContextMenuEnabled?: boolean;

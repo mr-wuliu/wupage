@@ -2,6 +2,7 @@ import { t } from "../shared/i18n";
 import { AUTO_TRANSLATION_PRESETS, normalizeAutoTranslation, normalizeSitePattern, setAutoTranslationEnabled } from "../shared/auto-translation";
 import type { AutoTranslationSettings, AutoTranslationSite } from "../shared/types";
 import { uiIconMarkup } from "../shared/ui-icons";
+import { setupExcludedSites } from "./excluded-sites";
 
 export function setupAutoTranslationControls(
   root: HTMLElement,
@@ -20,26 +21,7 @@ export function setupAutoTranslationControls(
   let sites: Array<AutoTranslationSite & { preset?: string }> = [];
   const controls = new Map<string, HTMLInputElement>();
   let defaultLanguageRule = false;
-  let excludedSites: string[] = [];
-
-  function renderExcludedSites(): void {
-    const group = root.querySelector<HTMLElement>("#autoTranslateExcluded");
-    const list = root.querySelector<HTMLElement>("#autoTranslateExcludedSites");
-    if (!group || !list) return;
-    group.hidden = excludedSites.length === 0;
-    list.replaceChildren();
-    for (const site of excludedSites) {
-      const row = document.createElement("li");
-      const label = document.createElement("span"); label.textContent = site; label.title = site;
-      const remove = document.createElement("button"); remove.type = "button"; remove.innerHTML = uiIconMarkup("cross");
-      remove.title = t("removeExclusionFor", site); remove.setAttribute("aria-label", remove.title);
-      remove.addEventListener("click", () => {
-        excludedSites = excludedSites.filter(value => value !== site);
-        renderExcludedSites();
-      });
-      row.append(label, remove); list.append(row);
-    }
-  }
+  const exclusions = setupExcludedSites(query<HTMLElement>("#autoTranslateExcluded"));
 
   function updateLanguageOption(): void {
     foreignOption.hidden = !enabled.checked;
@@ -112,8 +94,7 @@ export function setupAutoTranslationControls(
   return {
     render(value): void {
       const settings = normalizeAutoTranslation(value);
-      excludedSites = [...(settings.excludedSites ?? [])];
-      renderExcludedSites();
+      exclusions.render(settings.excludedSites);
       enabled.checked = settings.enabled; foreign.checked = settings.nonTargetLanguage;
       defaultLanguageRule = !settings.enabled && setAutoTranslationEnabled(settings, true).nonTargetLanguage;
       updateLanguageOption();
@@ -148,11 +129,12 @@ export function setupAutoTranslationControls(
       });
       const remaining = new Set(normalized.filter(site => site.preset === site.pattern).map(site => site.preset));
       const removed = AUTO_TRANSLATION_PRESETS.filter(site => !remaining.has(site.domain)).map(site => site.domain);
+      const excludedSites = exclusions.read();
       return { enabled: enabled.checked, nonTargetLanguage: foreign.checked,
         presetSites: normalized.filter(site => site.preset === site.pattern && site.enabled).map(site => site.pattern),
         customSites: normalized.filter(site => site.preset !== site.pattern).map(({ id, pattern, enabled }) => ({ id, pattern, enabled })),
         ...(removed.length ? { removedPresetSites: removed } : {}),
-        ...(excludedSites.length ? { excludedSites: [...excludedSites] } : {}) };
+        ...(excludedSites.length ? { excludedSites } : {}) };
     }
   };
 }

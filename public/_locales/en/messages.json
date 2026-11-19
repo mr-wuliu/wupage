@@ -1,4 +1,17 @@
 {
+  "hideFloatingBall": {
+    "message": "Hide floating button"
+  },
+  "hideFloatingBallUntilReload": {
+    "message": "Hide until this page reloads"
+  },
+  "alwaysHideFloatingBallOn": {
+    "message": "Always hide on $SITE$",
+    "placeholders": { "site": { "content": "$1" } }
+  },
+  "floatingBallExcludedSites": {
+    "message": "Sites with the floating button hidden"
+  },
   "textTranslationService": {
     "message": "Text translation services"
   },
@@ -1454,7 +1467,7 @@
     "message": "Translation features"
   },
   "hideTheFloatingButtonTurnItOnAgain": {
-    "message": "Hide the floating button. Turn it on again in the extension popup."
+    "message": "Hide the floating button on all sites. Turn it on again in the extension popup."
   },
   "clickTheFloatingButtonToTranslateThePage": {
     "message": "Click the floating button to translate the page"
