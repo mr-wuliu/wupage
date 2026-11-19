@@ -5519,6 +5519,9 @@
   "pdfTranslating": {
     "message": "Translating"
   },
+  "popupRestrictedWebPage": {
+    "message": "The browser restricts extension access to this page. Switch to a regular web page to use WuPage."
+  },
   "popupSwitchToWebPage": {
     "message": "Switch to a regular web page to translate."
   },

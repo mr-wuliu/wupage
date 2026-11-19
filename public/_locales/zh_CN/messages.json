@@ -5519,6 +5519,9 @@
   "pdfTranslating": {
     "message": "正在翻译"
   },
+  "popupRestrictedWebPage": {
+    "message": "浏览器限制扩展访问此页面。请切换到普通网页使用 WuPage。"
+  },
   "popupSwitchToWebPage": {
     "message": "请切换到普通网页后再翻译。"
   },

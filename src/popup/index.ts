@@ -23,6 +23,7 @@ import { normalizeAppearance } from "../shared/appearance";
 import { applyPopupMenuLayout } from "../shared/popup-menu";
 import { paragraphClickHint } from "../shared/local-shortcuts";
 import { hasTouchInput, TOUCH_INPUT_QUERY } from "../shared/touch";
+import { isRestrictedContentUrl } from "../shared/content-access";
 
 await initializeInterfaceLanguage();
 localizeDocument(document);
@@ -164,8 +165,10 @@ async function init(): Promise<void> {
   activePageURL = activeTab?.url;
   updateAutoTranslationSiteButton();
   fileAccessHelp.hidden = Boolean(activeTab?.url);
-  activeTabIsPdf = isLikelyPdfUrl(activeTab?.url);
-  pageTranslationAvailable = activeTabIsPdf || isSupportedPageUrl(activeTab?.url);
+  const isWebPage = isSupportedPageUrl(activePageURL);
+  const restrictedWebPage = isWebPage && isRestrictedContentUrl(activePageURL);
+  activeTabIsPdf = !restrictedWebPage && isLikelyPdfUrl(activePageURL);
+  pageTranslationAvailable = activeTabIsPdf || (isWebPage && !restrictedWebPage);
   if (pageTranslationAvailable && !activeTabIsPdf) {
     await loadParagraphMode();
     await loadTranslationState();
@@ -174,9 +177,8 @@ async function init(): Promise<void> {
     paragraphModeButton.title = t("paragraphModeIsUnavailableOnBrowserSettingsAnd");
     pageToggleButton.title = t("popupSwitchToWebPage");
     debugButton.title = t("switchToARegularWebPageToOpen");
-    setStatus(activeTab?.url
-      ? t("switchToAWebPageOrPdfTo")
-      : t("couldNotReadTheCurrentPageAddressFor"));
+    if (restrictedWebPage) setStatus(t("popupRestrictedWebPage"));
+    else setStatus(activePageURL ? t("switchToAWebPageOrPdfTo") : t("couldNotReadTheCurrentPageAddressFor"));
   }
   if (activeTabIsPdf) {
     paragraphModeAvailable = false;

@@ -35,7 +35,11 @@ WuPage has no developer-operated translation proxy or analytics server. Online t
 
 When an online provider is selected, website content is shared with that provider solely to return the translation requested by the user. Dictionary lookup separately shares the explicitly selected alphabetic word with Youdao or Bing, or a short Han selection with Youdao, to return word information and pronunciation. Unlisted alphabetic words, Han selections with neither pronunciation nor meanings, and other selected text use the currently configured local or online translation provider. Authentication information is shared only with the corresponding translation provider to authorize that request. Each online provider, including the selected dictionary and DeepSeek when selected, processes data under its own terms and privacy policy. Users should not translate sensitive content through a provider they do not trust.
 
-WuPage does not sell user data. WuPage does not transfer user data for advertising, creditworthiness, lending, or any purpose unrelated to webpage translation.
+WuPage does not sell user data or use or transfer it for advertising, creditworthiness, lending, or purposes unrelated to the translation features described in this policy.
+
+### Chrome Web Store Limited Use
+
+WuPage's use and transfer of Chrome users' data comply with the [Limited Use requirements of the Chrome Web Store User Data Policy](https://developer.chrome.com/docs/webstore/program-policies/limited-use).
 
 ## Storage and Retention
 
@@ -47,7 +51,7 @@ Users can explicitly export saved settings to a local TOML backup. Exports exclu
 
 ## Security
 
-WuPage sends translation requests over HTTPS unless the user explicitly configures a custom HTTP provider with a different URL. API credentials are not included in WuPage source code and are not sent to the WuPage developer. Users are responsible for choosing trusted providers and securely configuring custom endpoints.
+WuPage's built-in online translation services use HTTPS. User-configured translation and OCR endpoints can use HTTP or HTTPS. Plain HTTP transmits request content and any included credentials without encryption. Use HTTPS for remote services and reserve HTTP for services running on the same device. API credentials are not included in WuPage source code and are not sent to the WuPage developer. Users are responsible for choosing trusted providers and securely configuring custom endpoints.
 
 ## User Controls
 

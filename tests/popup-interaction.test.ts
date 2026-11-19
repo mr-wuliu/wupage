@@ -335,6 +335,26 @@ describe("popup translation interactions", () => {
     expect(document.querySelector("#status")?.textContent).toBe("");
   });
 
+  it("explains the restriction on the Chrome store developer dashboard", async () => {
+    window.dispatchEvent(new Event("pagehide"));
+    vi.resetModules();
+    document.open(); document.write(readFileSync(resolve(process.cwd(), "popup.html"), "utf8")); document.close();
+    vi.spyOn(chrome.tabs, "query").mockImplementation(async () => [
+      { id: 4, url: "https://chrome.google.com/webstore/devconsole/" } as chrome.tabs.Tab
+    ]);
+    vi.mocked(chrome.tabs.sendMessage).mockClear()
+      .mockRejectedValue(new Error("Could not establish connection. Receiving end does not exist."));
+    await import("../src/popup/index");
+    await vi.waitFor(() => expect(document.querySelector("#status")?.textContent).toBe(
+      "浏览器限制扩展访问此页面。请切换到普通网页使用 WuPage。"
+    ));
+    expect(button().disabled).toBe(true);
+    expect(document.querySelector<HTMLButtonElement>("#paragraphMode")!.disabled).toBe(true);
+    expect(document.querySelector<HTMLButtonElement>("#debug")!.disabled).toBe(true);
+    expect(document.querySelector<HTMLButtonElement>("#openPdfWorkspace")!.disabled).toBe(false);
+    expect(chrome.tabs.sendMessage).not.toHaveBeenCalled();
+  });
+
   it("keeps paragraph mode selectable after the initial page connection fails", async () => {
     window.dispatchEvent(new Event("pagehide"));
     vi.resetModules();
