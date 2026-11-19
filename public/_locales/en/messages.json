@@ -3749,6 +3749,9 @@
   "readingOnlineDocument": {
     "message": "Reading online document…"
   },
+  "pdfTemporaryLinkDenied": {
+    "message": "The temporary download link was rejected (HTTP 403) and may have expired. Reopen the publisher’s original PDF link or paste it here."
+  },
   "couldNotReadFileHttp": {
     "message": "Could not read file (HTTP $ARG1$)",
     "placeholders": {

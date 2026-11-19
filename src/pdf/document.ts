@@ -1,6 +1,6 @@
 import { t } from "../shared/i18n";
 import { validatePdfMathTranslation } from "./math";
-import type { PdfTextBlock } from "./model";
+import { PDF_TOC_LOCATOR, type PdfTextBlock } from "./model";
 import { normalizeProtectedText } from "../shared/protected-text";
 
 export interface PdfDocumentPage {
@@ -17,8 +17,24 @@ export interface PdfDocumentContext {
 
 const REFERENCE_HEADING = /^(?:(?:\d+|[IVX]+)[.)]?\s+)?(?:references|bibliography|literature cited|参考文献|參考文獻)$/iu;
 const NEXT_SECTION = /^(?:(?:\d+|[A-Z])[.)]?\s+)?(?:appendix(?:\s+[A-Z\d]+)?|acknowledg(?:e)?ments?|funding|contributors|author contributions|declaration of interests|competing interests|supplementary (?:material|information)|附录|附錄|致谢|致謝)$/iu;
-const NUMBERED_REFERENCE = /^(?:\[\d{1,3}\]|\d{1,3}[.)]?)\s+[\p{L}]/u;
+const BOOK_DIVISION = /^(?:(?:chapter|part)\s+(?:\d+|[ivxlcdm]+)\b(?:\s*[:.–—-]\s*.+)?|第[零〇一二三四五六七八九十百千\d]+[章节節部篇](?:\s+.+)?|(?:about the )?(?:authors|editors)(?: and contributors)?|about the contributors|index|索引)$/iu;
 const AUTHOR_REFERENCE = /^[\p{Lu}][\p{L}'’\-]+,?\s+(?:[A-Z][.,]?\s*){1,4}(?:[,;]|\(?\d{4}|[\p{Lu}][\p{L}'’\-]+)/u;
+
+function isReferenceEntry(block: PdfTextBlock): boolean {
+  const text = block.text.trim();
+  if (/^\[\d+\]\s*\p{L}/u.test(text)) return true;
+  const entry = text.replace(/^\d+[.)]?\s+/u, "");
+  // A numbered section title alone is weak evidence. Look for author initials
+  // or a publication year following the author names as in an unnumbered list.
+  return AUTHOR_REFERENCE.test(entry) || /^\p{Lu}[\p{L}\p{M} ,.'&’–-]{2,140}[(\s](?:1[5-9]|20)\d{2}\b/u.test(entry);
+}
+
+function hasContentsLocator(block: PdfTextBlock, page: PdfDocumentPage): boolean {
+  const title = block.lines.at(-1);
+  if (!title) return false;
+  return page.blocks.some(({ text, lines }) => lines.length === 1 && PDF_TOC_LOCATOR.test(text.trim())
+    && lines[0].x > title.x + title.width && Math.abs(lines[0].baselineY - title.baselineY) < block.fontSize * 0.4);
+}
 
 export function preparePdfDocument(pages: PdfDocumentPage[], name: string): PdfDocumentContext {
   preserveReferences(pages);
@@ -92,14 +108,22 @@ function preserveReferences(pages: PdfDocumentPage[]): void {
   let active = false;
   for (let pageIndex = 0; pageIndex < pages.length; pageIndex++) {
     const page = pages[pageIndex];
-    const heading = page.blocks.find((block) => !block.tocPart && REFERENCE_HEADING.test(block.text.trim()));
-    const referenceCount = [...page.blocks, ...(pages[pageIndex + 1]?.blocks ?? [])]
-      .filter((block) => NUMBERED_REFERENCE.test(block.text.trim()) || AUTHOR_REFERENCE.test(block.text.trim())).length;
-    if (!active && (!heading || referenceCount < 1)) continue;
+    const first = page.blocks.find(block => !isMarginBlock(block, page.height));
+    if (active && first && BOOK_DIVISION.test(first.lines[0]?.text.trim() ?? "")) active = false;
+    const heading = page.blocks.find(block => !block.tocPart && REFERENCE_HEADING.test(block.text.trim())
+      && !hasContentsLocator(block, page));
+    if (!active) {
+      if (!heading) continue;
+      const entriesFollow = page.blocks.some(block => isReferenceEntry(block) && afterHeading(block, heading, page))
+        || pages[pageIndex + 1]?.blocks.some(isReferenceEntry);
+      if (!entriesFollow) continue;
+    }
     // Extraction can join a heading to the paragraph below it. Its first
     // visual line still marks the end of the bibliography.
-    const nextSections = page.blocks.filter((block) => !block.tocPart && NEXT_SECTION.test(block.lines[0]?.text.trim() ?? "")
-      && (!heading || afterHeading(block, heading, page)));
+    const nextSections = page.blocks.filter((block) => {
+      const line = block.lines[0]?.text.trim() ?? "";
+      return !block.tocPart && (NEXT_SECTION.test(line) || BOOK_DIVISION.test(line)) && (!heading || afterHeading(block, heading, page));
+    });
     for (const block of page.blocks) {
       if (block === heading || block.tocPart || nextSections.includes(block)) continue;
       const line = block.lines[0];

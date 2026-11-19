@@ -156,22 +156,23 @@ function oversizedHeadingMarker(items: readonly PdfTextItemLike[], index: number
     && gap >= -0.5 && gap <= size * 2;
 }
 
+export const PDF_TOC_LOCATOR = /^(?:\d+(?:[-–]\d+)?|[ivxlcdm]+|[A-Z][-–]\d+)$/iu;
+
 // Dot leaders are layout, not prose. Keep their original glyphs and page
 // locators, and send each title to the translator as a separate entry.
 function splitTocTextItems(items: ReadonlyArray<PdfTextItemLike>, measure?: PdfTextMeasure): PdfTextItemLike[] {
   const output: PdfTextItemLike[] = [];
-  const locator = /^(?:\d+(?:[-–]\d+)?|[ivxlcdm]+|[A-Z][-–]\d+)$/iu;
   for (const item of items) {
     const leader = /(?:\.\s*){4,}|[…⋯]{2,}/u.exec(item.str);
     if (item.preserveOriginal || !leader || (item.str.slice(leader.index + leader[0].length).trim()
-      && !locator.test(item.str.slice(leader.index + leader[0].length).trim()))) {
+      && !PDF_TOC_LOCATOR.test(item.str.slice(leader.index + leader[0].length).trim()))) {
       let previous: PdfTextItemLike | undefined;
       for (let index = output.length - 1; index >= 0; index--) {
         if (output[index].str.trim()) { previous = output[index]; break; }
       }
       const followsLeader = previous?.tocPart === "leader"
         && Math.abs(Number(previous.transform[5]) - Number(item.transform[5])) < (item.height || 10) * 0.5;
-      output.push(followsLeader && locator.test(item.str.trim()) ? { ...item, preserveOriginal: true } : item);
+      output.push(followsLeader && PDF_TOC_LOCATOR.test(item.str.trim()) ? { ...item, preserveOriginal: true } : item);
       continue;
     }
     const title = item.str.slice(0, leader.index).trimEnd();

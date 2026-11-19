@@ -21,6 +21,22 @@ export function isLikelyPdfUrl(value: string | undefined): boolean {
   }
 }
 
+export function pdfRedirectKey(tabId: number): string {
+  return `wupage.pdf-redirect.${tabId}`;
+}
+
+export async function getPdfTabSource(tabId: number | undefined, url: string): Promise<string> {
+  if (tabId === undefined || !/^https?:/u.test(url)) return url;
+  const key = pdfRedirectKey(tabId);
+  const stored = await chrome.storage?.session?.get(key).catch(() => undefined);
+  const redirect = stored?.[key] as { documentId: string; source: string } | undefined;
+  if (redirect) {
+    const frame = await chrome.webNavigation?.getFrame({ tabId, frameId: 0 }).catch(() => undefined);
+    if (frame && frame.documentId === redirect.documentId && frame.url.split("#")[0] === url.split("#")[0]) return redirect.source;
+  }
+  return url;
+}
+
 export function getExtensionDetailsUrl(extensionId: string, userAgent: string): string {
   if (/Firefox\//.test(userAgent)) return "about:addons";
   const scheme = /Edg\//.test(userAgent) ? "edge" : "chrome";

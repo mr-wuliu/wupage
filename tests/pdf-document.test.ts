@@ -143,6 +143,31 @@ describe("academic PDF document boundaries", () => {
     expect(single.blocks[1].role).toBe("reference");
   });
 
+  it("keeps a multi-page contents list with detached page numbers and stops each chapter's bibliography", () => {
+    const contents = page([block("Contents", 240, 720), block("References", 50, 650), block("12", 500, 650),
+      block("2. Origins", 50, 630), block("15", 500, 630), block("Smith, J. (2020). Foreword", 50, 610)]);
+    const moreContents = page([block("3. Evidence", 50, 690), block("25", 500, 690),
+      block("References", 50, 650), block("32", 500, 650)]);
+    const opening = page([block("CHAPTER 1", 250, 680), block("The text of the first chapter.", 40, 510)]);
+    const bibliography = () => page([block("References", 180, 650, true), block("Blair, Gwenda. 2000. A book.", 40, 610)]);
+    const continuation = page([block("A wrapped journal title and page range.", 40, 650)]);
+    const next = page([block("Chapter 2", 260, 685), block("Methods", 40, 640), block("The second chapter starts here.", 40, 600)]);
+    const part = page([block("PART II", 235, 600), block("New subjects", 140, 500)]);
+    const credits = page([block("About the Editors and Contributors", 100, 650), block("The editors study modern literature.", 40, 550)]);
+    const lists = [bibliography(), bibliography(), bibliography()];
+    preparePdfDocument([contents, moreContents, opening, lists[0], continuation, page([]), next, lists[1], part, lists[2], credits], "book.pdf");
+    expect([contents, moreContents, opening, next, part, credits].flatMap(p => p.blocks).every(b => b.translatable)).toBe(true);
+    expect(lists.every(p => p.blocks[1].role === "reference")).toBe(true);
+    expect(continuation.blocks[0].role).toBe("reference");
+  });
+
+  it("does not count numbered section titles as bibliography entries", () => {
+    const contents = page([block("References", 40, 650), block("2. Introduction", 40, 630),
+      block("3 Experimental design", 40, 610)]);
+    preparePdfDocument([contents], "contents.pdf");
+    expect(contents.blocks.every(b => b.translatable)).toBe(true);
+  });
+
   it("uses document-defined acronyms in table cells and shared page context", () => {
     const pages = [page([block("PPV", 100, 500), block("NPV", 200, 500), block("RNN", 100, 470),
       block("The model predicts postoperative complications using routinely collected measurements.", 40, 700)],

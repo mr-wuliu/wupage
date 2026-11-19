@@ -28,7 +28,9 @@ import { readParagraphMode } from "../shared/paragraph-mode";
 import { saveParagraphMode } from "./paragraph-mode";
 import { captureVideoFrame } from "./video-frame";
 import { installPdfTranslation } from "./pdf-translation";
+import { installPdfNavigation } from "./pdf-navigation";
 
+installPdfNavigation();
 installPdfTranslation(async (request, sender, signal) => {
   const cacheGeneration = currentCacheGeneration();
   await initializeInterfaceLanguage();
