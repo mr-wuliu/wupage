@@ -22,7 +22,7 @@ import { getEffectiveProviderPerformance, isLlmProvider } from "../shared/perfor
 import { ProviderError } from "../shared/errors";
 import { DocumentViewport, segmentViewportRect } from "./document-viewport";
 import { invalidatePendingDocumentTranslations } from "./translation-lifecycle";
-import { composedParent, mutationElement, onTranslationRoot, translationRoots } from "./dom-roots";
+import { composedParent, isExtensionUi, mutationElement, onTranslationRoot, translationRoots } from "./dom-roots";
 import { configureElementRules, observedTranslationAttributes } from "./element-exclusions";
 import { elementRuleIdentity } from "../shared/element-exclusions";
 
@@ -34,19 +34,7 @@ const MAX_LLM_BATCH_ITEMS = 16;
 const VIEWPORT_DEBOUNCE_MS = 100;
 const DYNAMIC_CONTENT_DEBOUNCE_MS = 160;
 const PAINT_EVENTS = ["transitionend", "transitioncancel", "animationend", "animationcancel"];
-const EXTENSION_OWNED_SELECTOR = [
-  "[data-wupage-video]",
-  "[data-wupage-video-style]",
-  "[data-wupage-video-native]",
-  "#wupage-video-panel",
-  "#wupage-video-overlay",
-  ".wupage-translation",
-  "#wupage-translation-style",
-  "#wupage-floating-hitbox",
-  "#wupage-floating-menu",
-  "#wupage-debug-panel",
-  "#wupage-paragraph-highlight"
-].join(",");
+const TRANSLATION_OUTPUT_SELECTOR = ".wupage-translation,#wupage-translation-style,[data-wupage-video-style]";
 
 type SegmentStatus = "idle" | "queued" | "running" | "done" | "failed";
 
@@ -718,7 +706,7 @@ function refreshSegments(session: TranslationSession, scope: RescanScope = "chan
 }
 
 function isExtensionOwned(element: Element): boolean {
-  return element.matches(EXTENSION_OWNED_SELECTOR) || Boolean(element.closest(EXTENSION_OWNED_SELECTOR));
+  return Boolean(element.closest(TRANSLATION_OUTPUT_SELECTOR)) || isExtensionUi(element);
 }
 
 function preserveViewportPosition(mutate: () => void, segments: TextSegment[] = []): void {

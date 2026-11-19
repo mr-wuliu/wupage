@@ -1,4 +1,4 @@
-import { composedParent } from "./dom-roots";
+import { composedParent, EXTENSION_UI_SELECTOR } from "./dom-roots";
 import { forcedTextRoot, isElementExcluded, matchesElementExclusion } from "./element-exclusions";
 const HTML_NAMESPACE = "http://www.w3.org/1999/xhtml";
 const OUTLOOK_HOSTS = new Set([
@@ -9,7 +9,7 @@ const OUTLOOK_HOSTS = new Set([
 // These are source documents or application state, rather than readable prose.
 // Check ancestors before code/comment and compact-control exceptions apply.
 export const NON_PROSE_SELECTOR = "script,style,noscript,textarea,input,select,option,template,"
-  + "[contenteditable]:not([contenteditable='false']),[role='textbox']";
+  + `[contenteditable]:not([contenteditable='false']),[role='textbox'],${EXTENSION_UI_SELECTOR}`;
 
 export function isTranslationOptedOut(element: Element): boolean {
   let translate: boolean | undefined;

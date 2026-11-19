@@ -113,11 +113,24 @@ describe("appearance updates", () => {
     expect(removeMedia).toHaveBeenCalled();
   });
 
-  it("does not change a host website's native color scheme", () => {
-    document.documentElement.style.colorScheme = "light";
-    const theme = setupAppearance({ mode: "dark" }, { extensionPage: false, live: false });
-    expect(document.documentElement.style.colorScheme).toBe("light");
-    expect(document.documentElement.style.getPropertyValue("--wp-color-scheme")).toBe("dark");
+  it("keeps content appearance separate from the host page's inline styles", () => {
+    const root = document.documentElement;
+    root.style.colorScheme = "light";
+    const hostSheet = new CSSStyleSheet();
+    document.adoptedStyleSheets = [hostSheet];
+    const theme = setupAppearance({ mode: "dark", floatingOpacity: 42 }, { extensionPage: false, live: false });
+    expect(root.style.colorScheme).toBe("light");
+    expect(root.style.getPropertyValue("--wp-color-scheme")).toBe("");
+    root.style.cssText = "color-scheme: dark";
+    const style = (document.adoptedStyleSheets[1].cssRules[0] as CSSStyleRule).style;
+    expect(style.getPropertyValue("--wp-color-scheme")).toBe("dark");
+    expect(style.getPropertyValue("--wp-floating-opacity")).toBe("0.42");
+    theme.update({ mode: "light", lightSchemeId: "paper", floatingOpacity: 55 });
+    expect(style.getPropertyValue("--wp-color-scheme")).toBe("light");
+    expect(style.getPropertyValue("--wp-floating-opacity")).toBe("0.55");
+    expect(root.style.colorScheme).toBe("dark");
     theme.dispose();
+    expect(document.adoptedStyleSheets).toEqual([hostSheet]);
+    document.adoptedStyleSheets = [];
   });
 });

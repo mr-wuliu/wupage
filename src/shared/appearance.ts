@@ -191,18 +191,22 @@ export function schemeColor(scheme: ColorScheme, key: keyof AppearanceColors): s
 }
 
 export function applyColorScheme(target: HTMLElement, scheme: ColorScheme): void {
-  for (const { key } of COLOR_FIELDS) target.style.setProperty(`--wp-${key}`, schemeColor(scheme, key));
-  target.style.setProperty("--wp-on-accent", accentForeground(scheme.colors.accent));
-  target.style.setProperty("--wp-on-danger", accentForeground(scheme.colors.danger));
-  target.style.setProperty("--wp-color-scheme", scheme.tone);
-  target.style.setProperty("--wp-select-arrow", uiIconUrl("arrow-down-03", schemeColor(scheme, "muted")));
-  target.style.setProperty("--wp-selection-select-arrow", uiIconUrl("arrow-down-03", schemeColor(scheme, "selection-foreground")));
-  target.style.setProperty("--wp-disclosure-icon", uiIconUrl("arrow-down-03"));
-  target.style.setProperty("--wp-soft", "color-mix(in srgb, var(--wp-accent) 6%, var(--wp-surface))");
-  target.style.setProperty("--wp-selected", "color-mix(in srgb, var(--wp-accent) 12%, var(--wp-surface))");
-  target.style.setProperty("--wp-accent-hover", "color-mix(in srgb, var(--wp-accent) 85%, var(--wp-foreground))");
-  target.style.setProperty("--wp-danger-soft", "color-mix(in srgb, var(--wp-danger) 8%, var(--wp-surface))");
+  setColorSchemeProperties(target.style, scheme);
   target.dataset.wupageTheme = scheme.tone;
+}
+
+export function setColorSchemeProperties(style: CSSStyleDeclaration, scheme: ColorScheme): void {
+  for (const { key } of COLOR_FIELDS) style.setProperty(`--wp-${key}`, schemeColor(scheme, key));
+  style.setProperty("--wp-on-accent", accentForeground(scheme.colors.accent));
+  style.setProperty("--wp-on-danger", accentForeground(scheme.colors.danger));
+  style.setProperty("--wp-color-scheme", scheme.tone);
+  style.setProperty("--wp-select-arrow", uiIconUrl("arrow-down-03", schemeColor(scheme, "muted")));
+  style.setProperty("--wp-selection-select-arrow", uiIconUrl("arrow-down-03", schemeColor(scheme, "selection-foreground")));
+  style.setProperty("--wp-disclosure-icon", uiIconUrl("arrow-down-03"));
+  style.setProperty("--wp-soft", "color-mix(in srgb, var(--wp-accent) 6%, var(--wp-surface))");
+  style.setProperty("--wp-selected", "color-mix(in srgb, var(--wp-accent) 12%, var(--wp-surface))");
+  style.setProperty("--wp-accent-hover", "color-mix(in srgb, var(--wp-accent) 85%, var(--wp-foreground))");
+  style.setProperty("--wp-danger-soft", "color-mix(in srgb, var(--wp-danger) 8%, var(--wp-surface))");
 }
 
 function record(value: unknown): Record<string, unknown> {

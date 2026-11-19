@@ -42,6 +42,7 @@ header { display: flex; align-items: center; flex: 0 0 auto; gap: 10px; padding:
 .replace-selection:disabled { opacity: .55; cursor: default; }
 .translation-service { flex: 0 1 auto; max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 4px 7px; border-radius: 6px; background: var(--soft); color: var(--muted); font-size: 12px; }
 select { max-width: 110px; min-width: 0; padding: 5px 24px 5px 7px; border: 1px solid var(--line); border-radius: 6px; background: var(--soft); font-size: 12px; appearance: none; background-image: var(--wp-selection-select-arrow); background-position: right 7px center; background-size: 9px 9px; background-repeat: no-repeat; }
+select :is(option, optgroup) { color: var(--fg); background-color: var(--bg); }
 .close { flex: 0 0 26px; height: 26px; padding: 0; border: 0; border-radius: 5px; color: var(--muted); background: transparent; font-size: 22px; line-height: 1; }
 .close svg, .speak svg { width: 14px; height: 14px; }
 .close:hover { background: var(--soft); }

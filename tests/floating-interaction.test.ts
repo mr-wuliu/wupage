@@ -11,7 +11,7 @@ import { getParagraphMode, initFloatingBall, refreshTranslationState, setParagra
 import { clearPageTranslation, getPageTranslationState, startPageTranslation } from "../src/content/page-translation";
 import * as pageTranslation from "../src/content/page-translation";
 import { sendRuntimeRequest } from "../src/content/runtime";
-import { injectContentStyles } from "../src/content/styles";
+import { loadFloatingStyles } from "./helpers/floating-styles";
 import { ProviderError } from "../src/shared/errors";
 import { PARAGRAPH_MODE_KEY } from "../src/shared/paragraph-mode";
 import { structuredTranslation } from "./helpers/structured-translation";
@@ -60,7 +60,7 @@ describe("floating translation interactions", () => {
     });
     documentListeners = vi.spyOn(document, "addEventListener");
     windowListeners = vi.spyOn(window, "addEventListener");
-    injectContentStyles();
+    loadFloatingStyles();
     initFloatingBall();
     await vi.waitFor(() => expect(query<HTMLElement>("#wupage-floating-hitbox").hidden).toBe(false));
   });

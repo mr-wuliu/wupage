@@ -1,5 +1,32 @@
 import { hasExtensionContext } from "../shared/extension-context";
 
+export const EXTENSION_UI_SELECTOR = [
+  "[data-wupage-video]",
+  "[data-wupage-video-toolbar]",
+  "[data-wupage-video-native]",
+  "#wupage-video-panel",
+  "#wupage-video-overlay",
+  "#wupage-selection-tools",
+  "#wupage-floating-hitbox",
+  "#wupage-floating-menu",
+  "#wupage-debug-panel",
+  "#wupage-paragraph-highlight",
+  "#wupage-image-tools",
+  "#wupage-image-context-notice",
+  "#wupage-shortcut-notice",
+  "#wupage-touch-hint",
+  "#wupage-touch-paragraph"
+].join(",");
+
+export function isExtensionUi(element: Element): boolean {
+  for (let current: Element | null = element; current;) {
+    if (current.closest(EXTENSION_UI_SELECTOR)) return true;
+    const root = current.getRootNode();
+    current = root instanceof ShadowRoot ? root.host : null;
+  }
+  return false;
+}
+
 // Keep each component's DOM intact. Collection crosses roots; grouping and
 // insertion stay inside the original tree so slots and event handlers survive.
 const roots = new Set<ShadowRoot>();
@@ -90,7 +117,7 @@ export function discoverShadowRoots(element: Element | ShadowRoot, subtree = tru
   const found: ShadowRoot[] = [];
   const visit = (candidate: Element) => {
     const root = componentShadowRoot(candidate);
-    if (!root) return;
+    if (!root || isExtensionUi(candidate)) return;
     found.push(root);
     if (!roots.has(root)) {
       roots.add(root);

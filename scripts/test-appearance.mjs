@@ -83,6 +83,7 @@ try {
   const site = await context.newPage();
   await site.goto(origin);
   await site.locator('#wupage-floating-ball').waitFor();
+  await site.addStyleTag({ content: 'select option { color: white !important; background: white !important; font: 24px monospace !important; }' });
   const translated = await worker.evaluate(async origin => {
     const [tab] = await chrome.tabs.query({ url: `${origin}/*` });
     return chrome.tabs.sendMessage(tab.id, { type: 'TRANSLATE_PAGE' });
@@ -108,6 +109,19 @@ try {
   assert.equal(await site.locator('[data-action="page-toggle"]').evaluate(el => getComputedStyle(el).backgroundColor), 'rgb(156, 188, 255)');
   assert.equal(await site.locator('[data-action="page-toggle"]').evaluate(el => getComputedStyle(el).color), 'rgb(0, 0, 0)');
   assert.equal(await site.locator('html').evaluate(el => getComputedStyle(el).colorScheme), 'light');
+  for (const role of ['source-lang', 'target-lang', 'display-mode', 'floating-visibility']) {
+    const select = site.locator(`#wupage-floating-menu select[data-role="${role}"]`);
+    assert.equal(await select.evaluate(el => getComputedStyle(el).colorScheme), 'dark', role);
+    const optionStyle = await select.locator('option').nth(1).evaluate(el => {
+      const { color, backgroundColor, fontSize } = getComputedStyle(el);
+      return { color, backgroundColor, fontSize };
+    });
+    assert.deepEqual(optionStyle, { color: 'rgb(230, 236, 250)', backgroundColor: 'rgb(32, 42, 64)', fontSize: '13px' }, role);
+  }
+  checks.push('native floating-menu options retain readable colors and typography under host option styles');
+  assert.equal(await site.evaluate(() => Array.from(document.styleSheets).some(sheet =>
+    Array.from(sheet.cssRules).some(rule => rule.selectorText === '#wupage-floating-menu')
+  )), false, 'the browser-managed floating styles should not be exposed to page theme tools');
   checks.push('saved theme updates existing popup and page controls without changing host color scheme');
 
   await site.locator('#word').dblclick({ position: { x: 35, y: 16 } });
@@ -183,7 +197,7 @@ try {
   await site.waitForFunction(() => getComputedStyle(document.querySelector('#wupage-floating-ball')).backgroundColor === 'rgba(145, 39, 78, 0.65)');
   assert.equal(await site.locator('#light .wupage-translation').evaluate(el => getComputedStyle(el).color), 'rgba(170, 51, 68, 0.3)');
   assert.equal(await site.locator('#dark .wupage-translation').evaluate(el => getComputedStyle(el).color), 'rgba(243, 201, 122, 0.25)');
-  assert.equal(await site.locator('html').evaluate(el => el.style.getPropertyValue('--wp-paragraph-highlight')), 'rgba(123, 69, 187, 0)');
+  assert.equal(await site.locator('html').evaluate(el => getComputedStyle(el).getPropertyValue('--wp-paragraph-highlight')), 'rgba(123, 69, 187, 0)');
   await site.locator('#word').dblclick({ position: { x: 35, y: 16 } });
   await site.locator('#wupage-selection-tools .trigger-dot').click();
   await card.waitFor({ state: 'visible' });
@@ -214,6 +228,11 @@ try {
   await options.locator('[data-color-group="floating"]').screenshot({ path: path.join(output, 'floating-opacity.png') });
   await options.locator('#save').click();
   await site.waitForFunction(() => getComputedStyle(document.querySelector('#wupage-floating-ball')).opacity === '0.55');
+  // A host app can replace the entire inline style attribute during a theme update.
+  await site.evaluate(() => { document.documentElement.style.cssText = 'color-scheme: light; background: #fafafa; color: #222'; });
+  assert.equal(await site.locator('#wupage-floating-ball').evaluate(el => getComputedStyle(el).opacity), '0.55');
+  assert.equal(await site.locator('#wupage-floating-menu').evaluate(el => getComputedStyle(el).backgroundColor), 'rgb(32, 42, 64)');
+  checks.push('replacing host inline styles preserves the saved floating palette and transparency');
   await site.bringToFront(); await site.locator('#wupage-floating-ball').hover();
   await site.locator('#wupage-floating-menu').waitFor({ state: 'visible' });
   assert.equal(await site.locator('#wupage-floating-menu').evaluate(el => getComputedStyle(el).opacity), '1');
@@ -262,6 +281,11 @@ try {
   }
   checks.push('no document overflow at desktop, tablet and narrow widths');
 
+  const cleared = await worker.evaluate(async origin => {
+    const [tab] = await chrome.tabs.query({ url: `${origin}/*` });
+    return chrome.tabs.sendMessage(tab.id, { type: 'CLEAR_TRANSLATION' });
+  }, origin);
+  assert.equal(cleared.ok, true, JSON.stringify(cleared));
   await options.setViewportSize({ width: 1440, height: 1040 });
   await options.evaluate(async () => {
     const result = await chrome.runtime.sendMessage({ type: 'SET_PARAGRAPH_MODE', enabled: true });
@@ -271,6 +295,9 @@ try {
   await site.addStyleTag({ content: '[data-wupage-paragraph-active="true"]{outline:2px solid #aabbcc!important}#wupage-paragraph-highlight{border-color:#aabbcc!important;background:#aabbcc44!important}' });
   await site.locator('#dark').hover({ position: { x: 20, y: 20 } });
   await site.locator('#wupage-paragraph-highlight').waitFor({ state: 'visible' });
+  const paragraphTranslation = site.locator('#dark .wupage-translation:not(.wupage-translation-pending)');
+  await site.locator('#dark').click({ modifiers: ['Control'], position: { x: 20, y: 20 } });
+  await paragraphTranslation.waitFor();
   const highlightSwitch = options.locator('label').filter({ has: options.locator('#paragraphHighlightEnabled') });
   await highlightSwitch.click();
   assert.equal(await options.locator('#paragraphHighlightEnabled').isChecked(), false);
@@ -282,7 +309,7 @@ try {
   await site.locator('#dark').click({ modifiers: ['Control'], position: { x: 20, y: 20 } });
   await site.locator('#dark .wupage-translation').waitFor({ state: 'detached' });
   await site.locator('#dark').click({ modifiers: ['Control'], position: { x: 20, y: 20 } });
-  await site.locator('#dark .wupage-translation').waitFor();
+  await paragraphTranslation.waitFor();
   assert.equal(await site.locator('#wupage-paragraph-highlight').count(), 0);
   await site.screenshot({ path: path.join(output, 'paragraph-highlight-disabled.png') });
   await options.reload();

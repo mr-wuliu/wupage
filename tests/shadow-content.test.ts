@@ -2,6 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   clearTranslations,
+  collectAdditionalTextSegmentsProgressive,
   collectTextSegmentsProgressive,
   hasPageTranslations,
   hideTranslations,
@@ -12,6 +13,7 @@ import {
 } from "../src/content/dom";
 import { buildTranslationContext } from "../src/content/translation-context";
 import { injectContentStyles } from "../src/content/styles";
+import { translationRoots } from "../src/content/dom-roots";
 import { layoutDisplay } from "./helpers/layout-display";
 
 beforeEach(() => {
@@ -64,6 +66,25 @@ describe("open component prose", () => {
     host.setAttribute(attribute, attribute === "translate" ? "no" : attribute === "class" ? "notranslate" : "");
     expect((await collectTextSegmentsProgressive()).some(segment => segment.text.includes("Nested component"))).toBe(false);
     expect(buildTranslationContext([nested.querySelector("p")!]) ?? "").not.toContain("Nested component");
+  });
+
+  it("excludes extension panels from incremental scans and shadow observation", async () => {
+    mount();
+    const hosts = ["wupage-selection-tools", "wupage-image-context-notice", "wupage-touch-hint"].map(id => {
+      const host = document.createElement("div");
+      host.id = id;
+      host.attachShadow({ mode: "open" }).innerHTML = "<section><p>Extension panel text.</p></section>";
+      document.documentElement.append(host);
+      return host;
+    });
+    try {
+      const segments = await collectAdditionalTextSegmentsProgressive([document.documentElement]);
+      expect(segments.map(segment => segment.text)).toContain("Nested component prose.");
+      expect(segments.map(segment => segment.text)).not.toContain("Extension panel text.");
+      for (const host of hosts) expect(translationRoots()).not.toContain(host.shadowRoot);
+    } finally {
+      for (const host of hosts) host.remove();
+    }
   });
 
   it("withdraws translated prose and placeholders when a host opts out", async () => {

@@ -127,26 +127,12 @@ const SKIP_TAGS = new Set([
   "SVG",
   "CANVAS"
 ]);
-const EXTENSION_UI_SELECTORS = [
-  "[data-wupage-video]",
-  "[data-wupage-video-native]",
-  "#wupage-video-panel",
-  "#wupage-video-overlay",
-  "#wupage-selection-tools",
-  "#wupage-floating-hitbox",
-  "#wupage-floating-menu",
-  "#wupage-debug-panel",
-  "#wupage-paragraph-highlight"
-];
 const FORCE_TEXT_SKIP_SELECTOR = [
-  ...EXTENSION_UI_SELECTORS, `.${TRANSLATION_CLASS}`, "[data-wupage-video-toolbar]",
-  "#wupage-image-tools", "#wupage-image-context-notice", "#wupage-shortcut-notice",
-  "#wupage-touch-hint", "#wupage-touch-paragraph", "[hidden]", ".sr-only",
+  `.${TRANSLATION_CLASS}`, "[hidden]", ".sr-only",
   "[class*='hiddenVisually']", "math", ".MATH", "svg", "canvas", "kbd", "samp",
   VIDEO_CONTROL_SELECTOR, NON_PROSE_SELECTOR
 ].join(",");
 const SKIP_SELECTORS = [
-  ...EXTENSION_UI_SELECTORS,
   "header",
   "nav",
   "footer",

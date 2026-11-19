@@ -10,7 +10,7 @@ vi.mock("../src/content/runtime", () => ({
 
 import { initFloatingBall, openDebugPanel } from "../src/content/floating";
 import { sendRuntimeRequest } from "../src/content/runtime";
-import { injectContentStyles } from "../src/content/styles";
+import { loadFloatingStyles } from "./helpers/floating-styles";
 
 describe("floating language controls", () => {
   afterEach(() => {
@@ -86,7 +86,7 @@ describe("floating language controls", () => {
     `;
     document.documentElement.append(hostStyle);
 
-    injectContentStyles();
+    loadFloatingStyles();
     initFloatingBall();
 
     const ball = query<HTMLElement>("#wupage-floating-ball");
@@ -137,7 +137,7 @@ describe("floating language controls", () => {
     `;
     document.documentElement.append(hostStyle);
 
-    injectContentStyles();
+    loadFloatingStyles();
     initFloatingBall();
 
     const menu = query<HTMLElement>("#wupage-floating-menu");
@@ -186,7 +186,7 @@ describe("floating language controls", () => {
     existingTranslation.textContent = "已有译文";
     document.documentElement.append(existingTranslation);
 
-    injectContentStyles();
+    const stylesheet = loadFloatingStyles();
     initFloatingBall();
     query<HTMLElement>("#wupage-floating-hitbox").dispatchEvent(new Event("pointerenter"));
     await vi.waitFor(() => expect(query<HTMLElement>("#wupage-floating-menu").hidden).toBe(false));
@@ -197,7 +197,7 @@ describe("floating language controls", () => {
     expect(pageToggle.textContent).toBe("显示原文");
     expect(style.display).toBe("flex");
     // jsdom does not resolve custom properties in background/border shorthands.
-    const rule = Array.from(query<HTMLStyleElement>("#wupage-translation-style").sheet!.cssRules)
+    const rule = Array.from(stylesheet.sheet!.cssRules)
       .find((rule): rule is CSSStyleRule => "selectorText" in rule
         && rule.selectorText === '#wupage-floating-menu button[data-action="page-toggle"]')!;
     expect(rule.style.getPropertyValue("background")).toBe("var(--wp-accent, #116466)");
