@@ -1,6 +1,7 @@
 import { isNonProseElement, isTranslationOptedOut } from "./content-policy";
 import { containsElementRuleBoundary } from "./element-exclusions";
 import { TEXT_FLOW_SOURCE_SELECTOR, TextFlowSnapshot, type TextFlow } from "./text-flow";
+import { tiktokCommentBody } from "./tiktok-content";
 import { TWITCH_MESSAGE_BODY_SELECTOR } from "./twitch-content";
 
 const sources = new Set<Element>();
@@ -23,7 +24,7 @@ export function materializeTextFlow(unit: TextFlow): Element | null {
   const child = meaningful.length === 1 && meaningful[0];
   if (child instanceof Element && new TextFlowSnapshot().isWhole(child)) return child;
   const element = unit.container;
-  if (element.closest(EXCLUDED) || isNonProseElement(element) || isTranslationOptedOut(element)
+  if (element.closest(EXCLUDED) || tiktokCommentBody(element) || isNonProseElement(element) || isTranslationOptedOut(element)
     || containsElementRuleBoundary(element) || [...element.childNodes].some(node => node.nodeType === Node.COMMENT_NODE)
     || /^(?:(?:inline-)?(?:flex|grid|table)|table-(?:row|row-group|header-group|footer-group))$/u.test(getComputedStyle(element).display)
     || unit.nodes.some(node => node.parentNode !== element)) return null;
@@ -62,7 +63,8 @@ export function prepareTextFlowParagraphs(root: Element | ShadowRoot, directText
     ...(!directTextOnly ? root.querySelectorAll("*") : [])
   ];
   for (const element of candidates.reverse()) {
-    if (element.namespaceURI !== "http://www.w3.org/1999/xhtml" || !element.childNodes.length || element.closest(EXCLUDED)) continue;
+    if (element.namespaceURI !== "http://www.w3.org/1999/xhtml" || !element.childNodes.length
+      || element.closest(EXCLUDED) || tiktokCommentBody(element)) continue;
     for (const unit of snapshot.units(element)) if (!unit.whole) materializeTextFlow(unit);
   }
 }

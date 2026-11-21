@@ -33,6 +33,7 @@ import { isSteamContentCard, steamItemTitle, steamTextBlock } from "./steam-cont
 import { containsElementRuleBoundary, forcedTextRoot } from "./element-exclusions";
 import { isHackerNewsCommentChrome } from "./hacker-news-content";
 import { isTwitchChatIdentity, twitchMessageBody } from "./twitch-content";
+import { tiktokCommentBody } from "./tiktok-content";
 
 interface TrackedNode {
   id: string;
@@ -175,9 +176,9 @@ const SKIP_SELECTORS = [
   ".js-repo-nav"
 ];
 const SKIP_SELECTOR = SKIP_SELECTORS.join(",");
-// Twitch's message bodies are readable prose inside the right-column aside.
+// Chat and comment bodies can be readable prose inside a sidebar aside.
 // Keep every other exclusion, including hidden text, controls and editors.
-const CHAT_BODY_SKIP_SELECTOR = SKIP_SELECTORS.filter(selector => selector !== "aside").join(",");
+const SIDEBAR_PROSE_SKIP_SELECTOR = SKIP_SELECTORS.filter(selector => selector !== "aside").join(",");
 const VISIBLE_ARIA_HIDDEN_SKIP_SELECTOR = SKIP_SELECTORS.filter(
   (selector) => selector !== "[aria-hidden='true']"
 ).join(",");
@@ -477,6 +478,7 @@ function scanTrackedTextRoots(
   return scanTextRootsProgressive(roots, { ...options, observeChanges }, {
     isCurrent: () => epoch === nodeTrackingEpoch,
     isParagraph: element => element.matches(PARAGRAPH_SELECTOR + ",[data-wupage-scientific-source]")
+      || tiktokCommentBody(element) === element
       || isDivProseBlock(element) || (element.matches("span") && isUnmarkedProseBlock(element))
       || new TextFlowSnapshot().isWhole(element),
     collect: (root, directTextOnly) => collectTextSegmentsFromRoot(root, translateCodeComments, directTextOnly),
@@ -777,8 +779,8 @@ export function findTranslatableParagraph(start: Element | null, anchor?: Node):
   if (start && !shouldSkipElement(start)) {
     const steamBlock = steamTextBlock(start);
     if (steamBlock && !shouldSkipElement(steamBlock)) return steamBlock;
-    const chatBody = twitchMessageBody(start);
-    if (chatBody && !shouldSkipElement(chatBody)) return chatBody;
+    const messageBody = twitchMessageBody(start) ?? tiktokCommentBody(start);
+    if (messageBody && !shouldSkipElement(messageBody)) return messageBody;
     const specialized = start.closest(`${POST_TEXT_SELECTOR},${YOUTUBE_DESCRIPTION_SELECTOR},${YOUTUBE_COMMENT_SELECTOR},[data-wupage-scientific-source]`);
     if (specialized && !shouldSkipElement(specialized)) return specialized;
     const flow = new TextFlowSnapshot().containing(anchor && start.contains(anchor) ? anchor : start);
@@ -1727,6 +1729,7 @@ function groupTextSegments(
   const groupedSegments: TextSegment[] = [];
   const trackedSourceNodes = new Set(trackedNodes.map((entry) => entry.node));
   for (const [block, groupNodes] of groups) {
+    const tiktokComment = tiktokCommentBody(block) === block;
     if (block.matches(YOUTUBE_DESCRIPTION_SELECTOR)) {
       for (const line of getYouTubeDescriptionLines(block, groupNodes, visibility)) {
         const id = line.nodes[0].id;
@@ -1775,6 +1778,7 @@ function groupTextSegments(
       !block.matches(TEXT_FLOW_SOURCE_SELECTOR) &&
       !isLegacyScientificProseBlock(block) &&
       twitchMessageBody(block) !== block &&
+      !tiktokComment &&
       !block.matches(`summary, label, li, ${POST_TEXT_SELECTOR}, ${YOUTUBE_COMMENT_SELECTOR}`)
     ) continue;
     if (singleNodeBlock && !readable!.text) continue;
@@ -1787,7 +1791,7 @@ function groupTextSegments(
     trackedGroups.push({
       id, nodes: sourceNodes, block, mode: authoredLines || hasLineBreak ? "block" : getRenderMode(block), authoredLines,
       flow: !authoredLines && !isLegacyScientificProseBlock(block) && textFlows.isWhole(block),
-      preserveWhitespace: block.matches(YOUTUBE_COMMENT_SELECTOR)
+      preserveWhitespace: tiktokComment || block.matches(YOUTUBE_COMMENT_SELECTOR)
     });
     if (singleNodeBlock) {
       if (readable!.tokens.length) protectedTokensById.set(id, readable!.tokens);
@@ -2016,8 +2020,8 @@ function findGroupingBlock(element: Element | null): Element | null {
 }
 
 function computeGroupingBlock(element: Element): Element | null {
-  const chatBody = twitchMessageBody(element);
-  if (chatBody) return chatBody;
+  const messageBody = twitchMessageBody(element) ?? tiktokCommentBody(element);
+  if (messageBody) return messageBody;
   const lineBreakParagraph = element.closest(TEXT_FLOW_SOURCE_SELECTOR);
   if (lineBreakParagraph) return lineBreakParagraph;
   const post = element.closest(POST_TEXT_SELECTOR);
@@ -2214,7 +2218,9 @@ function decideSkipElement(
   if (isHackerNewsCommentChrome(element)) return true;
   if (isTwitchChatIdentity(element)) return true;
   if (element.closest(REDDIT_METADATA_SELECTOR)) return true;
-  if (twitchMessageBody(element)) return hasSkippedAncestor(element, CHAT_BODY_SKIP_SELECTOR);
+  if (twitchMessageBody(element) || tiktokCommentBody(element)) {
+    return hasSkippedAncestor(element, SIDEBAR_PROSE_SKIP_SELECTOR);
+  }
   if (isInsideCodeBlock(element)) return false;
   if (isCompactControlText(element)) {
     return hasSkippedAncestor(element, COMPACT_CONTROL_SKIP_SELECTOR);
@@ -2573,6 +2579,12 @@ function insertGroupedTranslation(
   displayMode: TranslationDisplayMode = "bilingual"
 ): void {
   const { block, insertionBefore, insertionAfter, mode } = group;
+  // TikTok's expandable bodies clip their children and measure their height
+  // for the More button. Keep generated siblings out of that measurement.
+  if (tiktokCommentBody(block) === block) {
+    block.after(translation);
+    return;
+  }
   if (group.authoredLines) {
     translation.setAttribute("data-wupage-container", "authored-lines");
     block.after(translation);
@@ -2609,6 +2621,7 @@ function getRenderMode(element: Element | null): RenderMode {
   if (!element) return "inline";
   if (element.matches(TEXT_FLOW_SOURCE_SELECTOR)) return "block";
   if (isLegacyScientificProseBlock(element)) return "block";
+  if (tiktokCommentBody(element) === element) return "block";
   if (element.matches(POST_TEXT_SELECTOR)) return "block";
   if (element.matches(YOUTUBE_COMMENT_SELECTOR)) return "block";
   if (element.matches("label")) return isChoiceLabel(element) ? "inline" : "block";

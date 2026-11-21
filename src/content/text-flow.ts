@@ -1,4 +1,5 @@
 import { translationOwner } from "./translation-boundaries";
+import { tiktokCommentBody } from "./tiktok-content";
 import { TWITCH_MESSAGE_BODY_SELECTOR } from "./twitch-content";
 
 export const TEXT_FLOW_SOURCE_SELECTOR = "[data-wupage-prose-source]";
@@ -50,6 +51,7 @@ export class TextFlowSnapshot {
     // Source atoms keep their existing protection protocol and original nodes.
     if (element.matches(ATOMIC_INLINE)) return element.matches("br,wbr,math,svg") || this.display(element) !== "block";
     const inline = !element.matches(NON_CONTENT) && !element.matches(`${TEXT_FLOW_SOURCE_SELECTOR},${CONTENT_OWNER}`)
+      && tiktokCommentBody(element) !== element
       && translationOwner(element) !== element
       && /^(?:inline|contents|none)$/u.test(this.display(element))
       && [...element.children].every(child => child.matches(OUTPUT) || this.isInlineTree(child));
