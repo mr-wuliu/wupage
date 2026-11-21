@@ -5,12 +5,14 @@ on:
     paths:
       - '.github/workflows/**'
       - 'scripts/publish-*.py'
+      - 'scripts/package-chromium-store.py'
       - 'tests/test_publish_*.py'
   push:
     branches: [main]
     paths:
       - '.github/workflows/**'
       - 'scripts/publish-*.py'
+      - 'scripts/package-chromium-store.py'
       - 'tests/test_publish_*.py'
 
 permissions:

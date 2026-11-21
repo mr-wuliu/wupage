@@ -7,10 +7,10 @@ from zipfile import ZIP_DEFLATED, ZipFile, ZipInfo
 
 
 SPEC = importlib.util.spec_from_file_location(
-    'package_edge', Path(__file__).resolve().parents[1] / 'scripts' / 'package-edge.py'
+    'package_store', Path(__file__).resolve().parents[1] / 'scripts' / 'package-chromium-store.py'
 )
-package_edge = importlib.util.module_from_spec(SPEC)
-SPEC.loader.exec_module(package_edge)
+store_package = importlib.util.module_from_spec(SPEC)
+SPEC.loader.exec_module(store_package)
 
 
 class EdgePackageTests(unittest.TestCase):
@@ -42,7 +42,7 @@ class EdgePackageTests(unittest.TestCase):
     def test_store_manifest_omits_identity_fields_and_preserves_runtime(self):
         self.write_source()
         original_bytes = self.source.read_bytes()
-        package_edge.package_edge(self.source, self.output)
+        store_package.package_store(self.source, self.output)
         self.assertEqual(self.source.read_bytes(), original_bytes)
         with ZipFile(self.source) as source, ZipFile(self.output) as output:
             self.assertIsNone(output.testzip())
@@ -60,7 +60,7 @@ class EdgePackageTests(unittest.TestCase):
         del self.manifest['key']
         del self.manifest['update_url']
         self.write_source()
-        package_edge.package_edge(self.source, self.output)
+        store_package.package_store(self.source, self.output)
         with ZipFile(self.output) as output:
             self.assertEqual(json.loads(output.read('manifest.json')), self.manifest)
 
@@ -69,7 +69,7 @@ class EdgePackageTests(unittest.TestCase):
             with self.subTest(name=name):
                 self.write_source(name)
                 with self.assertRaisesRegex(ValueError, 'exactly one root manifest'):
-                    package_edge.package_edge(self.source, self.output)
+                    store_package.package_store(self.source, self.output)
                 self.assertFalse(self.output.exists())
 
     def test_firefox_package_is_rejected(self):
@@ -77,15 +77,23 @@ class EdgePackageTests(unittest.TestCase):
         self.manifest['browser_specific_settings'] = {'gecko': {'id': 'test@example.com'}}
         self.write_source()
         with self.assertRaisesRegex(ValueError, 'Chromium MV3'):
-            package_edge.package_edge(self.source, self.output)
+            store_package.package_store(self.source, self.output)
         self.assertFalse(self.output.exists())
 
     def test_source_cannot_be_overwritten(self):
         self.write_source()
         original_bytes = self.source.read_bytes()
         with self.assertRaisesRegex(ValueError, 'must not overwrite'):
-            package_edge.package_edge(self.source, self.source)
+            store_package.package_store(self.source, self.source)
         self.assertEqual(self.source.read_bytes(), original_bytes)
+
+    def test_chrome_package_checks_version_against_the_release(self):
+        self.write_source()
+        with self.assertRaisesRegex(ValueError, 'match the stable release tag'):
+            store_package.package_store(self.source, self.output, version='1.8.0')
+        self.assertFalse(self.output.exists())
+        store_package.package_store(self.source, self.output, version='1.7.0')
+        self.assertTrue(self.output.is_file())
 
 
 if __name__ == '__main__':

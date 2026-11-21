@@ -1,0 +1,86 @@
+name: Publish to Chrome Web Store
+
+on:
+  workflow_call:
+    inputs:
+      tag:
+        description: Existing stable GitHub Release tag
+        required: true
+        type: string
+      dry_run:
+        description: Validate without uploading or submitting
+        default: true
+        type: boolean
+    secrets:
+      CHROME_CLIENT_ID:
+        required: false
+      CHROME_CLIENT_SECRET:
+        required: false
+      CHROME_REFRESH_TOKEN:
+        required: false
+    outputs:
+      submission_status:
+        description: Chrome submission outcome
+        value: ${{ jobs.publish.outputs.submission_status }}
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing stable GitHub Release tag (e.g. v1.24.1)
+        required: true
+        type: string
+      dry_run:
+        description: Validate without uploading or submitting
+        default: true
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: chrome-web-store-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Verify release and submit Chrome package
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      submission_status: ${{ steps.submit.outputs.submission_status }}
+    steps:
+      - name: Check out publishing script
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Download and prepare the existing release package
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.tag }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="${RELEASE_TAG#v}"
+          archive="wupage-${version}-chrome.zip"
+          python3 -B scripts/publish-checksums.py "$RELEASE_TAG" "release/$archive"
+          gh release download "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --pattern "$archive" --dir release
+          (cd release && sha256sum --check "${archive}.sha256")
+          python3 -B scripts/package-chromium-store.py --source "release/$archive" \
+            --output release/chrome-web-store.zip --version "$version"
+
+      - name: Validate or submit to Chrome Web Store
+        id: submit
+        env:
+          CHROME_PUBLISHER_ID: ${{ vars.CHROME_PUBLISHER_ID }}
+          CHROME_CLIENT_ID: ${{ secrets.CHROME_CLIENT_ID }}
+          CHROME_CLIENT_SECRET: ${{ secrets.CHROME_CLIENT_SECRET }}
+          CHROME_REFRESH_TOKEN: ${{ secrets.CHROME_REFRESH_TOKEN }}
+          RELEASE_TAG: ${{ inputs.tag }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          flags=()
+          if [[ "$DRY_RUN" == "true" ]]; then flags+=(--dry-run); fi
+          python3 -B scripts/publish-chrome.py release/chrome-web-store.zip \
+            --version "${RELEASE_TAG#v}" "${flags[@]}"

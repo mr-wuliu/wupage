@@ -4,6 +4,7 @@
   <p>适用于 Microsoft Edge、Chrome 和 Firefox 的网页、视频字幕、图片与 PDF 翻译扩展。</p>
   <p>支持双语对照、划词查词、暂停画面翻译和 PDF 译文编辑，可选在线服务或本地翻译。</p>
   <p>
+    <a href="https://chromewebstore.google.com/detail/wupage-translator/oimcejdmobjcmiklbidamgpfmgkdaiej">Chrome 网上应用店</a> ·
     <a href="https://microsoftedge.microsoft.com/addons/detail/wupage-translator/ophhojnppohaklhcdaheplkodopmplfg">Microsoft Edge 插件商店</a> ·
     <a href="https://addons.mozilla.org/zh-CN/firefox/addon/wupage-translator/">Firefox Add-ons</a> ·
     <a href="https://github.com/mr-wuliu/wupage/releases/latest">下载发布包</a> ·
@@ -69,6 +70,10 @@
 
 ## 安装
 
+### Google Chrome
+
+从 [Chrome 网上应用店](https://chromewebstore.google.com/detail/wupage-translator/oimcejdmobjcmiklbidamgpfmgkdaiej) 点击「添加至 Chrome」安装，并将 WuPage 固定到工具栏。商店版由 Chrome 自动更新。
+
 ### Microsoft Edge
 
 从 [Microsoft Edge 插件商店](https://microsoftedge.microsoft.com/addons/detail/wupage-translator/ophhojnppohaklhcdaheplkodopmplfg) 点击「获取」安装，并将 WuPage 固定到工具栏。
@@ -91,9 +96,9 @@ Releases 中的 `wupage-<版本>-chromium.crx` 使用固定密钥签名，适用
 
 独立签名包的扩展 ID 固定为 `fgeedjpifhmkdehbgdmngbehdfcflblc`，可在扩展管理页核对。更新入口为[正式版更新清单](https://wupage.mrwuliu.top/updates/chromium.xml)，浏览器仅安装版本号更高且签名一致的更新。首个签名正式版发布前，清单返回 `noupdate`，表示当前没有可用更新。
 
-Windows、macOS 上的普通 Chrome 限制安装商店外的 CRX，请使用上面的解压加载方式。其他 Chromium 浏览器是否支持 CRX 安装与自动更新，以浏览器及设备策略为准。Edge 和 Firefox 商店版通过各自商店更新。
+Windows、macOS 上的普通 Chrome 限制安装商店外的 CRX，可从 Chrome 网上应用店安装或使用上面的解压加载方式。其他 Chromium 浏览器是否支持 CRX 安装与自动更新，以浏览器及设备策略为准。
 
-首次从旧版解压安装切换时，扩展 ID 可能变化。请先导出设置，再安装新版并导入。默认备份省略 API 凭据和自定义服务请求配置，迁移这些内容时请勾选「包含密钥」并妥善保管文件。新旧扩展同时存在时，只启用其中一个。设置备份不包含翻译缓存及模型。
+切换到 Chrome 商店版前，请在原有 WuPage 中导出设置，再安装商店版并导入。旧版解压安装切换到独立签名包时，扩展 ID 也可能变化，可用相同步骤迁移。默认备份省略 API 凭据和自定义服务请求配置，迁移这些内容时请勾选「包含密钥」并妥善保管文件。新旧扩展同时存在时，只启用其中一个。设置备份不包含翻译缓存及模型。
 
 ## 翻译服务
 

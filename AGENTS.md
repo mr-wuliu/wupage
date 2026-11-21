@@ -28,9 +28,9 @@ PDF 的无网络样本验证 `npm run test:pdf:quality -- --profile=smoke` 同�
 
 推送 `v*` 标签会触发 GitHub Actions：校验 `package.json`、`package-lock.json` 与扩展 Manifest 的版本，执行类型检查和测试，构建扩展，并发布 ZIP。Release 不再附加独立的 `.sha256` 文件，校验值使用 GitHub 为每个附件生成并显示的 SHA-256 digest。
 
-商店自动提交策略由 `scripts/publish-policy.py` 决定：仅稳定的 `v<major>.<minor>.0`（例如 `v1.4.0`、`v2.0.0`）自动调用已配置的 Edge、Firefox 商店工作流。补丁版本（例如 `v1.3.1`）仍构建全部安装包、创建 GitHub Release 并同步网站，但跳过自动商店提交；预发布版本也不自动提交。需要提交补丁版本时，在对应商店工作流的 **Run workflow** 中手动指定已发布标签；Firefox 需取消 `dry_run` 才实际提交。手动入口不受自动策略限制。
+商店自动提交策略由 `scripts/publish-policy.py` 决定：仅稳定的 `v<major>.<minor>.0`（例如 `v1.4.0`、`v2.0.0`）自动调用已配置的 Chrome、Edge、Firefox 商店工作流。补丁版本（例如 `v1.3.1`）仍构建全部安装包、创建 GitHub Release 并同步网站，但跳过自动商店提交；预发布版本也不自动提交。需要提交补丁版本时，在对应商店工作流的 **Run workflow** 中手动指定已发布标签；Chrome、Firefox 需取消 `dry_run` 才实际提交。手动入口不受自动策略限制。
 
-Chrome 与 Edge 共用 `npm run build` 生成的 Chromium MV3 构建（`dist/`），分别发布 `wupage-<version>-chrome.zip`、`wupage-<version>-edge.zip`。Chrome ZIP 保留固定公钥；`scripts/package-edge.py` 从 Chrome ZIP 生成 Edge ZIP，仅移除 Manifest 的 `key` 和 `update_url`，其余资源保持一致。Edge 商店拒绝 `key` 字段，其商店 ID 及更新由商店管理。两者 ZIP 根目录均为 Manifest 所在目录，不含 source map；Edge 商店提交流程仍读取原始 `edge.zip`，上传前拒绝上述字段。
+Chrome 与 Edge 共用 `npm run build` 生成的 Chromium MV3 构建（`dist/`），分别发布 `wupage-<version>-chrome.zip`、`wupage-<version>-edge.zip`。Chrome ZIP 保留独立分发用的固定公钥；`scripts/package-chromium-store.py` 从 Chrome ZIP 生成 Edge ZIP 及 Chrome 提交用临时 ZIP，仅移除 Manifest 的 `key` 和 `update_url`，其余资源保持一致。两者 ZIP 根目录均为 Manifest 所在目录，不含 source map。Edge 商店提交流程仍读取原始 `edge.zip`，上传前拒绝上述字段。
 
 三个浏览器安装 ZIP 均须小于 10,000,000 字节，发布流水线在上传前检查。PDF 完整导出字体是可选数据，仅在用户确认后从固定版本的 Noto 官方地址下载并校验；不得重新将完整字体加入 `public/`。未安装字体时仍可导出图像版 PDF。
 
@@ -66,7 +66,7 @@ git push origin main v1.1.0
 - 所有稳定版本（含补丁版）额外发布 `chromium.xml`，包含固定 ID、数字版本、对应 GitHub Release CRX 地址、大小及 SHA-256。预发布版可生成测试 CRX，但不生成稳定更新清单，也不修改网站。
 - `scripts/prepare-web-sync.py` 从 GitHub Release API 选择 Chrome ZIP、CRX 和 XML；`scripts/sync-web.py` 对照固定 ID、版本、下载地址与 GitHub 附件 digest 校验后，将 XML 写入网站仓库的 `updates/chromium.xml`。重跑旧标签不回退现有更新清单；旧 Release 没有签名产物时仅兼容同步原有下载文案。网站同步按串行任务执行，提交后沿用网站现有部署工作流。
 - 网站构建须将 `updates/chromium.xml` 复制到公开资源目录，响应类型为 `application/xml; charset=utf-8`，缓存为 `public, max-age=300, must-revalidate`。首个签名版本发布前，清单返回 `noupdate`，不得填入不存在的 CRX 地址。
-- 固定 ID 和更新地址不能绕过浏览器安装政策。Windows/macOS 普通 Chrome 继续提供解压安装；解压安装仍需手动更新。首次切换到固定 ID 前提示导出设置，避免将其描述为旧 ID 的无缝迁移。
+- Windows/macOS 普通 Chrome 优先使用 Chrome 网上应用店。解压安装仍需手动更新。Chrome 商店条目的 ID 与独立签名包不同，从旧 ID 切换时提示先导出设置。
 - 验证命令仍为 `python -B -m unittest discover -s tests -p 'test_publish_*.py'`，其中 CRX 测试使用临时测试密钥，不使用发布私钥、不访问商店。
 
 ### Firefox 构建
@@ -74,6 +74,25 @@ git push origin main v1.1.0
 `npm run build:firefox` 从共享 Manifest 生成 `dist-firefox/`，最低 Firefox 154。`browser_specific_settings.gecko.id` 固定为 `wupage@mr-wuliu.github.io`，正式提交 AMO 后不得随意变更。数据传输声明包含 `websiteContent` 和 `authenticationInfo`，后者对应用户配置后发送给服务商的 API 凭据；功能的数据处理行为变化时须同步检查声明。
 
 标签发布会同时生成 `wupage-<version>-firefox.zip`、`wupage-<version>-firefox-source.zip`。源码包由 `scripts/package-firefox-source.py` 从指定 Git 提交生成，并附英文构建与审核说明；不包含依赖目录、测试资料目录和凭据。GitHub Release 中的 Firefox ZIP 未经 Mozilla 签名，不等同于可长期安装的商店版本；正式安装和更新通过 AMO 分发。
+
+### 自动同步到 Chrome 网上应用店
+
+现有 [WuPage 商店条目](https://chromewebstore.google.com/detail/wupage-translator/oimcejdmobjcmiklbidamgpfmgkdaiej) 已完成首次发布，条目 ID 固定为 `oimcejdmobjcmiklbidamgpfmgkdaiej`。后续版本使用 [Chrome Web Store API v2](https://developer.chrome.com/docs/webstore/using-api) 上传并提交审核，审核通过后按条目现有的可见性设置分发。
+
+1. 在 Google Cloud 启用 Chrome Web Store API，按官方指南创建 Web 应用 OAuth 客户端。使用拥有该条目的 Google 开发者账号、自己的 OAuth 客户端和 `https://www.googleapis.com/auth/chromewebstore` 权限获取 refresh token。长期使用时将外部 OAuth 应用切换为生产状态，再获取 refresh token，避免测试状态下的七天有效期。
+2. 从 Chrome 开发者后台 **Publisher → Settings** 复制 Publisher ID。在 GitHub 仓库 **Settings → Secrets and variables → Actions** 添加配置。
+
+| 类型 | 名称 | 内容 |
+| --- | --- | --- |
+| Variable | `CHROME_PUBLISHER_ID` | Chrome 开发者后台的 Publisher ID |
+| Secret | `CHROME_CLIENT_ID` | Google Cloud OAuth 客户端 ID |
+| Secret | `CHROME_CLIENT_SECRET` | OAuth 客户端密钥 |
+| Secret | `CHROME_REFRESH_TOKEN` | 已授权的 refresh token |
+
+- 未设置 `CHROME_PUBLISHER_ID` 时跳过自动提交。配置后缺少凭据会报错。Chrome、Edge、Firefox 在 GitHub Release 创建后独立运行。
+- 工作流下载指定稳定版的 Chrome ZIP 并验证 GitHub 附件 SHA-256，核对 Manifest 版本，再从该文件生成临时商店 ZIP。当前流程使用普通 ZIP，条目启用 Google 的 Verified Uploads 后需改用该条目已登记密钥签名的上传包。
+- 同版本已上线、待审或待手动发布时报告对应状态。线上版本更新时跳过旧包。其他版本正在上传、待审或待发布时暂缓。审核拒绝或政策状态异常时在 Chrome 后台处理。
+- 手动打开 **Actions → Publish to Chrome Web Store → Run workflow**，输入已有稳定版标签。默认 `dry_run` 验证发行包，凭据齐全时同时读取商店状态。取消勾选后才会上传并提交。写入请求超时或上传后中断时，先核对后台草稿和审核状态，再决定重跑或继续通过后台提交。
 
 ### 自动同步到 Firefox Add-ons（AMO）
 

@@ -152,8 +152,8 @@ jobs:
             echo "The Chrome ZIP package must contain manifest.json at its root."
             exit 1
           fi
-          # Edge uses the same runtime but its store rejects the fixed key.
-          python3 -B scripts/package-edge.py --source "$archive" \
+          # Edge uses the same runtime with browser-managed identity and updates.
+          python3 -B scripts/package-chromium-store.py --source "$archive" \
             --output "release/wupage-${RELEASE_VERSION}-edge.zip"
 
       - name: Sign independent Chromium package and prepare stable update feed
@@ -252,6 +252,21 @@ jobs:
             -f tag="$GITHUB_REF_NAME"
           echo "Dispatched sync-web.yml with tag=$GITHUB_REF_NAME"
 
+  publish-chrome:
+    name: Submit release to Chrome Web Store
+    needs: release
+    if: ${{ always() && needs.release.outputs.published == 'true' && needs.release.outputs.publish_stores == 'true' && vars.CHROME_PUBLISHER_ID != '' }}
+    uses: ./.github/workflows/publish-chrome.yml
+    permissions:
+      contents: read
+    with:
+      tag: ${{ github.ref_name }}
+      dry_run: false
+    secrets:
+      CHROME_CLIENT_ID: ${{ secrets.CHROME_CLIENT_ID }}
+      CHROME_CLIENT_SECRET: ${{ secrets.CHROME_CLIENT_SECRET }}
+      CHROME_REFRESH_TOKEN: ${{ secrets.CHROME_REFRESH_TOKEN }}
+
   publish-edge:
     name: Submit release to Microsoft Edge Add-ons
     needs: release
@@ -271,7 +286,7 @@ jobs:
   publish-firefox:
     name: Submit release to Firefox Add-ons
     needs: release
-    # Both stores run independently once the GitHub Release exists.
+    # Each store runs independently once the GitHub Release exists.
     if: ${{ always() && needs.release.outputs.published == 'true' && needs.release.outputs.publish_stores == 'true' && vars.AMO_ADDON_ID != '' }}
     uses: ./.github/workflows/publish-firefox.yml
     permissions:
@@ -285,7 +300,7 @@ jobs:
 
   release-summary:
     name: Summarize release and store submissions
-    needs: [release, publish-edge, publish-firefox]
+    needs: [release, publish-chrome, publish-edge, publish-firefox]
     if: ${{ always() }}
     runs-on: ubuntu-latest
     permissions:
@@ -295,12 +310,23 @@ jobs:
         env:
           RELEASE_TAG: ${{ github.ref_name }}
           RELEASE_PUBLISHED: ${{ needs.release.outputs.published }}
+          CHROME_RESULT: ${{ needs.publish-chrome.result }}
+          CHROME_STATUS: ${{ needs.publish-chrome.outputs.submission_status }}
           EDGE_RESULT: ${{ needs.publish-edge.result }}
           EDGE_STATUS: ${{ needs.publish-edge.outputs.submission_status }}
           FIREFOX_RESULT: ${{ needs.publish-firefox.result }}
         run: |
           python3 - <<'PY'
           import os
+          chrome = {
+              'already_published': 'This version is already published.',
+              'published': 'The Chrome Web Store reports this version is published.',
+              'already_submitted': 'This version is already in review.',
+              'staged': 'This version is approved and staged for manual publication.',
+              'deferred': 'Deferred while another upload or submission is in progress. Retry this tag after it finishes.',
+              'superseded': 'A newer version is already published.',
+              'submitted': 'Submitted for Chrome review. The store will publish it after approval.',
+          }.get(os.environ['CHROME_STATUS'], os.environ['CHROME_RESULT'])
           edge = os.environ['EDGE_STATUS']
           if edge == 'deferred':
               edge = 'Deferred — NOT submitted; another submission is in progress. Retry this tag after it finishes.'
@@ -316,6 +342,7 @@ jobs:
               out.write('| Stage | Result |\n| --- | --- |\n')
               published = 'Published' if os.environ['RELEASE_PUBLISHED'] == 'true' else 'Not published'
               out.write(f'| GitHub packages | {published} |\n')
+              out.write(f'| Chrome Web Store | {chrome} |\n')
               out.write(f'| Microsoft Edge Add-ons | {edge} |\n')
               out.write(f'| Firefox Add-ons | {firefox} |\n')
           PY
