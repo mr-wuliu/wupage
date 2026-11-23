@@ -75,6 +75,7 @@ export default defineConfig(({ mode }) => {
         input: {
           background: resolve(__dirname, "src/background/index.ts"),
           popup: resolve(__dirname, "popup.html"),
+          vocabulary: resolve(__dirname, "vocabulary.html"),
           options: resolve(__dirname, "options.html"),
           pdf: resolve(__dirname, "pdf.html"),
           ocrOffscreen: resolve(__dirname, "ocr-offscreen.html")

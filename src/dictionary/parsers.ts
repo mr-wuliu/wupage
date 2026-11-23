@@ -22,6 +22,13 @@ export function parseYoudaoDictionary(payload: unknown, query: string): Dictiona
   const ec = record(list(record(data.ec).word)[0]);
   const ce = record(list(record(data.ce).word)[0]);
   const simple = record(list(record(data.simple).word)[0]);
+  const sentenceData = record(data.blng_sents_part);
+  const examples = list(sentenceData["sentence-pair"] ?? sentenceData.sentence).slice(0, 30).flatMap(raw => {
+    const sentence = text(record(raw).sentence).trim();
+    if (!sentence || sentence.length > 12_000) return [];
+    const translation = text(record(raw)["sentence-translation"]).trim();
+    return [{ sentence, ...(translation ? { translation } : {}) }];
+  });
   const chinese = isChineseDictionaryQuery(query);
   if (chinese) {
     const dictionary = record(data.newhh);
@@ -42,7 +49,7 @@ export function parseYoudaoDictionary(payload: unknown, query: string): Dictiona
       const phonetics = readings.length ? readings : [text(ce.phone ?? simple.phone).trim()].filter(Boolean);
       return {
         provider: "youdao", query, word: text(dictionary.word) || query, sourceUrl: dictionarySourceUrl("youdao", query),
-        pronunciations: phonetics.map(phonetic => ({ accent: "pinyin", phonetic })), meanings
+        pronunciations: phonetics.map(phonetic => ({ accent: "pinyin", phonetic })), meanings, examples
       };
     }
   }
@@ -70,7 +77,7 @@ export function parseYoudaoDictionary(payload: unknown, query: string): Dictiona
       meanings.push({ partOfSpeech: match?.[1] ?? "", definition: match ? definition.slice(match[0].length) : definition });
     }
   }
-  return { provider: "youdao", query, word, sourceUrl: dictionarySourceUrl("youdao", query), pronunciations, meanings };
+  return { provider: "youdao", query, word, sourceUrl: dictionarySourceUrl("youdao", query), pronunciations, meanings, examples };
 }
 
 /** Parse inside an inert template; remote scripts and resources are never attached to a live document. */
@@ -97,6 +104,13 @@ export function parseBingDictionary(html: string, query: string): DictionaryEntr
     const definition = item.querySelector(".def")?.textContent?.trim();
     return definition ? [{ partOfSpeech: item.querySelector(".pos")?.textContent?.trim() ?? "", definition }] : [];
   }).slice(0, 30);
+  const exampleNodes = Array.from(root?.querySelectorAll(".se_li") ?? []).slice(0, 30);
+  const examples = exampleNodes.flatMap(item => {
+    const sentence = item.querySelector(".sen_en, .en")?.textContent?.trim();
+    if (!sentence || sentence.length > 12_000) return [];
+    const translation = item.querySelector(".sen_cn, .cn")?.textContent?.trim();
+    return [{ sentence, ...(translation ? { translation } : {}) }];
+  });
   return { provider: "bing", query, word: root?.querySelector("h1")?.textContent?.trim() || query,
-    sourceUrl: dictionarySourceUrl("bing", query), pronunciations, meanings };
+    sourceUrl: dictionarySourceUrl("bing", query), pronunciations, meanings, examples };
 }

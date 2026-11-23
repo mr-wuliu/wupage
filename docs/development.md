@@ -33,6 +33,7 @@ flowchart LR
 | `src/background/` | 消息处理、跨文档会话、翻译调度、服务商适配与缓存 |
 | `src/content/` | 网页内容采集、译文渲染、页面交互与文档生命周期 |
 | `src/popup/`、`src/options/` | 扩展弹窗、设置表单与配置草稿 |
+| `src/vocabulary/` | 单词本页面、统一列表、搜索与收藏管理 |
 | `src/pdf/` | PDF 解析、布局、阅读、编辑与导出 |
 | `src/video/` | 字幕解析、播放器适配与页面桥接；网页内的播放器会话位于 `src/content/` |
 | `src/ocr/`、`src/local/`、`src/dictionary/` | OCR、本地翻译和词典的专用运行逻辑 |
@@ -43,7 +44,9 @@ flowchart LR
 | `tests/`、`scripts/` | 单元与 DOM 测试、浏览器验证及开发工具 |
 | `docs/` | 开发指南、专题分析与示例资料 |
 
-主要入口是 `src/background/index.ts`、`src/content/index.ts`，以及根目录的 `popup.html`、`options.html`、`pdf.html`。消息协议在 `src/shared/types.ts`，默认配置与旧设置兼容分别由 `defaults.ts`、`settings.ts` 管理。
+主要入口是 `src/background/index.ts`、`src/content/index.ts`，以及根目录的 `popup.html`、`options.html`、`pdf.html`、`vocabulary.html`。消息协议在 `src/shared/types.ts`，默认配置与旧设置兼容分别由 `defaults.ts`、`settings.ts` 管理。
+
+单词本数据模型和规范化位于 `src/shared/vocabulary.ts`，由 `src/background/vocabulary.ts` 统一校验并串行读写 `chrome.storage.local` 中的独立数据项；收藏按规范化词条去重，不记录语言元数据。不要将收藏写入扩展设置、翻译缓存或统计。单词本页面通过后台消息读取和修改数据，设置备份及清缓存不会触碰单词本。Chrome / Edge 与 Firefox 构建都包含 `vocabulary.html` 页面入口。
 
 翻译区域的预置规则位于 `src/shared/element-exclusions.ts`，通过网站和 CSS 选择器复用内容排除逻辑。X 默认保留左侧导航、右侧新闻、趋势、推荐关注和页脚的原文，包含卡片内的关注按钮和更多入口；选择器使用 `data-testid` 或固定链接地址，不依赖界面语言或生成的类名。`elementExclusionDefaultsVersion` 标记新预置规则的迁移，按引入版本补充新增规则，保留同 ID 的修改与关闭状态、显式空列表及此前版本中删除的规则。配置备份保留此标记。`tests/element-exclusions*.test.ts` 和 `npm run test:element-exclusions`（Edge 加 `-- --edge`）验证配置、动态内容与实际扩展行为。
 

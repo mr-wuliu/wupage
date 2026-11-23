@@ -25,8 +25,8 @@ button:focus-visible, select:focus-visible, a:focus-visible { outline: 2px solid
 .card.touch-card .word { font-size: 16px; flex-basis: 45%; }
 .card { position: fixed; display: flex; flex-direction: column; width: min(360px, calc(100vw - 24px)); max-height: calc(100vh - 24px); margin: 0; padding: 0; overflow: hidden; pointer-events: auto; border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 8px 36px #162d2a26; background: var(--bg); color: var(--fg); text-align: left; direction: ltr; font: 14px/1.6 system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; user-select: text; }
 .card:focus { outline: none; }
-header { display: flex; align-items: center; flex: 0 0 auto; gap: 10px; padding: 14px 14px 10px; }
-.word { display: block; flex: 1; width: 0; min-width: 0; margin: -3px -5px; padding: 3px 5px; border: 1px solid transparent; border-radius: 6px; background: transparent; font-size: 21px; font-weight: 650; line-height: 1.3; overflow-wrap: anywhere; overflow-y: auto; resize: none; outline: none; }
+header { display: flex; flex-wrap: wrap; align-items: center; flex: 0 0 auto; gap: 10px; padding: 14px 14px 10px; }
+.word { position: relative; z-index: 0; display: block; flex: 1 1 5em; width: auto; min-width: 5em; margin: 0; padding: 3px 5px; border: 1px solid transparent; border-radius: 6px; background: transparent; font-size: 21px; font-weight: 650; line-height: 1.3; overflow-wrap: anywhere; overflow-y: hidden; resize: none; outline: none; }
 .word:hover { border-color: var(--line); background: var(--soft); }
 .word:focus { border-color: var(--accent); background: var(--soft); }
 .word[aria-invalid="true"] { border-color: #ad3737; }
@@ -44,6 +44,12 @@ header { display: flex; align-items: center; flex: 0 0 auto; gap: 10px; padding:
 select { max-width: 110px; min-width: 0; padding: 5px 24px 5px 7px; border: 1px solid var(--line); border-radius: 6px; background: var(--soft); font-size: 12px; appearance: none; background-image: var(--wp-selection-select-arrow); background-position: right 7px center; background-size: 9px 9px; background-repeat: no-repeat; }
 select :is(option, optgroup) { color: var(--fg); background-color: var(--bg); }
 .close { flex: 0 0 26px; height: 26px; padding: 0; border: 0; border-radius: 5px; color: var(--muted); background: transparent; font-size: 22px; line-height: 1; }
+.favorite-word { position: relative; z-index: 1; display: inline-flex; flex: 0 0 36px; width: 36px; height: 36px; align-items: center; justify-content: center; padding: 0; border: 1px solid var(--line); border-radius: 7px; color: var(--wp-favorite, #c28b00); background: var(--bg); }
+.favorite-word:hover:enabled { background: var(--soft); }
+.favorite-word:disabled { opacity: .65; }
+.favorite-word svg { width: 20px; height: 20px; }
+.favorite-word:not(.is-saved) svg { fill: none !important; stroke: currentColor !important; stroke-width: .65 !important; stroke-linejoin: round; }
+.favorite-status { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
 .close svg, .speak svg { width: 14px; height: 14px; }
 .close:hover { background: var(--soft); }
 .body { min-width: 0; min-height: 44px; padding: 0 16px 14px; overflow: auto; overflow-wrap: anywhere; overscroll-behavior: contain; }
