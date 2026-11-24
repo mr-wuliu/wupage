@@ -33,6 +33,26 @@ describe("dictionary network transport", () => {
     expect(ensureOffscreenDocument).toHaveBeenCalled();
     expect(chrome.runtime.sendMessage).toHaveBeenCalledWith(expect.objectContaining({ target: "dictionary-runtime", action: "parse-bing", query: "example" }));
   });
+  it("falls back from cn.bing.com to the Bing dictionary market endpoint when the first host is unreachable", async () => {
+    const fetcher = vi.fn()
+      .mockRejectedValueOnce(new TypeError("Failed to fetch"))
+      .mockResolvedValueOnce(new Response("<html>bing dictionary</html>"));
+    vi.stubGlobal("fetch", fetcher);
+    const result = { provider: "bing", query: "example", word: "example", sourceUrl: "https://www.bing.com/dict/search?cc=cn&q=example",
+      pronunciations: [], meanings: [{ partOfSpeech: "n.", definition: "例子" }] };
+    runtimeSend.mockResolvedValue({ ok: true, data: result });
+
+    await expect(lookupDictionary("bing", "example")).resolves.toEqual(result);
+    expect(fetcher).toHaveBeenCalledTimes(2);
+    const primaryUrl = new URL(fetcher.mock.calls[0][0] as string);
+    const fallbackUrl = new URL(fetcher.mock.calls[1][0] as string);
+    expect(primaryUrl.hostname).toBe("cn.bing.com");
+    expect(fallbackUrl.hostname).toBe("www.bing.com");
+    expect(fallbackUrl.searchParams.get("cc")).toBe("cn");
+    expect(chrome.runtime.sendMessage).toHaveBeenLastCalledWith(expect.objectContaining({
+      action: "parse-bing", audioOrigin: "https://www.bing.com", sourceUrl: fallbackUrl.href
+    }));
+  });
   it("requests Chinese pinyin and definitions from Youdao even when Bing is the default", async () => {
     let finish!: (response: Response) => void;
     const fetcher = vi.fn(() => new Promise<Response>(resolve => { finish = resolve; }));

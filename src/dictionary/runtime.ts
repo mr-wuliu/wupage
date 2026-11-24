@@ -31,7 +31,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request?.target !== "dictionary-runtime" || sender.id !== chrome.runtime.id || sender.tab) return;
   const task = async () => {
     await initializeInterfaceLanguage();
-    if (request.action === "parse-bing") return parseBingDictionary(request.html, request.query);
+    if (request.action === "parse-bing") return parseBingDictionary(request.html, request.query, request.audioOrigin, request.sourceUrl);
     if (request.action === "play") return playDictionaryPlayback(request.id, request.dataUrl);
     if (request.action === "stop") return stopDictionaryPlayback(request.id);
     throw new Error(t("unknownDictionaryOperation"));
