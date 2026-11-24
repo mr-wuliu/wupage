@@ -122,15 +122,8 @@ export function normalizeVocabularySnapshot(input: unknown): Omit<VocabularyEntr
   return entry;
 }
 
-export function mergeVocabularySnapshot(existing: VocabularyEntry, incoming: Omit<VocabularyEntry, "id" | "savedAt" | "updatedAt">, now = Date.now()): VocabularyEntry {
-  return {
-    ...existing, term: incoming.term || existing.term, normalizedTerm: incoming.normalizedTerm,
-    dictionaryProvider: incoming.dictionaryProvider ?? existing.dictionaryProvider,
-    pronunciations: incoming.pronunciations.length ? incoming.pronunciations : existing.pronunciations,
-    meanings: incoming.meanings.length ? incoming.meanings : existing.meanings,
-    examples: incoming.examples.length ? incoming.examples : existing.examples,
-    translation: incoming.translation ?? existing.translation, updatedAt: now
-  };
+export function replaceVocabularySnapshot(existing: VocabularyEntry, incoming: Omit<VocabularyEntry, "id" | "savedAt" | "updatedAt">, now = Date.now()): VocabularyEntry {
+  return { ...incoming, id: existing.id, savedAt: existing.savedAt, updatedAt: now };
 }
 
 function validateRecord(item: Record<string, unknown>, version: 1 | 2): VocabularyEntry {
@@ -175,7 +168,7 @@ export function migrateVocabularyV1(value: unknown): VocabularyCollectionV2 {
     if (!existing) { merged.set(entry.normalizedTerm, { ...entry, examples: [] }); continue; }
     const newest = entry.updatedAt > existing.updatedAt ? entry : existing;
     const oldest = Math.min(existing.savedAt, entry.savedAt);
-    const mergedEntry = mergeVocabularySnapshot({ ...existing, examples: [] }, {
+    const mergedEntry = replaceVocabularySnapshot({ ...existing, examples: [] }, {
       ...newest, examples: [], pronunciations: newest.pronunciations.length ? newest.pronunciations : existing.pronunciations,
       meanings: newest.meanings.length ? newest.meanings : existing.meanings, translation: newest.translation ?? existing.translation,
       dictionaryProvider: newest.dictionaryProvider ?? existing.dictionaryProvider

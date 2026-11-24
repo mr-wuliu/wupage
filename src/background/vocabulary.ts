@@ -1,6 +1,6 @@
 import {
-  VOCABULARY_MAX_COLLECTION_BYTES, VOCABULARY_SCHEMA_VERSION, VOCABULARY_STORAGE_KEY, VOCABULARY_VERSION_KEY,
-  mergeVocabularySnapshot, migrateVocabularyV1, normalizeVocabularySnapshot, normalizeVocabularyTerm,
+  VOCABULARY_SCHEMA_VERSION, VOCABULARY_STORAGE_KEY, VOCABULARY_VERSION_KEY,
+  migrateVocabularyV1, normalizeVocabularySnapshot, normalizeVocabularyTerm, replaceVocabularySnapshot,
   validateVocabularyCollection, type VocabularyCollectionV2, type VocabularyEntry, type VocabularySnapshot
 } from "../shared/vocabulary";
 
@@ -82,9 +82,8 @@ function assertId(value: unknown): asserts value is string {
 }
 
 async function commit(collection: VocabularyCollectionV2): Promise<void> {
-  const bytes = new TextEncoder().encode(JSON.stringify(collection)).byteLength;
-  if (bytes > VOCABULARY_MAX_COLLECTION_BYTES) throw new Error("The vocabulary has reached its local storage limit. Delete some entries before saving more.");
-  await chrome.storage.local.set({ [VOCABULARY_STORAGE_KEY]: collection, [VOCABULARY_VERSION_KEY]: VOCABULARY_SCHEMA_VERSION });
+  const validated = validateVocabularyCollection(collection);
+  await chrome.storage.local.set({ [VOCABULARY_STORAGE_KEY]: validated, [VOCABULARY_VERSION_KEY]: VOCABULARY_SCHEMA_VERSION });
 }
 
 export async function handleVocabularyRequest(request: {
@@ -118,7 +117,7 @@ export async function handleVocabularyRequest(request: {
         const existingIndex = collection.entries.findIndex(entry => entry.normalizedTerm === incoming.normalizedTerm);
         const now = Date.now();
         if (existingIndex >= 0) {
-          collection.entries[existingIndex] = mergeVocabularySnapshot(collection.entries[existingIndex], incoming, now);
+          collection.entries[existingIndex] = replaceVocabularySnapshot(collection.entries[existingIndex], incoming, now);
           await commit(collection);
           return collection.entries[existingIndex];
         }
