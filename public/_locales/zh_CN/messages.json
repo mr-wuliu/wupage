@@ -2236,7 +2236,10 @@
     "message": "双语字幕"
   },
   "closeFloatingVideoControls": {
-    "message": "关闭视频悬浮工具栏"
+    "message": "在此网站隐藏视频翻译浮窗"
+  },
+  "videoFloatingExcludedSites": {
+    "message": "隐藏视频翻译浮窗的网站"
   },
   "closeSubtitleSettings": {
     "message": "关闭字幕设置"

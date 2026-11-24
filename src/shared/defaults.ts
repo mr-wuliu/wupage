@@ -27,6 +27,7 @@ export const DEFAULT_SETTINGS: ExtensionSettings = {
   statisticsEnabled: false,
   floatingBallEnabled: true,
   floatingBallExcludedSites: [],
+  videoFloatingExcludedSites: [],
   contextMenuTranslationEnabled: false,
   imageTranslationEnabled: false,
   imageTranslationContextMenuEnabled: true,

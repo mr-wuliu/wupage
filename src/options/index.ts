@@ -53,6 +53,7 @@ const pdfTranslationPageRadiusField = query<HTMLElement>("#pdfTranslationPageRad
 const cacheEnabled = query<HTMLInputElement>("#cacheEnabled");
 const floatingBallEnabled = query<HTMLInputElement>("#floatingBallEnabled");
 const floatingBallExclusions = setupExcludedSites(query<HTMLElement>("#floatingBallExclusions"));
+const videoFloatingExclusions = setupExcludedSites(query<HTMLElement>("#videoFloatingExclusions"));
 const selectionTranslationEnabled = query<HTMLInputElement>("#selectionTranslationEnabled");
 const selectionTranslationFields = query<HTMLFieldSetElement>("#selectionTranslationFields");
 const selectionDictionary = query<HTMLSelectElement>("#selectionDictionary");
@@ -254,6 +255,7 @@ function renderGeneralPageSettings(value: ExtensionSettings): void {
   cacheEnabled.checked = value.cacheEnabled;
   floatingBallEnabled.checked = value.floatingBallEnabled;
   floatingBallExclusions.render(value.floatingBallExcludedSites);
+  videoFloatingExclusions.render(value.videoFloatingExcludedSites);
   setImageTranslationToggle(imageTranslationEnabled, value.imageTranslationEnabled === true);
   imageTranslationContextMenuEnabled.checked = value.imageTranslationContextMenuEnabled !== false;
   imageTranslationFloatingEnabled.checked = value.imageTranslationFloatingEnabled !== false;
@@ -1106,6 +1108,7 @@ function readSettingsFromForm(): ExtensionSettings {
     statisticsEnabled: statisticsControls.read(),
     floatingBallEnabled: floatingBallEnabled.checked,
     floatingBallExcludedSites: floatingBallExclusions.read(),
+    videoFloatingExcludedSites: videoFloatingExclusions.read(),
     selectionTranslation: {
       enabled: selectionTranslationEnabled.checked,
       provider: selectionDictionary.value as DictionaryProvider,

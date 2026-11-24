@@ -84,6 +84,6 @@ export function isDictionaryAudioUrl(provider: DictionaryProvider, value: unknow
     const url = new URL(value);
     return url.protocol === "https:" && !url.username && !url.password && !url.port
       && (provider === "youdao" ? url.hostname === "dict.youdao.com" && url.pathname === "/dictvoice"
-        : provider === "bing" && url.hostname === "cn.bing.com" && url.pathname === "/dict/mediamp3");
+        : provider === "bing" && (url.hostname === "cn.bing.com" || url.hostname === "www.bing.com") && url.pathname === "/dict/mediamp3");
   } catch { return false; }
 }

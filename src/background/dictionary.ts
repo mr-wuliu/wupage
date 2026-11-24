@@ -49,6 +49,37 @@ async function readBytes(response: Response, limit: number): Promise<Uint8Array>
   return output;
 }
 
+const BING_DICTIONARY_ENDPOINTS = [
+  { origin: "https://cn.bing.com" },
+  { origin: "https://www.bing.com", market: "cn" }
+] as const;
+
+async function queryBingDictionary(query: string): Promise<DictionaryEntry> {
+  let lastError: unknown;
+  let emptyResult: DictionaryEntry | undefined;
+  for (const endpoint of BING_DICTIONARY_ENDPOINTS) {
+    try {
+      const url = new URL("/dict/search", endpoint.origin);
+      url.searchParams.set("q", query);
+      if ("market" in endpoint) url.searchParams.set("cc", endpoint.market);
+      const response = await fetch(url.href, { signal: AbortSignal.timeout(10_000), credentials: "omit", redirect: "error", referrerPolicy: "no-referrer" });
+      const body = new TextDecoder().decode(await readBytes(response, 2_000_000));
+      await ensureOffscreenDocument();
+      const entry = await runtimeRequest<DictionaryEntry>({
+        action: "parse-bing", html: body, query, sourceUrl: url.href, audioOrigin: url.origin
+      });
+      if (entry.meanings.length || entry.pronunciations.length) return entry;
+      // An empty result can mean either “word not found” or a host returning a
+      // page variant our parser cannot read. Try the alternate endpoint first.
+      emptyResult = entry;
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  if (emptyResult) return emptyResult;
+  throw lastError ?? new Error(t("bingDictionaryIsUnavailableOrItsLayoutHas"));
+}
+
 function checkProvider(provider: unknown): asserts provider is DictionaryProvider {
   if (provider !== "youdao" && provider !== "bing") throw new Error(t("chooseTheYoudaoOrBingDictionary"));
 }
@@ -68,24 +99,26 @@ export function lookupDictionary(provider: DictionaryProvider, input: string): P
 }
 
 async function queryDictionary(provider: DictionaryProvider, query: string): Promise<DictionaryEntry> {
-  const url = new URL(provider === "youdao" ? "https://dict.youdao.com/jsonapi" : "https://cn.bing.com/dict/search");
-  url.searchParams.set("q", query);
-  if (provider === "youdao") {
-    url.searchParams.set("jsonversion", "2");
-    const chinese = isChineseDictionaryQuery(query);
-    url.searchParams.set("dicts", JSON.stringify({ count: 3, dicts: [chinese ? ["newhh", "ce", "simple"] : ["ec", "ce", "simple"]] }));
-    if (chinese) url.searchParams.set("le", "zh");
+  if (provider === "bing") {
+    try { return await queryBingDictionary(query); }
+    catch (error) {
+      if (error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError")) throw new Error(t("theLookupTimedOutTryAgain", DICTIONARY_LABELS[provider]));
+      if (error instanceof TypeError) throw new Error(t("couldNotConnectToCheckYourConnectionOr", DICTIONARY_LABELS[provider]));
+      throw error;
+    }
   }
+  const url = new URL("https://dict.youdao.com/jsonapi");
+  url.searchParams.set("q", query);
+  url.searchParams.set("jsonversion", "2");
+  const chinese = isChineseDictionaryQuery(query);
+  url.searchParams.set("dicts", JSON.stringify({ count: 3, dicts: [chinese ? ["newhh", "ce", "simple"] : ["ec", "ce", "simple"]] }));
+  if (chinese) url.searchParams.set("le", "zh");
   try {
     const response = await fetch(url.href, { signal: AbortSignal.timeout(10_000), credentials: "omit", redirect: "error", referrerPolicy: "no-referrer" });
     const body = new TextDecoder().decode(await readBytes(response, 2_000_000));
-    if (provider === "youdao") {
-      let data: unknown;
-      try { data = JSON.parse(body); } catch { throw new Error(t("youdaoReturnedAnUnrecognizedResponseTryAgainLater")); }
-      return parseYoudaoDictionary(data, query);
-    }
-    await ensureOffscreenDocument();
-    return await runtimeRequest<DictionaryEntry>({ action: "parse-bing", html: body, query });
+    let data: unknown;
+    try { data = JSON.parse(body); } catch { throw new Error(t("youdaoReturnedAnUnrecognizedResponseTryAgainLater")); }
+    return parseYoudaoDictionary(data, query);
   } catch (error) {
     if (error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError")) throw new Error(t("theLookupTimedOutTryAgain", DICTIONARY_LABELS[provider]));
     if (error instanceof TypeError) throw new Error(t("couldNotConnectToCheckYourConnectionOr", DICTIONARY_LABELS[provider]));

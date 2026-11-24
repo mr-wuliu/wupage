@@ -9,8 +9,10 @@ import { SubtitlePresentation } from "./subtitle-presentation";
 
 let nextView = 0;
 const NOTICE_DURATION_MS = 5000;
+const TOOLBAR_HOVER_PADDING = 16;
 export interface VideoViewActions {
   toggle: () => void;
+  dismiss?: () => void;
   frame: () => void;
   retry: () => void;
   source: (id: string) => void;
@@ -24,8 +26,8 @@ export interface VideoViewActions {
 const styles = `
   :host { all: initial !important; position: absolute !important; top: var(--wp-layer-top,0px) !important; left: var(--wp-layer-left,0px) !important; width: var(--wp-layer-width,100%) !important; height: var(--wp-layer-height,100%) !important; z-index: 2147483600 !important; pointer-events: none !important; container-type: inline-size !important; color-scheme: dark !important; direction: ltr; } :host([hidden]) { display: none !important; }
   * { box-sizing: border-box; } [hidden] { display: none !important; }
-  .toolbar { position: absolute; right: 14px; top: var(--wp-toolbar-top,14px); display: flex; gap: 1px; align-items: center; color: #fff; background: #172024eb; border: 1px solid #ffffff29; border-radius: 9px; box-shadow: 0 3px 12px #0003; opacity: 0; transform: translateY(-3px); transition: opacity .16s,transform .16s; pointer-events: none; }
-  :host([data-controls]) .toolbar, .toolbar:hover, .toolbar:focus-within, :host([data-panel]) .toolbar, :host([data-error]) .toolbar, :host([data-waiting]) .toolbar { opacity: 1; transform: none; pointer-events: auto; }
+  .toolbar { position: absolute; right: 14px; top: var(--wp-toolbar-top,14px); display: flex; gap: 1px; align-items: center; color: #fff; background: #172024eb; border: 1px solid #ffffff29; border-radius: 9px; box-shadow: 0 3px 12px #0003; opacity: 0; transition: opacity .16s; pointer-events: none; }
+  :host([data-controls]) .toolbar, .toolbar:has(:focus-visible), :host([data-panel]) .toolbar, :host([data-error]) .toolbar, :host([data-waiting]) .toolbar { opacity: 1; pointer-events: auto; }
   .toolbar[hidden], :host([data-docked]) .dismiss { display: none; }
   button, select, input { font: inherit; } button { cursor: pointer; } button:disabled { opacity: .5; cursor: default; }
   .toolbar button { border: 0; color: inherit; background: transparent; min-height: 34px; padding: 7px 10px; font: 500 12px/20px system-ui,sans-serif; }
@@ -104,6 +106,7 @@ export class VideoView {
   private frameStatusTimer?: ReturnType<typeof setTimeout>;
   private hasTranslation = false;
   private showOriginal = true;
+  private floatingControlsHidden = false;
   private controlOffset = 0;
   private cleanups: Array<() => void> = [];
 
@@ -167,7 +170,8 @@ export class VideoView {
     this.on(this.frameButton, "click", () => { this.layoutEditor.cancel(); actions.frame(); });
     this.on(this.settingsButton, "click", () => this.setPanel(this.panel.hidden));
     this.on(query(".dismiss"), "click", () => {
-      this.layoutEditor.cancel(); this.setPanel(false); this.toolbar.hidden = true; this.setControls(false);
+      if (actions.dismiss) actions.dismiss();
+      else this.setFloatingControlsHidden(true);
     });
     this.on(query(".close"), "click", () => this.setPanel(false));
     this.on(this.retry, "click", () => actions.retry());
@@ -210,9 +214,33 @@ export class VideoView {
     target.addEventListener(type, callback, capture); this.cleanups.push(() => target.removeEventListener(type, callback, capture));
   }
 
-  get controlsDismissed(): boolean { return this.toolbar.hidden; }
-  restoreControls(): void { this.toolbar.hidden = false; }
-  setControls(show: boolean): void { this.host.toggleAttribute("data-controls", show && !this.controlsDismissed); }
+  get hasFloatingControls(): boolean { return !this.floatingControlsHidden && this.toolbar.parentNode === this.root; }
+
+  setFloatingControlsHidden(hidden: boolean): void {
+    this.floatingControlsHidden = hidden;
+    this.updateToolbarVisibility();
+  }
+
+  private updateToolbarVisibility(): void {
+    const hidden = this.floatingControlsHidden && this.toolbar.parentNode === this.root;
+    if (this.toolbar.hidden === hidden) return;
+    this.toolbar.hidden = hidden;
+    if (hidden) {
+      this.layoutEditor.cancel();
+      this.setPanel(false);
+      this.setControls(false);
+    }
+  }
+
+  pointerNearToolbar(x: number, y: number): boolean {
+    const toolbar = this.toolbar.getBoundingClientRect();
+    const padding = TOOLBAR_HOVER_PADDING;
+    if (x < toolbar.left - padding || x >= toolbar.right + padding || y < toolbar.top - padding || y >= toolbar.bottom + padding) return false;
+    const video = this.host.getBoundingClientRect();
+    return x >= video.left && x < video.right && y >= video.top && y < video.bottom;
+  }
+
+  setControls(show: boolean): void { this.host.toggleAttribute("data-controls", show && this.hasFloatingControls); }
   focus(): void { this.setControls(true); this.toggle.focus(); }
   get panelOpen(): boolean { return !this.panel.hidden || this.layoutEditor.editing; }
   resizeLayout(): void { this.layoutEditor.resize(); }
@@ -242,13 +270,17 @@ export class VideoView {
 
   mountControls(container?: HTMLElement, before?: Element, reference?: Element): void {
     if (container) {
-      if (this.toolbar.parentNode !== this.controlsRoot) this.controlsRoot.append(this.toolbar);
+      if (this.toolbar.parentNode !== this.controlsRoot) {
+        this.setControls(false);
+        this.controlsRoot.append(this.toolbar);
+      }
       if (this.controlsHost.parentElement !== container) container.insertBefore(this.controlsHost, before ?? null);
       this.alignControls(reference);
     } else {
       if (this.toolbar.parentNode !== this.root) this.root.prepend(this.toolbar);
       this.controlsHost.remove();
     }
+    this.updateToolbarVisibility();
   }
 
   avoidControlOverlap(obstacles: readonly DOMRect[]): void {
@@ -295,7 +327,7 @@ export class VideoView {
   }
 
   setPanel(open: boolean): void {
-    if ((open && this.controlsDismissed) || open === !this.panel.hidden) return;
+    if ((open && this.toolbar.hidden) || open === !this.panel.hidden) return;
     if (open) {
       this.layoutEditor.cancel();
       this.panel.hidden = false;

@@ -19,13 +19,14 @@ export function mergeSettingsChanges(
   }
   const merged = mergeValue(latest, draft, baseline) as ExtensionSettings;
   // Apply individual site edits so simultaneous exclusions from different tabs both survive.
-  if (!equal(draft.floatingBallExcludedSites, previous.floatingBallExcludedSites)) {
-    const before = new Set(previous.floatingBallExcludedSites);
-    const after = new Set(draft.floatingBallExcludedSites);
-    const sites = new Set(latest.floatingBallExcludedSites);
+  for (const field of ["floatingBallExcludedSites", "videoFloatingExcludedSites"] as const) {
+    if (equal(draft[field], previous[field])) continue;
+    const before = new Set(previous[field]);
+    const after = new Set(draft[field]);
+    const sites = new Set(latest[field]);
     for (const site of before) if (!after.has(site)) sites.delete(site);
     for (const site of after) if (!before.has(site)) sites.add(site);
-    merged.floatingBallExcludedSites = [...sites];
+    merged[field] = [...sites];
   }
   return merged;
 }

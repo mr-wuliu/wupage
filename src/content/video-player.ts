@@ -45,6 +45,8 @@ export class PlayerSubtitleController {
   private offset = 0;
   private clock?: ReturnType<typeof setInterval>;
   private controlsTimer?: ReturnType<typeof setTimeout>;
+  private pointerOnToolbar = false;
+  private controlsPointerEvents?: { target: HTMLElement; controller: AbortController };
   private started = 0;
   private suppressUntil = 0;
   private lastCatalogue = 0;
@@ -65,9 +67,11 @@ export class PlayerSubtitleController {
   private controlsScanned = false;
   private controlsObserver?: MutationObserver;
 
-  constructor(readonly video: HTMLVideoElement, readonly container: HTMLElement, readonly platform?: VideoPlatform, private autoStart = true) {
+  constructor(readonly video: HTMLVideoElement, readonly container: HTMLElement, readonly platform?: VideoPlatform,
+    private autoStart = true, floatingControls?: { hidden: boolean; dismiss: () => void }) {
     this.view = new VideoView({
       toggle: () => { if (this.enabled) this.stop(); else void this.start(); },
+      dismiss: floatingControls?.dismiss,
       frame: () => { void this.frameTranslation.toggle(); },
       retry: () => { void this.start(); },
       source: id => { this.source = id; if (this.enabled) void this.start(); },
@@ -79,6 +83,7 @@ export class PlayerSubtitleController {
       import: file => { void this.importFile(file); },
       offset: value => { this.offset = value; this.live?.reset(); this.tick(); }
     }, this.site);
+    this.view.setFloatingControlsHidden(floatingControls?.hidden ?? false);
     this.frameTranslation = new PlayerFrameTranslation(video, this.view, () => this.settingsSnapshot.read());
     if (getComputedStyle(container).position === "static") {
       this.originalPosition = { value: container.style.getPropertyValue("position"), priority: container.style.getPropertyPriority("position") };
@@ -86,13 +91,6 @@ export class PlayerSubtitleController {
     }
     this.nativeStyle.dataset.wupageVideoStyle = this.view.id;
     container.append(this.nativeStyle, this.view.host);
-    const pointer = (event: Event) => this.updatePointerControls(event as PointerEvent);
-    this.on(container, "pointermove", pointer);
-    this.on(container, "pointerenter", pointer);
-    this.on(container, "pointerdown", pointer, true);
-    this.on(container, "pointerleave", event => {
-      if ((event as PointerEvent).pointerType !== "touch" && !this.view.panelOpen) this.view.setControls(false);
-    });
     this.on(video, "timeupdate", () => this.tick()); this.on(video, "pause", () => this.tick()); this.on(video, "playing", () => this.tick());
     this.on(video, "seeking", () => { this.suppressUntil = Date.now() + 160; this.live?.reset(); this.clearCaption(); this.timeline?.update(video.currentTime - this.offset); });
     this.on(video, "seeked", () => { this.suppressUntil = Date.now() + 100; this.clearCaption(); });
@@ -140,8 +138,15 @@ export class PlayerSubtitleController {
     return false;
   }
   open(): void {
-    this.view.restoreControls(); this.position(); this.showControls();
+    this.setFloatingControlsHidden(false); this.position(); this.showControls();
     if (!this.enabled) void this.start(); else this.view.setPanel(true);
+  }
+
+  setFloatingControlsHidden(hidden: boolean): void {
+    const hadFloatingControls = this.view.hasFloatingControls;
+    this.view.setFloatingControlsHidden(hidden);
+    if (!hadFloatingControls && this.view.hasFloatingControls) this.mountControls();
+    if (hidden) this.pointerOnToolbar = false;
   }
 
   private on(target: EventTarget, type: string, callback: EventListener, capture = false): void {
@@ -155,18 +160,42 @@ export class PlayerSubtitleController {
     return true;
   }
 
+  private watchPointerControls(target: HTMLElement): void {
+    if (this.controlsPointerEvents?.target === target) return;
+    this.controlsPointerEvents?.controller.abort();
+    const controller = new AbortController();
+    this.controlsPointerEvents = { target, controller };
+    const { signal } = controller;
+    const pointer = (event: PointerEvent) => { if (this.activeContext()) this.updatePointerControls(event); };
+    target.addEventListener("pointermove", pointer, { capture: true, passive: true, signal });
+    target.addEventListener("pointerenter", pointer, { signal });
+    target.addEventListener("pointerdown", pointer, { capture: true, signal });
+    target.addEventListener("pointerleave", event => {
+      if (!this.activeContext() || event.pointerType === "touch") return;
+      this.pointerOnToolbar = false;
+      this.view.setControls(false);
+    }, { signal });
+  }
+
   private updatePointerControls(event: PointerEvent): void {
-    if (this.view.controlsDismissed || this.view.host.hidden || this.view.panelOpen) return;
+    if (!this.view.hasFloatingControls || this.view.host.hidden) return;
+    if (event.pointerType !== "touch") {
+      this.pointerOnToolbar = this.view.pointerNearToolbar(event.clientX, event.clientY);
+      clearTimeout(this.controlsTimer);
+      this.view.setControls(this.pointerOnToolbar);
+      return;
+    }
+    this.pointerOnToolbar = false;
     const { left, top, right, bottom } = this.video.getBoundingClientRect();
     if (event.clientX >= left && event.clientX < right && event.clientY >= top && event.clientY < bottom) this.showControls();
     else this.view.setControls(false);
   }
 
   private showControls(): void {
-    if (this.view.controlsDismissed) return;
+    if (!this.view.hasFloatingControls) return;
     clearTimeout(this.controlsTimer); this.view.setControls(true);
     if (!this.nativeDock) this.mountControls();
-    this.controlsTimer = setTimeout(() => { if (!this.view.panelOpen) this.view.setControls(false); }, 2600);
+    this.controlsTimer = setTimeout(() => { if (!this.pointerOnToolbar) this.view.setControls(false); }, 2600);
   }
 
   async start(): Promise<void> {
@@ -489,6 +518,8 @@ export class PlayerSubtitleController {
     const fullscreen = document.fullscreenElement;
     const parent = fullscreen instanceof HTMLElement && fullscreen !== this.video && fullscreen.contains(this.video) ? fullscreen : this.container;
     if (this.view.host.parentElement !== parent) parent.append(this.view.host);
+    // The fullscreen overlay can sit outside the normal player container.
+    this.watchPointerControls(parent);
     // Full-page players can keep all content fixed, leaving the HTML box height zero.
     const bounds = parent === fullscreen && (parent === document.documentElement || parent === document.body)
       ? new DOMRect(0, 0, innerWidth, innerHeight) : parent.getBoundingClientRect();
@@ -555,6 +586,7 @@ export class PlayerSubtitleController {
     // both can still call extension APIs after a reload.
     this.disposed = true; this.enabled = false; this.epoch++;
     this.clearSession(); this.frameTranslation.dispose(); clearTimeout(this.controlsTimer);
+    this.controlsPointerEvents?.controller.abort();
     this.resumeOnReplacement = resume;
     for (const cleanup of this.cleanups) cleanup(); this.cleanups.length = 0;
     if (this.originalPosition && this.container.style.position === "relative") {

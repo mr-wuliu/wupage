@@ -70,6 +70,7 @@ export function normalizeSettings(value: unknown): ExtensionSettings {
     appearance: normalizeAppearance(input.appearance),
     autoTranslation: normalizeAutoTranslation(input.autoTranslation),
     floatingBallExcludedSites: normalizeExcludedSites(input.floatingBallExcludedSites),
+    videoFloatingExcludedSites: normalizeExcludedSites(input.videoFloatingExcludedSites),
     frameTranslation: normalizeFrameTranslation(input.frameTranslation),
     selectionTranslation: normalizeSelectionTranslation(input.selectionTranslation),
     targetLang: readString(input.targetLang, DEFAULT_SETTINGS.targetLang),

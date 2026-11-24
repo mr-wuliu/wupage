@@ -2236,7 +2236,10 @@
     "message": "Bilingual subtitles"
   },
   "closeFloatingVideoControls": {
-    "message": "Close floating video controls"
+    "message": "Hide floating video controls on this site"
+  },
+  "videoFloatingExcludedSites": {
+    "message": "Sites with hidden floating video controls"
   },
   "closeSubtitleSettings": {
     "message": "Close subtitle settings"
