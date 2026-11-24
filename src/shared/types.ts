@@ -224,6 +224,7 @@ export interface ExtensionSettings {
   statisticsEnabled?: boolean;
   floatingBallEnabled: boolean;
   floatingBallExcludedSites?: string[];
+  videoFloatingExcludedSites?: string[];
   contextMenuTranslationEnabled?: boolean;
   imageTranslationEnabled?: boolean;
   imageTranslationContextMenuEnabled?: boolean;

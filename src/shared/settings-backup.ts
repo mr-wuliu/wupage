@@ -173,7 +173,8 @@ const elementRules = optional(array(object({ id: string, name: string, pattern: 
 const settingsShape = {
   targetLang: string, sourceLang: string, activeProviderId: string, chunkSize: number(200, 4000), concurrency: number(1, 8),
   pdfTranslationPageRadius: (v, p, s) => v === null ? null : number(0, 1000)(v, p, s),
-  cacheEnabled: boolean, floatingBallEnabled: boolean, floatingBallExcludedSites: optional(strings), translateCodeComments: boolean,
+  cacheEnabled: boolean, floatingBallEnabled: boolean, floatingBallExcludedSites: optional(strings),
+  videoFloatingExcludedSites: optional(strings), translateCodeComments: boolean,
   statisticsEnabled: optional(boolean), contextMenuTranslationEnabled: optional(boolean), imageTranslationEnabled: optional(boolean),
   imageTranslationContextMenuEnabled: optional(boolean), imageTranslationFloatingEnabled: optional(boolean),
   ocr: optional(object({ mode: oneOf("builtin", "http"), endpoint: string, model: string, apiKey: string, modelRevision: string })),

@@ -89,6 +89,13 @@ try {
   }, origin);
   const page = await context.newPage(); page.on('pageerror', error => errors.push(error.message)); page.setDefaultTimeout(20000);
   const identity = verifyBrowserIdentity(target, await page.evaluate(() => navigator.userAgent));
+  const clickFrame = async scope => {
+    const frame = scope.locator('.frame');
+    await frame.waitFor();
+    const bounds = await frame.boundingBox();
+    await page.mouse.move(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
+    await frame.click();
+  };
   const translated = async scope => {
     await scope.locator('[data-wupage-video] canvas').waitFor({ timeout: 120000 });
     assert.match(await scope.locator('[data-wupage-video] canvas').getAttribute('aria-label'), /设置|显示语言|保存更改/);
@@ -96,17 +103,17 @@ try {
   };
   await page.goto(origin); await page.waitForFunction(() => window.fixtureReady);
   await page.locator('video').evaluate(video => video.play());
-  await page.locator('video').hover(); await page.locator('.frame').click(); await translated(page);
+  await clickFrame(page); await translated(page);
   checks.push('decoded frame, real local OCR and text-only translation without subtitles');
   const count = requests.length;
-  await page.locator('.frame').click(); assert.equal(await page.locator('[data-wupage-video] canvas').isVisible(), false);
-  await page.locator('.frame').click(); assert.equal(await page.locator('[data-wupage-video] canvas').isVisible(), true); assert.equal(requests.length, count);
+  await clickFrame(page); assert.equal(await page.locator('[data-wupage-video] canvas').isVisible(), false);
+  await clickFrame(page); assert.equal(await page.locator('[data-wupage-video] canvas').isVisible(), true); assert.equal(requests.length, count);
   await page.screenshot({ path: path.join(output, 'translated-frame.png') });
   await page.locator('video').evaluate(video => video.play()); await page.locator('[data-wupage-video] canvas').waitFor({ state: 'detached' });
-  await page.locator('video').hover(); await page.locator('.frame').click(); await translated(page);
+  await clickFrame(page); await translated(page);
   await page.locator('video').evaluate(video => { video.currentTime = .5; }); await page.locator('[data-wupage-video] canvas').waitFor({ state: 'detached' });
   checks.push('cached original/translation toggle, playback and seek cleanup');
-  await page.locator('#fullscreen').click(); await page.locator('video').hover(); await page.locator('.frame').click(); await translated(page);
+  await page.locator('#fullscreen').click(); await clickFrame(page); await translated(page);
   await page.evaluate(() => document.exitFullscreen()); checks.push('player fullscreen overlay');
   for (const pathname of ['/cross', '/embedded']) {
     await page.goto(origin + pathname);
@@ -116,7 +123,7 @@ try {
       const canvas = document.createElement('canvas'); const context = canvas.getContext('2d');
       context.drawImage(video, 0, 0); try { canvas.toDataURL(); return false; } catch (error) { return error.name === 'SecurityError'; }
     }), true, 'the cross-origin fixture must require the screenshot fallback');
-    await page.bringToFront(); await scope.locator('video').hover(); await scope.locator('.frame').click(); await translated(scope);
+    await page.bringToFront(); await clickFrame(scope); await translated(scope);
     await page.screenshot({ path: path.join(output, pathname.slice(1) + '-translated.png') });
     checks.push(pathname === '/embedded' ? 'cross-origin iframe screenshot coordinates and crop' : 'tainted video canvas falls back to cropped tab screenshot');
   }

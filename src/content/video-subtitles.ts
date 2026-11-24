@@ -3,11 +3,12 @@ import { playerContainer, queryVideoRoots, videoPlatform } from "../video/platfo
 import { hasCustomPlayer } from "../video/player-controls";
 import { sendRuntimeRequest } from "./runtime";
 import { normalizeVideoTranslation, videoPriority } from "../shared/video";
-import { SETTINGS_KEY } from "../shared/defaults";
+import { DEFAULT_SETTINGS, SETTINGS_KEY } from "../shared/defaults";
 import { createSettingsSnapshot } from "../shared/settings-snapshot";
 import type { ExtensionSettings } from "../shared/types";
-import { initializeInterfaceLanguage } from "../shared/i18n";
+import { initializeInterfaceLanguage, t } from "../shared/i18n";
 import { hasExtensionContext } from "../shared/extension-context";
+import { currentWebsitePattern } from "../shared/auto-translation";
 
 let current: VideoSubtitleManager | undefined;
 let feature: { ready: Promise<void> } | undefined;
@@ -28,7 +29,8 @@ export function initVideoSubtitles(): void {
   const apply = (settings: ExtensionSettings) => {
     if (disposed || !hasExtensionContext()) return;
     if (!normalizeVideoTranslation(settings?.videoTranslation).enabled) current?.dispose();
-    else current ??= new VideoSubtitleManager();
+    else if (current) current.applySettings(settings);
+    else current = new VideoSubtitleManager(settings);
   };
   const refresh = async () => { const settings = await snapshot.read(); apply(settings); };
   const changed = (changes: Record<string, chrome.storage.StorageChange>, area: string) => {
@@ -62,6 +64,8 @@ export class VideoSubtitleManager {
   private disposed = false;
   private registered = false;
   private resumePlayback = false;
+  private readonly website = currentWebsitePattern(location.href);
+  private pendingFloatingHidden?: boolean;
   private readonly pagehide = (event: PageTransitionEvent) => {
     const enabled = [...this.players.values()].filter(player => player.wantsTranslation).map(player => player.video);
     this.dispose();
@@ -75,7 +79,7 @@ export class VideoSubtitleManager {
   private readonly navigate = () => this.schedule();
   private readonly scrolled = () => { if (this.players.size >= 12) this.schedule(); };
 
-  constructor() {
+  constructor(private settings: ExtensionSettings = DEFAULT_SETTINGS) {
     this.observer = new MutationObserver(records => {
       if (records.some(record => record.target instanceof HTMLVideoElement
         || (record.target instanceof HTMLSourceElement && record.target.parentElement instanceof HTMLVideoElement)
@@ -101,6 +105,38 @@ export class VideoSubtitleManager {
     document.addEventListener("playing", this.navigate, true);
     document.addEventListener("emptied", this.navigate, true);
     this.refresh();
+  }
+
+  applySettings(settings: ExtensionSettings): void {
+    this.settings = settings;
+    this.updateFloatingControls();
+  }
+
+  private get floatingControlsHidden(): boolean {
+    return this.pendingFloatingHidden ?? (!!this.website && this.settings.videoFloatingExcludedSites?.includes(this.website) === true);
+  }
+
+  private updateFloatingControls(): void {
+    const hidden = this.floatingControlsHidden;
+    for (const player of this.players.values()) player.setFloatingControlsHidden(hidden);
+  }
+
+  private async setFloatingControlsHidden(hidden: boolean, player: PlayerSubtitleController): Promise<void> {
+    const site = this.website;
+    if (!site || this.pendingFloatingHidden !== undefined || this.floatingControlsHidden === hidden) return;
+    const previousSettings = this.settings;
+    const sites = previousSettings.videoFloatingExcludedSites ?? [];
+    const settings = { ...previousSettings, videoFloatingExcludedSites: hidden ? [...sites, site] : sites.filter(value => value !== site) };
+    this.pendingFloatingHidden = hidden;
+    this.updateFloatingControls();
+    await sendRuntimeRequest({ type: "SAVE_SETTINGS", settings, previousSettings }).then(() => {
+      if (this.settings === previousSettings) this.settings = settings;
+    }).finally(() => {
+      this.pendingFloatingHidden = undefined;
+      this.updateFloatingControls();
+    }).catch(error => {
+      if (player.connected) player.view.tell(t("settingsCouldNotBeSaved", error instanceof Error ? error.message : String(error)));
+    });
   }
 
   private schedule(): void {
@@ -135,7 +171,10 @@ export class VideoSubtitleManager {
     }
     for (const { video } of candidates) {
       if (this.players.has(video)) continue;
-      const player = new PlayerSubtitleController(video, playerContainer(video, platform), platform, video === candidates[0].video);
+      const player = new PlayerSubtitleController(video, playerContainer(video, platform), platform, video === candidates[0].video, {
+        hidden: this.floatingControlsHidden,
+        dismiss: () => { void this.setFloatingControlsHidden(true, player); }
+      });
       this.players.set(video, player);
       if (this.resumePlayback) { this.resumePlayback = false; void player.start(); }
     }
@@ -166,6 +205,7 @@ export class VideoSubtitleManager {
   open(): boolean {
     this.refresh();
     const player = this.primary(); if (!player) return false;
+    void this.setFloatingControlsHidden(false, player);
     player.video.scrollIntoView?.({ block: "nearest", inline: "nearest" }); player.open(); return true;
   }
 

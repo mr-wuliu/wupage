@@ -32,6 +32,25 @@ const server = createServer(async (request, response) => {
     response.setHeader('Content-Type', 'text/html; charset=utf-8');
     response.end('<!doctype html><h1>Embedded video</h1><iframe width="850" height="750" src="http://localhost:' + server.address().port + '/"></iframe>'); return;
   }
+  if (request.url.startsWith('/video-feed')) {
+    response.setHeader('Content-Type', 'text/html; charset=utf-8');
+    response.end(`<!doctype html><title>Short video feed</title><style>
+      #feed{position:relative;width:620px;margin:40px} video{display:block;width:620px;height:430px;background:#234}
+      </style><div id="feed"></div><script>
+      let index = 0;
+      window.nextVideo = () => {
+        const video = document.createElement('video'), canvas = document.createElement('canvas');
+        canvas.width = 620; canvas.height = 430; canvas.getContext('2d').fillRect(0, 0, 620, 430);
+        video.muted = true; video.autoplay = true;
+        video.srcObject = canvas.captureStream(1);
+        document.querySelector('video')?.srcObject.getTracks().forEach(track => track.stop());
+        document.querySelector('#feed').replaceChildren(video);
+        history.replaceState(null, '', '/video-feed?v=' + ++index);
+      };
+      nextVideo();
+      </script>`);
+    return;
+  }
   const name = request.url === '/video-subtitles.vtt' ? 'video-subtitles.vtt' : 'video-subtitles.html';
   response.setHeader('Content-Type', name.endsWith('.vtt') ? 'text/vtt; charset=utf-8' : 'text/html; charset=utf-8');
   response.end(await fs.readFile(path.join(root, 'tests/fixtures', name)));
@@ -45,9 +64,10 @@ try {
     headless: true, ignoreDefaultArgs: ['--disable-extensions'], args: ['--lang=zh-CN', '--enable-unsafe-extension-debugging'], viewport: { width: 1240, height: 800 }
   });
   const session = await context.browser().newBrowserCDPSession();
-  await session.send('Extensions.loadUnpacked', { path: path.join(root, process.env.VIDEO_TEST_EXTENSION_DIR || 'dist') }); await session.detach();
-  const worker = context.serviceWorkers()[0] || await context.waitForEvent('serviceworker');
-  const extension = 'chrome-extension://' + new URL(worker.url()).host;
+  const { id } = await session.send('Extensions.loadUnpacked', { path: path.join(root, process.env.VIDEO_TEST_EXTENSION_DIR || 'dist') }); await session.detach();
+  const isWuPage = worker => new URL(worker.url()).host === id;
+  const worker = context.serviceWorkers().find(isWuPage) || await context.waitForEvent('serviceworker', isWuPage);
+  const extension = `chrome-extension://${id}`;
   const options = await context.newPage(); await options.goto(extension + '/options.html');
   await options.evaluate(async origin => {
     const { data: settings } = await chrome.runtime.sendMessage({ type: 'GET_SETTINGS' });
@@ -75,6 +95,10 @@ try {
   await page.goto(origin); await page.waitForFunction(() => window.fixtureReady);
   await page.waitForFunction(() => document.querySelector('video').textTracks[0]?.cues?.length === 3);
   const view = page.locator('[data-wupage-video]').first();
+  const hoverToolbar = async () => {
+    const bounds = await view.locator('.toolbar').boundingBox();
+    await page.mouse.move(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
+  };
   await view.waitFor(); assert.equal(requests.length, 0, 'discovering video must not translate');
   const tab = await worker.evaluate(async url => (await chrome.tabs.query({ url }))[0], page.url());
   const popup = await context.newPage();
@@ -210,7 +234,7 @@ try {
   assert.equal(await page.evaluate(() => document.documentElement.getBoundingClientRect().height), 0, 'reproduce fixed-body full-page player layout');
   await translated.filter({ hasText: '跳转到另一个时间。' }).waitFor();
   assert.equal(await view.evaluate(host => host.hidden), false);
-  await page.locator('video').hover(); await view.locator('.settings').hover();
+  await hoverToolbar(); await view.locator('.settings').hover();
   await page.waitForTimeout(2800);
   assert.equal(await view.locator('.toolbar').evaluate(toolbar => getComputedStyle(toolbar).pointerEvents), 'auto');
   await view.locator('.settings').click(); await view.locator('.panel').waitFor();
@@ -327,7 +351,7 @@ try {
   assert.equal(await outside.getAttribute('data-clicked'), 'true');
   assert.equal(await page.locator('[data-wupage-video]').count(), 1);
   const main = page.locator('.player video[controls]');
-  await main.hover();
+  await hoverToolbar();
   await view.locator('.dismiss').click();
   await outside.hover(); await main.hover();
   assert.equal(await view.locator('.toolbar').isVisible(), false);
@@ -335,6 +359,53 @@ try {
   assert.equal(reopened.ok, true);
   await view.locator('.toolbar').waitFor({ state: 'visible' });
   checks.push('background and empty videos have no controls; overlay follows the real video, leaves the page action clickable, and can be closed and reopened');
+  await page.goto(origin + '/video-feed');
+  const toolbar = view.locator('.toolbar');
+  const corner = async () => {
+    const video = await page.locator('video').boundingBox();
+    await page.mouse.move(video.x + video.width - 6, video.y + 6);
+  };
+  const moveOff = async () => {
+    const video = await page.locator('video').boundingBox();
+    await page.mouse.move(video.x + video.width / 2, video.y + video.height / 2);
+  };
+  const opacity = () => toolbar.evaluate(element => Number(getComputedStyle(element).opacity));
+  await view.waitFor();
+  await corner();
+  await page.waitForFunction(() => document.querySelector('[data-wupage-video]').hasAttribute('data-controls'));
+  await page.waitForTimeout(2800);
+  const keptOnHover = await opacity() === 1;
+  await moveOff();
+  await page.waitForTimeout(250);
+  const hiddenAfterLeaving = await opacity() === 0;
+  await corner(); await toolbar.locator('.dismiss').click();
+  await toolbar.waitFor({ state: 'hidden' });
+  let hiddenAfterReplacement = true;
+  for (let i = 0; i < 3; ++i) {
+    const old = await view.getAttribute('id');
+    await page.evaluate(() => window.nextVideo());
+    await page.waitForFunction(id => !document.getElementById(id) && !!document.querySelector('[data-wupage-video]'), old);
+    await moveOff(); await corner();
+    hiddenAfterReplacement &&= !await toolbar.isVisible();
+  }
+  await page.reload(); await view.waitFor();
+  await moveOff(); await corner();
+  const hiddenAfterReload = !await toolbar.isVisible();
+  assert.deepEqual({ keptOnHover, hiddenAfterLeaving, hiddenAfterReplacement, hiddenAfterReload },
+    { keptOnHover: true, hiddenAfterLeaving: true, hiddenAfterReplacement: true, hiddenAfterReload: true });
+  await page.goto(origin.replace('127.0.0.1', 'localhost') + '/video-feed');
+  await view.waitFor(); await moveOff(); await corner();
+  await toolbar.locator('.dismiss').hover();
+  await options.reload();
+  const removeExclusion = options.locator('#videoFloatingExclusions button');
+  await removeExclusion.click(); await options.locator('#save').click();
+  await options.waitForFunction(async site => {
+    const result = await chrome.runtime.sendMessage({ type: 'GET_SETTINGS' });
+    return result.ok && !result.data.videoFloatingExcludedSites.includes(site);
+  }, new URL(origin).host);
+  await page.goto(origin + '/video-feed'); await view.waitFor();
+  await moveOff(); await corner(); await toolbar.locator('.dismiss').hover();
+  checks.push('short-video toolbar stays visible under a stationary pointer, hides away from the corner, and respects a site exclusion through replacement and reload');
   assert.deepEqual(errors, []);
   console.log(JSON.stringify({ ...identity, passed: true, checks, requests: requests.length }));
   await fs.writeFile(path.join(output, 'report.json'), JSON.stringify({ ...identity, passed: true, checks, requests, errors }, null, 2));
