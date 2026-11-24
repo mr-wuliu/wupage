@@ -45,6 +45,7 @@ const contextMenuTranslationButton = query<HTMLButtonElement>("#contextMenuTrans
 const autoTranslationButton = query<HTMLButtonElement>("#autoTranslation");
 const addAutoTranslationSiteButton = query<HTMLButtonElement>("#addAutoTranslationSite");
 const selectionTranslationButton = query<HTMLButtonElement>("#selectionTranslation");
+const openVocabularyButton = query<HTMLButtonElement>("#openVocabulary");
 const floatingBallButton = query<HTMLButtonElement>("#floatingBall");
 const imageTranslationButton = query<HTMLButtonElement>("#imageTranslation");
 const debugButton = query<HTMLButtonElement>("#debug");
@@ -217,6 +218,10 @@ async function init(): Promise<void> {
   debugButton.addEventListener("click", openDebugPanel);
   clearCacheButton.addEventListener("click", clearCache);
   optionsButton.addEventListener("click", () => chrome.runtime.openOptionsPage());
+  openVocabularyButton.addEventListener("click", () => {
+    void chrome.tabs.create({ url: chrome.runtime.getURL("vocabulary.html") }).then(() => window.close())
+      .catch((error: unknown) => setStatus(error instanceof Error ? error.message : String(error)));
+  });
   githubButton.addEventListener("click", () => {
     void chrome.tabs.create({ url: GITHUB_URL });
   });

@@ -12,6 +12,7 @@ export const POPUP_MENU_ITEMS = [
   { id: "pageToggle", get label() { return t("translatePage"); }, group: "translation" },
   { id: "paragraphMode", get label() { return t("paragraphTranslation"); }, group: "translation" },
   { id: "openPdfWorkspace", get label() { return t("openPdf"); }, group: "tools" },
+  { id: "openVocabulary", get label() { return t("vocabularyBook"); }, group: "tools" },
   { id: "debug", label: "Debug", group: "tools" },
   { id: "clearCache", get label() { return t("clearCache"); }, group: "tools" },
   { id: "openGithub", label: "GitHub", group: "links" },
@@ -25,7 +26,7 @@ export interface PopupMenuLayout { order: PopupMenuItem[]; hidden: PopupMenuItem
 export const DEFAULT_POPUP_MENU: PopupMenuLayout = {
   order: POPUP_MENU_ITEMS.map(item => item.id), hidden: [],
   rows: [["contextMenuTranslation", "floatingBall"], ["selectionTranslation", "imageTranslation"], ["videoTranslation"],
-    ["pageToggle", "paragraphMode"], ["openPdfWorkspace"], ["debug", "clearCache"]]
+    ["pageToggle", "paragraphMode"], ["openPdfWorkspace"], ["openVocabulary"], ["debug", "clearCache"]]
 };
 
 /** Recover the exact former layout when importing settings without explicit rows. */
@@ -34,7 +35,7 @@ function legacyRows(order: PopupMenuItem[]): PopupMenuItem[][] {
   let run: PopupMenuItem[] = [];
   const finish = () => { for (let i = 0; i < run.length; i += 2) rows.push(run.slice(i, i + 2)); run = []; };
   for (const id of order) {
-    if (id === "videoTranslation" || id === "openPdfWorkspace") { finish(); rows.push([id]); }
+    if (id === "videoTranslation" || id === "openPdfWorkspace" || id === "openVocabulary") { finish(); rows.push([id]); }
     else run.push(id);
   }
   finish(); return rows;
@@ -58,6 +59,17 @@ export function normalizePopupMenu(value: unknown): PopupMenuLayout {
     }
   }
   rows.push(...legacyRows(sortable.filter(id => !seen.has(id))));
+  const explicitlyPlacedVocabulary = (Array.isArray(input.order) && input.order.includes("openVocabulary"))
+    || (Array.isArray(input.rows) && input.rows.some(row => Array.isArray(row) && row.includes("openVocabulary")));
+  if (!explicitlyPlacedVocabulary && !hidden.includes("openVocabulary")) {
+    const vocabularyRow = rows.findIndex(row => row.includes("openVocabulary"));
+    if (vocabularyRow >= 0) {
+      const [row] = rows.splice(vocabularyRow, 1);
+      const pdfRow = rows.findIndex(item => item.includes("openPdfWorkspace"));
+      const toolsRow = rows.findIndex(item => item.includes("debug") || item.includes("clearCache"));
+      rows.splice(pdfRow >= 0 ? pdfRow + 1 : toolsRow >= 0 ? toolsRow : rows.length, 0, row);
+    }
+  }
   return { rows, hidden, order: [...rows.flat(), ...order.filter(id => hidden.includes(id) && !isPopupMenuLink(id)), ...POPUP_MENU_LINKS] };
 }
 

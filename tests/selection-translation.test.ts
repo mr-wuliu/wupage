@@ -15,6 +15,9 @@ const translationSettings = { ...DEFAULT_SETTINGS, sourceLang: "en" };
 function root() { return document.getElementById("wupage-selection-tools")!.shadowRoot!; }
 function card() { return root().querySelector<HTMLElement>(".card")!; }
 function source() { return root().querySelector<HTMLTextAreaElement>(".word")!; }
+function dictionaryRequests() {
+  return vi.mocked(sendRuntimeRequest).mock.calls.map(([request]) => request).filter(request => request.type === "LOOKUP_DICTIONARY");
+}
 function edit(value: string) { source().focus(); source().value = value; source().dispatchEvent(new Event("input", { bubbles: true, composed: true })); }
 function submit() { root().querySelector<HTMLButtonElement>(".submit-source")!.click(); }
 function select(id = "first") {
@@ -31,6 +34,8 @@ beforeEach(() => {
   vi.mocked(sendRuntimeRequest).mockImplementation(async request => {
     if (request.type === "GET_SETTINGS") return translationSettings;
     if (request.type === "TRANSLATE_BATCH") return { translations: ["翻译结果"], cached: 0 };
+    if (request.type === "VOCABULARY_GET") return null;
+    if (request.type === "VOCABULARY_SAVE") return { ...entry, id: "saved-example", normalizedTerm: "example", savedAt: Date.now(), updatedAt: Date.now() };
     return entry;
   });
   controller = new SelectionTranslationController({ enabled: true, provider: "youdao", style: "dot" });
@@ -121,6 +126,20 @@ describe("selection dictionary UI", () => {
     expect(root().querySelector(".phonetics")?.textContent).toContain("ɪɡˈzɑːmpəl");
     expect(root().querySelector(".speak")?.getAttribute("aria-label")).toBe("播放英式发音");
   });
+  it("saves and removes a dictionary word from the favorite button", async () => {
+    await show(); open(); await vi.waitFor(() => expect(root().querySelector(".meanings")).not.toBeNull());
+    const favorite = root().querySelector<HTMLButtonElement>(".favorite-word")!;
+    expect(favorite.hidden).toBe(false);
+    expect(favorite.getAttribute("aria-pressed")).toBe("false");
+    favorite.click();
+    await vi.waitFor(() => expect(favorite.getAttribute("aria-pressed")).toBe("true"));
+    expect(sendRuntimeRequest).toHaveBeenCalledWith({ type: "VOCABULARY_SAVE", entry: expect.objectContaining({
+      term: "example", dictionaryProvider: "youdao", meanings: entry.meanings
+    }) });
+    favorite.click();
+    await vi.waitFor(() => expect(favorite.getAttribute("aria-pressed")).toBe("false"));
+    expect(sendRuntimeRequest).toHaveBeenCalledWith({ type: "VOCABULARY_DELETE", id: "saved-example" });
+  });
   it("draws one underline per line without modifying the selected page nodes", async () => {
     controller.update({ enabled: true, provider: "bing", style: "underline" });
     vi.mocked(Range.prototype.getClientRects).mockReturnValue([new DOMRect(10, 10, 30, 20), new DOMRect(40, 10, 20, 20), new DOMRect(10, 35, 40, 20)] as unknown as DOMRectList);
@@ -137,7 +156,7 @@ describe("selection dictionary UI", () => {
     await show(); expect(sendRuntimeRequest).not.toHaveBeenCalled();
     expect(root().querySelector(".trigger-dot")?.getAttribute("title")).toBe("查词");
     open(); await vi.waitFor(() => expect(root().querySelector(".meanings")?.textContent).toContain("鼻子不通气"));
-    expect(sendRuntimeRequest).toHaveBeenCalledExactlyOnceWith({ type: "LOOKUP_DICTIONARY", provider: "youdao", query: "齉" });
+    expect(dictionaryRequests()).toEqual([{ type: "LOOKUP_DICTIONARY", provider: "youdao", query: "齉" }]);
     expect(root().querySelector(".phonetics")?.textContent).toBe("拼音 nàng");
     expect(root().querySelector<HTMLSelectElement>("select")?.value).toBe("youdao");
     expect(root().querySelector<HTMLOptionElement>('option[value="bing"]')?.disabled).toBe(true);
@@ -145,7 +164,7 @@ describe("selection dictionary UI", () => {
     expect(root().querySelector("footer a")?.getAttribute("href")).toContain("lang=zh");
     document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
     document.getElementById("first")!.textContent = "example";
-    await show(); open(); await vi.waitFor(() => expect(sendRuntimeRequest).toHaveBeenLastCalledWith({ type: "LOOKUP_DICTIONARY", provider: "bing", query: "example" }));
+    await show(); open(); await vi.waitFor(() => expect(dictionaryRequests().at(-1)).toEqual({ type: "LOOKUP_DICTIONARY", provider: "bing", query: "example" }));
     expect(root().querySelector<HTMLOptionElement>('option[value="bing"]')?.disabled).toBe(false);
   });
   it("shows all Chinese readings and associates meanings with their pronunciation", async () => {
@@ -163,7 +182,7 @@ describe("selection dictionary UI", () => {
     vi.mocked(sendRuntimeRequest).mockResolvedValueOnce({ ...entry, query: "你好", word: "你好",
       pronunciations: [{ accent: "pinyin", phonetic: "nǐ hǎo" }], meanings: [] });
     await show(); open(); await vi.waitFor(() => expect(root().querySelector(".phonetics")?.textContent).toBe("拼音 nǐ hǎo"));
-    expect(sendRuntimeRequest).toHaveBeenCalledOnce();
+    expect(dictionaryRequests()).toHaveLength(1);
     expect(card().dataset.mode).toBe("dictionary");
     expect(root().querySelector(".notice")?.textContent).toContain("未找到词典释义");
   });
@@ -202,7 +221,7 @@ describe("selection dictionary UI", () => {
     vi.mocked(sendRuntimeRequest).mockResolvedValueOnce({ ...entry, provider: "bing" });
     root().querySelector<HTMLButtonElement>(".retry")!.click();
     await vi.waitFor(() => expect(root().querySelector(".meanings")?.textContent).toContain("例子"));
-    expect(sendRuntimeRequest).toHaveBeenLastCalledWith({ type: "LOOKUP_DICTIONARY", provider: "bing", query: "example" });
+    expect(dictionaryRequests().at(-1)).toEqual({ type: "LOOKUP_DICTIONARY", provider: "bing", query: "example" });
     expect(root().querySelector("footer a")?.getAttribute("href")).toContain("cn.bing.com/dict/search");
   });
   it("translates multiple words directly with the active service and configured languages", async () => {
@@ -223,7 +242,7 @@ describe("selection dictionary UI", () => {
     await show(); open();
     await vi.waitFor(() => expect(root().querySelector(".selection-translation")?.textContent).toBe("翻译结果"));
     expect(vi.mocked(sendRuntimeRequest).mock.calls.map(([request]) => request.type))
-      .toEqual(["LOOKUP_DICTIONARY", "GET_SETTINGS", "TRANSLATE_BATCH"]);
+      .toEqual(["LOOKUP_DICTIONARY", "GET_SETTINGS", "TRANSLATE_BATCH", "VOCABULARY_GET"]);
     expect(root().querySelector(".notice")).toBeNull();
   });
   it("uses the Firefox local provider without choosing another online translation service", async () => {
@@ -442,7 +461,7 @@ describe("editing selected text in the card", () => {
     expect(root().querySelector(".submit-source")?.textContent).toBe("查词");
     vi.mocked(sendRuntimeRequest).mockResolvedValueOnce({ ...entry, query: "running", word: "running" });
     submit(); await vi.waitFor(() => expect(root().querySelector(".meanings")).not.toBeNull());
-    expect(sendRuntimeRequest).toHaveBeenLastCalledWith({ type: "LOOKUP_DICTIONARY", provider: "youdao", query: "running" });
+    expect(dictionaryRequests().at(-1)).toEqual({ type: "LOOKUP_DICTIONARY", provider: "youdao", query: "running" });
     expect(source().value).toBe("running");
     expect(document.getElementById("first")?.textContent).toBe("example");
     expect(card().hidden).toBe(false);
@@ -467,7 +486,7 @@ describe("editing selected text in the card", () => {
     await show(); open(); await vi.waitFor(() => expect(root().querySelector(".selection-translation")).not.toBeNull());
     edit("example"); submit();
     await vi.waitFor(() => expect(root().querySelector(".meanings")).not.toBeNull());
-    expect(sendRuntimeRequest).toHaveBeenLastCalledWith({ type: "LOOKUP_DICTIONARY", provider: "bing", query: "example" });
+    expect(dictionaryRequests().at(-1)).toEqual({ type: "LOOKUP_DICTIONARY", provider: "bing", query: "example" });
     expect(card().dataset.mode).toBe("dictionary");
     expect(root().querySelector<HTMLSelectElement>("select")?.hidden).toBe(false);
   });
@@ -503,6 +522,6 @@ describe("editing selected text in the card", () => {
     expect(card().hidden).toBe(false);
     const provider = root().querySelector<HTMLSelectElement>("select")!;
     provider.value = "bing"; provider.dispatchEvent(new Event("change"));
-    await vi.waitFor(() => expect(sendRuntimeRequest).toHaveBeenLastCalledWith({ type: "LOOKUP_DICTIONARY", provider: "bing", query: "running" }));
+    await vi.waitFor(() => expect(dictionaryRequests().at(-1)).toEqual({ type: "LOOKUP_DICTIONARY", provider: "bing", query: "running" }));
   });
 });

@@ -12,6 +12,7 @@ import { setHtmlContent } from "../shared/html";
 import { hasTouchInput, visibleViewport } from "../shared/touch";
 import { captureSelectionSource, isEditorSelection, replaceSelectionSource, selectionReplacementAvailable,
   selectionSourceConnected, selectionSourceRects, selectionSourceUnchanged, type SelectionSource } from "./selection-source";
+import type { VocabularyEntry, VocabularySnapshot } from "../shared/vocabulary";
 
 const HOST_ID = "wupage-selection-tools";
 
@@ -33,11 +34,16 @@ export class SelectionTranslationController {
   private footer: HTMLElement;
   private source: HTMLAnchorElement;
   private audioStatus: HTMLElement;
+  private favoriteButton: HTMLButtonElement;
+  private favoriteStatus: HTMLElement;
   private selection?: SelectionSource;
   private resultActions: HTMLElement;
   private replaceButton: HTMLButtonElement;
   private replacementStatus: HTMLElement;
   private translation = "";
+  private favoriteSnapshot?: VocabularySnapshot;
+  private favoriteEntryId?: string;
+  private favoriteBusy = false;
   private replacementInvalidated = false;
   private query = "";
   private version = 0;
@@ -111,11 +117,20 @@ export class SelectionTranslationController {
     this.translationService = document.createElement("span");
     this.translationService.className = "translation-service";
     this.translationService.hidden = true;
+    this.favoriteButton = document.createElement("button");
+    this.favoriteButton.type = "button";
+    this.favoriteButton.className = "favorite-word";
+    this.favoriteButton.hidden = true;
+    this.favoriteButton.setAttribute("aria-pressed", "false");
+    this.favoriteButton.addEventListener("click", () => { void this.toggleFavorite(this.version); });
+    this.favoriteStatus = document.createElement("span");
+    this.favoriteStatus.className = "favorite-status";
+    this.favoriteStatus.setAttribute("role", "status");
     const close = document.createElement("button");
     close.type = "button"; close.className = "close"; setHtmlContent(close, uiIconMarkup("cross"));
     close.setAttribute("aria-label", t("closeSelectionTranslation"));
     close.addEventListener("click", () => this.close());
-    header.append(this.word, this.providerSelect, this.translationService, close);
+    header.append(this.word, this.providerSelect, this.translationService, this.favoriteButton, this.favoriteStatus, close);
     this.sourceActions = document.createElement("div");
     this.sourceActions.className = "source-actions";
     this.sourceActions.hidden = true;
@@ -351,12 +366,12 @@ export class SelectionTranslationController {
     if (!this.positionCard()) { this.close(); return; }
     if (focus) this.card.focus({ preventScroll: true });
     try {
-      if (translating) { await this.translateSelection(version); return; }
+      if (translating) { await this.translateSelection(version, isSingleDictionaryWord(this.query) && !isEditorSelection(this.selection!)); return; }
       const entry = await sendRuntimeRequest<DictionaryEntry>({ type: "LOOKUP_DICTIONARY", provider, query: this.query });
       if (!this.canRender(version)) return;
       if (entry.meanings.some(meaning => meaning.definition.trim())
         || (chinese && entry.pronunciations.some(item => item.phonetic?.trim()))) this.renderEntry(entry, version);
-      else { translating = true; await this.translateSelection(version); }
+      else { translating = true; await this.translateSelection(version, true); }
     } catch (error) {
       if (version !== this.version || this.disposed) return;
       this.body.replaceChildren();
@@ -401,7 +416,9 @@ export class SelectionTranslationController {
     const expanded = this.root.activeElement === this.word;
     const limit = Math.max(36, Math.min(expanded ? 150 : lineHeight * 2 + 8, visibleViewport().height / 3));
     this.word.style.height = "0px";
-    this.word.style.height = `${Math.min(limit, Math.max(lineHeight + 8, this.word.scrollHeight))}px`;
+    const height = Math.min(limit, Math.max(lineHeight + 8, this.word.scrollHeight));
+    this.word.style.height = `${height}px`;
+    this.word.style.overflowY = this.word.scrollHeight > height ? "auto" : "hidden";
     this.positionCard();
   }
 
@@ -422,7 +439,7 @@ export class SelectionTranslationController {
     this.resizeSourceEditor();
   }
 
-  private async translateSelection(version: number): Promise<void> {
+  private async translateSelection(version: number, allowVocabulary = false): Promise<void> {
     if (!this.canRender(version)) return;
     this.setTranslationMode(true);
     this.body.textContent = t("translationInProgress");
@@ -445,6 +462,9 @@ export class SelectionTranslationController {
     text.textContent = translated.trim();
     this.body.replaceChildren(text);
     this.translation = translated.trim();
+    if (allowVocabulary && isSingleDictionaryWord(this.query) && !isEditorSelection(this.selection!)) {
+      this.showFavorite({ term: this.query, meanings: [], pronunciations: [], translation: translated.trim() }, version);
+    }
     this.updateReplacement();
   }
 
@@ -454,6 +474,12 @@ export class SelectionTranslationController {
 
   private resetTranslation(): void {
     this.translation = "";
+    this.favoriteSnapshot = undefined;
+    this.favoriteEntryId = undefined;
+    this.favoriteBusy = false;
+    this.favoriteButton.hidden = true;
+    this.favoriteButton.disabled = false;
+    this.favoriteStatus.textContent = "";
     this.resultActions.hidden = true;
     this.replacementStatus.textContent = "";
   }
@@ -531,6 +557,66 @@ export class SelectionTranslationController {
       const empty = document.createElement("p"); empty.className = "notice";
       empty.textContent = isChineseDictionaryQuery(this.query) ? t("noDefinitionsFoundViewTheDictionaryWebsite") : t("noDefinitionsFoundSwitchDictionariesOrViewThe");
       this.body.append(empty);
+    }
+    if (isSingleDictionaryWord(this.query) && !isEditorSelection(this.selection!)) {
+      this.showFavorite({ term: entry.word || this.query,
+        dictionaryProvider: entry.provider, pronunciations: entry.pronunciations, meanings: entry.meanings, examples: entry.examples }, version);
+    }
+  }
+
+  private showFavorite(snapshot: VocabularySnapshot, version: number): void {
+    this.favoriteSnapshot = snapshot;
+    this.favoriteEntryId = undefined;
+    this.favoriteStatus.textContent = "";
+    this.favoriteButton.hidden = false;
+    this.favoriteButton.disabled = true;
+    this.favoriteButton.classList.remove("is-saved");
+    this.favoriteButton.setAttribute("aria-pressed", "false");
+    this.favoriteButton.setAttribute("aria-label", t("saveWord"));
+    setHtmlContent(this.favoriteButton, uiIconMarkup("star"));
+    void sendRuntimeRequest<VocabularyEntry | null>({ type: "VOCABULARY_GET", term: snapshot.term })
+      .then(entry => {
+        if (!this.canRender(version) || this.favoriteSnapshot !== snapshot) return;
+        this.setFavoriteState(entry, false);
+      })
+      .catch(error => {
+        if (!this.canRender(version) || this.favoriteSnapshot !== snapshot) return;
+        this.favoriteStatus.textContent = this.errorMessage(error);
+        this.favoriteButton.disabled = false;
+      });
+  }
+
+  private setFavoriteState(entry: VocabularyEntry | null, busy: boolean): void {
+    this.favoriteEntryId = entry?.id;
+    this.favoriteBusy = busy;
+    this.favoriteButton.disabled = busy;
+    this.favoriteButton.classList.toggle("is-saved", !!entry);
+    this.favoriteButton.setAttribute("aria-pressed", String(!!entry));
+    this.favoriteButton.setAttribute("aria-label", t(entry ? "removeSavedWord" : "saveWord"));
+    setHtmlContent(this.favoriteButton, uiIconMarkup("star"));
+    this.favoriteStatus.textContent = busy ? t("savingWord") : entry ? t("wordSaved") : "";
+  }
+
+  private async toggleFavorite(version: number): Promise<void> {
+    if (!this.favoriteSnapshot || this.favoriteBusy || !this.canRender(version)) return;
+    const snapshot = this.favoriteSnapshot;
+    this.favoriteBusy = true;
+    this.favoriteButton.disabled = true;
+    this.favoriteStatus.textContent = t("savingWord");
+    try {
+      if (this.favoriteEntryId) {
+        await sendRuntimeRequest({ type: "VOCABULARY_DELETE", id: this.favoriteEntryId });
+        if (this.canRender(version) && this.favoriteSnapshot === snapshot) this.setFavoriteState(null, false);
+      } else {
+        const entry = await sendRuntimeRequest<VocabularyEntry>({ type: "VOCABULARY_SAVE", entry: snapshot });
+        if (this.canRender(version) && this.favoriteSnapshot === snapshot) this.setFavoriteState(entry, false);
+      }
+    } catch (error) {
+      if (this.canRender(version) && this.favoriteSnapshot === snapshot) {
+        this.favoriteBusy = false;
+        this.favoriteButton.disabled = false;
+        this.favoriteStatus.textContent = this.errorMessage(error);
+      }
     }
   }
 

@@ -29,6 +29,7 @@ import { saveParagraphMode } from "./paragraph-mode";
 import { captureVideoFrame } from "./video-frame";
 import { installPdfTranslation } from "./pdf-translation";
 import { installPdfNavigation } from "./pdf-navigation";
+import { handleVocabularyRequest } from "./vocabulary";
 
 installPdfNavigation();
 installPdfTranslation(async (request, sender, signal) => {
@@ -99,10 +100,21 @@ async function handleMessage(request: RuntimeRequest, sender: chrome.runtime.Mes
     case "LOOKUP_DICTIONARY":
     case "PLAY_DICTIONARY_AUDIO": {
       const settings = normalizeSelectionTranslation((await getSettings()).selectionTranslation);
-      if (!settings.enabled) throw new Error(t("enableSelectionTranslationInSettingsFirst"));
-      if (request.type === "LOOKUP_DICTIONARY") return lookupDictionary(request.provider, request.query);
+      if (request.type === "LOOKUP_DICTIONARY") {
+        if (!settings.enabled) throw new Error(t("enableSelectionTranslationInSettingsFirst"));
+        return lookupDictionary(request.provider, request.query);
+      }
+      if (!settings.enabled && sender.url?.split(/[?#]/u)[0] !== chrome.runtime.getURL("vocabulary.html")) {
+        throw new Error(t("enableSelectionTranslationInSettingsFirst"));
+      }
       return playDictionaryAudio(request.provider, request.url, `${sender.tab?.id ?? "extension"}:${sender.frameId ?? 0}`);
     }
+    case "VOCABULARY_LIST":
+    case "VOCABULARY_GET":
+    case "VOCABULARY_SAVE":
+    case "VOCABULARY_DELETE":
+    case "VOCABULARY_EXPORT_RECOVERY":
+      return handleVocabularyRequest(request, sender);
     case "STOP_DICTIONARY_AUDIO":
       return stopDictionaryAudio(`${sender.tab?.id ?? "extension"}:${sender.frameId ?? 0}`);
     case "GET_DOUBAO_STATUS":

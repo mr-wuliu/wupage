@@ -342,6 +342,11 @@ export type RuntimeRequest =
   | import("./frame-session").FrameSessionRequest
   | { type: "EXECUTE_TRANSLATION_SHORTCUT"; command: TranslationShortcut }
   | { type: "LOOKUP_DICTIONARY"; query: string; provider: DictionaryProvider }
+  | { type: "VOCABULARY_LIST" }
+  | { type: "VOCABULARY_GET"; term: string }
+  | { type: "VOCABULARY_SAVE"; entry: import("./vocabulary").VocabularySnapshot }
+  | { type: "VOCABULARY_DELETE"; id: string }
+  | { type: "VOCABULARY_EXPORT_RECOVERY" }
   | { type: "PLAY_DICTIONARY_AUDIO"; provider: DictionaryProvider; url: string }
   | { type: "STOP_DICTIONARY_AUDIO" }
   | { type: "GET_DOUBAO_STATUS" }

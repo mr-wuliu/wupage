@@ -21,6 +21,7 @@ export interface DictionaryEntry {
   sourceUrl: string;
   pronunciations: DictionaryPronunciation[];
   meanings: { partOfSpeech: string; definition: string; pronunciation?: string }[];
+  examples?: { sentence: string; translation?: string }[];
 }
 
 export const DICTIONARY_LABELS: Record<DictionaryProvider, string> = { get youdao() { return t("youdaoDictionary"); }, get bing() { return t("bingDictionary"); } };

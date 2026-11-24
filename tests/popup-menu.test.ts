@@ -89,7 +89,7 @@ describe("popup menu preferences", () => {
   it("keeps explicit pairs, cleans malformed rows and excludes hidden entries from geometry", () => {
     const layout = normalizePopupMenu({ rows: [["openPdfWorkspace", "clearCache", "clearCache", "openWebsite"], null,
       ["pageToggle", "floatingBall", "selectionTranslation"]], hidden: ["selectionTranslation"] });
-    expect(layout.rows.slice(0, 2)).toEqual([["openPdfWorkspace", "clearCache"], ["pageToggle", "floatingBall"]]);
+    expect(layout.rows.slice(0, 3)).toEqual([["openPdfWorkspace", "clearCache"], ["openVocabulary"], ["pageToggle", "floatingBall"]]);
     expect(layout.rows.every(row => row.length > 0 && row.length <= 2)).toBe(true);
     expect(new Set(layout.order).size).toBe(POPUP_MENU_ITEMS.length);
     expect(layout.rows.flat()).not.toContain("selectionTranslation");

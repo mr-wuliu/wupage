@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title data-i18n="vocabularyPageTitle">Vocabulary Book · WuPage</title>
+  </head>
+  <body>
+    <main class="vocabulary-page">
+      <header class="page-header">
+        <div>
+          <h1 data-i18n="vocabularyPageTitle">Vocabulary Book · WuPage</h1>
+          <p data-i18n="vocabularyLocalOnly">Your saved words stay in this browser.</p>
+        </div>
+        <div class="header-actions">
+          <button id="toggleAll" type="button" class="secondary" data-i18n="expandAllVocabulary">Expand all</button>
+          <button id="reload" type="button" class="secondary" data-i18n="reload">Reload</button>
+        </div>
+      </header>
+      <section class="toolbar">
+        <label>
+          <span data-i18n="searchVocabulary">Search words and definitions</span>
+          <input id="search" type="search" autocomplete="off" />
+        </label>
+        <label>
+          <span data-i18n="sortVocabulary">Sort by</span>
+          <select id="sort">
+            <option value="saved" data-i18n="sortBySavedTime">Recently added</option>
+            <option value="asc" data-i18n="sortAlphabeticalAscending">Alphabetical (A–Z)</option>
+            <option value="desc" data-i18n="sortAlphabeticalDescending">Alphabetical (Z–A)</option>
+            <option value="shuffle" data-i18n="sortShuffle">Shuffle</option>
+          </select>
+        </label>
+      </section>
+      <p id="status" role="status" aria-live="polite"></p>
+      <div id="recovery" class="recovery" hidden>
+        <p id="errorText" role="alert"></p>
+        <button id="exportRecovery" type="button" class="secondary" data-i18n="exportRecoveryCopy">Download recovery copy</button>
+      </div>
+      <div id="resultsLayout" class="results-layout">
+        <aside id="dateBrowser" class="date-browser" hidden>
+          <div class="date-mode-tabs" role="group" aria-label="Group saved words by" data-i18n-aria-label="groupSavedWordsBy">
+            <button id="groupByMonth" type="button" class="date-mode-tab" aria-pressed="true" data-i18n="groupByMonth">Month</button>
+            <button id="groupByDay" type="button" class="date-mode-tab" aria-pressed="false" data-i18n="groupByDay">Day</button>
+          </div>
+          <nav id="dateNav" class="date-nav" aria-label="Saved dates" data-i18n-aria-label="savedDates"></nav>
+          <label id="dateSelectWrap" class="date-select-wrap">
+            <span data-i18n="savedDateRange">Saved date range</span>
+            <select id="dateSelect"></select>
+          </label>
+        </aside>
+        <div class="result-column">
+          <p id="empty" class="empty" hidden></p>
+          <section id="entries" class="entries" aria-live="polite"></section>
+        </div>
+      </div>
+    </main>
+    <script type="module" src="/src/vocabulary/index.ts"></script>
+  </body>
+</html>
