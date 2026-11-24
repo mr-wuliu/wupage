@@ -46,6 +46,7 @@ describe("dictionary settings and input", () => {
   it("only permits HTTPS audio from the selected dictionary's fixed endpoint", () => {
     expect(isDictionaryAudioUrl("youdao", "https://dict.youdao.com/dictvoice?audio=hello&type=1")).toBe(true);
     expect(isDictionaryAudioUrl("bing", "https://cn.bing.com/dict/mediamp3?blob=audio%2Fhello.mp3")).toBe(true);
+    expect(isDictionaryAudioUrl("bing", "https://www.bing.com/dict/mediamp3?blob=audio%2Fhello.mp3")).toBe(true);
     for (const url of ["http://dict.youdao.com/dictvoice", "https://dict.youdao.com.evil.test/dictvoice", "https://dict.youdao.com/other", "https://user@dict.youdao.com/dictvoice", "https://dict.youdao.com:4433/dictvoice", "data:audio/mpeg;base64,AAAA"]) {
       expect(isDictionaryAudioUrl("youdao", url)).toBe(false);
     }
@@ -121,6 +122,13 @@ describe("dictionary response adapters", () => {
     expect(entry.pronunciations[0]).toMatchObject({ accent: "uk", phonetic: "ɪɡˈzɑːmpəl", audioUrl: "https://cn.bing.com/dict/mediamp3?blob=audio%2Fuk.mp3" });
     expect(document.querySelector("img")).toBeNull();
     expect((window as unknown as Record<string, unknown>).remoteScriptRan).toBeUndefined();
+  });
+  it("keeps the fallback Bing host for its source and pronunciation URLs", () => {
+    const sourceUrl = "https://www.bing.com/dict/search?cc=cn&q=example";
+    const entry = parseBingDictionary(bing, "example", "https://www.bing.com", sourceUrl);
+    expect(entry.sourceUrl).toBe(sourceUrl);
+    expect(entry.pronunciations[0].audioUrl).toBe("https://www.bing.com/dict/mediamp3?blob=audio%2Fuk.mp3");
+    expect(isDictionaryAudioUrl("bing", entry.pronunciations[0].audioUrl)).toBe(true);
   });
   it("ignores missing phonetics and rejects unexpected audio origins in Bing HTML", () => {
     const entry = parseBingDictionary(bing.replace('/dict/mediamp3?blob=audio%2Fuk.mp3', 'https://evil.test/audio.mp3').replace('<div class="hd_prUS">美 [ɪɡˈzæmpəl]</div>', ''), "example");

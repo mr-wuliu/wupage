@@ -74,7 +74,15 @@ export function parseYoudaoDictionary(payload: unknown, query: string): Dictiona
 }
 
 /** Parse inside an inert template; remote scripts and resources are never attached to a live document. */
-export function parseBingDictionary(html: string, query: string): DictionaryEntry {
+export function parseBingDictionary(html: string, query: string, requestedAudioOrigin?: unknown, requestedSourceUrl?: unknown): DictionaryEntry {
+  const audioOrigin = requestedAudioOrigin === "https://cn.bing.com" || requestedAudioOrigin === "https://www.bing.com"
+    ? requestedAudioOrigin : "https://cn.bing.com";
+  const sourceUrl = typeof requestedSourceUrl === "string" && (() => {
+    try {
+      const url = new URL(requestedSourceUrl);
+      return (url.origin === "https://cn.bing.com" || url.origin === "https://www.bing.com") && url.pathname === "/dict/search";
+    } catch { return false; }
+  })() ? requestedSourceUrl : dictionarySourceUrl("bing", query);
   const template = document.createElement("template");
   template.innerHTML = html;
   const content = template.content;
@@ -89,7 +97,7 @@ export function parseBingDictionary(html: string, query: string): DictionaryEntr
     const path = root?.querySelector(`#bigaud_${accent}`)?.getAttribute("data-mp3link");
     let audioUrl: string | undefined;
     if (path) {
-      try { const url = new URL(path, "https://cn.bing.com").href; if (isDictionaryAudioUrl("bing", url)) audioUrl = url; } catch { /* Missing audio is allowed. */ }
+      try { const url = new URL(path, audioOrigin).href; if (isDictionaryAudioUrl("bing", url)) audioUrl = url; } catch { /* Missing audio is allowed. */ }
     }
     if (phonetic || audioUrl) pronunciations.push({ accent, phonetic, audioUrl });
   }
@@ -98,5 +106,5 @@ export function parseBingDictionary(html: string, query: string): DictionaryEntr
     return definition ? [{ partOfSpeech: item.querySelector(".pos")?.textContent?.trim() ?? "", definition }] : [];
   }).slice(0, 30);
   return { provider: "bing", query, word: root?.querySelector("h1")?.textContent?.trim() || query,
-    sourceUrl: dictionarySourceUrl("bing", query), pronunciations, meanings };
+    sourceUrl: sourceUrl as string, pronunciations, meanings };
 }
