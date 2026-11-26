@@ -42,7 +42,7 @@ jobs:
     timeout-minutes: 25
     steps:
       - name: Check out publishing script
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           persist-credentials: false
 

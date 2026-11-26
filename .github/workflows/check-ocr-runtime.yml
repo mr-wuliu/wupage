@@ -21,8 +21,8 @@ jobs:
   check:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: npm
@@ -44,7 +44,7 @@ jobs:
       - run: npm run test:ocr-runtime
         env:
           PLAYWRIGHT_MODULE: ${{ github.workspace }}/.npm-cache/ocr-test-tools/node_modules/playwright/index.mjs
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         if: always()
         with:
           name: ocr-runtime-regression
@@ -56,16 +56,16 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
         with:
           node-version: 22
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: '3.11'
       - run: pip install -r build/ocr/requirements.txt
       - run: python3 build/ocr/build.py --work-dir .npm-cache/ocr-build-native --jobs 2
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: custom-ocr-runtimes
           path: vendor/ocr/

@@ -17,8 +17,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: npm
@@ -36,7 +36,7 @@ jobs:
           PLAYWRIGHT_MODULE: ${{ github.workspace }}/.npm-cache/pdf-test-tools/node_modules/playwright/index.mjs
       - name: Upload quality reports and screenshots
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: pdf-quality-${{ inputs.profile }}
           path: |
