@@ -49,7 +49,7 @@ jobs:
       submission_status: ${{ steps.submit.outputs.submission_status }}
     steps:
       - name: Check out publishing script
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           persist-credentials: false
 
