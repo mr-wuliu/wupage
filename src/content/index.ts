@@ -21,6 +21,7 @@ import { initImageTranslation, translateContextImage } from "./image-translation
 import { SETTINGS_KEY } from "../shared/defaults";
 import { initAutoTranslation } from "./auto-translation";
 import { initSelectionTranslation } from "./selection-translation";
+import { initInputTranslation } from "./input-translation";
 import { setupAppearance } from "../shared/appearance-runtime";
 import { schemeColor } from "../shared/appearance";
 import { executeTranslationShortcut } from "./shortcuts";
@@ -75,6 +76,7 @@ function initializeContent(): void {
   initializeFeature("image translation", initImageTranslation);
   initializeFeature("automatic translation", initAutoTranslation);
   initializeFeature("selection translation", initSelectionTranslation);
+  initializeFeature("input translation", initInputTranslation);
   initializeFeature("shortcuts", () => initKeyboardShortcuts(executeTranslationShortcut));
   initializeFeature("video subtitles", initVideoSubtitles);
 

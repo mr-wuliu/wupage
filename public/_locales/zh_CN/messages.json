@@ -5704,5 +5704,84 @@
   },
   "enterGlossaryTarget": {
     "message": "请在目标文本中填写固定译文。"
+  },
+  "inputTranslation": {
+    "message": "输入翻译"
+  },
+  "inputTranslationButtonColors": {
+    "message": "调整光标旁输入翻译模板按钮的配色。"
+  },
+  "inputTranslationHelp": {
+    "message": "在输入框末尾快速按三次空格，选择模板后翻译或改写并填回。"
+  },
+  "enableInputTranslation": {
+    "message": "启用输入翻译"
+  },
+  "inputTemplateServiceHelp": {
+    "message": "模板共用翻译服务的接口、模型和 API Key。"
+  },
+  "addInputTemplate": {
+    "message": "添加模板"
+  },
+  "newInputTemplate": {
+    "message": "新模板"
+  },
+  "inputTemplateEnglish": {
+    "message": "英文"
+  },
+  "inputTemplateMeow": {
+    "message": "喵"
+  },
+  "showInputTemplate": {
+    "message": "在菜单显示"
+  },
+  "moveInputTemplateUp": {
+    "message": "上移模板"
+  },
+  "moveInputTemplateDown": {
+    "message": "下移模板"
+  },
+  "deleteInputTemplate": {
+    "message": "删除模板"
+  },
+  "inputTemplateButtonLabel": {
+    "message": "按钮文字"
+  },
+  "inputMachineTranslation": {
+    "message": "机翻"
+  },
+  "inputAiTranslation": {
+    "message": "AI 翻译与改写"
+  },
+  "inputTemplateMode": {
+    "message": "处理方式"
+  },
+  "inputTemplatePrompt": {
+    "message": "模板提示词"
+  },
+  "inputTemplateChooseService": {
+    "message": "请为此模板绑定可用的翻译服务。"
+  },
+  "inputTemplateSelectService": {
+    "message": "选择服务"
+  },
+  "inputTemplateDisabledService": {
+    "message": "$SERVICE$（已停用）",
+    "placeholders": { "service": { "content": "$1" } }
+  },
+  "inputTemplateMissingService": {
+    "message": "服务不可用"
+  },
+  "keepInputLanguage": {
+    "message": "保持原语言"
+  },
+  "inputTranslationEmpty": {
+    "message": "请输入要翻译或改写的文字。"
+  },
+  "inputTemplateUnavailable": {
+    "message": "此输入模板不可用。"
+  },
+  "configureInputTemplate": {
+    "message": "配置模板"
   }
 }

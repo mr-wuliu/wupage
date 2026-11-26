@@ -12,7 +12,7 @@ import { initEmbeddedVideoSubtitles } from "./video-bootstrap";
 import { observeParagraphMode } from "../shared/paragraph-mode";
 import { supportsHtmlContent } from "../shared/html";
 import { configureElementRules } from "./element-exclusions";
-import { captureSelectionSource } from "./selection-source";
+import { captureSelectionSource, inputTranslationEditor } from "./selection-source";
 
 const scope = globalThis as typeof globalThis & { __wupageFrameBootstrap?: boolean };
 const visibility = supportsHtmlContent() ? installFrameVisibilityBridge() : { ready: Promise.resolve() };
@@ -123,6 +123,13 @@ if (window !== window.top && supportsHtmlContent() && !scope.__wupageFrameBootst
   };
   document.addEventListener("selectionchange", activateSelection, true);
   document.addEventListener("select", activateSelection, true);
+  const activateInputTranslation = () => {
+    if (!supported() || worker || current?.settings.inputTranslation?.enabled === false || current && !allowed(current)
+      || !inputTranslationEditor()) return;
+    void activate().catch(() => {});
+  };
+  document.addEventListener("focusin", activateInputTranslation, true);
+  document.addEventListener("input", activateInputTranslation, true);
   window.addEventListener("pageshow", event => { if (event.persisted) void register().catch(() => {}); });
   window.addEventListener("pagehide", () => { void sendRuntimeRequest({ type: "FRAME_LEAVE", documentKey }).catch(() => {}); });
   void ready.then(register).catch(() => {});

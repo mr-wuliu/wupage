@@ -5704,5 +5704,84 @@
   },
   "enterGlossaryTarget": {
     "message": "Enter the exact translation for the target text."
+  },
+  "inputTranslation": {
+    "message": "Input translation"
+  },
+  "inputTranslationButtonColors": {
+    "message": "Colors for the template buttons next to the text cursor."
+  },
+  "inputTranslationHelp": {
+    "message": "Quickly press Space three times at the end of a text field, then choose a template to translate or rewrite your text in place."
+  },
+  "enableInputTranslation": {
+    "message": "Enable input translation"
+  },
+  "inputTemplateServiceHelp": {
+    "message": "Templates use the endpoints, models, and API keys from your translation services."
+  },
+  "addInputTemplate": {
+    "message": "Add template"
+  },
+  "newInputTemplate": {
+    "message": "New template"
+  },
+  "inputTemplateEnglish": {
+    "message": "English"
+  },
+  "inputTemplateMeow": {
+    "message": "Meow"
+  },
+  "showInputTemplate": {
+    "message": "Show in menu"
+  },
+  "moveInputTemplateUp": {
+    "message": "Move template up"
+  },
+  "moveInputTemplateDown": {
+    "message": "Move template down"
+  },
+  "deleteInputTemplate": {
+    "message": "Delete template"
+  },
+  "inputTemplateButtonLabel": {
+    "message": "Button text"
+  },
+  "inputMachineTranslation": {
+    "message": "Machine translation"
+  },
+  "inputAiTranslation": {
+    "message": "AI translation and rewriting"
+  },
+  "inputTemplateMode": {
+    "message": "Processing mode"
+  },
+  "inputTemplatePrompt": {
+    "message": "Template prompt"
+  },
+  "inputTemplateChooseService": {
+    "message": "Choose an available service for this template."
+  },
+  "inputTemplateSelectService": {
+    "message": "Choose a service"
+  },
+  "inputTemplateDisabledService": {
+    "message": "$SERVICE$ (disabled)",
+    "placeholders": { "service": { "content": "$1" } }
+  },
+  "inputTemplateMissingService": {
+    "message": "Unavailable service"
+  },
+  "keepInputLanguage": {
+    "message": "Keep original language"
+  },
+  "inputTranslationEmpty": {
+    "message": "Enter text to translate or rewrite."
+  },
+  "inputTemplateUnavailable": {
+    "message": "This input template is unavailable."
+  },
+  "configureInputTemplate": {
+    "message": "Configure template"
   }
 }

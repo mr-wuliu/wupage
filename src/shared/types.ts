@@ -212,6 +212,7 @@ export interface ExtensionSettings {
   shortcutEnabled?: ShortcutEnabledSettings;
   appearance?: AppearanceSettings;
   selectionTranslation?: SelectionTranslationSettings;
+  inputTranslation?: import("./input-translation").InputTranslationSettings;
   autoTranslation?: AutoTranslationSettings;
   targetLang: string;
   sourceLang: string;
@@ -258,6 +259,8 @@ export interface TranslateBatchRequest {
   preservePlaceholders?: boolean;
   /** Apply academic prose guidance without changing ordinary webpage translation. */
   translationStyle?: "academic";
+  /** Instruction for an explicitly triggered input translation or rewrite. */
+  inputTranslation?: { prompt: string; keepLanguage: boolean };
   context?: string;
   sourceLang?: string;
   targetLang: string;
@@ -383,11 +386,12 @@ export type RuntimeRequest =
   | { type: "LOAD_IMAGE"; url: string }
   | { type: "TRANSLATE_CONTEXT_IMAGE"; srcUrl: string }
   | ({ type: "TRANSLATE_IMAGE" } & TranslateImageRequest)
-  | ({ type: "TRANSLATE_BATCH" } & TranslateBatchRequest)
+  | ({ type: "TRANSLATE_BATCH" } & Omit<TranslateBatchRequest, "inputTranslation">)
+  | { type: "TRANSLATE_INPUT"; templateId: string; text: string }
   | { type: "GET_SETTINGS" }
   | { type: "RESET_SETTINGS" }
   | { type: "IMPORT_SETTINGS"; backup: string }
-  | { type: "OPEN_OPTIONS_PAGE"; section?: "ocr" }
+  | { type: "OPEN_OPTIONS_PAGE"; section?: "ocr" | "input" }
   | { type: "OPEN_EMBEDDED_PDF"; url: string }
   | { type: "SAVE_SETTINGS"; settings: ExtensionSettings; previousSettings?: ExtensionSettings; interfaceLanguage?: InterfaceLanguage }
   | { type: "TEST_PROVIDER"; providerId?: string };

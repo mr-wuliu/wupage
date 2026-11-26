@@ -7,6 +7,7 @@ export const EXTENSION_UI_SELECTOR = [
   "#wupage-video-panel",
   "#wupage-video-overlay",
   "#wupage-selection-tools",
+  "#wupage-input-translation",
   "#wupage-floating-hitbox",
   "#wupage-floating-menu",
   "#wupage-debug-panel",

@@ -2,6 +2,7 @@ import type { ExtensionSettings } from "./types";
 import { DEFAULT_SETTINGS } from "./defaults";
 import { DEFAULT_OCR_SETTINGS } from "./ocr-service";
 import { supportsServiceMode, translationApiOptions } from "./translation-service";
+import { DEFAULT_INPUT_TRANSLATION } from "./input-translation";
 
 /** Keep only exact public defaults in fields that can contain arbitrary request data. */
 export function shareableSettings(settings: ExtensionSettings): ExtensionSettings {
@@ -35,6 +36,9 @@ export function shareableSettings(settings: ExtensionSettings): ExtensionSetting
   if (result.ocr) {
     if (result.ocr.mode === "http") result.imageTranslationEnabled = false;
     result.ocr = { ...DEFAULT_OCR_SETTINGS };
+  }
+  for (const template of result.inputTranslation?.templates ?? []) {
+    if (template.prompt !== DEFAULT_INPUT_TRANSLATION.templates.find(entry => entry.id === template.id)?.prompt) template.prompt = "";
   }
   return result;
 }
@@ -118,6 +122,7 @@ export function withoutSettingsKeys(settings: ExtensionSettings): ExtensionSetti
     result.ocr.apiKey = credential(result.ocr.apiKey, false);
     result.ocr.endpoint = text(result.ocr.endpoint);
   }
+  for (const template of result.inputTranslation?.templates ?? []) template.prompt = text(template.prompt);
   // Also remove copies of known credentials in otherwise opaque request fields.
   const known = [...secrets].sort((a, b) => b.length - a.length);
   function scrubValue(value: string): string {
@@ -130,6 +135,7 @@ export function withoutSettingsKeys(settings: ExtensionSettings): ExtensionSetti
     return value;
   }
   const scrub = (value: string): string => mapRequestText(value, scrubValue);
+  for (const template of result.inputTranslation?.templates ?? []) template.prompt = scrub(template.prompt);
   if (result.ocr) {
     result.ocr.endpoint = scrub(result.ocr.endpoint);
     result.ocr.model = scrub(result.ocr.model);

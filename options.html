@@ -21,6 +21,10 @@
             <span data-wupage-icon="font" aria-hidden="true"></span>
             <span data-i18n="selectionTranslation">划词翻译</span>
           </a>
+          <a href="#inputTranslationSettings" aria-controls="inputTranslationSettings">
+            <span data-wupage-icon="keyboard" aria-hidden="true"></span>
+            <span data-i18n="inputTranslation">输入翻译</span>
+          </a>
           <a href="#glossarySettings" aria-controls="glossarySettings">
             <span data-wupage-icon="document" aria-hidden="true"></span>
             <span data-i18n="glossary">术语库</span>
@@ -195,6 +199,27 @@
             </fieldset>
           </section>
 
+          <section id="inputTranslationSettings" class="settings-panel" aria-labelledby="inputTranslationSettingsTitle" hidden>
+            <div class="settings-panel-heading">
+              <h2 id="inputTranslationSettingsTitle" data-i18n="inputTranslation">输入翻译</h2>
+              <p data-i18n="inputTranslationHelp">在输入框末尾快速按三次空格，选择模板后翻译或改写并填回。</p>
+            </div>
+            <label class="setting-toggle">
+              <span data-i18n="enableInputTranslation">启用输入翻译</span>
+              <input id="inputTranslationEnabled" type="checkbox" role="switch" />
+              <span class="setting-toggle-control" aria-hidden="true"></span>
+            </label>
+            <p class="hint">
+              <span data-i18n="inputTemplateServiceHelp">模板共用翻译服务的接口、模型和 API Key。</span>
+              <a class="input-template-service-link" href="#providerSettings" data-i18n="translationService">翻译服务</a>
+            </p>
+            <div id="inputTemplates" class="input-templates"></div>
+            <button id="addInputTemplate" type="button" class="secondary exclusion-rule-add">
+              <span data-wupage-icon="plus" aria-hidden="true"></span>
+              <span data-i18n="addInputTemplate">添加模板</span>
+            </button>
+          </section>
+
           <section id="glossarySettings" class="settings-panel" aria-labelledby="glossarySettingsTitle" hidden>
             <div class="settings-panel-heading">
               <h2 id="glossarySettingsTitle" data-i18n="glossary">术语库</h2>
@@ -323,6 +348,11 @@
                     <div class="appearance-preview-page appearance-preview-page-dark"><span data-i18n="darkPageTwoColorBilingual">深色网页 · 双色对照</span><p>Discover something wonderful.</p><p class="appearance-preview-translation-dark">发现生活中的美好。</p></div>
                   </div>
                   <div class="appearance-preview-paragraph" data-i18n="paragraphHighlight">段落翻译高亮 <span class="appearance-preview-selection-trigger" title="划词入口" data-i18n-title="selectionShortcut"></span><span class="appearance-preview-image-button" title="图片翻译入口" data-i18n-title="imageTranslationShortcut" data-i18n="image">译图</span></div>
+                  <div class="appearance-preview-input">
+                    <span data-i18n="inputTranslation">输入翻译</span>
+                    <span class="appearance-preview-input-button" data-i18n="inputTemplateEnglish">英文</span>
+                    <span class="appearance-preview-input-button" data-i18n="inputTemplateMeow">喵</span>
+                  </div>
                   <div class="appearance-preview-card">
                     <span class="appearance-preview-eyebrow" data-i18n="selectionTranslation">划词翻译</span>
                     <strong class="appearance-preview-word">serendipity</strong>

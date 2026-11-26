@@ -40,6 +40,7 @@ export interface TranslationTaskOptions {
   websiteUrl?: string;
   priority?: boolean;
   persistentCache?: boolean;
+  applyGlossary?: boolean;
   statisticsPageKey?: string;
   cacheGeneration?: number;
 }
@@ -82,7 +83,7 @@ async function translateConfigured(
   const provider = createProvider(providerConfig);
   const statistics = createStatisticsRecorder(settings);
   const performance = getEffectiveProviderPerformance(settings, providerId);
-  const glossary = applicableGlossary(settings.glossaryGroups, options.websiteUrl);
+  const glossary = options.applyGlossary === false ? [] : applicableGlossary(settings.glossaryGroups, options.websiteUrl);
   const matchTerm = glossary.length ? createGlossaryMatcher(glossary) : undefined;
   // Model/prompt/source-language changes must not keep serving old translations.
   // Scheduling and presentation fields stay out of the fingerprint: renaming a

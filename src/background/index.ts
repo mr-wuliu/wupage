@@ -31,6 +31,7 @@ import { installPdfTranslation } from "./pdf-translation";
 import { installPdfNavigation } from "./pdf-navigation";
 import { handleVocabularyRequest } from "./vocabulary";
 import { glossaryWebsiteForSender } from "./glossary";
+import { translateInput } from "./input-translation";
 
 installPdfNavigation();
 installPdfTranslation(async (request, sender, signal, websiteUrl) => {
@@ -137,6 +138,7 @@ async function handleMessage(request: RuntimeRequest, sender: chrome.runtime.Mes
       return requestLocal("remove", request.modelId);
     case "OPEN_OPTIONS_PAGE":
       if (request.section === "ocr") await chrome.tabs.create({ url: chrome.runtime.getURL("options.html#ocrServiceSettings") });
+      else if (request.section === "input") await chrome.tabs.create({ url: chrome.runtime.getURL("options.html#inputTranslationSettings") });
       else await chrome.runtime.openOptionsPage();
       return null;
     case "OPEN_EMBEDDED_PDF": {
@@ -201,6 +203,8 @@ async function handleMessage(request: RuntimeRequest, sender: chrome.runtime.Mes
       await saveSettings(latest => normalizeOcrSettings(latest.ocr).mode === "http" ? latest : { ...latest, imageTranslationEnabled: false });
       return result;
     }
+    case "TRANSLATE_INPUT":
+      return translateInput(request.templateId, request.text, statisticsPageKey(sender));
     case "TRANSLATE_BATCH": {
       const settings = await getSettings();
       const websiteUrl = await glossaryWebsiteForSender(sender, settings.glossaryGroups);
