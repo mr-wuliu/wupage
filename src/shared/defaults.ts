@@ -7,6 +7,7 @@ import { DEFAULT_LOCAL_SHORTCUTS } from "./local-shortcuts";
 import { ELEMENT_EXCLUSION_DEFAULTS_VERSION, normalizeElementExclusions } from "./element-exclusions";
 
 export const DEFAULT_SETTINGS: ExtensionSettings = {
+  glossaryGroups: [],
   elementExclusions: normalizeElementExclusions(undefined),
   elementInclusions: [],
   elementExclusionDefaultsVersion: ELEMENT_EXCLUSION_DEFAULTS_VERSION,

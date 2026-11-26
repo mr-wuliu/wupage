@@ -1,6 +1,7 @@
 import { t } from "./i18n";
 import { normalizeSettings } from "./settings";
 import { normalizeElementExclusions } from "./element-exclusions";
+import { MAX_GLOSSARY_ENTRIES, MAX_GLOSSARY_GROUPS } from "./glossary";
 import { BUILT_IN_PROVIDER_IDS, DEFAULT_SETTINGS } from "./defaults";
 import { COLOR_FIELDS, DEFAULT_APPEARANCE } from "./appearance";
 import { LOCAL_BINDINGS } from "./local-shortcuts";
@@ -188,6 +189,8 @@ const settingsShape = {
     customSites: array(object({ id: string, pattern: string, enabled: boolean })),
     removedPresetSites: optional(strings), excludedSites: optional(strings) })),
   elementExclusions: elementRules, elementInclusions: elementRules,
+  glossaryGroups: optional(array(object({ id: string, name: string, enabled: boolean,
+    entries: array(object({ id: string, site: string, source: string, target: string }), MAX_GLOSSARY_ENTRIES) }), MAX_GLOSSARY_GROUPS)),
   elementExclusionDefaultsVersion: optional(number(0, Number.MAX_SAFE_INTEGER)),
   videoTranslation: optional(object({ enabled: boolean, showOriginal: boolean, fontSize: oneOf(18, 22, 26),
     background: oneOf("soft", "none"), preferredSource: string, enabledSites: strings,
@@ -221,7 +224,7 @@ function readSettings(value: unknown, strict: boolean): ExtensionSettings {
   const normalized = normalizeSettings(parsed);
   // Reject malformed rules and shortcuts rather than silently replacing them
   // with defaults. New built-in providers and region presets may be added.
-  for (const key of ["autoTranslation", "elementExclusions", "elementInclusions", "shortcuts", "localShortcuts", "appearance", "frameTranslation", "videoTranslation"] as const) {
+  for (const key of ["autoTranslation", "elementExclusions", "elementInclusions", "glossaryGroups", "shortcuts", "localShortcuts", "appearance", "frameTranslation", "videoTranslation"] as const) {
     const validated = key === "elementExclusions" ? normalizeElementExclusions(parsed[key]) : normalized[key];
     if (parsed[key] !== undefined && !sameValue(parsed[key], validated)) invalid(`settings.${key}`);
   }

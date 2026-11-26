@@ -30,12 +30,13 @@ import { captureVideoFrame } from "./video-frame";
 import { installPdfTranslation } from "./pdf-translation";
 import { installPdfNavigation } from "./pdf-navigation";
 import { handleVocabularyRequest } from "./vocabulary";
+import { glossaryWebsiteForSender } from "./glossary";
 
 installPdfNavigation();
-installPdfTranslation(async (request, sender, signal) => {
+installPdfTranslation(async (request, sender, signal, websiteUrl) => {
   const cacheGeneration = currentCacheGeneration();
   await initializeInterfaceLanguage();
-  return translateWithSettings(await getSettings(), request, { signal, statisticsPageKey: statisticsPageKey(sender), cacheGeneration });
+  return translateWithSettings(await getSettings(), request, { signal, websiteUrl, statisticsPageKey: statisticsPageKey(sender), cacheGeneration });
 });
 
 chrome.runtime.onMessage.addListener((request: RuntimeRequest, sender, sendResponse) => {
@@ -202,15 +203,21 @@ async function handleMessage(request: RuntimeRequest, sender: chrome.runtime.Mes
     }
     case "TRANSLATE_BATCH": {
       const settings = await getSettings();
-      return frameSessions.translate(request, sender, signal => translateWithSettings(settings, request, { signal, statisticsPageKey: statisticsPageKey(sender), cacheGeneration }));
+      const websiteUrl = await glossaryWebsiteForSender(sender, settings.glossaryGroups);
+      return frameSessions.translate(request, sender, signal => translateWithSettings(settings, request, {
+        signal, websiteUrl, statisticsPageKey: statisticsPageKey(sender), cacheGeneration
+      }));
     }
     case "LOAD_IMAGE": {
       const settings = await getSettings();
       if (!settings.imageTranslationEnabled) throw new Error(t("enableImageTranslationFirst"));
       return loadImageData(request.url);
     }
-    case "TRANSLATE_IMAGE":
-      return translateImageWithSettings(await getSettings(), request, statisticsPageKey(sender), cacheGeneration);
+    case "TRANSLATE_IMAGE": {
+      const settings = await getSettings();
+      return translateImageWithSettings(settings, request, statisticsPageKey(sender), cacheGeneration,
+        await glossaryWebsiteForSender(sender, settings.glossaryGroups));
+    }
     case "GET_STATISTICS":
       return getStatistics();
     case "CLEAR_STATISTICS":

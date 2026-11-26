@@ -7,6 +7,7 @@ import { normalizeVideoTranslation, videoPriority } from "../shared/video";
 import { SETTINGS_KEY } from "../shared/defaults";
 import type { ExtensionSettings } from "../shared/types";
 import { statisticsPageKey } from "./statistics";
+import { glossaryWebsiteForSender } from "./glossary";
 
 const frames = new Map<string, { tab: number; frame: number; area: number; playing: boolean; seen: number }>();
 const requests = new Map<string, AbortController>();
@@ -61,9 +62,11 @@ export async function translateVideo(request: Extract<RuntimeRequest, { type: "T
     const settings = await getSettings();
     if (!normalizeVideoTranslation(settings.videoTranslation).enabled) throw new Error(t("videoSubtitlesAreOff"));
     const signal = anySignal([controller.signal, AbortSignal.timeout(15_000)]);
+    const websiteUrl = await glossaryWebsiteForSender(sender, settings.glossaryGroups);
     signal.throwIfAborted();
     return await translateWithSettings(settings, { texts: request.texts, sourceLang: request.sourceLang, targetLang: request.targetLang, providerId: request.providerId },
-      { signal, priority: true, persistentCache: false, statisticsPageKey: statisticsPageKey(sender) });
+      { signal, priority: true, persistentCache: false, websiteUrl,
+        statisticsPageKey: statisticsPageKey(sender) });
   } finally { requests.delete(key); }
 }
 

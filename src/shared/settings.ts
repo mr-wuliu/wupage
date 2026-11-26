@@ -12,6 +12,7 @@ import { normalizeOcrSettings } from "./ocr-service";
 import { normalizeRequestTemplate, supportsRequestTemplate } from "./request-template";
 import type { ExtensionSettings, ProviderConfig } from "./types";
 import { normalizeFrameTranslation } from "./frame-session";
+import { normalizeGlossaryGroups } from "./glossary";
 import { ELEMENT_EXCLUSION_DEFAULTS_VERSION, migrateElementExclusionDefaults, normalizeElementInclusions } from "./element-exclusions";
 
 export async function getSettings(): Promise<ExtensionSettings> {
@@ -61,6 +62,7 @@ export function normalizeSettings(value: unknown): ExtensionSettings {
     ...input,
     ...(input.videoTranslation !== undefined ? { videoTranslation: normalizeVideoTranslation(input.videoTranslation) } : {}),
     providers,
+    glossaryGroups: normalizeGlossaryGroups(input.glossaryGroups),
     elementExclusions: migrateElementExclusionDefaults(input.elementExclusions, input.elementExclusionDefaultsVersion),
     elementInclusions: normalizeElementInclusions(input.elementInclusions),
     elementExclusionDefaultsVersion: ELEMENT_EXCLUSION_DEFAULTS_VERSION,

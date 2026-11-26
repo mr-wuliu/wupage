@@ -49,8 +49,12 @@ describe("PDF translation lifetime", () => {
   it("delivers a result and cleans up the connection and timers", async () => {
     vi.useFakeTimers();
     const host = runtime();
-    installPdfTranslation(async () => ({ translations: ["设 ⟪WUPAGE0⟫ 不变。"], cached: 1 }));
-    await expect(requestPdfTranslation(request, 7, new AbortController().signal)).resolves.toEqual({ translations: ["设 ⟪WUPAGE0⟫ 不变。"], cached: 1 });
+    const translate = vi.fn(async () => ({ translations: ["设 ⟪WUPAGE0⟫ 不变。"], cached: 1 }));
+    installPdfTranslation(translate);
+    const website = "https://example.com/papers/guide.pdf";
+    await expect(requestPdfTranslation(request, 7, new AbortController().signal, website))
+      .resolves.toEqual({ translations: ["设 ⟪WUPAGE0⟫ 不变。"], cached: 1 });
+    expect(translate).toHaveBeenCalledExactlyOnceWith(request, expect.objectContaining({ id: "test" }), expect.any(AbortSignal), website);
     await vi.advanceTimersByTimeAsync(0);
     expect(vi.getTimerCount()).toBe(0);
     for (const port of Object.values(host.connections[0])) {

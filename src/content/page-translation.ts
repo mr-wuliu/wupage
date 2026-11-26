@@ -25,6 +25,7 @@ import { invalidatePendingDocumentTranslations } from "./translation-lifecycle";
 import { composedParent, isExtensionUi, mutationElement, onTranslationRoot, translationRoots } from "./dom-roots";
 import { configureElementRules, observedTranslationAttributes } from "./element-exclusions";
 import { elementRuleIdentity } from "../shared/element-exclusions";
+import { glossaryIdentity } from "../shared/glossary";
 
 const VIEWPORT_MARGIN_RATIO = 0.75;
 const MIN_VIEWPORT_MARGIN = 240;
@@ -170,8 +171,11 @@ export async function loadPageTranslationSettings(): Promise<ExtensionSettings> 
 
 export function updatePageTranslationSettings(settings: ExtensionSettings): void {
   settingsRevision += 1;
+  const previous = latestSettings;
   latestSettings = settings;
-  if (configureElementRules(settings)) {
+  const changedGlossary = !coordinator && previous
+    && glossaryIdentity(previous.glossaryGroups, location.href) !== glossaryIdentity(settings.glossaryGroups, location.href);
+  if (configureElementRules(settings) || changedGlossary) {
     const restart = !coordinator && Boolean(activeSession || pendingScan);
     clearPageTranslation();
     if (restart) void startPageTranslation(settings, false);
@@ -344,7 +348,8 @@ function getTranslationIdentity(settings: ExtensionSettings): string {
     activeProviderId: settings.activeProviderId,
     provider: settings.providers.find((provider) => provider.id === settings.activeProviderId),
     translateCodeComments: settings.translateCodeComments,
-    elementRules: elementRuleIdentity(settings, location.href)
+    elementRules: elementRuleIdentity(settings, location.href),
+    glossary: glossaryIdentity(settings.glossaryGroups, location.href)
   });
 }
 

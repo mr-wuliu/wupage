@@ -3,6 +3,7 @@ import { SETTINGS_KEY } from "../shared/defaults";
 import { DICTIONARY_LABELS, MAX_SELECTION_TEXT_LENGTH, dictionaryProviderForQuery, dictionarySourceUrl, isChineseDictionaryQuery, isSingleDictionaryWord, normalizeSelectionText, normalizeSelectionTranslation,
   type DictionaryEntry, type DictionaryProvider, type SelectionTranslationSettings } from "../shared/dictionary";
 import type { ExtensionSettings, TranslateBatchResponse } from "../shared/types";
+import { applicableGlossary, glossaryWebsite, lookupGlossary, type GlossaryGroup } from "../shared/glossary";
 import { sendRuntimeRequest } from "./runtime";
 import { SELECTION_TRANSLATION_STYLES } from "./selection-translation-styles";
 import { normalizeShortcutEnabled } from "../shared/shortcuts";
@@ -18,6 +19,7 @@ const HOST_ID = "wupage-selection-tools";
 
 export class SelectionTranslationController {
   private settings: SelectionTranslationSettings;
+  private glossaryGroups?: GlossaryGroup[];
   private shortcutEnabled = normalizeShortcutEnabled(undefined);
   private localShortcuts = normalizeLocalShortcuts(undefined);
   private host: HTMLElement;
@@ -113,7 +115,7 @@ export class SelectionTranslationController {
       option.value = provider; option.textContent = DICTIONARY_LABELS[provider];
       this.providerSelect.append(option);
     }
-    this.providerSelect.addEventListener("change", () => this.submitEditedText());
+    this.providerSelect.addEventListener("change", () => this.submitEditedText(this.providerSelect.value === "glossary"));
     this.translationService = document.createElement("span");
     this.translationService.className = "translation-service";
     this.translationService.hidden = true;
@@ -188,6 +190,11 @@ export class SelectionTranslationController {
   update(settings: SelectionTranslationSettings): void {
     if (this.settings.enabled !== settings.enabled || this.settings.style !== settings.style || this.settings.provider !== settings.provider) this.close();
     this.settings = settings;
+  }
+
+  updateGlossary(groups: GlossaryGroup[] | undefined): void {
+    if (!this.card.hidden && this.glossaryTarget(this.query) !== this.glossaryTarget(this.query, groups ?? [])) this.close();
+    this.glossaryGroups = groups;
   }
 
   updateShortcuts(value: unknown, bindings?: unknown): void {
@@ -338,7 +345,8 @@ export class SelectionTranslationController {
     return button;
   }
 
-  private async lookup(provider: DictionaryProvider, { forceTranslation = false, focus = true }: { forceTranslation?: boolean; focus?: boolean } = {}): Promise<void> {
+  private async lookup(provider: DictionaryProvider, { forceTranslation = false, focus = true, preferGlossary = true }:
+    { forceTranslation?: boolean; focus?: boolean; preferGlossary?: boolean } = {}): Promise<void> {
     if (!this.query || !this.settings.enabled || this.disposed) return;
     const version = ++this.version;
     this.stopAudio();
@@ -350,12 +358,16 @@ export class SelectionTranslationController {
     this.word.removeAttribute("aria-invalid");
     this.body.hidden = false;
     let translating = forceTranslation || this.usesTranslation(this.query);
+    const glossaryTarget = this.glossaryTarget(this.query);
+    const showGlossary = preferGlossary && glossaryTarget !== undefined;
     this.setTranslationMode(translating);
     const chinese = isChineseDictionaryQuery(this.query);
     provider = dictionaryProviderForQuery(provider, this.query);
     this.providerSelect.querySelector<HTMLOptionElement>('option[value="bing"]')!.disabled = chinese;
     this.providerSelect.title = chinese ? t("chinesePinyinAndDefinitionsProvidedByYoudao") : "";
-    this.providerSelect.value = provider;
+    this.providerSelect.querySelector('option[value="glossary"]')?.remove();
+    if (glossaryTarget !== undefined && !translating) this.providerSelect.append(new Option(t("glossary"), "glossary"));
+    this.providerSelect.value = showGlossary && !translating ? "glossary" : provider;
     this.word.value = this.query;
     this.word.lang = chinese ? "zh-CN" : "";
     this.source.href = dictionarySourceUrl(provider, this.query);
@@ -366,12 +378,19 @@ export class SelectionTranslationController {
     if (!this.positionCard()) { this.close(); return; }
     if (focus) this.card.focus({ preventScroll: true });
     try {
-      if (translating) { await this.translateSelection(version, isSingleDictionaryWord(this.query) && !isEditorSelection(this.selection!)); return; }
+      if (showGlossary) {
+        this.card.dataset.mode = "glossary";
+        this.footer.hidden = true;
+        this.translationService.textContent = t("glossary");
+        this.renderTranslation(glossaryTarget, version);
+        return;
+      }
+      if (translating) { await this.translateSelection(version); return; }
       const entry = await sendRuntimeRequest<DictionaryEntry>({ type: "LOOKUP_DICTIONARY", provider, query: this.query });
       if (!this.canRender(version)) return;
       if (entry.meanings.some(meaning => meaning.definition.trim())
         || (chinese && entry.pronunciations.some(item => item.phonetic?.trim()))) this.renderEntry(entry, version);
-      else { translating = true; await this.translateSelection(version, true); }
+      else { translating = true; await this.translateSelection(version); }
     } catch (error) {
       if (version !== this.version || this.disposed) return;
       this.body.replaceChildren();
@@ -380,7 +399,7 @@ export class SelectionTranslationController {
       message.textContent = this.errorMessage(error);
       const retry = document.createElement("button");
       retry.type = "button"; retry.textContent = t("retry"); retry.className = "retry";
-      retry.addEventListener("click", () => { void this.lookup(provider, { forceTranslation: translating }); });
+      retry.addEventListener("click", () => { void this.lookup(provider, { forceTranslation: translating, preferGlossary }); });
       this.body.append(message, retry);
     } finally {
       if (version === this.version) { this.body.removeAttribute("aria-busy"); this.positionCard(); }
@@ -393,7 +412,7 @@ export class SelectionTranslationController {
     this.submitSource.title = this.shortcutEnabled["selection-submit"] ? `${action}（${formatLocalShortcut(this.localShortcuts["selection-submit"])}）` : action;
   }
 
-  private submitEditedText(): void {
+  private submitEditedText(preferGlossary = true): void {
     if (this.disposed || this.card.hidden || !this.settings.enabled) return;
     const query = normalizeSelectionText(this.word.value);
     if (!query) {
@@ -406,7 +425,9 @@ export class SelectionTranslationController {
       return;
     }
     this.query = query;
-    void this.lookup(this.providerSelect.value as DictionaryProvider, { focus: false });
+    const provider = this.providerSelect.value === "bing" ? "bing"
+      : this.providerSelect.value === "youdao" ? "youdao" : this.settings.provider;
+    void this.lookup(provider, { focus: false, preferGlossary });
   }
 
   private resizeSourceEditor(): void {
@@ -439,7 +460,7 @@ export class SelectionTranslationController {
     this.resizeSourceEditor();
   }
 
-  private async translateSelection(version: number, allowVocabulary = false): Promise<void> {
+  private async translateSelection(version: number): Promise<void> {
     if (!this.canRender(version)) return;
     this.setTranslationMode(true);
     this.body.textContent = t("translationInProgress");
@@ -456,16 +477,24 @@ export class SelectionTranslationController {
     if (!this.canRender(version)) return;
     const translated = result.translations?.[0];
     if (typeof translated !== "string" || !translated.trim()) throw new Error(t("theServiceReturnedNoTranslationTryAgain"));
+    this.renderTranslation(translated, version, settings.targetLang);
+  }
+
+  private renderTranslation(translated: string, version: number, language = ""): void {
+    this.translation = translated.trim();
     const text = document.createElement("p");
     text.className = "selection-translation";
-    text.lang = settings.targetLang;
-    text.textContent = translated.trim();
+    text.lang = language;
+    text.textContent = this.translation;
     this.body.replaceChildren(text);
-    this.translation = translated.trim();
-    if (allowVocabulary && isSingleDictionaryWord(this.query) && !isEditorSelection(this.selection!)) {
-      this.showFavorite({ term: this.query, meanings: [], pronunciations: [], translation: translated.trim() }, version);
+    if (this.selection && isSingleDictionaryWord(this.query) && !isEditorSelection(this.selection)) {
+      this.showFavorite({ term: this.query, meanings: [], pronunciations: [], translation: this.translation }, version);
     }
     this.updateReplacement();
+  }
+
+  private glossaryTarget(query: string, groups = this.glossaryGroups): string | undefined {
+    return lookupGlossary(applicableGlossary(groups, glossaryWebsite(location.href, document.referrer)), query);
   }
 
   private usesTranslation(query: string): boolean {
@@ -681,6 +710,7 @@ export function initSelectionTranslation(): void {
     const normalized = normalizeSelectionTranslation(settings?.selectionTranslation);
     if (controller) controller.update(normalized);
     else controller = new SelectionTranslationController(normalized);
+    controller.updateGlossary(settings?.glossaryGroups);
     controller.updateShortcuts(settings?.shortcutEnabled, settings?.localShortcuts);
   };
   chrome.storage.onChanged.addListener((changes, area) => {
