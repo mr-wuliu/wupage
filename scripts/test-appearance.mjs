@@ -224,10 +224,19 @@ try {
     assert.equal(await opacityRange.inputValue(), String(value));
     assert.equal(await options.locator('.appearance-preview-ball').evaluate(el => getComputedStyle(el).opacity), String(value / 100));
   }
+  const sizeRange = options.locator('#floatingSizeRange');
+  const sizeNumber = options.locator('#floatingSizeNumber');
+  assert.equal(await sizeRange.inputValue(), '42');
+  await sizeNumber.fill('60');
+  assert.equal(await sizeRange.inputValue(), '60');
+  assert.equal(await options.locator('.appearance-preview-ball').evaluate(el => el.getBoundingClientRect().width), 52);
+  assert.equal(await site.locator('#wupage-floating-ball').evaluate(el => el.offsetWidth), 42);
   assert.equal(await site.locator('#wupage-floating-ball').evaluate(el => getComputedStyle(el).opacity), '1');
   await options.locator('[data-color-group="floating"]').screenshot({ path: path.join(output, 'floating-opacity.png') });
   await options.locator('#save').click();
   await site.waitForFunction(() => getComputedStyle(document.querySelector('#wupage-floating-ball')).opacity === '0.55');
+  await site.waitForFunction(() => document.querySelector('#wupage-floating-ball').offsetWidth === 60);
+  assert.equal(await site.locator('#wupage-floating-hitbox').evaluate(el => el.offsetWidth), 92);
   // A host app can replace the entire inline style attribute during a theme update.
   await site.evaluate(() => { document.documentElement.style.cssText = 'color-scheme: light; background: #fafafa; color: #222'; });
   assert.equal(await site.locator('#wupage-floating-ball').evaluate(el => getComputedStyle(el).opacity), '0.55');
@@ -253,6 +262,7 @@ try {
   await options.waitForFunction(() => document.querySelector('#appearanceSchemeName').value === '我的午夜');
   assert.equal(await options.locator('[data-color-hex="accent"]').inputValue(), '#ffcc66');
   assert.equal(await options.locator('#floatingOpacityNumber').inputValue(), '55');
+  assert.equal(await options.locator('#floatingSizeNumber').inputValue(), '60');
   assert.equal(await options.locator('[data-color-opacity-number="floating-background"]').inputValue(), '42');
   await options.locator('#appearanceSchemeName').fill('午夜阅读');
   await options.locator('#save').click();

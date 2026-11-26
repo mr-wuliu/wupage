@@ -21,6 +21,7 @@ export function setupAppearance(value: unknown, { extensionPage = true, live = t
     const scheme = getColorScheme(appearance, tone);
     setColorSchemeProperties(style, scheme);
     style.setProperty("--wp-floating-opacity", String(appearance.floatingOpacity / 100));
+    style.setProperty("--wp-floating-size", `${appearance.floatingSize}px`);
     if (extensionPage) {
       root.dataset.wupageTheme = tone;
       style.colorScheme = tone;

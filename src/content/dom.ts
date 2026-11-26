@@ -250,6 +250,8 @@ const YOUTUBE_DESCRIPTION_SELECTOR = [
 // Comment bodies use inline attributed strings in both YouTube renderers.
 // Their height/display describes the source text, not a compact UI label.
 const YOUTUBE_COMMENT_SELECTOR = "ytd-comment-view-model #content-text, ytd-comment-renderer #content-text";
+const NEXUS_COMMENT_SELECTOR = ".comment-content-text";
+const NEXUS_SUMMARY_SELECTOR = ".tile-content .desc";
 // Reddit distributes comment metadata through named shadow-DOM slots. A
 // translation added to that wrapper can become an unslotted avatar-column item.
 const REDDIT_METADATA_SELECTOR = [
@@ -781,6 +783,8 @@ export function findTranslatableParagraph(start: Element | null, anchor?: Node):
     if (steamBlock && !shouldSkipElement(steamBlock)) return steamBlock;
     const messageBody = twitchMessageBody(start) ?? tiktokCommentBody(start);
     if (messageBody && !shouldSkipElement(messageBody)) return messageBody;
+    const nexusProse = nexusProseRoot(start);
+    if (nexusProse && new TextFlowSnapshot().isWhole(nexusProse) && !shouldSkipElement(nexusProse)) return nexusProse;
     const specialized = start.closest(`${POST_TEXT_SELECTOR},${YOUTUBE_DESCRIPTION_SELECTOR},${YOUTUBE_COMMENT_SELECTOR},[data-wupage-scientific-source]`);
     if (specialized && !shouldSkipElement(specialized)) return specialized;
     const flow = new TextFlowSnapshot().containing(anchor && start.contains(anchor) ? anchor : start);
@@ -1730,6 +1734,7 @@ function groupTextSegments(
   const trackedSourceNodes = new Set(trackedNodes.map((entry) => entry.node));
   for (const [block, groupNodes] of groups) {
     const tiktokComment = tiktokCommentBody(block) === block;
+    const nexusProse = nexusProseRoot(block) === block;
     if (block.matches(YOUTUBE_DESCRIPTION_SELECTOR)) {
       for (const line of getYouTubeDescriptionLines(block, groupNodes, visibility)) {
         const id = line.nodes[0].id;
@@ -1779,6 +1784,7 @@ function groupTextSegments(
       !isLegacyScientificProseBlock(block) &&
       twitchMessageBody(block) !== block &&
       !tiktokComment &&
+      !nexusProse &&
       !block.matches(`summary, label, li, ${POST_TEXT_SELECTOR}, ${YOUTUBE_COMMENT_SELECTOR}`)
     ) continue;
     if (singleNodeBlock && !readable!.text) continue;
@@ -1789,9 +1795,9 @@ function groupTextSegments(
       trackedSourceNodes.add(extra.node);
     }
     trackedGroups.push({
-      id, nodes: sourceNodes, block, mode: authoredLines || hasLineBreak ? "block" : getRenderMode(block), authoredLines,
+      id, nodes: sourceNodes, block, mode: nexusProse || authoredLines || hasLineBreak ? "block" : getRenderMode(block), authoredLines,
       flow: !authoredLines && !isLegacyScientificProseBlock(block) && textFlows.isWhole(block),
-      preserveWhitespace: tiktokComment || block.matches(YOUTUBE_COMMENT_SELECTOR)
+      preserveWhitespace: tiktokComment || block.matches(YOUTUBE_COMMENT_SELECTOR) || nexusProse && block.matches(NEXUS_COMMENT_SELECTOR)
     });
     if (singleNodeBlock) {
       if (readable!.tokens.length) protectedTokensById.set(id, readable!.tokens);
@@ -2024,6 +2030,8 @@ function computeGroupingBlock(element: Element): Element | null {
   if (messageBody) return messageBody;
   const lineBreakParagraph = element.closest(TEXT_FLOW_SOURCE_SELECTOR);
   if (lineBreakParagraph) return lineBreakParagraph;
+  const nexusProse = nexusProseRoot(element);
+  if (nexusProse && textFlows.isWhole(nexusProse)) return nexusProse;
   const post = element.closest(POST_TEXT_SELECTOR);
   if (post) return post;
   const description = element.closest(YOUTUBE_DESCRIPTION_SELECTOR);
@@ -2184,7 +2192,19 @@ function isStructuredListMetadata(element: Element): boolean {
   const article = element.closest("[role='article']");
   if (article && listItem.contains(article)) return false;
 
-  return !element.closest(`p, blockquote, ${HEADING_SELECTOR}`);
+  return !element.closest(`p, blockquote, ${HEADING_SELECTOR}`) && !nexusProseRoot(element);
+}
+
+function nexusProseRoot(element: Element): Element | null {
+  const hostname = element.ownerDocument.location?.hostname;
+  if (hostname !== "nexusmods.com" && !hostname?.endsWith(".nexusmods.com")) return null;
+  const known = element.closest(`${NEXUS_COMMENT_SELECTOR},${NEXUS_SUMMARY_SELECTOR}`);
+  if (known) return known;
+  // The newer mod cards use Tailwind's line clamp on the summary itself.
+  // Clickable titles keep their existing link layout.
+  const summary = element.closest("main :is(p,div,span)[class*='line-clamp-']");
+  if (!summary || summary.closest(`a,button,${HEADING_SELECTOR}`) || summary.querySelector("a[href],button")) return null;
+  return Number(window.getComputedStyle(summary).webkitLineClamp) > 1 ? summary : null;
 }
 
 function shouldSkipElement(
@@ -2218,7 +2238,7 @@ function decideSkipElement(
   if (isHackerNewsCommentChrome(element)) return true;
   if (isTwitchChatIdentity(element)) return true;
   if (element.closest(REDDIT_METADATA_SELECTOR)) return true;
-  if (twitchMessageBody(element) || tiktokCommentBody(element)) {
+  if (twitchMessageBody(element) || tiktokCommentBody(element) || nexusProseRoot(element)?.matches(NEXUS_COMMENT_SELECTOR)) {
     return hasSkippedAncestor(element, SIDEBAR_PROSE_SKIP_SELECTOR);
   }
   if (isInsideCodeBlock(element)) return false;
@@ -2585,6 +2605,12 @@ function insertGroupedTranslation(
     block.after(translation);
     return;
   }
+  // A full source summary consumes all of its clamped lines. Place bilingual
+  // output below that box so the card's ellipsis can only clip the source.
+  if (displayMode !== "replace" && nexusProseRoot(block) === block && !block.matches(NEXUS_COMMENT_SELECTOR)) {
+    block.after(translation);
+    return;
+  }
   if (group.authoredLines) {
     translation.setAttribute("data-wupage-container", "authored-lines");
     block.after(translation);
@@ -2729,7 +2755,7 @@ function getCompactControlTarget(element: Element): Element | null {
   const control = element.closest(COMPACT_CONTROL_SELECTOR) ?? getSlottedControlHost(element);
   if (!control || control.closest(HEADING_SELECTOR)) return null;
   if (isSteamContentCard(control)) return null;
-  if (control.matches("a:not([role='button'])") && !control.querySelector("img,svg,canvas")) return null;
+  if (control.matches("a:not([role='button'],[role='tab'],[role^='menuitem'],[role='option'])") && !control.querySelector("img,svg,canvas")) return null;
   if (control.querySelector("input,select,textarea,[contenteditable='true']")) return null;
   const text = normalizeText(control.textContent ?? "");
   if (text.length < 2 || text.length > 120) return null;

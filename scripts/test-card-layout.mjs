@@ -27,7 +27,10 @@ const translations = [[title, "游戏扩展模块库"], [summary, "用于创建�
   ["Lower your ⟪WUPAGEOPEN0⟫expectations⟪WUPAGECLOSE0⟫ for this puzzle", "降低你对这个谜题的⟪WUPAGEOPEN0⟫期望⟪WUPAGECLOSE0⟫"],
   ["Type ⟪WUPAGE0⟫ to search", "输入 ⟪WUPAGE0⟫ 进行搜索"], ["Type / to search", "输入 / 进行搜索"],
   ["Auto", "自动"], ["Optimized for Balance", "针对平衡进行了优化"],
-  ["Optimized for: Balance", "针对：平衡进行了优化"], ...listTranslations];
+  ["Optimized for: Balance", "针对：平衡进行了优化"], ["Mod posts", "模组评论"],
+  ["The configuration guide explains every option and gives several ways to get started.", "配置指南介绍了各项选项和几种入门方法。"],
+  ["The latest update includes a new interface and several improvements to existing controls.", "最新更新带来了新界面，并改进了多项现有控件。"],
+  ["This update works well.", "这次更新运行良好。"], ["The replies now load without delay.", "现在回复会立即加载。"], ...listTranslations];
 const server = createServer((request, response) => {
   const chinese = request.url === "/zh";
   response.setHeader("content-type", "text/html; charset=utf-8");
@@ -330,6 +333,41 @@ try {
     await page.locator(".dynamic-source").first().evaluate(source => source.removeAttribute("style"));
     assert.equal(await page.locator("main").innerHTML(), original);
   }
+  const nexusUrl = "https://www.nexusmods.com/fixture/mods/1?tab=posts";
+  await context.route(nexusUrl, route => route.fulfill({ contentType: "text/html; charset=utf-8", body: `<!doctype html>
+    <title>Nexus regression fixture</title><style>
+      body { font: 16px/24px system-ui; } .tile-content, .mod-card { display: flex; flex-direction: column; width: 190px; }
+      .desc, .line-clamp-2 { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+    </style><main><nav role="tablist"><a role="tab" href="?tab=posts" aria-selected="true">Mod posts</a></nav>
+    <article class="tile-content"><p class="desc">The configuration guide explains every option and gives several ways to get started.</p></article>
+    <article class="mod-card"><div class="line-clamp-2">The latest update includes a new interface and several improvements to existing controls.</div></article>
+    <aside><ul id="posts"><li><h3>Comment author</h3><div class="comment-content-text">This update works well.<br>The replies now load without delay.</div></li></ul></aside></main>` }));
+  await page.goto(nexusUrl);
+  await page.waitForSelector("#wupage-floating-ball", { state: "attached" });
+  await setMode("bilingual");
+  const messageNexus = type => worker.evaluate(async ({ url, type }) => {
+    const [tab] = await chrome.tabs.query({ url });
+    return chrome.tabs.sendMessage(tab.id, { type });
+  }, { url: nexusUrl, type });
+  const translatedNexus = await messageNexus("TRANSLATE_PAGE");
+  assert.equal(translatedNexus.ok, true, JSON.stringify(translatedNexus));
+  assert.equal(await page.locator('[role="tab"] .wupage-translation').textContent(), "模组评论");
+  for (const [selector, text] of [[".desc", "配置指南介绍了各项选项和几种入门方法。"], [".line-clamp-2", "最新更新带来了新界面，并改进了多项现有控件。"]]) {
+    const source = page.locator(selector);
+    const result = page.locator(`${selector} + .wupage-translation`);
+    assert.equal(await result.textContent(), text);
+    assert.ok((await result.boundingBox()).y >= (await source.boundingBox()).y + (await source.boundingBox()).height);
+  }
+  assert.match(await page.locator('.comment-content-text + .wupage-translation').innerText(), /这次更新运行良好。\s+现在回复会立即加载。/u);
+  const beforeUpdate = await page.locator('#posts').innerHTML();
+  await page.locator('#posts').evaluate(posts => posts.insertAdjacentHTML('beforeend',
+    '<li><h3>Another author</h3><div class="comment-content-text">The replies now load without delay.</div></li>'));
+  const newComment = page.locator('#posts li:last-child .wupage-translation');
+  await newComment.filter({ hasText: "现在回复会立即加载。" }).waitFor();
+  assert.ok((await page.locator('#posts').innerHTML()).startsWith(beforeUpdate));
+  await messageNexus("CLEAR_TRANSLATION");
+  assert.equal(await page.locator('main .wupage-translation').count(), 0);
+  reports.push({ site: "Nexus Mods", cases: ["anchor tabs", "clamped summaries", "multiline and dynamic comment bodies"] });
   const requests = await worker.evaluate(() => globalThis.cardRequests);
   assert.ok(requests.some(source => source.startsWith("<pre><a i=0>Page title: 模组列表")), "Exercise combined language detection");
   assert.ok(requests.includes(`<pre>${summary}</pre>`), "Retry the untranslated description independently");

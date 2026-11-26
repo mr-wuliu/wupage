@@ -42,6 +42,7 @@ export interface AppearanceSettings {
   popupMenu: PopupMenuLayout;
   mode: AppearanceMode;
   floatingOpacity: number;
+  floatingSize: number;
   paragraphHighlightEnabled: boolean;
   lightSchemeId: string;
   darkSchemeId: string;
@@ -121,9 +122,11 @@ export const BUILT_IN_SCHEMES: readonly ColorScheme[] = [
   }, { "translation-light": "#333333", "translation-dark": "#e0e0e0", "floating-hover": "#ffffff" }) }
 ];
 
+export const FLOATING_SIZE_LIMITS = { min: 32, max: 64 } as const;
+
 export const DEFAULT_APPEARANCE: AppearanceSettings = {
   popupMenu: DEFAULT_POPUP_MENU,
-  mode: "system", floatingOpacity: 100, paragraphHighlightEnabled: true,
+  mode: "system", floatingOpacity: 100, floatingSize: 42, paragraphHighlightEnabled: true,
   lightSchemeId: "wupage-light", darkSchemeId: "wupage-dark", customSchemes: []
 };
 
@@ -169,6 +172,8 @@ export function normalizeAppearance(value: unknown): AppearanceSettings {
     paragraphHighlightEnabled: input.paragraphHighlightEnabled !== false,
     floatingOpacity: typeof input.floatingOpacity === "number" && Number.isFinite(input.floatingOpacity)
       ? Math.max(0, Math.min(100, Math.round(input.floatingOpacity))) : DEFAULT_APPEARANCE.floatingOpacity,
+    floatingSize: typeof input.floatingSize === "number" && Number.isFinite(input.floatingSize)
+      ? Math.max(FLOATING_SIZE_LIMITS.min, Math.min(FLOATING_SIZE_LIMITS.max, Math.round(input.floatingSize))) : DEFAULT_APPEARANCE.floatingSize,
     lightSchemeId: all.find(entry => entry.id === input.lightSchemeId && entry.tone === "light")?.id ?? DEFAULT_APPEARANCE.lightSchemeId,
     darkSchemeId: all.find(entry => entry.id === input.darkSchemeId && entry.tone === "dark")?.id ?? DEFAULT_APPEARANCE.darkSchemeId,
     customSchemes

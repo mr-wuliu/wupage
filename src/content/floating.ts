@@ -42,7 +42,7 @@ import { SOURCE_LANGUAGES, TARGET_LANGUAGES } from "../shared/languages";
 import { hasTouchInput, TOUCH_INPUT_QUERY, visibleViewport } from "../shared/touch";
 import { startTouchParagraph } from "./touch-paragraph";
 import { showTouchHint } from "./touch-hint";
-import { normalizeAppearance } from "../shared/appearance";
+import { DEFAULT_APPEARANCE, normalizeAppearance } from "../shared/appearance";
 
 const FLOATING_ID = "wupage-floating-ball";
 const FLOATING_HITBOX_ID = "wupage-floating-hitbox";
@@ -55,7 +55,6 @@ const EDGE_MARGIN = 8;
 const EDGE_VISIBLE = 22;
 const SNAP_THRESHOLD = 56;
 const HITBOX_PADDING = 16;
-const FLOATING_SIZE = 42;
 const DEFAULT_BOTTOM = 146;
 const MENU_OPEN_DELAY = 500;
 const MENU_CLOSE_DELAY = 240;
@@ -199,6 +198,8 @@ export function initFloatingBall(): void {
   document.addEventListener("mousemove", handleParagraphPreview, { passive: true });
   document.addEventListener("click", handleDocumentClick, true);
   window.addEventListener("resize", () => keepPositionInViewport(button));
+  const ballSize = typeof ResizeObserver === "undefined" ? undefined : new ResizeObserver(() => keepPositionInViewport(button));
+  ballSize?.observe(button);
   const positionVisibleMenu = () => {
     const menu = document.getElementById("wupage-floating-menu");
     if (menu && !menu.hidden) positionMenu(menu, button);
@@ -218,13 +219,14 @@ export function initFloatingBall(): void {
     if (menu.contains(document.activeElement)) button.focus({ preventScroll: true });
     setMenuOpen(menu, false);
   });
-  window.addEventListener("pagehide", () => {
+  window.addEventListener("pagehide", (event) => {
     cancelLongPress();
     cancelMenuOpen();
     cancelMenuClose();
     window.visualViewport?.removeEventListener("resize", positionVisibleMenu);
     window.visualViewport?.removeEventListener("scroll", positionVisibleMenu);
-  }, { once: true });
+    if (!event.persisted) ballSize?.disconnect();
+  });
 }
 
 async function initializeFloatingBall(button: HTMLElement): Promise<void> {
@@ -673,7 +675,8 @@ function positionMenu(menu: HTMLElement, button: HTMLElement, preserveTop = fals
   const rect = button.getBoundingClientRect();
   const ballLeft = hitbox ? Number.parseFloat(hitbox.style.left) + HITBOX_PADDING : rect.left;
   const ballTop = hitbox ? Number.parseFloat(hitbox.style.top) + HITBOX_PADDING : rect.top;
-  const leftAnchor = ballLeft + (button.dataset.edge === "left" ? 20 : button.dataset.edge === "right" ? -20 : 0);
+  const reveal = size - EDGE_VISIBLE + (button.dataset.touch === "true" ? EDGE_MARGIN : 0);
+  const leftAnchor = ballLeft + (button.dataset.edge === "left" ? reveal : button.dataset.edge === "right" ? -reveal : 0);
   const availableLeft = leftAnchor - EDGE_MARGIN * 2;
   const availableRight = window.innerWidth - leftAnchor - size - EDGE_MARGIN * 2;
   const availableSide = Math.max(availableLeft, availableRight);
@@ -839,17 +842,20 @@ function applyFloatingPosition(button: HTMLElement, position: FloatingPosition):
 
 function keepPositionInViewport(button: HTMLElement): void {
   if (dragging) return;
-  const rect = button.getBoundingClientRect();
+  const hitbox = button.parentElement;
+  if (!hitbox || hitbox.hidden || hitbox.dataset.positionReady !== "true") return;
   const edge = button.dataset.edge;
   applyFloatingPosition(button, {
-    left: rect.left,
-    top: rect.top,
+    left: Number.parseFloat(hitbox.style.left) + HITBOX_PADDING,
+    top: Number.parseFloat(hitbox.style.top) + HITBOX_PADDING,
     edge: edge === "left" || edge === "right" ? edge : null
   });
 }
 
 function getFloatingSize(button: HTMLElement): number {
-  return button.offsetWidth || FLOATING_SIZE;
+  if (button.offsetWidth) return button.offsetWidth;
+  const size = Number.parseFloat(getComputedStyle(button).getPropertyValue("--wp-floating-size")) || DEFAULT_APPEARANCE.floatingSize;
+  return button.dataset.touch === "true" ? Math.max(44, size) : size;
 }
 
 function snapToEdge(button: HTMLElement): void {

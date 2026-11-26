@@ -2682,6 +2682,16 @@
   "floatingButtonOpacityPercentage": {
     "message": "悬浮球透明度百分比"
   },
+  "floatingButtonSize": {
+    "message": "悬浮球大小"
+  },
+  "floatingButtonSizeInPixels": {
+    "message": "悬浮球大小（像素）"
+  },
+  "enterFloatingButtonSize": {
+    "message": "请输入 $ARG1$ 到 $ARG2$ 像素之间的整数。",
+    "placeholders": { "arg1": { "content": "$1" }, "arg2": { "content": "$2" } }
+  },
   "copy": {
     "message": "$ARG1$（副本）",
     "placeholders": {

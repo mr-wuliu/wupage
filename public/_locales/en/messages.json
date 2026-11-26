@@ -2682,6 +2682,16 @@
   "floatingButtonOpacityPercentage": {
     "message": "Floating button opacity percentage"
   },
+  "floatingButtonSize": {
+    "message": "Button size"
+  },
+  "floatingButtonSizeInPixels": {
+    "message": "Floating button size in pixels"
+  },
+  "enterFloatingButtonSize": {
+    "message": "Enter a floating button size from $ARG1$ to $ARG2$ pixels.",
+    "placeholders": { "arg1": { "content": "$1" }, "arg2": { "content": "$2" } }
+  },
   "copy": {
     "message": "$ARG1$ (copy)",
     "placeholders": {
