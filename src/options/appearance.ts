@@ -1,5 +1,5 @@
 import { t } from "../shared/i18n";
-import { applyColorScheme, BUILT_IN_SCHEMES, COLOR_FIELDS, COLOR_GROUPS, DEFAULT_APPEARANCE, getColorScheme,
+import { applyColorScheme, BUILT_IN_SCHEMES, COLOR_FIELDS, COLOR_GROUPS, DEFAULT_APPEARANCE, FLOATING_SIZE_LIMITS, getColorScheme,
   isHexColor, normalizeAppearance, schemeColor, type AppearanceMode, type AppearanceSettings, type AppearanceTone } from "../shared/appearance";
 import { setupAppearance } from "../shared/appearance-runtime";
 import { mapTranslationTextColor } from "../shared/translation-colors";
@@ -55,6 +55,40 @@ export function setupAppearanceControls(root: HTMLElement): {
     const palette = { light: schemeColor(scheme, "translation-light"), dark: schemeColor(scheme, "translation-dark") };
     query<HTMLElement>(".appearance-preview-translation-light").style.color = mapTranslationTextColor("rgb(39, 49, 58)", "rgb(255, 255, 255)", palette)!;
     query<HTMLElement>(".appearance-preview-translation-dark").style.color = mapTranslationTextColor("rgb(231, 239, 236)", "rgb(23, 32, 38)", palette)!;
+  }
+
+  function floatingRange(key: "floatingOpacity" | "floatingSize", labelText: string, numberLabel: string,
+    { min, max }: { min: number; max: number }, unit: string, hint?: string): HTMLElement {
+    const row = document.createElement("div"); row.className = "appearance-range-row";
+    const label = document.createElement("label"); label.htmlFor = `${key}Range`; label.textContent = labelText;
+    const range = document.createElement("input"); range.type = "range"; range.id = label.htmlFor;
+    const number = document.createElement("input"); number.type = "number"; number.id = `${key}Number`;
+    number.setAttribute("aria-label", numberLabel);
+    if (hint) range.title = hint;
+    for (const input of [range, number]) {
+      input.min = String(min); input.max = String(max); input.step = "1"; input.value = String(draft[key]);
+    }
+    const suffix = document.createElement("span"); suffix.textContent = unit; suffix.setAttribute("aria-hidden", "true");
+    const value = document.createElement("span"); value.className = "appearance-range-value"; value.append(number, suffix);
+    range.setAttribute("aria-valuetext", `${draft[key]}${unit}`);
+    function update(next: number): void {
+      draft[key] = next;
+      range.setAttribute("aria-valuetext", `${next}${unit}`);
+      status.textContent = ""; paint();
+    }
+    range.addEventListener("input", () => {
+      number.value = range.value; number.removeAttribute("aria-invalid");
+      update(range.valueAsNumber);
+    });
+    number.addEventListener("input", () => {
+      const next = number.valueAsNumber;
+      const valid = Number.isInteger(next) && next >= min && next <= max;
+      number.setAttribute("aria-invalid", String(!valid));
+      if (!valid) return;
+      range.value = String(next); update(next);
+    });
+    row.append(label, range, value);
+    return row;
   }
 
   function renderEditor(): void {
@@ -134,7 +168,7 @@ export function setupAppearanceControls(root: HTMLElement): {
       const caption = document.createElement("span"); caption.setAttribute("aria-hidden", "true");
       opacity.append(swatch, caption);
       const panel = document.createElement("div");
-      panel.className = "appearance-opacity-row appearance-color-opacity"; panel.id = `appearance-opacity-${key}`; panel.hidden = true;
+      panel.className = "appearance-range-row appearance-color-opacity"; panel.id = `appearance-opacity-${key}`; panel.hidden = true;
       opacity.setAttribute("aria-controls", panel.id);
       const opacityLabel = document.createElement("label");
       opacityLabel.htmlFor = `${panel.id}-range`; opacityLabel.textContent = t("opacity");
@@ -147,7 +181,7 @@ export function setupAppearanceControls(root: HTMLElement): {
         input.setAttribute("aria-label", t("colorOpacity", label));
         input.title = t("lowerValuesAreMoreTransparent100IsFully");
       }
-      const value = document.createElement("span"); value.className = "appearance-opacity-value";
+      const value = document.createElement("span"); value.className = "appearance-range-value";
       const percent = document.createElement("span"); percent.textContent = "%"; percent.setAttribute("aria-hidden", "true");
       value.append(number, percent); panel.append(opacityLabel, range, value);
       function updateSwatch(): void {
@@ -236,36 +270,11 @@ export function setupAppearanceControls(root: HTMLElement): {
     });
     highlightToggle.append(highlightLabel, highlightInput, highlightControl);
     groups.get("translation")!.prepend(highlightToggle, highlightHint);
-    const opacityRow = document.createElement("div"); opacityRow.className = "appearance-opacity-row";
-    const opacityLabel = document.createElement("label"); opacityLabel.htmlFor = "floatingOpacityRange"; opacityLabel.textContent = t("overallOpacity");
-    const opacityRange = document.createElement("input");
-    opacityRange.type = "range"; opacityRange.id = opacityLabel.htmlFor;
-    opacityRange.min = "0"; opacityRange.max = "100"; opacityRange.step = "1"; opacityRange.value = String(draft.floatingOpacity);
-    opacityRange.title = t("lowerValuesAreMoreTransparent100IsFully");
-    const opacityValue = document.createElement("span"); opacityValue.className = "appearance-opacity-value";
-    const opacityNumber = document.createElement("input");
-    opacityNumber.type = "number"; opacityNumber.id = "floatingOpacityNumber";
-    opacityNumber.min = "0"; opacityNumber.max = "100"; opacityNumber.step = "1"; opacityNumber.value = opacityRange.value;
-    opacityNumber.setAttribute("aria-label", t("floatingButtonOpacityPercentage"));
-    const percent = document.createElement("span"); percent.textContent = "%"; percent.setAttribute("aria-hidden", "true");
-    opacityRange.setAttribute("aria-valuetext", `${draft.floatingOpacity}%`);
-    opacityRange.addEventListener("input", () => {
-      draft.floatingOpacity = Number(opacityRange.value);
-      opacityNumber.value = opacityRange.value; opacityNumber.removeAttribute("aria-invalid");
-      opacityRange.setAttribute("aria-valuetext", `${draft.floatingOpacity}%`);
-      status.textContent = ""; paint();
-    });
-    opacityNumber.addEventListener("input", () => {
-      const value = opacityNumber.valueAsNumber;
-      const valid = Number.isInteger(value) && value >= 0 && value <= 100;
-      opacityNumber.setAttribute("aria-invalid", String(!valid));
-      if (!valid) return;
-      draft.floatingOpacity = value; opacityRange.value = String(value);
-      opacityRange.setAttribute("aria-valuetext", `${value}%`);
-      status.textContent = ""; paint();
-    });
-    opacityValue.append(opacityNumber, percent); opacityRow.append(opacityLabel, opacityRange, opacityValue);
-    groups.get("floating")!.append(opacityRow);
+    groups.get("floating")!.append(
+      floatingRange("floatingOpacity", t("overallOpacity"), t("floatingButtonOpacityPercentage"), { min: 0, max: 100 }, "%",
+        t("lowerValuesAreMoreTransparent100IsFully")),
+      floatingRange("floatingSize", t("floatingButtonSize"), t("floatingButtonSizeInPixels"), FLOATING_SIZE_LIMITS, "px")
+    );
     paint();
   }
 
@@ -350,6 +359,9 @@ export function setupAppearanceControls(root: HTMLElement): {
           colors.querySelector(`[aria-controls="${panel.id}"]`)?.setAttribute("aria-expanded", "true");
         }
         invalid.focus();
+        if (invalid.id === "floatingSizeNumber") {
+          throw new Error(t("enterFloatingButtonSize", String(FLOATING_SIZE_LIMITS.min), String(FLOATING_SIZE_LIMITS.max)));
+        }
         throw new Error(invalid === name ? t("enterAColorSchemeName") : invalid.id === "floatingOpacityNumber" || invalid.hasAttribute("data-color-opacity-number")
           ? t("enterAnIntegerOpacityFrom0To100") : t("enterAFullHexColorSuchAs116466"));
       }

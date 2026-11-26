@@ -151,6 +151,11 @@ try {
   checks.push('Chinese and Western layout switch without another translation');
   await view.locator('.original').uncheck();
   await page.waitForFunction(() => document.querySelector('[data-wupage-video]').shadowRoot.querySelector('.source span').textContent === '');
+  const subtitleFont = row => view.locator(`.captions .${row}`).evaluate(element => {
+    const { fontSize, fontFamily, fontWeight } = getComputedStyle(element);
+    return { fontSize, fontFamily, fontWeight };
+  });
+  assert.deepEqual(await subtitleFont('source'), await subtitleFont('translation'), 'the temporary source and final translation use the same single-line typography');
   assert.equal(requests.length, 1, 'changing appearance must reuse text'); await view.locator('.original').check();
   await view.locator('details').filter({ hasText: '更多选项' }).evaluate(details => { details.open = true; });
   const [cancelledImport] = await Promise.all([page.waitForEvent('filechooser'), view.locator('.import').click()]);

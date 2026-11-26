@@ -1,6 +1,8 @@
 /* Loaded by the browser so page dark-mode tools cannot rewrite these rules. */
 #wupage-floating-hitbox {
   all: initial;
+  --wp-ball-size: var(--wp-floating-size, 42px);
+  --wp-ball-reveal: calc(var(--wp-ball-size) - 22px);
   position: fixed !important;
   left: auto !important;
   top: auto !important;
@@ -8,8 +10,8 @@
   bottom: 88px !important;
   z-index: 2147483647 !important;
   box-sizing: border-box !important;
-  width: 74px !important;
-  height: 74px !important;
+  width: calc(var(--wp-ball-size) + 32px) !important;
+  height: calc(var(--wp-ball-size) + 32px) !important;
   margin: 0 !important;
   padding: 0 !important;
   display: grid !important;
@@ -30,8 +32,8 @@
   all: initial;
   position: relative;
   box-sizing: border-box;
-  width: 42px;
-  height: 42px;
+  width: var(--wp-ball-size);
+  height: var(--wp-ball-size);
   min-width: 0;
   min-height: 0;
   margin: 0;
@@ -114,12 +116,12 @@
 
 #wupage-floating-hitbox:has(#wupage-floating-ball[data-edge="left"]):hover #wupage-floating-ball,
 #wupage-floating-ball[data-edge="left"].is-menu-open {
-  transform: translateX(20px);
+  transform: translateX(var(--wp-ball-reveal));
 }
 
 #wupage-floating-hitbox:has(#wupage-floating-ball[data-edge="right"]):hover #wupage-floating-ball,
 #wupage-floating-ball[data-edge="right"].is-menu-open {
-  transform: translateX(-20px);
+  transform: translateX(calc(-1 * var(--wp-ball-reveal)));
 }
 
 #wupage-floating-menu {
@@ -667,10 +669,9 @@
 #wupage-floating-menu .ocr-description, #wupage-floating-menu .ocr-model-status { margin: 5px 0 0; font: 12px/1.6 system-ui; color: var(--wp-muted, #526068); white-space: normal; overflow-wrap: anywhere; }
 #wupage-floating-menu .ocr-help-panel .ocr-description { margin-top: 0; }
 #wupage-floating-menu .ocr-model-status[data-state="error"] { color: var(--wp-danger, #b13e36); }
-#wupage-floating-ball[data-touch="true"] { width: 44px; height: 44px; }
-#wupage-floating-hitbox:has(#wupage-floating-ball[data-touch="true"]) { width: 76px !important; height: 76px !important; }
-#wupage-floating-ball[data-touch="true"][data-edge="left"]:not(.is-dragging) { transform: translateX(30px) !important; }
-#wupage-floating-ball[data-touch="true"][data-edge="right"]:not(.is-dragging) { transform: translateX(-30px) !important; }
+#wupage-floating-hitbox:has(#wupage-floating-ball[data-touch="true"]) { --wp-ball-size: max(44px, var(--wp-floating-size, 42px)); }
+#wupage-floating-ball[data-touch="true"][data-edge="left"]:not(.is-dragging) { transform: translateX(calc(var(--wp-ball-reveal) + 8px)) !important; }
+#wupage-floating-ball[data-touch="true"][data-edge="right"]:not(.is-dragging) { transform: translateX(calc(-1 * (var(--wp-ball-reveal) + 8px))) !important; }
 #wupage-floating-menu[data-touch="true"] { gap: 8px; padding: 12px; padding-bottom: max(12px, env(safe-area-inset-bottom)); border-radius: 16px; }
 #wupage-floating-menu[data-touch="true"] .wupage-menu-top { display: contents; }
 #wupage-floating-menu[data-touch="true"] .wupage-menu-header { order: 0; }

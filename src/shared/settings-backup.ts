@@ -4,7 +4,7 @@ import { normalizeElementExclusions } from "./element-exclusions";
 import { MAX_GLOSSARY_ENTRIES, MAX_GLOSSARY_GROUPS } from "./glossary";
 import { MAX_INPUT_TEMPLATES } from "./input-translation";
 import { BUILT_IN_PROVIDER_IDS, DEFAULT_SETTINGS } from "./defaults";
-import { COLOR_FIELDS, DEFAULT_APPEARANCE, inputButtonColors, isHexColor } from "./appearance";
+import { COLOR_FIELDS, DEFAULT_APPEARANCE, FLOATING_SIZE_LIMITS, inputButtonColors, isHexColor } from "./appearance";
 import { LOCAL_BINDINGS } from "./local-shortcuts";
 import { LOCAL_SHORTCUTS, TRANSLATION_SHORTCUTS } from "./shortcuts";
 import type { ExtensionSettings, ProviderConfig } from "./types";
@@ -212,6 +212,7 @@ const settingsShape = {
     translationStyle: optional(object({ fontSize: optional(number(14, 48)), fontFamily: oneOf("sans-serif", "serif", "monospace"), fontWeight: oneOf(400, 600, 700) })),
     siteLayouts: optional(array(object({ id: string, x: number(2, 98), bottom: number(2, 98), width: number(20, 96), fontSize: number(14, 48) }), 100)) })),
   appearance: optional(object({ mode: oneOf("system", "light", "dark"), floatingOpacity: number(0, 100),
+    floatingSize: optional(number(FLOATING_SIZE_LIMITS.min, FLOATING_SIZE_LIMITS.max)),
     paragraphHighlightEnabled: (v, p, s) => v === undefined ? DEFAULT_APPEARANCE.paragraphHighlightEnabled : boolean(v, p, s),
     lightSchemeId: string, darkSchemeId: string,
     popupMenu: object({ order: strings, hidden: strings, rows: array(strings) }),

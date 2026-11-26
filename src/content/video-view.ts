@@ -43,7 +43,7 @@ const styles = `
   .source,.translation { white-space: pre-line; overflow-wrap: anywhere; line-height: 1.4; }
   :host([data-western-subtitles]) .source,:host([data-western-subtitles]) .translation { text-align: left; }
   .source { font-size: min(var(--wp-source-size,.78em),var(--wp-caption-font-cap,48px)); font-family: var(--wp-source-family,system-ui,sans-serif); font-weight: var(--wp-source-weight,500); color: #f1f4f3; }
-  .translation { font-size: min(var(--wp-translation-size,1em),var(--wp-caption-font-cap,48px)); font-family: var(--wp-translation-family,system-ui,sans-serif); font-weight: var(--wp-translation-weight,600); }
+  .translation,.captions[data-single-subtitle] .source { font-size: min(var(--wp-translation-size,1em),var(--wp-caption-font-cap,48px)); font-family: var(--wp-translation-family,system-ui,sans-serif); font-weight: var(--wp-translation-weight,600); color: inherit; }
   .captions > .source,.captions > .translation { max-height: calc(var(--wp-caption-lines,2) * 1.4em); overflow: hidden; padding: 3px 0; box-sizing: content-box; }
   .source span,.translation span { background: var(--wp-video-bg,#101718bf); box-decoration-break: clone; -webkit-box-decoration-break: clone; padding: 3px 8px; border-radius: 4px; }
   .source:has(span:empty),.translation:has(span:empty) { display: none; }
@@ -414,6 +414,7 @@ export class VideoView {
     this.updateMark();
     // Keep current speech readable while a provider is slow. Never freeze the
     // previous translated page just because the next result has not arrived.
+    this.caption.toggleAttribute("data-single-subtitle", !preferences.showOriginal || !translation);
     const page = this.presentation.current((preferences.showOriginal || !translation) && source !== translation ? source : "", translation, progress, preferences.displayMode === "western");
     const shownSource = page.source;
     translation = page.translation;
