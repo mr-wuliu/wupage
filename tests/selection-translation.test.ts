@@ -47,6 +47,30 @@ afterEach(() => {
 });
 
 describe("selection dictionary UI", () => {
+  it("shows and saves an exact glossary translation locally and allows switching to an online dictionary", async () => {
+    controller.updateGlossary([{ id: "custom", name: "自定义", enabled: true,
+      entries: [{ id: "example", site: "*", source: "example", target: "示范" }] }]);
+    await show(); open();
+    const picker = root().querySelector<HTMLSelectElement>("header select")!;
+    expect(card().dataset.mode).toBe("glossary");
+    expect(picker.value).toBe("glossary");
+    expect(root().querySelector(".body")?.textContent).toBe("示范");
+    expect(sendRuntimeRequest).toHaveBeenCalledExactlyOnceWith({ type: "VOCABULARY_GET", term: "example" });
+    const favorite = root().querySelector<HTMLButtonElement>(".favorite-word")!;
+    await vi.waitFor(() => expect(favorite.disabled).toBe(false));
+    favorite.click();
+    await vi.waitFor(() => expect(favorite.getAttribute("aria-pressed")).toBe("true"));
+    expect(sendRuntimeRequest).toHaveBeenCalledWith({ type: "VOCABULARY_SAVE", entry: {
+      term: "example", meanings: [], pronunciations: [], translation: "示范"
+    } });
+    picker.value = "youdao";
+    picker.dispatchEvent(new Event("change"));
+    await vi.waitFor(() => expect(root().querySelector(".meanings")?.textContent).toContain("例子"));
+    expect(dictionaryRequests()).toEqual([{ type: "LOOKUP_DICTIONARY", provider: "youdao", query: "example" }]);
+    picker.value = "glossary";
+    picker.dispatchEvent(new Event("change"));
+    expect(root().querySelector(".body")?.textContent).toBe("示范");
+  });
   it("recovers a native touch selection after pointer cancellation and waits for activation", async () => {
     const event = new MouseEvent("pointerdown", { bubbles: true });
     Object.defineProperty(event, "pointerType", { value: "touch" });

@@ -5658,5 +5658,51 @@
   "saveWord": { "message": "收藏词条" },
   "removeSavedWord": { "message": "取消收藏" },
   "savingWord": { "message": "正在保存…" },
-  "wordSaved": { "message": "已收藏" }
+  "wordSaved": { "message": "已收藏" },
+  "glossary": {
+    "message": "术语库"
+  },
+  "glossaryDescription": {
+    "message": "为单词和短语指定固定译文，可同时启用任意多个分组。"
+  },
+  "glossarySiteHelp": {
+    "message": "网站留空或填写 * 适用于所有来源。也可填写域名或通配网址，例如 example.com、*.example.com、*://*.example.com/docs/*。"
+  },
+  "addGlossaryGroup": {
+    "message": "添加分组"
+  },
+  "glossaryGroupName": {
+    "message": "分组名称"
+  },
+  "enableGlossaryGroup": {
+    "message": "启用术语分组"
+  },
+  "deleteGlossaryGroup": {
+    "message": "删除术语分组"
+  },
+  "addGlossaryEntry": {
+    "message": "添加术语"
+  },
+  "deleteGlossaryEntry": {
+    "message": "删除术语"
+  },
+  "glossaryEntryCount": {
+    "message": "术语（$ARG1$）",
+    "placeholders": { "ARG1": { "content": "$1" } }
+  },
+  "glossarySource": {
+    "message": "原始文本"
+  },
+  "glossaryTarget": {
+    "message": "目标文本"
+  },
+  "enterGlossaryGroupName": {
+    "message": "请输入术语分组名称。"
+  },
+  "enterGlossarySource": {
+    "message": "请在原始文本中填写单词或短语。"
+  },
+  "enterGlossaryTarget": {
+    "message": "请在目标文本中填写固定译文。"
+  }
 }

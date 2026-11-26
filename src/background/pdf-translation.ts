@@ -5,7 +5,8 @@ import {
 } from "../shared/pdf-translation";
 import type { RuntimeResponse, TranslateBatchRequest, TranslateBatchResponse } from "../shared/types";
 
-type Translate = (request: TranslateBatchRequest, sender: chrome.runtime.MessageSender, signal: AbortSignal) => Promise<TranslateBatchResponse>;
+type Translate = (request: TranslateBatchRequest, sender: chrome.runtime.MessageSender, signal: AbortSignal,
+  websiteUrl?: string) => Promise<TranslateBatchResponse>;
 
 export function installPdfTranslation(translate: Translate): void {
   chrome.runtime.onConnect.addListener(port => {
@@ -52,7 +53,7 @@ export function installPdfTranslation(translate: Translate): void {
       heartbeat = setInterval(() => send({ type: "heartbeat" }), PDF_TRANSLATION_HEARTBEAT_MS);
       void Promise.resolve().then(() => {
         controller.signal.throwIfAborted();
-        return translate(message.request, sender, controller.signal);
+        return translate(message.request, sender, controller.signal, message.websiteUrl);
       }).then(data => complete({ ok: true, data }), error => complete(runtimeErrorResponse(error)));
     };
     controller.signal.addEventListener("abort", onAbort, { once: true });

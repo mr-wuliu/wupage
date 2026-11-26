@@ -70,6 +70,30 @@ describe("settings category navigation", () => {
     expect(location.hash).toBe("#providerSettings");
   });
 
+  it("saves multiple glossary groups and keeps disabled groups available for later use", async () => {
+    await mount();
+    navigate("glossarySettings");
+    const addGroup = query<HTMLButtonElement>("#addGlossaryGroup");
+    addGroup.click();
+    addGroup.click();
+    const groups = [...document.querySelectorAll<HTMLElement>(".glossary-group")];
+    groups.forEach((group, index) => {
+      group.querySelector<HTMLInputElement>('input[type="text"]')!.value = ["文档", "游戏"][index];
+      group.querySelector<HTMLButtonElement>("details > button")!.click();
+      const [site, source, target] = [...group.querySelectorAll<HTMLInputElement>(".glossary-entry input")];
+      site.value = ["*://*.example.com/docs/*", ""][index];
+      source.value = "Server";
+      target.value = ["服务器", "区服"][index];
+    });
+    groups[1].querySelector<HTMLInputElement>('input[role="switch"]')!.click();
+    navigate("generalSettings");
+    query<HTMLButtonElement>("#save").click();
+    await vi.waitFor(() => expect(stored.glossaryGroups).toMatchObject([
+      { name: "文档", enabled: true, entries: [{ site: "*://*.example.com/docs/*", source: "Server", target: "服务器" }] },
+      { name: "游戏", enabled: false, entries: [{ site: "*", source: "Server", target: "区服" }] }
+    ]));
+  });
+
   it("opens nested PDF links and responds to history navigation", async () => {
     history.replaceState(null, "", "/options.html#pdfSettings");
     await mount();

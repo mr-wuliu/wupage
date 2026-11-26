@@ -1211,6 +1211,40 @@ button[data-settings-feedback]:active {
 .exclusion-rule-add { display: inline-flex; align-items: center; gap: 8px; justify-self: start; }
 .exclusion-rule-add svg { width: 16px; height: 16px; }
 #elementExclusionStatus:not(:empty) { color: var(--wp-danger, #ad3737); }
+.glossary-groups { display: grid; gap: 12px; }
+.glossary-groups:empty, #glossaryStatus:empty { display: none; }
+.glossary-group { min-width: 0; border: 1px solid var(--wp-border, #d7dedb); border-radius: 8px; }
+.glossary-group-heading { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: end; gap: 12px; padding: 12px 14px; }
+.glossary-group-heading .setting-toggle { gap: 8px; }
+.glossary-group details { padding: 0 14px 12px; }
+.glossary-group summary { min-height: 28px; color: var(--wp-muted); font-size: 13px; cursor: pointer; }
+.glossary-entry-columns, .glossary-entry {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) repeat(2, minmax(0, 1fr)) 32px;
+  align-items: end;
+  gap: 8px;
+}
+.glossary-entry-columns { padding: 4px 0; color: var(--wp-muted); font-size: 12px; font-weight: 600; }
+.glossary-entry { padding: 3px 0; }
+.glossary-group :is(label, input) { min-width: 0; }
+.glossary-group input[type="text"] { width: 100%; box-sizing: border-box; }
+.glossary-entry input[type="text"] { min-height: 32px; padding-inline: 8px; }
+.glossary-group details > .exclusion-rule-add { min-height: 32px; margin-top: 6px; padding-inline: 10px; }
+.glossary-group [aria-invalid="true"] { border-color: var(--wp-danger, #ad3737); }
+#glossaryStatus { color: var(--wp-danger, #ad3737); }
+@container settings (width > 480px) {
+  .glossary-entry label > span { position: absolute; width: 1px; height: 1px; clip-path: inset(50%); overflow: hidden; }
+}
+@container settings (max-width: 480px) {
+  .glossary-entry-columns { display: none; }
+  .glossary-entry { grid-template-columns: repeat(2, minmax(0, 1fr)) 32px; gap: 6px 8px; padding: 6px 0; }
+  .glossary-entry + .glossary-entry { border-top: 1px solid var(--wp-border); }
+  .glossary-entry label:first-child { grid-column: 1 / -1; }
+  .glossary-entry label { gap: 3px; }
+}
+@container settings (max-width: 400px) {
+  .glossary-group-heading .setting-toggle > span:first-child { display: none; }
+}
 .auto-site-add-row svg, .icon-button svg, .provider-delete svg { width: 16px; height: 16px; }
 
 .language-chevron svg, .provider-chevron svg { display: block; width: 100%; height: 100%; }

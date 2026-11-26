@@ -201,6 +201,7 @@ export type DualServiceProviderConfig = Extract<ProviderConfig, DualServiceConfi
 }>;
 
 export interface ExtensionSettings {
+  glossaryGroups?: import("./glossary").GlossaryGroup[];
   elementExclusions?: import("./element-exclusions").ElementRule[];
   elementExclusionDefaultsVersion?: number;
   elementInclusions?: import("./element-exclusions").ElementRule[];

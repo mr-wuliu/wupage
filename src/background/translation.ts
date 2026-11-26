@@ -13,6 +13,8 @@ import type {
 } from "../shared/types";
 import { createProvider } from "./providers";
 import { normalizeProtectedText } from "../shared/protected-text";
+import { applicableGlossary, createGlossaryMatcher } from "../shared/glossary";
+import { protectGlossary } from "./glossary";
 import { translateTextWithRecovery } from "./protected-translation";
 import { ProviderError } from "../shared/errors";
 import { assertTranslationResponse, TranslationResponseError } from "./translation-response";
@@ -35,6 +37,7 @@ const CACHE_KEY_IGNORED_FIELDS = ["label", "enabled", "performanceMode", "chunkS
 
 export interface TranslationTaskOptions {
   signal?: AbortSignal;
+  websiteUrl?: string;
   priority?: boolean;
   persistentCache?: boolean;
   statisticsPageKey?: string;
@@ -79,6 +82,8 @@ async function translateConfigured(
   const provider = createProvider(providerConfig);
   const statistics = createStatisticsRecorder(settings);
   const performance = getEffectiveProviderPerformance(settings, providerId);
+  const glossary = applicableGlossary(settings.glossaryGroups, options.websiteUrl);
+  const matchTerm = glossary.length ? createGlossaryMatcher(glossary) : undefined;
   // Model/prompt/source-language changes must not keep serving old translations.
   // Scheduling and presentation fields stay out of the fingerprint: renaming a
   // provider or tuning its concurrency must not discard the whole cache.
@@ -89,11 +94,15 @@ async function translateConfigured(
       ...(providerConfig.type === "doubao-web" ? { doubaoProtocolVersion: DOUBAO_PROTOCOL_VERSION, translateService: "1" } : {}),
       // Bump the style version when its built-in translation instructions change.
       ...(request.translationStyle ? { translationStyle: request.translationStyle, translationStyleVersion: 1 } : {}),
+      ...(glossary.length ? { glossary, glossaryVersion: 1 } : {}),
       ...(request.preservePlaceholders ? { protectedTextVersion: 1 } : {}) }))}`
     : providerId;
   const cachedTranslations = new Map<number, string>();
   const uncachedTexts: string[] = [];
   const uncachedIndexes: number[] = [];
+  const glossaryInputs = new Map<number, NonNullable<ReturnType<typeof protectGlossary>>>();
+  const glossaryOnly = new Map<number, string>();
+  const maskedTexts = new Set<string>();
   // Hash every text once and read the whole batch with a single storage call;
   // a 50-segment page used to cost 50 hashes and 50 IPC round trips here.
   const cacheKeys = useCache
@@ -110,14 +119,23 @@ async function translateConfigured(
     if (cached !== undefined) {
       cachedTranslations.set(index, cached);
     } else {
+      const prepared = matchTerm && protectGlossary(text, matchTerm);
+      if (prepared && !prepared.needsTranslation) {
+        glossaryOnly.set(index, prepared.restore(prepared.masked));
+        continue;
+      }
+      if (prepared) {
+        glossaryInputs.set(index, prepared);
+        maskedTexts.add(prepared.masked);
+      }
       uncachedIndexes.push(index);
-      uncachedTexts.push(text);
+      uncachedTexts.push(prepared?.masked ?? text);
     }
   }
 
   const runProviderTexts = (texts: string[]) =>
     runProviderTask(providerConfig, request, texts, performance, settings.concurrency, async () => {
-      const result = await translateProviderTexts(providerConfig, provider, request, texts, signal, statistics);
+      const result = await translateProviderTexts(providerConfig, provider, request, texts, signal, statistics, maskedTexts);
       signal?.throwIfAborted();
       assertTranslationResponse(result, texts.length);
       return result;
@@ -135,9 +153,14 @@ async function translateConfigured(
   for (const [index, value] of cachedTranslations) output[index] = value;
 
   const pendingCacheWrites: Record<string, string> = {};
+  for (const [index, value] of glossaryOnly) {
+    output[index] = value;
+    if (useCache) pendingCacheWrites[cacheKeys[index]] = value;
+  }
   for (const [translatedIndex, sourceIndex] of uncachedIndexes.entries()) {
     signal?.throwIfAborted();
-    const translation = translated[translatedIndex];
+    const raw = translated[translatedIndex];
+    const translation = glossaryInputs.get(sourceIndex)?.restore(raw) ?? raw;
     output[sourceIndex] = translation;
     if (useCache) pendingCacheWrites[cacheKeys[sourceIndex]] = translation;
   }
@@ -400,7 +423,8 @@ async function translateProviderTexts(
   request: TranslateBatchRequest,
   texts: string[],
   signal?: AbortSignal,
-  statistics?: StatisticsRecorder
+  statistics?: StatisticsRecorder,
+  maskedTexts?: ReadonlySet<string>
 ): Promise<string[]> {
   signal?.throwIfAborted();
   const translate = (part: TranslateBatchRequest) => {
@@ -413,8 +437,8 @@ async function translateProviderTexts(
   const send = (part: TranslateBatchRequest) =>
     translateProviderInput(providerConfig, part.preservePlaceholders ? { ...part, preservePlaceholders: false } : part, maxChars, translate);
   const batch = { ...request, texts };
-  return request.preservePlaceholders || texts.some(text => text.length > maxChars)
-    ? translateTextWithRecovery(batch, send, maxChars) : send(batch);
+  return request.preservePlaceholders || texts.some(text => text.length > maxChars || maskedTexts?.has(text))
+    ? translateTextWithRecovery(batch, send, maxChars, maskedTexts) : send(batch);
 }
 
 async function translateProviderInput(

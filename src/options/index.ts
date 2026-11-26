@@ -15,6 +15,7 @@ import { ensureProviderIconStyles, providerIconMarkup } from "../shared/provider
 import { setupAutoTranslationControls } from "./auto-translation";
 import { setupExcludedSites } from "./excluded-sites";
 import { setupElementRuleControls } from "./element-exclusions";
+import { setupGlossaryControls } from "./glossary";
 import { renderProviderUsage, updateProviderScheduling } from "./provider-usage";
 import { setupSettingsNavigation } from "./navigation";
 import { setupStatisticsControls } from "./statistics";
@@ -94,6 +95,10 @@ const autoTranslationControls = setupAutoTranslationControls(
 const frameTranslationEnabled = query<HTMLInputElement>("#frameTranslationEnabled");
 const elementRuleControls = setupElementRuleControls(query<HTMLElement>("#elementExclusionSettings"), field => {
   settingsNavigation.reveal(field); field.scrollIntoView?.({ block: "center" });
+});
+const glossaryControls = setupGlossaryControls(query<HTMLElement>("#glossarySettings"), field => {
+  settingsNavigation.reveal(field);
+  field.scrollIntoView?.({ block: "center" });
 });
 const frameTranslationExcluded = query<HTMLTextAreaElement>("#frameTranslationExcluded");
 
@@ -240,6 +245,7 @@ function renderGeneralSettings(): void {
   appearanceControls.render(settings.appearance);
   autoTranslationControls.render(settings.autoTranslation);
   elementRuleControls.render(settings);
+  glossaryControls.render(settings.glossaryGroups);
   renderGeneralPageSettings(settings);
   renderSelectionSettings(settings);
   renderPerformanceSettings(settings);
@@ -1001,6 +1007,7 @@ function restorePageDefaults(): void {
     case "selectionTranslationSettings": renderSelectionSettings(DEFAULT_SETTINGS); break;
     case "autoTranslationSettings": autoTranslationControls.render(DEFAULT_SETTINGS.autoTranslation); break;
     case "elementExclusionSettings": elementRuleControls.render(DEFAULT_SETTINGS); break;
+    case "glossarySettings": glossaryControls.render(DEFAULT_SETTINGS.glossaryGroups); break;
     case "shortcutSettings": shortcutControls.reset(); break;
     case "appearanceSettings": appearanceControls.render(DEFAULT_SETTINGS.appearance); break;
     case "statisticsSettings": statisticsControls.reset(); break;
@@ -1095,6 +1102,7 @@ function readSettingsFromForm(): ExtensionSettings {
     shortcutEnabled: shortcutControls.readEnabled(),
     autoTranslation: autoTranslationControls.read(),
     ...elementRuleControls.read(),
+    glossaryGroups: glossaryControls.read(),
     frameTranslation: normalizeFrameTranslation({ enabled: frameTranslationEnabled.checked,
       excludeMatches: frameTranslationExcluded.value.split(/\r?\n/u) }),
     targetLang: targetLang.value.trim() || "zh-CN",

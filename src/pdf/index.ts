@@ -15,6 +15,7 @@ import { SOURCE_LANGUAGES, TARGET_LANGUAGES } from "../shared/languages";
 import { enhanceProviderSelect } from "../shared/provider-picker";
 import { sendRuntimeMessage } from "../shared/messaging";
 import { requestPdfTranslation } from "../shared/pdf-translation";
+import { glossaryIdentity } from "../shared/glossary";
 import { getEffectiveProviderPerformance } from "../shared/performance";
 import { ProviderError } from "../shared/errors";
 import { doubaoProviderNotice, isDoubaoProviderUnavailable, syncDoubaoTargetControls } from "../shared/doubao-ui";
@@ -149,6 +150,7 @@ let pdfDocument: PDFDocumentProxy | undefined;
 let pdfLoadingTask: ReturnType<typeof getDocument> | undefined;
 let pageStates: PdfPageState[] = [];
 let currentDocumentName = "";
+let currentDocumentUrl: string | undefined;
 let translationRun = 0;
 let renderedPages = new Set<number>();
 let pageRenderTasks = new Map<number, Promise<void>>();
@@ -342,7 +344,7 @@ async function openPdfUrl(value: string, autoTranslate: boolean, operation: Abor
       t("readingThePdfFile")
     );
     assertCurrentOpen(operation);
-    await loadPdf(data, name, autoTranslate, operation);
+    await loadPdf(data, name, autoTranslate, operation, local ? undefined : url.href);
     return true;
   } catch (error) {
     if (!operation.signal.aborted) handleOpenError(error);
@@ -350,7 +352,7 @@ async function openPdfUrl(value: string, autoTranslate: boolean, operation: Abor
   }
 }
 
-async function loadPdf(data: ArrayBuffer, name: string, autoTranslate: boolean, operation: AbortController): Promise<void> {
+async function loadPdf(data: ArrayBuffer, name: string, autoTranslate: boolean, operation: AbortController, websiteUrl?: string): Promise<void> {
   assertCurrentOpen(operation);
   fontControl.cancel();
   fileAccessNotice.hidden = true;
@@ -391,6 +393,7 @@ async function loadPdf(data: ArrayBuffer, name: string, autoTranslate: boolean, 
   const optionalContent = await documentProxy.getOptionalContentConfig?.({ intent: "display" });
   assertCurrentOpen(operation);
   currentDocumentName = cleanFileName(name);
+  currentDocumentUrl = websiteUrl;
   documentName.textContent = currentDocumentName;
   updateTranslationScopeControl();
 
@@ -975,7 +978,9 @@ async function translateDocument(forDownload = false): Promise<PdfTranslationSes
   }
   if (runId !== translationRun) return;
   const requestOptions = { sourceLang: sourceLang.value, targetLang: targetLang.value, providerId: provider.value };
-  const context = JSON.stringify([requestOptions, settings.providers.find((entry) => entry.id === requestOptions.providerId)]);
+  const websiteUrl = currentDocumentUrl;
+  const context = JSON.stringify([requestOptions, settings.providers.find((entry) => entry.id === requestOptions.providerId),
+    glossaryIdentity(settings.glossaryGroups, websiteUrl)]);
   let resolveFinished!: () => void;
   const finished = new Promise<void>((resolve) => { resolveFinished = resolve; });
   let session!: PdfTranslationSession;
@@ -991,7 +996,7 @@ async function translateDocument(forDownload = false): Promise<PdfTranslationSes
           ...(pageStates[entry.pageNumber]?.blocks.filter(block => block.translatable).slice(0, 2) ?? [])
         ]), preservePlaceholders: true,
         translationStyle: "academic", ...session.requestOptions
-      }, page.pageNumber, anySignal([signal, session.controller.signal]));
+      }, page.pageNumber, anySignal([signal, session.controller.signal]), websiteUrl);
     },
     restore: (entry, index, raw) => {
       const page = pageStates[entry.pageNumber - 1];

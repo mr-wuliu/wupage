@@ -6,7 +6,7 @@ export const PDF_TRANSLATION_PORT = "wupage-pdf-translation";
 export const PDF_TRANSLATION_TIMEOUT_MS = 120_000;
 export const PDF_TRANSLATION_HEARTBEAT_MS = 20_000;
 export type PdfTranslationMessage =
-  | { type: "translate"; request: TranslateBatchRequest; pageNumber: number }
+  | { type: "translate"; request: TranslateBatchRequest; pageNumber: number; websiteUrl?: string }
   | { type: "heartbeat" }
   | { type: "result"; response: RuntimeResponse };
 
@@ -16,7 +16,7 @@ export function pdfTranslationTimeout(pageNumber: number): ProviderError {
 
 /** Disconnecting owns the entire page task, including queued work and retries. */
 export function requestPdfTranslation(
-  request: TranslateBatchRequest, pageNumber: number, signal: AbortSignal
+  request: TranslateBatchRequest, pageNumber: number, signal: AbortSignal, websiteUrl?: string
 ): Promise<TranslateBatchResponse> {
   signal.throwIfAborted();
   const port = chrome.runtime.connect({ name: PDF_TRANSLATION_PORT });
@@ -48,7 +48,7 @@ export function requestPdfTranslation(
     signal.addEventListener("abort", onAbort, { once: true });
     port.onMessage.addListener(onMessage);
     port.onDisconnect.addListener(onDisconnect);
-    try { port.postMessage({ type: "translate", request, pageNumber } satisfies PdfTranslationMessage); }
+    try { port.postMessage({ type: "translate", request, pageNumber, ...(websiteUrl ? { websiteUrl } : {}) } satisfies PdfTranslationMessage); }
     catch { onDisconnect(); }
   });
 }

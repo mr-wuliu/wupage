@@ -9,6 +9,7 @@ import { getSettings } from "../shared/settings";
 import { SETTINGS_KEY } from "../shared/defaults";
 import { ProviderError } from "../shared/errors";
 import { elementRuleIdentity } from "../shared/element-exclusions";
+import { glossaryIdentity, glossaryWebsite } from "../shared/glossary";
 
 const PREFIX = "wupage.frame-session.";
 class FrameConnectionError extends Error {}
@@ -64,9 +65,14 @@ export class FrameSessionManager {
       if (!pending) return;
       void pending.then(tab => {
         const frame = tab.frames.get(details.frameId);
+        const before = glossaryIdentity(tab.settings.glossaryGroups, glossaryWebsite(frame?.url, tab.topUrl));
         if (frame) frame.url = details.url;
         if (details.frameId === 0) tab.topUrl = details.url;
-        tab.revision++; void this.applyAll(details.tabId, tab, true); this.publish(details.tabId, tab);
+        const changed = before !== glossaryIdentity(tab.settings.glossaryGroups, glossaryWebsite(details.url, tab.topUrl));
+        if (changed && tab.active) this.resetGeneration(tab);
+        tab.revision++;
+        if (changed) void this.persist(details.tabId, tab);
+        void this.applyAll(details.tabId, tab, !changed); this.publish(details.tabId, tab);
       });
     };
     this.api.webNavigation?.onHistoryStateUpdated?.addListener(routeChanged);
@@ -472,7 +478,11 @@ export class FrameSessionManager {
   }
   private async updateSettings(tabId: number, tab: TabSession, settings: ExtensionSettings): Promise<void> {
     tab.settingsRevision++;
-    const changed = frameTranslationIdentity(tab.settings) !== frameTranslationIdentity(settings);
+    const glossaryChanged = [...tab.frames.values()].some(frame => {
+      const site = glossaryWebsite(frame.url, tab.topUrl);
+      return glossaryIdentity(tab.settings.glossaryGroups, site) !== glossaryIdentity(settings.glossaryGroups, site);
+    });
+    const changed = glossaryChanged || frameTranslationIdentity(tab.settings) !== frameTranslationIdentity(settings);
     const modeChanged = tab.settings.translationDisplayMode !== settings.translationDisplayMode;
     const rulesChanged = elementRuleIdentity(tab.settings) !== elementRuleIdentity(settings);
     if (rulesChanged) for (const frame of tab.frames.values()) {

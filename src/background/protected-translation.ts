@@ -7,7 +7,8 @@ type Translate = (request: TranslateBatchRequest) => Promise<string[]>;
 const MARKER = /^⟪WUPAGE(?:OPEN|CLOSE|BREAK)?\d+⟫$/u;
 
 export async function translateTextWithRecovery(
-  request: TranslateBatchRequest, translate: Translate, maxChars = Number.POSITIVE_INFINITY
+  request: TranslateBatchRequest, translate: Translate, maxChars = Number.POSITIVE_INFINITY,
+  maskedTexts?: ReadonlySet<string>
 ): Promise<string[]> {
   const fitting = request.texts.filter(text => text.length <= maxChars);
   const initial = fitting.length ? await translate({ ...request, texts: fitting }) : [];
@@ -15,18 +16,20 @@ export async function translateTextWithRecovery(
   const output: string[] = [];
   let cursor = 0;
   for (const source of request.texts) {
+    const protect = request.preservePlaceholders || maskedTexts?.has(source);
+    const sourceRequest = protect && !request.preservePlaceholders ? { ...request, preservePlaceholders: true } : request;
     if (source.length > maxChars) {
-      output.push(await translateProseFragments(source, request, translate, maxChars));
+      output.push(await translateProseFragments(source, sourceRequest, translate, maxChars));
       continue;
     }
     const translation = initial[cursor++];
-    const accepted = request.preservePlaceholders ? normalizeProtectedText(source, translation) : translation;
+    const accepted = protect ? normalizeProtectedText(source, translation) : translation;
     if (accepted !== undefined) { output.push(accepted); continue; }
     // Retry only the damaged paragraph. Keep these calls sequential inside the
     // existing provider limiter instead of creating unbounded nested requests.
-    const retry = await tryTranslate({ ...request, texts: [source] }, translate);
+    const retry = await tryTranslate({ ...sourceRequest, texts: [source] }, translate);
     const repaired = retry && normalizeProtectedText(source, retry[0]);
-    output.push(repaired ?? await translateProseFragments(source, request, translate, maxChars));
+    output.push(repaired ?? await translateProseFragments(source, sourceRequest, translate, maxChars));
   }
   return output;
 }

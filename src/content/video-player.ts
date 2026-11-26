@@ -1,5 +1,6 @@
 import { t } from "../shared/i18n";
 import { ocrSettingsIdentity } from "../shared/ocr-service";
+import { glossaryIdentity } from "../shared/glossary";
 import { hasExtensionContext } from "../shared/extension-context";
 import { VideoView } from "./video-view";
 import { VideoRequests } from "./video-requests";
@@ -471,7 +472,8 @@ export class PlayerSubtitleController {
     this.applySettings(settings);
     if (this.enabled && !this.preferences.enabled) { this.stop(); return; }
     const signature = (value: ExtensionSettings) => JSON.stringify([value.sourceLang, value.targetLang, value.activeProviderId,
-      value.providers.find(provider => provider.id === value.activeProviderId), normalizeVideoTranslation(value.videoTranslation).preferredSource]);
+      value.providers.find(provider => provider.id === value.activeProviderId), normalizeVideoTranslation(value.videoTranslation).preferredSource,
+      glossaryIdentity(value.glossaryGroups, location.href)]);
     if (previous && (signature(previous) !== signature(settings) || previous.imageTranslationEnabled !== settings.imageTranslationEnabled
       || ocrSettingsIdentity(previous.ocr) !== ocrSettingsIdentity(settings.ocr))) this.frameTranslation.reset();
     if (this.enabled && previous && signature(previous) !== signature(settings)) void this.start();

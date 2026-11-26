@@ -1,4 +1,9 @@
 const BREAK_TOKEN = /⟪WUPAGEBREAK\d+⟫/gu;
+const TOKEN_FORMS = /[⟪《〈<【\[{«「『]+\s*WUPAGE\s*(OPEN|CLOSE|BREAK)?\s*(\d+)\s*[⟫》〉>】\]}»」』]+/giu;
+
+export function containsProtectedTextToken(text: string): boolean {
+  return text.search(TOKEN_FORMS) !== -1;
+}
 
 export function protectedTextTokens(text: string): string[] {
   return text.match(/⟪WUPAGE(?:OPEN|CLOSE|BREAK)?\d+⟫/gu) ?? [];
@@ -8,7 +13,7 @@ export function protectedTextTokens(text: string): string[] {
 // or substituted IDs must never be guessed from their positions in a sentence.
 export function normalizeProtectedText(source: string, translation: string): string | undefined {
   const normalized = translation.replace(
-    /[⟪《〈<【\[{«「『]+\s*WUPAGE\s*(OPEN|CLOSE|BREAK)?\s*(\d+)\s*[⟫》〉>】\]}»」』]+/giu,
+    TOKEN_FORMS,
     (_match, kind: string | undefined, id: string) => `⟪WUPAGE${kind?.toUpperCase() ?? ""}${Number(id)}⟫`
   );
   const expected = protectedTextTokens(source).sort();

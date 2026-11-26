@@ -12,6 +12,7 @@ import { sampleDocumentText } from "./frame-sample";
 import { hasPageTranslations } from "./dom";
 import { frameIsRendered } from "./frame-visibility";
 import { configureElementRules } from "./element-exclusions";
+import { glossaryIdentity, glossaryWebsite } from "../shared/glossary";
 
 const INITIAL_RESULT_WAIT_MS = 2000;
 const REPORT_DELAYS_MS = [60, 250, 1000];
@@ -29,6 +30,7 @@ export function installFrameRuntime(documentKey: string, options: { top: boolean
   let resumeAfterRestore = false;
   let applyError: string | undefined;
   let applyVersion = 0;
+  let appliedGlossary: string | undefined;
   const documentState = () => ({ ...getLocalPageTranslationState(), ...(applyError ? { error: applyError } : {}), documentHidden: !frameIsRendered() });
   // This must stay synchronous: the background may be rebuilding its registry
   // while a document is itself waiting for a runtime request to finish.
@@ -60,7 +62,10 @@ export function installFrameRuntime(documentKey: string, options: { top: boolean
     if (value.revision < appliedRevision) return documentState();
     appliedRevision = value.revision;
     updateSnapshot(value);
-    if (configureElementRules(value.settings)) clearPageTranslation();
+    const site = glossaryWebsite(location.href, value.frames.find(frame => frame.frameId === 0)?.url);
+    const glossary = glossaryIdentity(value.settings.glossaryGroups, site);
+    if (configureElementRules(value.settings) || appliedGlossary !== undefined && appliedGlossary !== glossary) clearPageTranslation();
+    appliedGlossary = glossary;
     // An earlier route update can reach this document after a local stop.
     // Wait for that stop's acknowledgement instead of reviving its old work.
     if (desiredActive === false && value.active) return documentState();

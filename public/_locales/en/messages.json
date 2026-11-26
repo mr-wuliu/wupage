@@ -5658,5 +5658,51 @@
   "saveWord": { "message": "Save word" },
   "removeSavedWord": { "message": "Remove saved word" },
   "savingWord": { "message": "Saving…" },
-  "wordSaved": { "message": "Saved" }
+  "wordSaved": { "message": "Saved" },
+  "glossary": {
+    "message": "Glossary"
+  },
+  "glossaryDescription": {
+    "message": "Set fixed translations for words and phrases. Enable any combination of groups."
+  },
+  "glossarySiteHelp": {
+    "message": "Leave Website blank or enter * to match every source. Enter a domain or URL pattern such as example.com, *.example.com, or *://*.example.com/docs/* to match a particular site."
+  },
+  "addGlossaryGroup": {
+    "message": "Add group"
+  },
+  "glossaryGroupName": {
+    "message": "Group name"
+  },
+  "enableGlossaryGroup": {
+    "message": "Enable glossary group"
+  },
+  "deleteGlossaryGroup": {
+    "message": "Delete glossary group"
+  },
+  "addGlossaryEntry": {
+    "message": "Add term"
+  },
+  "deleteGlossaryEntry": {
+    "message": "Delete term"
+  },
+  "glossaryEntryCount": {
+    "message": "Terms ($ARG1$)",
+    "placeholders": { "ARG1": { "content": "$1" } }
+  },
+  "glossarySource": {
+    "message": "Source text"
+  },
+  "glossaryTarget": {
+    "message": "Target text"
+  },
+  "enterGlossaryGroupName": {
+    "message": "Enter a name for the glossary group."
+  },
+  "enterGlossarySource": {
+    "message": "Enter a word or phrase for the source text."
+  },
+  "enterGlossaryTarget": {
+    "message": "Enter the exact translation for the target text."
+  }
 }

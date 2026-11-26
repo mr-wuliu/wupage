@@ -21,6 +21,10 @@
             <span data-wupage-icon="font" aria-hidden="true"></span>
             <span data-i18n="selectionTranslation">划词翻译</span>
           </a>
+          <a href="#glossarySettings" aria-controls="glossarySettings">
+            <span data-wupage-icon="document" aria-hidden="true"></span>
+            <span data-i18n="glossary">术语库</span>
+          </a>
           <a href="#autoTranslationSettings" aria-controls="autoTranslationSettings">
             <span data-wupage-icon="lightning" aria-hidden="true"></span>
             <span data-i18n="automaticTranslation">自动翻译</span>
@@ -189,6 +193,20 @@
               </div>
               <p class="hint" data-i18n="singleChineseCharactersAndTermsOfUpTo">中文单字和不超过 8 个汉字的词语使用有道汉语词典，显示拼音和释义；字母单词使用上方选择的词典。</p>
             </fieldset>
+          </section>
+
+          <section id="glossarySettings" class="settings-panel" aria-labelledby="glossarySettingsTitle" hidden>
+            <div class="settings-panel-heading">
+              <h2 id="glossarySettingsTitle" data-i18n="glossary">术语库</h2>
+              <p data-i18n="glossaryDescription">为单词和短语指定固定译文，可同时启用任意多个分组。</p>
+            </div>
+            <p id="glossarySiteHelp" class="hint" data-i18n="glossarySiteHelp">网站留空或填写 * 适用于所有来源。也可填写域名或通配网址，例如 example.com、*.example.com、*://*.example.com/docs/*。</p>
+            <div id="glossaryGroups" class="glossary-groups"></div>
+            <button id="addGlossaryGroup" type="button" class="secondary exclusion-rule-add">
+              <span data-wupage-icon="plus" aria-hidden="true"></span>
+              <span data-i18n="addGlossaryGroup">添加分组</span>
+            </button>
+            <p id="glossaryStatus" class="hint" role="status"></p>
           </section>
 
           <section id="autoTranslationSettings" class="settings-panel" aria-labelledby="autoTranslationSettingsTitle" hidden>
