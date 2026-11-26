@@ -41,6 +41,24 @@ describe("appearance editor", () => {
     await vi.waitFor(() => expect(query("#providerTriggerLabel").textContent).toBe("Microsoft 翻译"));
   }
 
+  it("previews and saves input translation button colors", async () => {
+    await mount();
+    const group = query<HTMLDetailsElement>('[data-color-group="input"]');
+    group.open = true;
+    expect(group.querySelector("summary")?.textContent).toBe("输入翻译");
+    expect(Array.from(document.querySelectorAll(".appearance-preview-input-button"), button => button.textContent)).toEqual(["英文", "喵"]);
+    query<HTMLButtonElement>("#duplicateScheme").click();
+    const updates = { "input-button-background": "#803557", "input-button-foreground": "#fff7fb", "input-button-hover": "#60223f" };
+    for (const [key, value] of Object.entries(updates)) {
+      const field = query<HTMLInputElement>('[data-color-hex="' + key + '"]');
+      field.value = value;
+      field.dispatchEvent(new Event("input"));
+      expect(query<HTMLElement>("#appearancePreview").style.getPropertyValue("--wp-" + key)).toBe(value);
+    }
+    query<HTMLButtonElement>("#save").click();
+    await vi.waitFor(() => expect(stored.appearance?.customSchemes[0].colors).toMatchObject(updates));
+  });
+
   it("previews and saves paragraph highlight visibility across built-in schemes without copying a palette", async () => {
     await mount();
     const highlight = query<HTMLInputElement>("#paragraphHighlightEnabled");

@@ -1,10 +1,11 @@
 import { t } from "../shared/i18n";
-import { componentShadowRoot, composedParent } from "./dom-roots";
+import { componentShadowRoot, composedParent, isExtensionUi } from "./dom-roots";
 
 const OWNED = "#wupage-selection-tools,#wupage-floating-hitbox,#wupage-floating-menu,#wupage-debug-panel,#wupage-image-tools,#wupage-touch-paragraph,#wupage-touch-hint";
 const CONTROLS = "input,textarea,select,button";
 const EDITORS = "[contenteditable]:not([contenteditable='false']),[role='textbox']";
 const COMPLEX_EDITORS = ".ProseMirror,.monaco-editor,.cm-editor,[data-slate-editor],[data-lexical-editor]";
+const PRIVATE_INPUT = "[autocomplete~='one-time-code' i],[autocomplete~='current-password' i],[autocomplete~='new-password' i],[autocomplete*='cc-' i]";
 type TextControl = HTMLInputElement | HTMLTextAreaElement;
 
 function supportedControl(element: TextControl): boolean {
@@ -46,7 +47,7 @@ function editingHost(node: Node): HTMLElement | undefined {
 }
 
 /** Resolve only the roots at the selection boundaries, without scanning the page. */
-function composedSelectionRange(selection: Selection): Range | undefined {
+function composedSelectionRange(selection: Selection, allowCollapsed: boolean): Range | undefined {
   const roots = new Set<ShadowRoot>();
   let legacy = false;
   const read = () => {
@@ -78,7 +79,7 @@ function composedSelectionRange(selection: Selection): Range | undefined {
     if (roots.size !== count) continue;
     // A DOM Range cannot retain endpoints in different component trees. Do not
     // silently collapse it or submit surrounding, unselected component content.
-    if (snapshot.collapsed || snapshot.startContainer.getRootNode() !== snapshot.endContainer.getRootNode()) return;
+    if (snapshot.collapsed && !allowCollapsed || snapshot.startContainer.getRootNode() !== snapshot.endContainer.getRootNode()) return;
     const range = document.createRange();
     range.setStart(snapshot.startContainer, snapshot.startOffset);
     range.setEnd(snapshot.endContainer, snapshot.endOffset);
@@ -86,16 +87,20 @@ function composedSelectionRange(selection: Selection): Range | undefined {
   }
 }
 
-function selectedRange(active: Element | null): Range | undefined {
+function selectionFor(active: Element | null): Selection | null {
   const tree = active?.getRootNode();
   const root = tree instanceof ShadowRoot ? tree as ShadowRoot & { getSelection?: () => Selection | null } : undefined;
-  const selection = root?.getSelection?.() ?? window.getSelection();
+  return root?.getSelection?.() ?? window.getSelection();
+}
+
+function selectedRange(active: Element | null, allowCollapsed = false): Range | undefined {
+  const selection = selectionFor(active);
   if (!selection || selection.rangeCount > 1) return;
   try {
     // isCollapsed/getRangeAt can describe a collapsed host boundary even while
     // the user has selected text inside a nested component (e.g. Bilibili comments).
-    if (typeof selection.getComposedRanges === "function") return composedSelectionRange(selection);
-    if (!selection.isCollapsed && selection.rangeCount === 1) return selection.getRangeAt(0).cloneRange();
+    if (typeof selection.getComposedRanges === "function") return composedSelectionRange(selection, allowCollapsed);
+    if ((allowCollapsed || !selection.isCollapsed) && selection.rangeCount === 1) return selection.getRangeAt(0).cloneRange();
   } catch { /* A detached or changing selection must not become a broader query. */ }
 }
 
@@ -124,8 +129,66 @@ export function captureSelectionSource(): SelectionSource | undefined {
   const common = range.commonAncestorContainer;
   if (common instanceof Element && [...common.querySelectorAll(`${OWNED},${CONTROLS},${EDITORS},[contenteditable='false']`)]
     .some(element => element !== editor && !element.contains(editor ?? common) && range.intersectsNode(element))) return;
+  return captureRange(range, editor);
+}
+
+function captureRange(range: Range, editor?: HTMLElement): SelectionSource {
   return { kind: "range", range: range.cloneRange(), text: range.toString(), editor, markup: editor?.innerHTML,
     startNode: range.startContainer, start: range.startOffset, endNode: range.endContainer, end: range.endOffset };
+}
+
+export interface InputDraft {
+  element: HTMLElement;
+  source: SelectionSource;
+  text: string;
+  caret?: Range;
+}
+
+export function inputTranslationEditor(): HTMLElement | undefined {
+  const active = activeElement();
+  if (!(active instanceof HTMLElement) || isExtensionUi(active)
+    || closest(active, PRIVATE_INPUT + ",[aria-readonly='true'],[aria-disabled='true']")) return;
+  if (active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement) {
+    if (!supportedControl(active) || active.readOnly
+      || active instanceof HTMLInputElement && !["text", "search"].includes(active.type)) return;
+    return active;
+  }
+  const editor = editingHost(active);
+  if (editor?.isContentEditable && !closest(editor, COMPLEX_EDITORS)
+    && !editor.querySelector(":not(div,p,br),[contenteditable],[role]")) return editor;
+}
+
+/** Only plain editable drafts with the caret at their end can consume a gesture. */
+export function captureInputDraft(trailingSpaces = 0): InputDraft | undefined {
+  const editor = inputTranslationEditor();
+  if (!editor) return;
+  if (editor instanceof HTMLInputElement || editor instanceof HTMLTextAreaElement) {
+    const active = editor;
+    const value = active.value;
+    if (active.selectionStart !== value.length || active.selectionEnd !== value.length) return;
+    const start = trailingSpaces ? value.length - trailingSpaces : 0;
+    const text = value.slice(start);
+    if (trailingSpaces && (start < 0 || !/^ +$/u.test(text))) return;
+    return { element: active, source: { kind: "control", element: active, value, start, end: value.length, text }, text };
+  }
+  const caret = selectedRange(editor, true);
+  if (!caret?.collapsed || !editor.contains(caret.startContainer)) return;
+  const range = document.createRange();
+  range.selectNodeContents(editor);
+  const suffix = range.cloneRange();
+  suffix.setStart(caret.startContainer, caret.startOffset);
+  if (suffix.toString()) return;
+  if (trailingSpaces) {
+    const { startContainer: node, startOffset: offset } = caret;
+    if (!(node instanceof Text) || offset < trailingSpaces || !/^[ \u00a0]+$/u.test(node.data.slice(offset - trailingSpaces, offset))) return;
+    caret.setStart(node, offset - trailingSpaces);
+    return { element: editor, source: captureRange(caret, editor), text: caret.toString() };
+  }
+  return { element: editor, source: captureRange(range, editor), text: editor.innerText, caret };
+}
+
+export function inputDraftFocused(draft: InputDraft): boolean {
+  return activeElement() === draft.element;
 }
 
 export function selectionSourceConnected(source: SelectionSource): boolean {
@@ -156,11 +219,13 @@ export function selectionSourceUnchanged(source: SelectionSource): boolean {
 }
 
 /** Prefer a browser edit so native undo and framework input handlers see the same operation as typing. */
-export function replaceSelectionSource(source: SelectionSource, translation: string): void {
+export function replaceSelectionSource(source: SelectionSource, translation: string, preserveOuterWhitespace = true): void {
   const changed = () => new Error(t("theSourceTextHasChangedSelectItAgain"));
   if (!selectionSourceUnchanged(source)) throw changed();
   const element = source.kind === "control" ? source.element : source.editor!;
-  let text = (source.text.match(/^\s*/u)?.[0] ?? "") + translation + (source.text.match(/\s*$/u)?.[0] ?? "");
+  let text = preserveOuterWhitespace
+    ? (source.text.match(/^\s*/u)?.[0] ?? "") + translation + (source.text.match(/\s*$/u)?.[0] ?? "")
+    : translation;
   if (element instanceof HTMLInputElement) text = text.replace(/[\r\n]+/g, " ");
   if (source.kind === "control") {
     if (source.element.maxLength >= 0 && source.value.length - (source.end - source.start) + text.length > source.element.maxLength) {
@@ -171,7 +236,7 @@ export function replaceSelectionSource(source: SelectionSource, translation: str
   if (!selectionSourceUnchanged(source)) throw changed();
   if (source.kind === "control") source.element.setSelectionRange(source.start, source.end);
   else {
-    const selection = window.getSelection();
+    const selection = selectionFor(element);
     if (!selection) throw new Error(t("couldNotRestoreTheSelectionSelectTheText"));
     selection.removeAllRanges(); selection.addRange(source.range.cloneRange());
   }
@@ -182,9 +247,8 @@ export function replaceSelectionSource(source: SelectionSource, translation: str
   if (activeElement() !== element || source.kind === "control"
     && (source.element.selectionStart !== source.start || source.element.selectionEnd !== source.end)) throw changed();
   if (source.kind === "range") {
-    const current = window.getSelection();
-    if (current?.rangeCount !== 1) throw changed();
-    const range = current.getRangeAt(0);
+    const range = selectedRange(element);
+    if (!range) throw changed();
     if (range.startContainer !== source.startNode || range.startOffset !== source.start
       || range.endContainer !== source.endNode || range.endOffset !== source.end) throw changed();
   }
@@ -193,7 +257,7 @@ export function replaceSelectionSource(source: SelectionSource, translation: str
   element.addEventListener("input", onInput, true);
   let executed = false;
   try {
-    try { executed = document.execCommand?.("insertText", false, text) ?? false; } catch { /* Fall back only if no edit occurred. */ }
+    try { executed = document.execCommand?.(text ? "insertText" : "delete", false, text) ?? false; } catch { /* Fall back only if no edit occurred. */ }
   } finally { element.removeEventListener("input", onInput, true); }
   const modified = source.kind === "control" ? source.element.value !== source.value : source.editor!.innerHTML !== source.markup;
   if (!modified && text !== source.text) {

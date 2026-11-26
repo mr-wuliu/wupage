@@ -2,6 +2,7 @@ import { installFrameRuntime } from "./frame-runtime";
 import { initializeInterfaceLanguage } from "../shared/i18n";
 import { injectContentStyles } from "./styles";
 import { initSelectionTranslation } from "./selection-translation";
+import { initInputTranslation } from "./input-translation";
 import { translateShortcutParagraphs } from "./paragraph-shortcut";
 import { findTranslatableParagraph } from "./dom";
 import { textNodeAtPoint } from "./text-flow";
@@ -17,6 +18,7 @@ export async function activateFrameContent(documentKey: string, initialSettings?
   await initializeInterfaceLanguage();
   injectContentStyles();
   initSelectionTranslation();
+  initInputTranslation();
   const appearance = setupAppearance(undefined, { extensionPage: false });
   let localShortcuts = normalizeLocalShortcuts(undefined), shortcutEnabled = normalizeShortcutEnabled(undefined), revision = 0;
   const applySettings = (settings: ExtensionSettings) => {

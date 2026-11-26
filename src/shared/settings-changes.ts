@@ -18,6 +18,16 @@ export function mergeSettingsChanges(
     baseline = { ...previous, videoTranslation: video };
   }
   const merged = mergeValue(latest, draft, baseline) as ExtensionSettings;
+  if (draft.inputTranslation && previous.inputTranslation && merged.inputTranslation) {
+    const before = previous.inputTranslation.templates.map(template => template.id);
+    const after = draft.inputTranslation.templates.map(template => template.id);
+    const ordinaryOrder = [...before.filter(id => after.includes(id)), ...after.filter(id => !before.includes(id))];
+    if (!equal(after, ordinaryOrder)) {
+      const templates = new Map(merged.inputTranslation.templates.map(template => [template.id, template]));
+      merged.inputTranslation = { ...merged.inputTranslation,
+        templates: [...new Set([...after, ...templates.keys()])].flatMap(id => templates.get(id) ?? []) };
+    }
+  }
   // Apply individual site edits so simultaneous exclusions from different tabs both survive.
   for (const field of ["floatingBallExcludedSites", "videoFloatingExcludedSites"] as const) {
     if (equal(draft[field], previous[field])) continue;

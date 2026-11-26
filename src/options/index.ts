@@ -16,6 +16,7 @@ import { setupAutoTranslationControls } from "./auto-translation";
 import { setupExcludedSites } from "./excluded-sites";
 import { setupElementRuleControls } from "./element-exclusions";
 import { setupGlossaryControls } from "./glossary";
+import { setupInputTranslationControls } from "./input-translation";
 import { renderProviderUsage, updateProviderScheduling } from "./provider-usage";
 import { setupSettingsNavigation } from "./navigation";
 import { setupStatisticsControls } from "./statistics";
@@ -41,6 +42,7 @@ const settingsNavigation = setupSettingsNavigation(query<HTMLElement>(".settings
 const shortcutControls = setupShortcutSettings(query<HTMLElement>("#shortcutSettings"));
 const appearanceControls = setupAppearanceControls(query<HTMLElement>("#appearanceSettings"));
 const statisticsControls = setupStatisticsControls(query<HTMLElement>("#statisticsSettings"));
+const inputTranslationControls = setupInputTranslationControls(query<HTMLElement>("#inputTranslationSettings"));
 
 const targetLang = query<HTMLSelectElement>("#targetLang");
 const sourceLang = query<HTMLSelectElement>("#sourceLang");
@@ -248,6 +250,7 @@ function renderGeneralSettings(): void {
   glossaryControls.render(settings.glossaryGroups);
   renderGeneralPageSettings(settings);
   renderSelectionSettings(settings);
+  inputTranslationControls.render(settings.inputTranslation, settings.providers);
   renderPerformanceSettings(settings);
   ocrSettingsControls?.render(settings.ocr);
 }
@@ -1005,6 +1008,7 @@ function restorePageDefaults(): void {
       syncDoubaoTargetControls(settings, targetLang); updateLocalControl();
       break;
     case "selectionTranslationSettings": renderSelectionSettings(DEFAULT_SETTINGS); break;
+    case "inputTranslationSettings": inputTranslationControls.render(DEFAULT_SETTINGS.inputTranslation, settings.providers); break;
     case "autoTranslationSettings": autoTranslationControls.render(DEFAULT_SETTINGS.autoTranslation); break;
     case "elementExclusionSettings": elementRuleControls.render(DEFAULT_SETTINGS); break;
     case "glossarySettings": glossaryControls.render(DEFAULT_SETTINGS.glossaryGroups); break;
@@ -1103,6 +1107,7 @@ function readSettingsFromForm(): ExtensionSettings {
     autoTranslation: autoTranslationControls.read(),
     ...elementRuleControls.read(),
     glossaryGroups: glossaryControls.read(),
+    inputTranslation: inputTranslationControls.read(),
     frameTranslation: normalizeFrameTranslation({ enabled: frameTranslationEnabled.checked,
       excludeMatches: frameTranslationExcluded.value.split(/\r?\n/u) }),
     targetLang: targetLang.value.trim() || "zh-CN",

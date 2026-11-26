@@ -3,6 +3,7 @@ import { DEFAULT_SETTINGS, SETTINGS_KEY } from "./defaults";
 import { isLlmProvider } from "./performance";
 import { normalizeAutoTranslation, normalizeExcludedSites } from "./auto-translation";
 import { normalizeSelectionTranslation } from "./dictionary";
+import { normalizeInputTranslation } from "./input-translation";
 import { normalizeAppearance } from "./appearance";
 import { normalizeShortcutEnabled, normalizeShortcuts } from "./shortcuts";
 import { normalizeLocalShortcuts } from "./local-shortcuts";
@@ -75,6 +76,7 @@ export function normalizeSettings(value: unknown): ExtensionSettings {
     videoFloatingExcludedSites: normalizeExcludedSites(input.videoFloatingExcludedSites),
     frameTranslation: normalizeFrameTranslation(input.frameTranslation),
     selectionTranslation: normalizeSelectionTranslation(input.selectionTranslation),
+    inputTranslation: normalizeInputTranslation(input.inputTranslation),
     targetLang: readString(input.targetLang, DEFAULT_SETTINGS.targetLang),
     sourceLang: readString(input.sourceLang, DEFAULT_SETTINGS.sourceLang),
     activeProviderId,

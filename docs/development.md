@@ -143,6 +143,8 @@ Chrome / Edge 在扩展管理页开启开发人员模式，加载 `dist/`；具�
 
 划词翻译的选区快照和回填位于 `src/content/selection-source.ts`。普通输入框保存原值及字符偏移，可编辑区域保存原范围和编辑器内容；回填前校验快照，并优先通过浏览器编辑操作保留输入通知和撤销记录。编辑区选区直接使用当前翻译服务，正文继续保留单词查词。`npm run test:selection` 使用本地样例和模拟服务验证部分选区、受控输入通知、表单值、原生撤销、只读及密码框、嵌入页面和窄屏布局；可加 `-- --edge` 验证 Edge。`npm run test:selection:firefox` 使用同类本地输入样例验证 Firefox 的回填及撤销。
 
+输入翻译在页面内识别三次连续空格并清理本次手势产生的空格，复用编辑器快照和原生回填。后台按保存的模板 ID 解析服务和提示词，输入内容不写入持久翻译缓存。构建后运行 `npm run test:input`，可加 `-- --edge` 或 `-- --firefox`，使用本地模拟服务验证菜单、回填、撤销、AI 提示词隔离和模板排序。
+
 网页组件内的划词通过 `Selection.getComposedRanges()` 读取，沿选区边界逐层解析开放或封闭的 Shadow DOM，不扫描整个页面。Bilibili 等评论组件里的实际选区可能被旧的 `isCollapsed` / `getRangeAt()` 报告为空范围，因此不能先用这些旧结果排除选区。实现兼容早期参数形式及无此 API 的浏览器；端点分属不同组件树时不扩大或提交选区。构建后运行 `node scripts/test-selection-components.mjs`（Edge 加 `--edge`），以本地评论样例和模拟翻译服务验证原生鼠标选区、四层组件、封闭组件、插槽、反向选择、圆点与下划线，以及保存开关后的即时生效，报告位于 `.npm-cache/selection-components/`。
 
 先运行受影响模块的测试，例如：

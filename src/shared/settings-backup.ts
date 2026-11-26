@@ -2,8 +2,9 @@ import { t } from "./i18n";
 import { normalizeSettings } from "./settings";
 import { normalizeElementExclusions } from "./element-exclusions";
 import { MAX_GLOSSARY_ENTRIES, MAX_GLOSSARY_GROUPS } from "./glossary";
+import { MAX_INPUT_TEMPLATES } from "./input-translation";
 import { BUILT_IN_PROVIDER_IDS, DEFAULT_SETTINGS } from "./defaults";
-import { COLOR_FIELDS, DEFAULT_APPEARANCE } from "./appearance";
+import { COLOR_FIELDS, DEFAULT_APPEARANCE, inputButtonColors, isHexColor } from "./appearance";
 import { LOCAL_BINDINGS } from "./local-shortcuts";
 import { LOCAL_SHORTCUTS, TRANSLATION_SHORTCUTS } from "./shortcuts";
 import type { ExtensionSettings, ProviderConfig } from "./types";
@@ -136,6 +137,13 @@ const stringMap: Rule = (v, p, s) => {
   return Object.fromEntries(Object.entries(v).map(([key, value]) => [key, string(value, `${p}.*`, s)]));
 };
 const fields = (keys: readonly string[], rule: Rule): Record<string, Rule> => Object.fromEntries(keys.map(key => [key, rule]));
+const hexColor: Rule = (v, p) => isHexColor(v) ? v : invalid(p);
+const readPaletteColors = object(Object.fromEntries(COLOR_FIELDS.map(({ key, group }) =>
+  [key, group === "input" ? optional(hexColor) : hexColor])));
+const paletteColors: Rule = (v, p, s) => {
+  const saved = readPaletteColors(v, p, s) as { accent: string };
+  return { ...inputButtonColors(saved.accent), ...saved };
+};
 
 const providerBase = {
   id: string, label: string, enabled: optional(boolean), performanceMode: optional(oneOf("inherit", "custom")),
@@ -184,6 +192,10 @@ const settingsShape = {
   localShortcuts: optional(object(fields(LOCAL_BINDINGS.map(entry => entry.name), string))),
   shortcutEnabled: optional(object(fields([...TRANSLATION_SHORTCUTS, ...LOCAL_SHORTCUTS].map(entry => entry.name), boolean))),
   selectionTranslation: optional(object({ enabled: boolean, provider: oneOf("youdao", "bing"), style: oneOf("dot", "underline") })),
+  inputTranslation: optional(object({ enabled: boolean, templates: array(object({
+    id: string, label: string, enabled: boolean, mode: oneOf("machine", "ai"),
+    providerId: string, targetLang: string, prompt: string
+  }), MAX_INPUT_TEMPLATES) })),
   frameTranslation: optional(object({ enabled: boolean, excludeMatches: strings })),
   autoTranslation: optional(object({ enabled: boolean, nonTargetLanguage: boolean, presetSites: strings,
     customSites: array(object({ id: string, pattern: string, enabled: boolean })),
@@ -205,8 +217,7 @@ const settingsShape = {
     popupMenu: object({ order: strings, hidden: strings, rows: array(strings) }),
     customSchemes: array(object({ id: string, name: string, tone: oneOf("light", "dark"),
       opacities: optional(object(fields(COLOR_FIELDS.map(field => field.key), optional(number(0, 100))))),
-      colors: object(fields(COLOR_FIELDS.map(field => field.key), (v, p) =>
-        typeof v === "string" && /^#[a-f\d]{6}$/iu.test(v) ? v : invalid(p))) }), 32) }))
+      colors: paletteColors }), 32) }))
 } satisfies Record<keyof Required<ExtensionSettings>, Rule>;
 
 function readSettings(value: unknown, strict: boolean): ExtensionSettings {
@@ -224,7 +235,7 @@ function readSettings(value: unknown, strict: boolean): ExtensionSettings {
   const normalized = normalizeSettings(parsed);
   // Reject malformed rules and shortcuts rather than silently replacing them
   // with defaults. New built-in providers and region presets may be added.
-  for (const key of ["autoTranslation", "elementExclusions", "elementInclusions", "glossaryGroups", "shortcuts", "localShortcuts", "appearance", "frameTranslation", "videoTranslation"] as const) {
+  for (const key of ["autoTranslation", "elementExclusions", "elementInclusions", "glossaryGroups", "inputTranslation", "shortcuts", "localShortcuts", "appearance", "frameTranslation", "videoTranslation"] as const) {
     const validated = key === "elementExclusions" ? normalizeElementExclusions(parsed[key]) : normalized[key];
     if (parsed[key] !== undefined && !sameValue(parsed[key], validated)) invalid(`settings.${key}`);
   }

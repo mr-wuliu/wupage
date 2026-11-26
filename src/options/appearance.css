@@ -100,6 +100,10 @@ button.appearance-delete { color: var(--wp-danger); background: var(--wp-danger-
 .appearance-preview-paragraph[data-highlight="false"] { border-color: transparent; background: transparent; }
 .appearance-preview-selection-trigger { width: 10px; height: 10px; border-radius: 50%; background: var(--wp-selection-trigger); }
 .appearance-preview-image-button { margin-left: auto; padding: 2px 5px; border-radius: 4px; background: var(--wp-image-button-background); color: var(--wp-image-button-foreground); font-size: 10px; }
+.appearance-preview-input { display: flex; align-items: center; flex-wrap: wrap; gap: 5px; margin-bottom: 12px; color: var(--wp-muted); }
+.appearance-preview-input > span:first-child { margin-inline-end: 5px; }
+.appearance-preview-input-button { padding: 4px 10px; border-radius: 7px; color: var(--wp-input-button-foreground); background: var(--wp-input-button-background); }
+.appearance-preview-input-button:hover { background: var(--wp-input-button-hover); }
 @container settings (max-width: 680px) {
   .appearance-layout { grid-template-columns: minmax(0, 1fr); gap: 24px; }
   .appearance-preview-area { position: static; }

@@ -1212,6 +1212,54 @@ button[data-settings-feedback]:active {
 .exclusion-rule-add svg { width: 16px; height: 16px; }
 #elementExclusionStatus:not(:empty) { color: var(--wp-danger, #ad3737); }
 .glossary-groups { display: grid; gap: 12px; }
+.input-templates { display: grid; gap: 12px; }
+.input-templates:empty { display: none; }
+.input-template-service-link { color: var(--wp-accent, #116466); white-space: nowrap; }
+.input-template {
+  --input-template-control-height: 38px;
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  padding: 12px 14px;
+  border: 1px solid var(--wp-border, #d7dedb);
+  border-radius: 8px;
+}
+.input-template-heading { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 10px; }
+.input-template-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr)); gap: 10px; }
+.input-template :is(input[type="text"], select, textarea) { box-sizing: border-box; width: 100%; min-width: 0; }
+.input-template :is(input[type="text"], select) { height: var(--input-template-control-height); }
+.input-template-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; }
+.input-template-toolbar .setting-toggle {
+  box-sizing: border-box;
+  min-height: var(--input-template-control-height);
+  gap: 8px;
+  white-space: nowrap;
+}
+.input-template-actions { display: flex; gap: 4px; }
+.input-template-action {
+  display: grid;
+  place-items: center;
+  box-sizing: border-box;
+  width: var(--input-template-control-height);
+  min-height: var(--input-template-control-height);
+  padding: 0;
+  border: 1px solid var(--wp-border, #d7dedb);
+  color: var(--wp-muted, #526068);
+  background: transparent;
+}
+.input-template-action svg { width: 16px; height: 16px; }
+.input-template-action:hover:enabled { color: var(--wp-foreground, #172026); background: var(--wp-soft, #f8faf9); }
+.input-template-delete:hover:enabled { color: var(--wp-danger, #ad3737); background: var(--wp-danger-soft, #fff0f0); }
+.input-template-action:focus-visible { outline: 2px solid var(--wp-accent, #116466); outline-offset: 2px; }
+.input-template-action:disabled { opacity: 0.45; cursor: default; }
+.input-template-up svg { rotate: 180deg; }
+.input-template .hint { margin: 0; }
+.input-template [hidden] { display: none; }
+@container settings (max-width: 500px) {
+  .input-template-heading { grid-template-columns: minmax(0, 1fr); }
+  .input-template-toolbar .setting-toggle { flex: 1 0 auto; }
+  .input-template-actions { margin-inline-start: auto; }
+}
 .glossary-groups:empty, #glossaryStatus:empty { display: none; }
 .glossary-group { min-width: 0; border: 1px solid var(--wp-border, #d7dedb); border-radius: 8px; }
 .glossary-group-heading { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: end; gap: 12px; padding: 12px 14px; }

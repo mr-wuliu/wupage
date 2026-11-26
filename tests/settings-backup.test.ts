@@ -39,6 +39,19 @@ function fixture(): ExtensionSettings {
 }
 
 describe("settings backup format", () => {
+  it("preserves input template order and service references while omitting custom prompts from ordinary exports", () => {
+    const settings = fixture();
+    const [english, meow] = settings.inputTranslation!.templates;
+    const rewrite = { ...meow, providerId: "deepseek", prompt: "Use the private draft style.", label: "猫语" };
+    settings.inputTranslation!.templates = [rewrite, { ...english, enabled: false }];
+    const ordinary = createSettingsBackup(settings, "1.24.1", now);
+    const full = createSettingsBackup(settings, "1.24.1", now, { includeKeys: true });
+    expect(parseSettingsBackup(serializeSettingsBackup(ordinary)).settings.inputTranslation?.templates)
+      .toEqual([{ ...rewrite, prompt: "" }, { ...english, enabled: false }]);
+    expect(parseSettingsBackup(serializeSettingsBackup(full)).settings.inputTranslation?.templates)
+      .toEqual(settings.inputTranslation!.templates);
+  });
+
   it("round-trips global, wildcard and regex region rules without changing regex escapes", () => {
     const settings = fixture();
     settings.elementExclusions = ["*", "example.*", String.raw`/^https?:\/\/(www\.)?example\.(com|org)\//i`]
@@ -79,6 +92,16 @@ describe("settings backup format", () => {
     const text = serializeSettingsBackup(backup).replace(/^paragraphHighlightEnabled = false\r?\n/mu, "");
     expect(parseSettingsBackup(text).settings.appearance?.paragraphHighlightEnabled).toBe(true);
     expect(parseSettingsBackup(serializeSettingsBackup(backup)).settings.appearance?.paragraphHighlightEnabled).toBe(false);
+  });
+
+  it("derives input button colors from the accent when importing an older palette", () => {
+    const backup = createSettingsBackup(fixture(), "1.24.1", now);
+    backup.settings.appearance!.customSchemes[0].colors.accent = "#b83468";
+    const legacy = serializeSettingsBackup(backup).replace(/^input-button-[a-z]+ = .*\r?\n/gmu, "");
+    const colors = parseSettingsBackup(legacy).settings.appearance!.customSchemes[0].colors;
+    expect(colors).toMatchObject({
+      "input-button-background": "#b83468", "input-button-foreground": "#ffffff", "input-button-hover": "#9c2c58"
+    });
   });
 
   it("fills image controls in older backups and keeps explicit disabled controls", () => {
@@ -126,6 +149,7 @@ describe("settings backup format", () => {
     ["missing core setting", (b: any) => { delete b.settings.targetLang; return serializeSettingsBackup(b); }],
     ["wrong nested type", (b: any) => { b.settings.providers[0].api.apiKey = {}; return serializeSettingsBackup(b); }],
     ["invalid color opacity", (b: any) => { b.settings.appearance.customSchemes[0].opacities.accent = 101; return serializeSettingsBackup(b); }],
+    ["invalid input button color", (b: any) => { b.settings.appearance.customSchemes[0].colors["input-button-background"] = "transparent"; return serializeSettingsBackup(b); }],
     ["invalid paragraph highlight visibility", (b: any) => { b.settings.appearance.paragraphHighlightEnabled = "false"; return serializeSettingsBackup(b); }],
     ["unknown provider", (b: any) => { b.settings.providers[0].type = "unknown"; return serializeSettingsBackup(b); }],
     ["duplicate provider ID", (b: any) => { b.settings.providers.push(b.settings.providers[0]); return serializeSettingsBackup(b); }],

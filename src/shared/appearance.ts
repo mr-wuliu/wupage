@@ -25,6 +25,9 @@ export interface AppearanceColors extends InterfaceColors {
   "selection-background": string;
   "selection-foreground": string;
   "selection-accent": string;
+  "input-button-background": string;
+  "input-button-foreground": string;
+  "input-button-hover": string;
   "image-button-background": string;
   "image-button-foreground": string;
 }
@@ -50,6 +53,7 @@ export const COLOR_GROUPS = [
   { id: "floating", get label() { return t("floatingButton"); }, get description() { return t("backgroundTextAndHoverColorsForTheFloating"); } },
   { id: "translation", get label() { return t("translationAndParagraphs"); }, get description() { return t("twoColorTranslationsAdaptToThePageBackground"); } },
   { id: "selection", get label() { return t("selectionTranslation"); }, get description() { return t("selectionShortcutAndDictionaryCard"); } },
+  { id: "input", get label() { return t("inputTranslation"); }, get description() { return t("inputTranslationButtonColors"); } },
   { id: "image", get label() { return t("imageTranslationShortcut"); }, get description() { return t("theTranslationButtonBesideAnImageOverlaidText"); } }
 ] as const;
 
@@ -67,6 +71,9 @@ export const COLOR_FIELDS: ReadonlyArray<{ key: keyof AppearanceColors; label: s
   { key: "selection-background", get label() { return t("cardBackground"); }, group: "selection" },
   { key: "selection-foreground", get label() { return t("cardText"); }, group: "selection" },
   { key: "selection-accent", get label() { return t("cardAccent"); }, group: "selection" },
+  { key: "input-button-background", get label() { return t("buttonBackground"); }, group: "input" },
+  { key: "input-button-foreground", get label() { return t("buttonText"); }, group: "input" },
+  { key: "input-button-hover", get label() { return t("hoverBackground"); }, group: "input" },
   { key: "image-button-background", get label() { return t("buttonBackground"); }, group: "image" },
   { key: "image-button-foreground", get label() { return t("buttonText"); }, group: "image" }
 ];
@@ -190,6 +197,17 @@ export function schemeColor(scheme: ColorScheme, key: keyof AppearanceColors): s
   return `rgba(${channels.join(", ")}, ${opacity / 100})`;
 }
 
+export function inputButtonColors(accent: string): Pick<AppearanceColors, "input-button-background" | "input-button-foreground" | "input-button-hover"> {
+  const text = accentForeground(accent);
+  // Move the hover background away from the chosen text color.
+  const endpoint = text === "#ffffff" ? 0 : 255;
+  const hover = [1, 3, 5].map(start => {
+    const channel = parseInt(accent.slice(start, start + 2), 16);
+    return Math.round(channel + (endpoint - channel) * .15).toString(16).padStart(2, "0");
+  }).join("");
+  return { "input-button-background": accent, "input-button-foreground": text, "input-button-hover": "#" + hover };
+}
+
 export function applyColorScheme(target: HTMLElement, scheme: ColorScheme): void {
   setColorSchemeProperties(target.style, scheme);
   target.dataset.wupageTheme = scheme.tone;
@@ -219,6 +237,7 @@ function createColors(base: InterfaceColors, overrides: Partial<AppearanceColors
     "translation-light": base.accent, "translation-dark": base.accent, "paragraph-highlight": base.accent,
     "selection-trigger": base.accent, "selection-background": base.surface, "selection-foreground": base.foreground,
     "selection-accent": base.accent, "image-button-background": base.accent, "image-button-foreground": accentForeground(base.accent),
+    ...inputButtonColors(base.accent),
     ...overrides
   };
 }
