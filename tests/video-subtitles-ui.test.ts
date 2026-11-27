@@ -41,6 +41,46 @@ afterEach(() => {
 });
 
 describe("player subtitle controls", () => {
+  it("reports when only rendered captions are available and never downloads an incomplete track", async () => {
+    Object.defineProperty(video, "textTracks", { value: [] });
+    const captions = document.createElement("div");
+    captions.className = "vjs-text-track-display";
+    captions.textContent = "Hello";
+    vi.spyOn(captions, "getClientRects").mockReturnValue([new DOMRect(0, 0, 640, 30)] as unknown as DOMRectList);
+    video.parentElement!.append(captions);
+    const download = vi.spyOn(controller.view, "downloadSubtitles").mockImplementation(() => {});
+    root().querySelector<HTMLButtonElement>(".settings")!.click();
+    const button = root().querySelector<HTMLButtonElement>(".export")!;
+    button.closest("details")!.open = true;
+    toggle().click(); await flush(); await vi.advanceTimersByTimeAsync(300);
+    expect(button.disabled).toBe(false);
+    expect(root().querySelector(".translation span")?.textContent).toBe("你好");
+    const requests = vi.mocked(sendRuntimeRequest).mock.calls.length;
+    button.click(); await flush();
+    expect(download).not.toHaveBeenCalled();
+    expect(root().querySelector("#subtitle-export-status")?.textContent).toContain("无法读取完整字幕轨");
+    expect(vi.mocked(sendRuntimeRequest).mock.calls.slice(requests).map(([request]) => request.type)).toEqual(["GET_SETTINGS"]);
+  });
+
+  it("cancels an independent export without downloading a late result and allows retry", async () => {
+    let finish!: (value: { translations: string[]; cached: number }) => void;
+    const runtime = vi.mocked(sendRuntimeRequest).getMockImplementation()!;
+    vi.mocked(sendRuntimeRequest).mockImplementation(request => request.type === "TRANSLATE_VIDEO_SUBTITLES"
+      ? new Promise(resolve => { finish = resolve; }) : runtime(request));
+    const download = vi.spyOn(controller.view, "downloadSubtitles").mockImplementation(() => {});
+    const button = root().querySelector<HTMLButtonElement>(".export")!;
+    button.click(); await flush();
+    expect(controller.enabled).toBe(false);
+    expect(button.textContent).toBe("取消导出");
+    button.click();
+    finish({ translations: ["你好", "稍后"], cached: 0 }); await flush();
+    expect(download).not.toHaveBeenCalled();
+    expect(vi.mocked(sendRuntimeRequest).mock.calls.some(([request]) => request.type === "CANCEL_VIDEO_SUBTITLES")).toBe(true);
+    vi.mocked(sendRuntimeRequest).mockImplementation(runtime);
+    button.click(); await flush();
+    expect(download).toHaveBeenCalledOnce();
+  });
+
   it("stops after an extension reload, restores native captions and releases old listeners", async () => {
     toggle().click(); await flush();
     expect(track.mode).toBe("hidden");

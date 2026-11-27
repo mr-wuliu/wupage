@@ -14,9 +14,21 @@ import { DEFAULT_VIDEO_LAYOUT, normalizeVideoTranslation, sameVideoLanguage, typ
 import { loadPageSubtitles, pageSubtitleCatalogue } from "../video/bridge-client";
 import { captionElements, mediaKey, renderedCaption, selectedNativeTrack, type VideoPlatform } from "../video/platforms";
 import type { PageSubtitleCatalogue } from "../video/site-cues";
-import { MAX_SUBTITLE_FILE_BYTES, parseSubtitles, SubtitleTranslator, subtitleCue, type SubtitleCue } from "../video/subtitles";
+import { MAX_SUBTITLE_CUES, MAX_SUBTITLE_FILE_BYTES, nativeSubtitleCues, parseSubtitles, serializeSrt,
+  SubtitleTranslator, translateSubtitleTrack, waitForNativeSubtitleTrack, type SubtitleCue } from "../video/subtitles";
 import { LiveSubtitleTranslator } from "../video/live-subtitles";
 import { playerControlDock, playerControlObstacles, playerControlScope, playerControlsVisible, playerContains, type PlayerControlDock } from "../video/player-controls";
+
+interface ExportTrack {
+  cues: SubtitleCue[];
+  language: string;
+  timeline?: SubtitleTranslator;
+}
+
+interface SubtitleExportJob {
+  controller: AbortController;
+  settings?: ExtensionSettings;
+}
 
 export class PlayerSubtitleController {
   readonly view: VideoView;
@@ -40,9 +52,11 @@ export class PlayerSubtitleController {
   private key = mediaKey();
   private source = "auto";
   private sourceLanguage = "auto";
-  private loadedPageTrack = "";
+  private loadedPageTrack?: { id: string; key: string; cues: SubtitleCue[] };
   private catalogue?: PageSubtitleCatalogue;
   private imported?: { name: string; cues: SubtitleCue[] };
+  private subtitleExport?: SubtitleExportJob;
+  private loadingExportTrack?: { track: TextTrack; restoreDisabled: boolean };
   private offset = 0;
   private clock?: ReturnType<typeof setInterval>;
   private controlsTimer?: ReturnType<typeof setTimeout>;
@@ -75,13 +89,14 @@ export class PlayerSubtitleController {
       dismiss: floatingControls?.dismiss,
       frame: () => { void this.frameTranslation.toggle(); },
       retry: () => { void this.start(); },
-      source: id => { this.source = id; if (this.enabled) void this.start(); },
+      source: id => { this.subtitleExport?.controller.abort(); this.source = id; if (this.enabled) void this.start(); },
       settings: patch => this.save(patch),
       preferences: patch => {
         this.save({}, patch);
       },
       layout: layout => this.save({}, undefined, layout),
       import: file => { void this.importFile(file); },
+      exportSubtitles: () => { void this.exportSubtitles(); },
       offset: value => { this.offset = value; this.live?.reset(); this.tick(); }
     }, this.site);
     this.view.setFloatingControlsHidden(floatingControls?.hidden ?? false);
@@ -95,8 +110,16 @@ export class PlayerSubtitleController {
     this.on(video, "timeupdate", () => this.tick()); this.on(video, "pause", () => this.tick()); this.on(video, "playing", () => this.tick());
     this.on(video, "seeking", () => { this.suppressUntil = Date.now() + 160; this.live?.reset(); this.clearCaption(); this.timeline?.update(video.currentTime - this.offset); });
     this.on(video, "seeked", () => { this.suppressUntil = Date.now() + 100; this.clearCaption(); });
-    this.on(video, "emptied", () => this.changedVideo());
+    this.on(video, "emptied", () => {
+      this.subtitleExport?.controller.abort();
+      this.imported = undefined; this.source = "auto"; this.catalogue = undefined;
+      this.changedVideo();
+    });
     this.on(video, "loadedmetadata", () => this.changedVideo());
+    if (typeof video.textTracks.addEventListener === "function") {
+      this.on(video.textTracks, "addtrack", () => this.populateTracks());
+      this.on(video.textTracks, "removetrack", () => this.populateTracks());
+    }
     this.on(video, "enterpictureinpicture", () => { this.clearCaption(); this.view.tell(t("inPictureInPictureBilingualSubtitlesAreAvailable")); });
     this.on(document, "fullscreenchange", () => { this.position(); this.showControls(); this.tick(); });
     this.on(window, "resize", () => { this.controlsScanned = false; this.position(); });
@@ -119,7 +142,7 @@ export class PlayerSubtitleController {
     this.cleanups.push(() => controls.disconnect());
     this.on(container, "transitionend", () => this.mountControls(), true);
     this.on(container, "animationend", () => this.mountControls(), true);
-    this.position(); this.showControls();
+    this.populateTracks(); this.position(); this.showControls();
     void this.settingsSnapshot.read().then(settings => {
       if (this.disposed) return;
       this.applySettings(settings);
@@ -204,7 +227,7 @@ export class PlayerSubtitleController {
     this.clearSession(false); this.enabled = true; this.phase = "loading"; this.started = Date.now();
     const epoch = ++this.epoch;
     const controller = new AbortController(); this.controller = controller;
-    this.key = mediaKey(); this.catalogue = undefined; this.loadedPageTrack = ""; this.nativeAttempts = 0;
+    this.key = mediaKey(); this.catalogue = undefined; this.loadedPageTrack = undefined; this.nativeAttempts = 0;
     this.view.setState(true, "loading", t("readingPlayerSubtitles")); this.showControls();
     try {
       const settings = await this.settingsSnapshot.read();
@@ -234,8 +257,7 @@ export class PlayerSubtitleController {
   }
 
   private nativeTracks(): TextTrack[] { return Array.from(this.video.textTracks).filter(track => ["subtitles", "captions"].includes(track.kind) && track !== this.nativeFullscreenTrack); }
-  private chooseNative(tracks: TextTrack[]): TextTrack | undefined {
-    const preferred = this.preferences.preferredSource !== "auto" ? this.preferences.preferredSource : this.settings?.sourceLang;
+  private chooseNative(tracks: TextTrack[], preferred = this.preferredSource(this.settings)): TextTrack | undefined {
     return selectedNativeTrack(this.container, this.platform, tracks) || tracks.find(track => track.mode === "showing") || tracks.find(track => track.mode === "hidden" && (track.cues?.length ?? 0) > 0)
       || tracks.find(track => preferred && preferred !== "auto" && track.language.startsWith(preferred.split("-")[0]))
       || tracks.find(track => track.language.startsWith("en")) || tracks[0];
@@ -244,7 +266,8 @@ export class PlayerSubtitleController {
   private useNative(track: TextTrack): void {
     for (const entry of this.nativeTracks().filter(candidate => candidate === track || candidate.mode === "showing")) {
       const original = this.originalModes.find(candidate => candidate.track === entry);
-      if (!original) this.originalModes.push({ track: entry, mode: entry.mode });
+      const exportLoading = this.loadingExportTrack;
+      if (!original) this.originalModes.push({ track: entry, mode: exportLoading?.track === entry && exportLoading.restoreDisabled ? "disabled" : entry.mode });
       else if (entry.mode !== "hidden") original.mode = entry.mode;
       entry.mode = "hidden";
     }
@@ -253,8 +276,7 @@ export class PlayerSubtitleController {
       const current = track.cues;
       if (current !== list || (current?.length ?? 0) !== length) {
         list = current; length = current?.length ?? 0;
-        cues = current ? Array.from(current).slice(0, 20_000).map(cue => subtitleCue(cue.startTime, cue.endTime,
-          "text" in cue ? String(cue.text) : "")).filter(cue => cue.text && cue.text.length <= 4000) : [];
+        cues = nativeSubtitleCues(current);
       }
       return cues;
     }, track.language || this.settings!.sourceLang);
@@ -291,6 +313,19 @@ export class PlayerSubtitleController {
     }
   }
 
+  private preferredSource(settings: ExtensionSettings | undefined): string {
+    const preferred = normalizeVideoTranslation(settings?.videoTranslation).preferredSource;
+    return preferred !== "auto" ? preferred : settings?.sourceLang ?? "auto";
+  }
+
+  private choosePageTrack(catalogue: PageSubtitleCatalogue, source: string, preferred: string) {
+    if (source.startsWith("page:")) return catalogue.tracks.find(track => track.id === source.slice(5));
+    return catalogue.tracks.find(track => track.id === catalogue.selected)
+      || catalogue.tracks.find(track => preferred !== "auto" && track.language.startsWith(preferred.split("-")[0]))
+      || catalogue.tracks.find(track => sameVideoLanguage(track.language, "en") && !track.automatic)
+      || catalogue.tracks.find(track => sameVideoLanguage(track.language, "en")) || catalogue.tracks[0];
+  }
+
   private async readPageTrack(epoch: number): Promise<void> {
     if (!this.valid(epoch) || this.catalogueEpoch === epoch) return;
     this.catalogueEpoch = epoch; this.lastCatalogue = Date.now();
@@ -302,20 +337,16 @@ export class PlayerSubtitleController {
         return;
       }
       this.catalogue = catalogue; this.populateTracks();
-      const preferred = this.preferences.preferredSource !== "auto" ? this.preferences.preferredSource : this.settings!.sourceLang;
-      const selected = this.source.startsWith("page:") ? catalogue.tracks.find(track => track.id === this.source.slice(5)) :
-        catalogue.tracks.find(track => track.id === catalogue.selected) || catalogue.tracks.find(track => preferred !== "auto" && track.language.startsWith(preferred.split("-")[0]))
-        || catalogue.tracks.find(track => sameVideoLanguage(track.language, "en") && !track.automatic)
-        || catalogue.tracks.find(track => sameVideoLanguage(track.language, "en")) || catalogue.tracks[0];
+      const selected = this.choosePageTrack(catalogue, this.source, this.preferredSource(this.settings));
       if (!selected) {
         if (this.source.startsWith("page:")) throw new Error(t("theSelectedSubtitleTrackWasRemoved"));
         return;
       }
-      if (this.loadedPageTrack === selected.id) return;
+      if (this.loadedPageTrack?.id === selected.id) return;
       const payload = await loadPageSubtitles(selected.id, this.controller?.signal);
       if (!this.valid(epoch)) return;
       if (payload.key !== this.key || !payload.cues.length) throw new Error(t("theSelectedSubtitleTrackReturnedNoContent"));
-      this.loadedPageTrack = selected.id; this.useTimeline(() => payload.cues, selected.language); this.phase = "active"; this.tick();
+      this.loadedPageTrack = { id: selected.id, ...payload }; this.useTimeline(() => payload.cues, selected.language); this.phase = "active"; this.tick();
     } catch {
       if (this.valid(epoch) && this.source.startsWith("page:")) {
         this.sourceError = t("couldNotReadTheSelectedTrackEnableIts");
@@ -454,7 +485,12 @@ export class PlayerSubtitleController {
   private valid(epoch: number): boolean { return !this.disposed && this.enabled && epoch === this.epoch && mediaKey() === this.key; }
 
   private changedVideo(): void {
-    if (!this.enabled) return;
+    const key = mediaKey();
+    if (key !== this.key) {
+      this.subtitleExport?.controller.abort();
+      this.key = key; this.imported = undefined; this.source = "auto"; this.catalogue = undefined;
+    }
+    if (!this.enabled) { this.populateTracks(); return; }
     this.imported = undefined; this.source = "auto"; this.suppressUntil = Date.now() + 500;
     void this.start();
   }
@@ -470,14 +506,22 @@ export class PlayerSubtitleController {
   private receiveSettings(settings: ExtensionSettings): void {
     const previous = this.settings;
     this.applySettings(settings);
+    const exportSettings = this.subtitleExport?.settings;
+    if (!this.preferences.enabled || (exportSettings && this.translationIdentity(exportSettings) !== this.translationIdentity(settings))) {
+      this.subtitleExport?.controller.abort();
+    }
     if (this.enabled && !this.preferences.enabled) { this.stop(); return; }
-    const signature = (value: ExtensionSettings) => JSON.stringify([value.sourceLang, value.targetLang, value.activeProviderId,
-      value.providers.find(provider => provider.id === value.activeProviderId), normalizeVideoTranslation(value.videoTranslation).preferredSource,
-      glossaryIdentity(value.glossaryGroups, location.href)]);
-    if (previous && (signature(previous) !== signature(settings) || previous.imageTranslationEnabled !== settings.imageTranslationEnabled
+    const translationChanged = previous && this.translationIdentity(previous) !== this.translationIdentity(settings);
+    if (previous && (translationChanged || previous.imageTranslationEnabled !== settings.imageTranslationEnabled
       || ocrSettingsIdentity(previous.ocr) !== ocrSettingsIdentity(settings.ocr))) this.frameTranslation.reset();
-    if (this.enabled && previous && signature(previous) !== signature(settings)) void this.start();
+    if (this.enabled && translationChanged) void this.start();
     else this.paint();
+  }
+
+  private translationIdentity(settings: ExtensionSettings): string {
+    return JSON.stringify([settings.sourceLang, settings.targetLang, settings.activeProviderId,
+      settings.providers.find(provider => provider.id === settings.activeProviderId), this.preferredSource(settings),
+      glossaryIdentity(settings.glossaryGroups, location.href)]);
   }
 
   private applySettings(settings: ExtensionSettings): void {
@@ -510,9 +554,105 @@ export class PlayerSubtitleController {
       if (file.size > MAX_SUBTITLE_FILE_BYTES) throw new Error(t("subtitleFilesMustBe2MibOrSmaller"));
       const cues = parseSubtitles(await file.text());
       if (this.disposed || key !== mediaKey()) return;
+      this.subtitleExport?.controller.abort();
       this.imported = { name: file.name, cues }; this.source = "file"; this.populateTracks();
       this.view.setPanel(false); this.view.tell(t("loadedSubtitleCues", cues.length)); await this.start();
     } catch (error) { this.view.tell(error instanceof Error ? error.message : String(error)); }
+  }
+
+  private async readNativeExportTrack(track: TextTrack, settings: ExtensionSettings, signal: AbortSignal): Promise<ExportTrack> {
+    const element = [...this.video.querySelectorAll("track")].find(entry => entry.track === track);
+    const loading = { track, restoreDisabled: track.mode === "disabled" };
+    this.loadingExportTrack = loading;
+    if (loading.restoreDisabled) track.mode = "hidden";
+    try {
+      if (element?.getAttribute("src")) await waitForNativeSubtitleTrack(element, signal);
+      signal.throwIfAborted();
+      if ((track.cues?.length ?? 0) > MAX_SUBTITLE_CUES) throw new Error(t("subtitleDataExceedsTheSupportedLimit"));
+      return { cues: nativeSubtitleCues(track.cues), language: track.language || settings.sourceLang,
+        timeline: this.nativeTrack === track ? this.timeline : undefined };
+    } finally {
+      this.loadingExportTrack = undefined;
+      if (loading.restoreDisabled && track.mode === "hidden" && !this.originalModes.some(entry => entry.track === track)) track.mode = "disabled";
+    }
+  }
+
+  private async readExportTrack(source: string, key: string, settings: ExtensionSettings, signal: AbortSignal): Promise<ExportTrack> {
+    if (source === "file") {
+      if (!this.imported) throw new Error(t("fullSubtitleTrackUnavailable"));
+      return { cues: this.imported.cues, language: settings.sourceLang, timeline: this.timeline };
+    }
+    const tracks = this.nativeTracks();
+    const preferred = this.preferredSource(settings);
+    const native = source.startsWith("native:") ? tracks[Number(source.slice(7))] : this.chooseNative(tracks, preferred);
+    if (this.platform?.bridge && (source === "auto" || source.startsWith("page:"))) {
+      try {
+        const catalogue = await pageSubtitleCatalogue(signal);
+        if (catalogue?.key !== key || key !== mediaKey()) throw new Error(t("fullSubtitleTrackUnavailable"));
+        this.catalogue = catalogue; this.populateTracks();
+        const selected = this.choosePageTrack(catalogue, source, preferred);
+        if (!selected) throw new Error(t("fullSubtitleTrackUnavailable"));
+        const loaded = this.loadedPageTrack;
+        if (loaded?.id === selected.id && loaded.key === key) {
+          return { cues: loaded.cues, language: selected.language, timeline: this.nativeTrack ? undefined : this.timeline };
+        }
+        const payload = await loadPageSubtitles(selected.id, signal);
+        if (payload.key !== key || !payload.cues.length) throw new Error(t("fullSubtitleTrackUnavailable"));
+        return { cues: payload.cues, language: selected.language };
+      } catch (error) {
+        signal.throwIfAborted();
+        if (source !== "auto" || !native) throw error;
+      }
+    }
+    if (native) return this.readNativeExportTrack(native, settings, signal);
+    throw new Error(t("fullSubtitleTrackUnavailable"));
+  }
+
+  private async exportSubtitles(): Promise<void> {
+    if (!this.activeContext() || !this.connected) return;
+    if (this.subtitleExport) { this.subtitleExport.controller.abort(); return; }
+    const job: SubtitleExportJob = { controller: new AbortController() };
+    this.subtitleExport = job;
+    const { signal } = job.controller;
+    const key = mediaKey(), source = this.source, offset = this.offset;
+    const title = source === "file" ? this.imported?.name.replace(/\.(?:srt|vtt)$/iu, "") : document.title;
+    const check = () => {
+      signal.throwIfAborted();
+      if (!this.connected || mediaKey() !== key) throw new Error(t("theVideoHasChanged"));
+    };
+    this.view.setExportStatus(t("readingFullSubtitleTrack"), true);
+    let message = "";
+    try {
+      await this.saveQueue;
+      const settings = await this.settingsSnapshot.read();
+      check();
+      job.settings = settings;
+      if (!normalizeVideoTranslation(settings.videoTranslation).enabled) throw new Error(t("videoSubtitlesAreOff"));
+      const track = await this.readExportTrack(source, key, settings, signal);
+      check();
+      if (!track.cues.length) throw new Error(t("fullSubtitleTrackUnavailable"));
+      if (!sameVideoLanguage(track.language, settings.targetLang) && !settings.providers.some(provider => provider.id === settings.activeProviderId && provider.enabled !== false)) {
+        throw new Error(t("chooseAnAvailableTranslationServiceFirst"));
+      }
+      const requests = new VideoRequests(settings, track.language);
+      const timeline = this.settings && this.translationIdentity(settings) === this.translationIdentity(this.settings) ? track.timeline : undefined;
+      const cues = await translateSubtitleTrack(track.cues, (texts, signal) => requests.translate(texts, signal), signal, (done, total) => {
+        check();
+        this.view.setExportStatus(t("translatingFullSubtitleTrack", done, total), true);
+      }, text => timeline?.cachedTranslation(text));
+      check();
+      const earliest = cues.reduce((start, cue) => Math.min(start, cue.start), Infinity);
+      const text = serializeSrt(cues, Math.max(offset, -earliest));
+      if (!text) throw new Error(t("fullSubtitleTrackUnavailable"));
+      const name = Array.from(title ?? "").slice(0, 100).join("").replace(/[<>:"/\\|?*\u0000-\u001f]/gu, "_").trim();
+      const language = settings.targetLang.replace(/[^\w-]/gu, "");
+      this.view.downloadSubtitles(text, `${name || "subtitles"}-translated${language ? `-${language}` : ""}.srt`);
+    } catch (error) {
+      if (!signal.aborted) message = t("downloadFailed", error instanceof Error ? error.message : String(error));
+    } finally {
+      this.subtitleExport = undefined;
+      if (!this.disposed) this.view.setExportStatus(message);
+    }
   }
 
   position(): void {
@@ -570,7 +710,9 @@ export class PlayerSubtitleController {
     // A stop can arrive before the next tick repairs a source disabled by the
     // native fullscreen controls. Restore that source after hiding our track.
     for (const entry of this.originalModes) {
-      if (entry.track.mode === "hidden" || (entry.track === fullscreenSource && entry.track.mode === "disabled")) entry.track.mode = entry.mode;
+      if (entry.track.mode !== "hidden" && (entry.track !== fullscreenSource || entry.track.mode !== "disabled")) continue;
+      if (entry.track === this.loadingExportTrack?.track && entry.mode === "disabled") this.loadingExportTrack.restoreDisabled = true;
+      else entry.track.mode = entry.mode;
     }
     this.originalModes = [];
     if (this.nativeToggled && restoreNative) {
@@ -587,6 +729,7 @@ export class PlayerSubtitleController {
     // Teardown must not repaint the idle UI or register another controls timer:
     // both can still call extension APIs after a reload.
     this.disposed = true; this.enabled = false; this.epoch++;
+    this.subtitleExport?.controller.abort();
     this.clearSession(); this.frameTranslation.dispose(); clearTimeout(this.controlsTimer);
     this.controlsPointerEvents?.controller.abort();
     this.resumeOnReplacement = resume;

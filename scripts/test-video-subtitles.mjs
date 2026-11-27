@@ -20,6 +20,7 @@ const translations = new Map([
   ['Hello world.', '你好，世界。'], ['Read the existing subtitles.', '读取视频现有字幕。'],
   ['Seek to another moment.', '跳转到另一个时间。'], ['Imported subtitles.', '导入的字幕。'], ['Retry this subtitle.', '重试这条字幕。'], ['Bonjour tout le monde.', '法语字幕译文。']
 ]);
+const fullTrack = Array.from({ length: 10 }, (_, index) => ({ start: index * 6, text: `Full track cue ${index + 1}.` }));
 const server = createServer(async (request, response) => {
   if (request.url === '/translate' && request.method === 'POST') {
     let body = ''; for await (const chunk of request) body += chunk;
@@ -31,6 +32,12 @@ const server = createServer(async (request, response) => {
   if (request.url === '/embedded') {
     response.setHeader('Content-Type', 'text/html; charset=utf-8');
     response.end('<!doctype html><h1>Embedded video</h1><iframe width="850" height="750" src="http://localhost:' + server.address().port + '/"></iframe>'); return;
+  }
+  if (request.url === '/full-export.vtt') {
+    response.setHeader('Content-Type', 'text/vtt; charset=utf-8');
+    const time = seconds => `00:${String(seconds).padStart(2, '0')}.000`;
+    response.end('WEBVTT\n\n' + fullTrack.map(({ start, text }) => `${time(start)} --> ${time(start + 1)}\n${text}`).join('\n\n'));
+    return;
   }
   if (request.url.startsWith('/video-feed')) {
     response.setHeader('Content-Type', 'text/html; charset=utf-8');
@@ -125,9 +132,76 @@ try {
     await popup.screenshot({ path: path.join(output, `popup-${width}.png`) });
   }
   await popup.screenshot({ path: path.join(output, 'entry.png') });
+  await popup.close(); await page.bringToFront();
+  const panel = view.locator('.panel');
+  const panelContent = view.locator('.panel-content');
+  const moreOptions = view.locator('details').filter({ has: page.locator('.import') });
+  const appearance = view.locator('details').filter({ hasText: '字幕外观' });
+  const waitForPanelInViewport = () => page.waitForFunction(() => {
+    const panel = document.querySelector('[data-wupage-video]').shadowRoot.querySelector('.panel');
+    const { top, bottom, left, right, height } = panel.getBoundingClientRect();
+    const { offsetLeft, offsetTop, width, height: viewportHeight } = window.visualViewport;
+    return height > 0 && top >= offsetTop + 11 && bottom <= offsetTop + viewportHeight - 11
+      && left >= offsetLeft + 11 && right <= offsetLeft + width - 11;
+  });
+  await page.setViewportSize({ width: 1240, height: 640 });
+  await page.locator('.player').evaluate(player => { player.style.marginTop = '112px'; });
+  await view.locator('.settings').evaluate(button => button.click());
+  const collapsed = await panel.boundingBox();
+  await moreOptions.locator('summary').click();
+  await waitForPanelInViewport();
+  const expanded = await panel.boundingBox();
+  assert.ok(expanded.height > collapsed.height && expanded.y < collapsed.y, 'expanding a tall panel repositions it even while translation is off');
+  assert.equal(await panelContent.evaluate(content => content.scrollHeight <= content.clientHeight), true);
+  await page.screenshot({ path: path.join(output, 'settings-expanded.png') });
+  await page.setViewportSize({ width: 390, height: 430 });
+  await appearance.locator('summary').click();
+  await waitForPanelInViewport();
+  const scroll = await panelContent.evaluate(content => {
+    const headerTop = content.previousElementSibling.getBoundingClientRect().top;
+    content.scrollTop = content.scrollHeight;
+    const last = content.querySelector('details:last-child .help:last-child');
+    return { scrollTop: content.scrollTop, headerFixed: content.previousElementSibling.getBoundingClientRect().top === headerTop,
+      bottomPadding: content.getBoundingClientRect().bottom - last.getBoundingClientRect().bottom };
+  });
+  assert.ok(scroll.scrollTop > 0 && scroll.headerFixed && scroll.bottomPadding >= 12, 'scrolling exposes the full last item while the close button stays visible');
+  await page.screenshot({ path: path.join(output, 'settings-expanded-mobile.png') });
+  await appearance.evaluate(details => { details.open = false; });
+  await moreOptions.evaluate(details => { details.open = false; });
+  await view.locator('.close').click();
+  await page.locator('.player').evaluate(player => player.style.removeProperty('margin-top'));
+  await page.setViewportSize({ width: 1240, height: 800 });
+  checks.push('expanded settings stay inside the desktop viewport and scroll with a fixed header on a short viewport');
+  const originalTime = await page.locator('video').evaluate(video => video.currentTime);
+  await page.evaluate(() => {
+    const track = Object.assign(document.createElement('track'), { id: 'full-export', kind: 'captions', srclang: 'en', label: 'Full English CC', src: '/full-export.vtt' });
+    document.querySelector('video').append(track);
+  });
+  const exportTrack = page.locator('#full-export');
+  await view.locator('.settings').evaluate(button => button.click());
+  await view.locator('.track').selectOption({ label: 'Full English CC' });
+  await moreOptions.locator('summary').click();
+  await view.locator('.offset').fill('-1'); await view.locator('.offset').press('Tab');
+  assert.equal(await exportTrack.evaluate(element => { element.track.mode = 'disabled'; return element.track.mode; }), 'disabled');
+  const [fullDownload] = await Promise.all([page.waitForEvent('download'), view.locator('.export').click()]);
+  const fullSrt = await fs.readFile(await fullDownload.path(), 'utf8');
+  assert.equal(fullSrt.split(' --> ').length - 1, fullTrack.length);
+  assert.match(fullSrt, /^1\n00:00:00,000 --> 00:00:01,000\n译：Full track cue 1\./u);
+  assert.match(fullSrt, /10\n00:00:54,000 --> 00:00:55,000\n译：Full track cue 10\./u);
+  assert.deepEqual(requests.map(request => request.texts.length), [8, 2]);
+  assert.ok(requests.every(request => request.targetLang === 'zh-CN'));
+  assert.equal(await exportTrack.evaluate(element => element.track.mode), 'disabled');
+  assert.equal(await page.locator('video').evaluate(video => video.currentTime), originalTime);
+  assert.equal(await view.locator('.toggle').getAttribute('aria-pressed'), 'false');
+  await view.locator('.track').selectOption('auto');
+  await exportTrack.evaluate(element => element.remove());
+  await view.locator('.offset').fill('0'); await view.locator('.offset').press('Tab');
+  await moreOptions.locator('summary').click();
+  await view.locator('.close').click();
+  requests.length = 0;
+  checks.push('full disabled CC track exported before playback translation using default settings, including cues beyond lookahead');
   await view.locator('.toggle').evaluate(button => button.click());
   await page.waitForFunction(() => document.querySelector('[data-wupage-video]')?.hasAttribute('data-enabled'));
-  await popup.close(); await page.bringToFront();
   const translated = view.locator('.translation span');
   await translated.filter({ hasText: '你好，世界。' }).waitFor();
   assert.equal(await view.locator('.panel').isVisible(), false, 'one click starts without an obstructing panel');
@@ -141,6 +215,20 @@ try {
   await page.screenshot({ path: path.join(output, 'bilingual.png') });
   await view.locator('.settings').evaluate(button => button.click()); await view.locator('.panel').waitFor();
   await page.screenshot({ path: path.join(output, 'settings.png') });
+  await moreOptions.locator('summary').click();
+  await view.locator('.offset').fill('1'); await view.locator('.offset').press('Tab');
+  const beforeExport = requests.length;
+  const [download] = await Promise.all([page.waitForEvent('download'), view.locator('.export').click()]);
+  assert.equal(download.suggestedFilename(), 'Video subtitle fixture-translated-zh-CN.srt');
+  assert.equal(await fs.readFile(await download.path(), 'utf8'), [
+    '1\n00:00:01,000 --> 00:00:01,900\n你好，世界。\n',
+    '2\n00:00:02,000 --> 00:00:02,900\n读取视频现有字幕。\n',
+    '3\n00:00:03,000 --> 00:00:04,800\n跳转到另一个时间。\n'
+  ].join('\n'));
+  assert.equal(requests.length, beforeExport, 'export must reuse completed translations');
+  await view.locator('.offset').fill('0'); await view.locator('.offset').press('Tab');
+  await moreOptions.locator('summary').click();
+  checks.push('download of translated SRT with playback offset and no additional provider calls');
   await view.locator('details').filter({ hasText: '字幕外观' }).evaluate(details => { details.open = true; });
   assert.equal(await view.locator('.display-mode').inputValue(), 'chinese');
   await view.locator('.display-mode').selectOption('western');
@@ -261,7 +349,7 @@ try {
   await page.setViewportSize({ width: 390, height: 760 }); await view.locator('.settings').evaluate(button => button.click());
   await view.locator('details').filter({ hasText: '字幕外观' }).evaluate(details => { details.open = true; });
   const bounds = await view.locator('.panel').boundingBox(); assert.ok(bounds.x >= 0 && bounds.x + bounds.width <= 390);
-  assert.equal(await view.locator('.panel').evaluate(panel => panel.scrollWidth <= panel.clientWidth), true, 'alignment controls fit the mobile panel');
+  assert.equal(await panelContent.evaluate(content => content.scrollWidth <= content.clientWidth), true, 'alignment controls fit the mobile panel');
   await page.screenshot({ path: path.join(output, 'mobile.png') }); checks.push('responsive settings');
   await view.locator('.layout-open').click();
   const layoutPanel = await view.locator('.layout-panel').boundingBox();

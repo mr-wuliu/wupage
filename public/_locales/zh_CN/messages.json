@@ -2328,6 +2328,25 @@
   "importSrtVtt": {
     "message": "导入 SRT / VTT"
   },
+  "exportTranslatedSubtitlesSrt": {
+    "message": "导出译文（SRT）"
+  },
+  "cancelSubtitleExport": {
+    "message": "取消导出"
+  },
+  "readingFullSubtitleTrack": {
+    "message": "正在读取完整字幕轨…"
+  },
+  "translatingFullSubtitleTrack": {
+    "message": "正在翻译整轨字幕（$ARG1$/$ARG2$）…",
+    "placeholders": {
+      "arg1": { "content": "$1" },
+      "arg2": { "content": "$2" }
+    }
+  },
+  "fullSubtitleTrackUnavailable": {
+    "message": "无法读取完整字幕轨。请在播放器开启 CC 字幕后重试。"
+  },
   "onlySubtitleTextIsTranslatedNoAudioIs": {
     "message": "仅翻译字幕文本，不采集音频。在线翻译使用所选服务的额度。"
   },
