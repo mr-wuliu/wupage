@@ -15,7 +15,7 @@ export interface SubtitleCue {
   words?: SubtitleWord[];
 }
 
-const MAX_CUES = 20_000;
+export const MAX_SUBTITLE_CUES = 20_000;
 export const MAX_SUBTITLE_FILE_BYTES = 2 * 1024 * 1024;
 
 export function subtitleText(value: string): string {
@@ -53,6 +53,32 @@ export function subtitleCue(start: number, end: number, raw: string): SubtitleCu
   return { start, end, text, words };
 }
 
+export function nativeSubtitleCues(list: TextTrackCueList | null): SubtitleCue[] {
+  return list ? Array.from(list).slice(0, MAX_SUBTITLE_CUES).map(cue => subtitleCue(cue.startTime, cue.endTime,
+    "text" in cue ? String(cue.text) : "")).filter(cue => cue.text && cue.text.length <= 4000) : [];
+}
+
+export async function waitForNativeSubtitleTrack(element: HTMLTrackElement, signal: AbortSignal): Promise<void> {
+  signal.throwIfAborted();
+  if (element.readyState === element.LOADED) return;
+  if (element.readyState === element.ERROR) throw new Error(t("fullSubtitleTrackUnavailable"));
+  await new Promise<void>((resolve, reject) => {
+    const done = () => { cleanup(); resolve(); };
+    const failed = () => { cleanup(); reject(new Error(t("fullSubtitleTrackUnavailable"))); };
+    const abort = () => { cleanup(); reject(signal.reason); };
+    const timer = setTimeout(failed, 8000);
+    const cleanup = () => {
+      clearTimeout(timer);
+      element.removeEventListener("load", done);
+      element.removeEventListener("error", failed);
+      signal.removeEventListener("abort", abort);
+    };
+    element.addEventListener("load", done);
+    element.addEventListener("error", failed);
+    signal.addEventListener("abort", abort, { once: true });
+  });
+}
+
 /** Read SRT and WebVTT, including cue identifiers and WebVTT cue settings. */
 export function parseSubtitles(source: string): SubtitleCue[] {
   const cues: SubtitleCue[] = [];
@@ -70,10 +96,72 @@ export function parseSubtitles(source: string): SubtitleCue[] {
     if (end <= start) throw new Error(t("subtitleEndTimeMustBeLaterThanStart"));
     if (text.length > 4000) throw new Error(t("aSubtitleCueIsTooLongSplitIt"));
     if (text) cues.push(cue);
-    if (cues.length > MAX_CUES) throw new Error(t("moreThan20000SubtitleCuesSplitThe"));
+    if (cues.length > MAX_SUBTITLE_CUES) throw new Error(t("moreThan20000SubtitleCuesSplitThe"));
   }
   if (!cues.length) throw new Error(t("noUsableSubtitlesFoundChooseAUtf8"));
   return cues.sort((a, b) => a.start - b.start);
+}
+
+function srtTimestamp(milliseconds: number): string {
+  const seconds = Math.floor(milliseconds / 1000);
+  const time = [Math.floor(seconds / 3600), Math.floor(seconds / 60) % 60, seconds % 60]
+    .map(value => String(value).padStart(2, "0")).join(":");
+  return `${time},${String(milliseconds % 1000).padStart(3, "0")}`;
+}
+
+export function serializeSrt(cues: readonly SubtitleCue[], offset = 0): string {
+  const blocks: string[] = [];
+  for (const cue of [...cues].sort((a, b) => a.start - b.start)) {
+    const start = Math.max(0, Math.round((cue.start + offset) * 1000));
+    const end = Math.round((cue.end + offset) * 1000);
+    if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end) || cue.end <= cue.start || cue.end + offset <= 0) continue;
+    const text = cue.text.replace(/\r\n?/gu, "\n").split("\n").filter(line => line.trim()).join("\n").trim()
+      .replace(/&/gu, "&amp;").replace(/</gu, "&lt;").replace(/>/gu, "&gt;");
+    if (text) blocks.push(`${blocks.length + 1}\n${srtTimestamp(start)} --> ${srtTimestamp(Math.max(start + 1, end))}\n${text}\n`);
+  }
+  return blocks.join("\n");
+}
+
+const MAX_BATCH_CUES = 8;
+const MAX_BATCH_CHARS = 3000;
+type TranslateSubtitles = (texts: string[], signal?: AbortSignal) => Promise<string[]>;
+
+function storeTranslations(cache: Map<string, string>, texts: string[], result: string[]): void {
+  if (result.length !== texts.length || texts.some((_, index) => typeof result[index] !== "string" || !result[index].trim())) {
+    throw new Error(t("theServiceReturnedIncompleteSubtitlesTryAgain"));
+  }
+  texts.forEach((text, index) => cache.set(text, result[index]));
+}
+
+export async function translateSubtitleTrack(
+  cues: readonly SubtitleCue[], translate: TranslateSubtitles, signal: AbortSignal,
+  progress: (done: number, total: number) => void, cached?: (text: string) => string | undefined
+): Promise<SubtitleCue[]> {
+  const sentences = subtitleSentences(cues, true);
+  const texts = [...new Set(sentences.map(cue => cue.text))];
+  const translations = new Map<string, string>();
+  const pending: string[] = [];
+  for (const text of texts) {
+    const existing = cached?.(text);
+    if (existing) translations.set(text, existing);
+    else pending.push(text);
+  }
+  progress(translations.size, texts.length);
+  for (let index = 0; index < pending.length;) {
+    const batch: string[] = [];
+    let size = 0;
+    while (index < pending.length && batch.length < MAX_BATCH_CUES) {
+      const text = pending[index];
+      if (batch.length && size + text.length > MAX_BATCH_CHARS) break;
+      batch.push(text); size += text.length; index++;
+    }
+    signal.throwIfAborted();
+    const result = await translate(batch, signal);
+    signal.throwIfAborted();
+    storeTranslations(translations, batch, result);
+    progress(translations.size, texts.length);
+  }
+  return sentences.map(({ start, end, text }) => ({ start, end, text: translations.get(text)! }));
 }
 
 /** The scheduler is independent of playback events, so late responses never select a stale cue. */
@@ -90,7 +178,7 @@ export class SubtitleTranslator {
 
   constructor(
     private readonly readCues: () => SubtitleCue[],
-    private readonly translate: (texts: string[], signal?: AbortSignal) => Promise<string[]>,
+    private readonly translate: TranslateSubtitles,
     private readonly changed: () => void
   ) {}
 
@@ -117,6 +205,8 @@ export class SubtitleTranslator {
     return Math.max(0, Math.min(1, (this.time - start) / (end - start)));
   }
 
+  cachedTranslation(text: string): string | undefined { return this.cache.get(text); }
+
   retry(): void { this.error = ""; this.update(this.time); }
   dispose(): void { this.disposed = true; this.controller?.abort(); this.cache.clear(); }
 
@@ -125,6 +215,12 @@ export class SubtitleTranslator {
     if (cues !== this.sourceCues || cues.length !== this.sourceLength) {
       this.sourceCues = cues; this.sourceLength = cues.length;
       this.sentences = subtitleSentences(cues, true);
+      // Keep completed translations for the whole current track, including
+      // cues that already left the playback window.
+      if (this.cache.size) {
+        const texts = new Set(this.sentences.map(cue => cue.text));
+        for (const text of this.cache.keys()) if (!texts.has(text)) this.cache.delete(text);
+      }
     }
     return this.sentences;
   }
@@ -138,7 +234,7 @@ export class SubtitleTranslator {
     let size = 0;
     for (const cue of [...active, ...future].slice(0, 128)) {
       if (this.cache.has(cue.text) || texts.includes(cue.text)) continue;
-      if (texts.length && (size + cue.text.length > 3000 || texts.length >= 8)) break;
+      if (texts.length && (size + cue.text.length > MAX_BATCH_CHARS || texts.length >= MAX_BATCH_CUES)) break;
       texts.push(cue.text); size += cue.text.length;
     }
     if (!texts.length) return;
@@ -147,11 +243,7 @@ export class SubtitleTranslator {
     try {
       const result = await this.translate(texts, controller.signal);
       if (this.disposed || controller.signal.aborted) return;
-      if (result.length !== texts.length || result.some(text => typeof text !== "string" || !text.trim())) {
-        throw new Error(t("theServiceReturnedIncompleteSubtitlesTryAgain"));
-      }
-      texts.forEach((text, index) => { this.cache.delete(text); this.cache.set(text, result[index]); });
-      while (this.cache.size > 256) this.cache.delete(this.cache.keys().next().value!);
+      storeTranslations(this.cache, texts, result);
     } catch (error) {
       if (!this.disposed && !controller.signal.aborted) this.error = error instanceof Error ? error.message : String(error);
     } finally {

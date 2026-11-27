@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { parseSubtitles, SubtitleTranslator, type SubtitleCue } from "../src/video/subtitles";
+import { parseSubtitles, serializeSrt, SubtitleTranslator, translateSubtitleTrack, type SubtitleCue } from "../src/video/subtitles";
 
 const cues: SubtitleCue[] = [
   { start: 0, end: 3, text: "Hello" }, { start: 20, end: 24, text: "Later" }
@@ -20,6 +20,17 @@ describe("subtitle files", () => {
   });
   it("rejects oversized cues instead of sending unbounded provider requests", () => {
     expect(() => parseSubtitles(`00:00.000 --> 00:01.000\n${"a".repeat(4001)}`)).toThrow("过长");
+  });
+  it("exports numbered UTF-8 cues in time order, clipping the offset at zero and preserving plain text", () => {
+    const srt = serializeSrt([
+      { start: 3601.75, end: 3602.5, text: "中文\r\n\r\n<i> & 日本語" },
+      { start: .25, end: 1.75, text: "你好" },
+      { start: 0, end: 1, text: "Outside the playback time" }
+    ], -1.25);
+    expect(srt).toBe("1\n00:00:00,000 --> 00:00:00,500\n你好\n\n2\n01:00:00,500 --> 01:00:01,250\n中文\n&lt;i&gt; &amp; 日本語\n");
+    expect(parseSubtitles(srt)).toEqual([
+      { start: 0, end: .5, text: "你好" }, { start: 3600.5, end: 3601.25, text: "中文\n<i> & 日本語" }
+    ]);
   });
 });
 
@@ -98,7 +109,7 @@ describe("subtitle translation scheduling", () => {
     session.update(0); await flush(); expect(translate.mock.calls).toHaveLength(1);
     expect(session.current().source).toBe("Hello"); expect(session.error).toContain("不完整");
   });
-  it("bounds dense lookahead windows so the bounded cache cannot cause an endless refill", async () => {
+  it("bounds dense lookahead windows without translating the rest of the track", async () => {
     const dense = Array.from({ length: 300 }, (_, i) => ({ start: 1, end: 3, text: `Line ${i}` }));
     const translate = vi.fn(async (texts: string[]) => texts.map(text => `译:${text}`));
     const session = new SubtitleTranslator(() => dense, translate, vi.fn());
@@ -106,5 +117,33 @@ describe("subtitle translation scheduling", () => {
     expect(translate).toHaveBeenCalledTimes(16);
     expect(translate.mock.calls.every(([texts]) => texts.length <= 8)).toBe(true);
     session.update(0); await flush(); expect(translate).toHaveBeenCalledTimes(16);
+  });
+  it("keeps completed translations across playback windows, including results older than 256 cues", async () => {
+    const track = Array.from({ length: 301 }, (_, index) => ({ start: index * 60, end: index * 60 + 2, text: `Line ${index}.` }));
+    const translate = vi.fn(async (texts: string[]) => texts.map(text => `译:${text}`));
+    const session = new SubtitleTranslator(() => track, translate, vi.fn());
+    for (const cue of track.slice(0, -1)) { session.update(cue.start); await flush(); }
+    expect(track.slice(0, -1).map(cue => session.cachedTranslation(cue.text))).toEqual(track.slice(0, -1).map(cue => `译:${cue.text}`));
+    expect(session.cachedTranslation(track.at(-1)!.text)).toBeUndefined();
+    expect(translate).toHaveBeenCalledTimes(300);
+  });
+});
+
+describe("full subtitle translation", () => {
+  it("fills the entire track in batches, reuses completed text, and preserves repeated cue times", async () => {
+    const track = Array.from({ length: 21 }, (_, index) => ({ start: index * 60, end: index * 60 + 2, text: `Line ${index % 20}.` }));
+    const translate = vi.fn(async (texts: string[]) => texts.map(text => `译:${text}`));
+    const progress = vi.fn();
+    const result = await translateSubtitleTrack(track, translate, new AbortController().signal, progress,
+      text => text === "Line 0." ? "已译" : undefined);
+    expect(result).toEqual(track.map(cue => ({ ...cue, text: cue.text === "Line 0." ? "已译" : `译:${cue.text}` })));
+    expect(translate.mock.calls.map(([texts]) => texts.length)).toEqual([8, 8, 3]);
+    expect(progress.mock.calls).toEqual([[1, 20], [9, 20], [17, 20], [20, 20]]);
+  });
+  it("rejects a partial provider response after earlier batches have succeeded", async () => {
+    const track = Array.from({ length: 9 }, (_, index) => ({ start: index * 60, end: index * 60 + 2, text: `Line ${index}.` }));
+    const translate = vi.fn().mockImplementationOnce(async (texts: string[]) => texts.map(text => `译:${text}`)).mockResolvedValueOnce([]);
+    await expect(translateSubtitleTrack(track, translate, new AbortController().signal, vi.fn())).rejects.toThrow("不完整");
+    expect(translate).toHaveBeenCalledTimes(2);
   });
 });

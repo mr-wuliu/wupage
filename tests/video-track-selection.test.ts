@@ -35,6 +35,21 @@ it('recognizes regional English metadata when automatically choosing an original
   expect(root.querySelector('.translation span')?.textContent).toBe('正确译文');
 });
 
+it('exports a full site CC track using the selected subtitle language without starting playback translation', async () => {
+  vi.mocked(pageSubtitleCatalogue).mockResolvedValue({ key: mediaKey(), selected: 'french', tracks: [
+    { id: 'english', label: 'English', language: 'en' }, { id: 'french', label: 'Français', language: 'fr' }
+  ] });
+  vi.mocked(loadPageSubtitles).mockResolvedValue({ key: mediaKey(), cues: [
+    { start: 0, end: 4, text: 'Bonjour.' }, { start: 120, end: 124, text: 'Au revoir.' }
+  ] });
+  const download = vi.spyOn(controller.view, 'downloadSubtitles').mockImplementation(() => {});
+  controller.view.root.querySelector<HTMLButtonElement>('.export')!.click(); await flush();
+  expect(loadPageSubtitles).toHaveBeenCalledWith('french', expect.any(AbortSignal));
+  expect(sendRuntimeRequest).toHaveBeenCalledWith(expect.objectContaining({ type: 'TRANSLATE_VIDEO_SUBTITLES', sourceLang: 'fr' }));
+  expect(download).toHaveBeenCalledWith('1\n00:00:00,000 --> 00:00:04,000\n正确译文\n\n2\n00:02:00,000 --> 00:02:04,000\n正确译文\n', expect.stringMatching(/\.srt$/u));
+  expect(controller.enabled).toBe(false);
+});
+
 it('follows a changed site catalogue selection in automatic mode', async () => {
   vi.mocked(loadPageSubtitles).mockImplementation(async id => ({key:mediaKey(),cues:[{start:0,end:4,text:id==='english'?'Hello':'你好'}]}));
   await controller.start(); await flush();

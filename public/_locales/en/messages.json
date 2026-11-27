@@ -2328,6 +2328,25 @@
   "importSrtVtt": {
     "message": "Import SRT / VTT"
   },
+  "exportTranslatedSubtitlesSrt": {
+    "message": "Export translation (SRT)"
+  },
+  "cancelSubtitleExport": {
+    "message": "Cancel export"
+  },
+  "readingFullSubtitleTrack": {
+    "message": "Reading the full subtitle track…"
+  },
+  "translatingFullSubtitleTrack": {
+    "message": "Translating subtitles ($ARG1$/$ARG2$)…",
+    "placeholders": {
+      "arg1": { "content": "$1" },
+      "arg2": { "content": "$2" }
+    }
+  },
+  "fullSubtitleTrackUnavailable": {
+    "message": "Could not read a full subtitle track. Turn on CC in the player and try again."
+  },
   "onlySubtitleTextIsTranslatedNoAudioIs": {
     "message": "Only subtitle text is translated. No audio is captured. Online translation uses your selected service’s quota."
   },

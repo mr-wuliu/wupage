@@ -5,6 +5,7 @@ import { DEFAULT_VIDEO_LAYOUT, normalizeVideoTranslation, type VideoSubtitleLayo
 import { VideoLayoutEditor, VIDEO_LAYOUT_STYLES } from "./video-layout";
 import { uiIconMarkup } from "../shared/ui-icons";
 import { setHtmlContent } from "../shared/html";
+import { visibleViewport } from "../shared/touch";
 import { SubtitlePresentation } from "./subtitle-presentation";
 
 let nextView = 0;
@@ -20,6 +21,7 @@ export interface VideoViewActions {
   preferences: (patch: Partial<VideoTranslationSettings>) => void;
   layout: (layout: VideoSubtitleLayout) => Promise<void>;
   import: (file: File) => void;
+  exportSubtitles: () => void;
   offset: (seconds: number) => void;
 }
 
@@ -47,8 +49,9 @@ const styles = `
   .captions > .source,.captions > .translation { max-height: calc(var(--wp-caption-lines,2) * 1.4em); overflow: hidden; padding: 3px 0; box-sizing: content-box; }
   .source span,.translation span { background: var(--wp-video-bg,#101718bf); box-decoration-break: clone; -webkit-box-decoration-break: clone; padding: 3px 8px; border-radius: 4px; }
   .source:has(span:empty),.translation:has(span:empty) { display: none; }
-  .panel { position: fixed; inset: auto; left: var(--wp-panel-left,12px); top: var(--wp-panel-top,60px); margin: 0; width: min(304px,calc(100vw - 24px)); max-height: calc(100vh - 24px); overflow: auto; padding: 16px; border: 1px solid #ffffff26; border-radius: 12px; color: #f3f6f5; background: #172024f7; box-shadow: 0 12px 40px #0006; font: 13px/1.5 system-ui,sans-serif; pointer-events: auto; }
-  .panel::backdrop { background: transparent; } .panel header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; } h2 { margin: 0; font-size: 14px; font-weight: 600; }
+  .panel { position: fixed; inset: auto; left: var(--wp-panel-left,12px); top: var(--wp-panel-top,60px); display: flex; flex-direction: column; margin: 0; padding: 0; width: min(304px,var(--wp-panel-max-width,calc(100vw - 24px))); max-height: var(--wp-panel-max-height,calc(100vh - 24px)); overflow: hidden; border: 1px solid #ffffff26; border-radius: 12px; color: #f3f6f5; background: #172024f7; box-shadow: 0 12px 40px #0006; font: 13px/1.5 system-ui,sans-serif; pointer-events: auto; }
+  .panel::backdrop { background: transparent; } .panel header { display: flex; flex: none; align-items: center; justify-content: space-between; padding: 16px 16px 12px; } h2 { margin: 0; font-size: 14px; font-weight: 600; }
+  .panel-content { min-height: 0; padding: 0 16px 16px; overflow: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: #657a76 transparent; }
   .close { color: #c7d2cf; background: none; border: 0; border-radius: 4px; padding: 0 5px; font-size: 21px; line-height: 24px; }
   .field { display: grid; gap: 5px; margin: 12px 0; color: #bacac5; font-size: 12px; }
   select { width: 100%; min-width: 0; height: 33px; color: #f3f6f5; background: #233135; border: 1px solid #50615e; border-radius: 6px; padding: 5px 8px; font-size: 13px; }
@@ -60,6 +63,8 @@ const styles = `
   .retry { margin-top: 10px; padding: 6px 12px; color: #15342b; border: 0; border-radius: 6px; background: #a9ead3; }
   details { margin-top: 12px; border-top: 1px solid #ffffff1f; padding-top: 10px; } summary { color: #c4d2cd; cursor: pointer; font-size: 12px; }
   .panel-action { margin-top: 10px; color: #e8f1ee; background: #233135; border: 1px solid #50615e; border-radius: 6px; padding: 6px 10px; }
+  .panel-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+  .panel-actions .panel-action { margin-top: 0; }
   .offset { width: 100%; height: 32px; border: 1px solid #50615e; border-radius: 6px; background: #233135; color: #fff; padding: 5px 8px; }
   .notice { position: absolute; top: 58px; right: 14px; max-width: min(300px,calc(100% - 28px)); padding: 9px 12px; background: #172024ed; border: 1px solid #ffffff29; border-radius: 8px; color: #e4eeea; font: 12px/1.5 system-ui,sans-serif; pointer-events: none; }
   :host([data-docked]) { position: relative !important; inset: auto !important; display: inline-flex !important; vertical-align: top !important; flex: 0 0 auto !important; width: auto !important; height: var(--wp-native-control-height,100%) !important; transform: translateY(var(--wp-native-control-offset,0px)) !important; pointer-events: inherit !important; container-type: normal !important; z-index: auto !important; }
@@ -87,6 +92,7 @@ export class VideoView {
   private readonly controlsRoot = this.controlsHost.attachShadow({ mode: "open" });
   readonly id = `wupage-player-${++nextView}`;
   private readonly panel: HTMLElement;
+  private readonly panelResize?: ResizeObserver;
   private readonly toggle: HTMLButtonElement;
   private readonly frameButton: HTMLButtonElement;
   private readonly frameLayer: HTMLElement;
@@ -100,6 +106,8 @@ export class VideoView {
   private readonly status: HTMLElement;
   private readonly notice: HTMLElement;
   private readonly retry: HTMLButtonElement;
+  private readonly exportButton: HTMLButtonElement;
+  private readonly exportStatus: HTMLElement;
   private readonly layoutEditor: VideoLayoutEditor;
   private readonly presentation: SubtitlePresentation;
   private noticeTimer?: ReturnType<typeof setTimeout>;
@@ -124,41 +132,56 @@ export class VideoView {
       <div class="captions" role="region" aria-label="${htmlMessage("bilingualSubtitles")}" hidden><div class="source" dir="auto"><span></span></div><div class="translation" dir="auto"><span></span></div></div>
       <section class="panel" popover="manual" aria-label="${htmlMessage("subtitleSettings")}" hidden>
         <header><h2>${htmlMessage("videoSubtitles")}</h2><button class="close" type="button" aria-label="${htmlMessage("closeSubtitleSettings")}">${uiIconMarkup("cross")}</button></header>
-        <div class="row"><label class="field">${htmlMessage("translateTo")}<select class="target" aria-label="${htmlMessage("subtitleTargetLanguage")}"></select></label><label class="field">${htmlMessage("fontSize")}<select class="font" aria-label="${htmlMessage("subtitleFontSize")}"><option value="18">${htmlMessage("small")}</option><option value="22">${htmlMessage("mediumFontSize")}</option><option value="26">${htmlMessage("large")}</option></select></label></div>
-        <div class="row">
-          <label class="field">${htmlMessage("translationService")}<select class="provider" aria-label="${htmlMessage("subtitleTranslationService")}"></select></label>
-          <label class="field">${htmlMessage("sourceSubtitles")}<select class="track" aria-label="${htmlMessage("sourceSubtitleLanguage")}"><option value="auto">${htmlMessage("followPlayer")}</option></select></label>
+        <div class="panel-content">
+          <div class="row"><label class="field">${htmlMessage("translateTo")}<select class="target" aria-label="${htmlMessage("subtitleTargetLanguage")}"></select></label><label class="field">${htmlMessage("fontSize")}<select class="font" aria-label="${htmlMessage("subtitleFontSize")}"><option value="18">${htmlMessage("small")}</option><option value="22">${htmlMessage("mediumFontSize")}</option><option value="26">${htmlMessage("large")}</option></select></label></div>
+          <div class="row">
+            <label class="field">${htmlMessage("translationService")}<select class="provider" aria-label="${htmlMessage("subtitleTranslationService")}"></select></label>
+            <label class="field">${htmlMessage("sourceSubtitles")}<select class="track" aria-label="${htmlMessage("sourceSubtitleLanguage")}"><option value="auto">${htmlMessage("followPlayer")}</option></select></label>
+          </div>
+          <label class="check"><input class="original" type="checkbox" checked>${htmlMessage("showOriginal")}</label>
+          <details><summary>${htmlMessage("subtitleAppearance")}</summary>
+            <label class="field">${htmlMessage("order")}<select class="order" aria-label="${htmlMessage("originalAndTranslationOrder")}"><option value="above">${htmlMessage("originalOnTop")}</option><option value="below">${htmlMessage("translationOnTop")}</option></select></label>
+            <label class="field">${htmlMessage("subtitleDisplayMode")}<select class="display-mode" aria-label="${htmlMessage("subtitleDisplayMode")}"><option value="chinese">${htmlMessage("subtitleChineseLayout")}</option><option value="western">${htmlMessage("subtitleWesternLayout")}</option></select></label>
+            <p class="help">${htmlMessage("subtitleLayoutHelp")}</p>
+            ${[ ["source", t("original")], ["translation", t("translation")] ].map(([key, label]) => `<div class="row">
+              <label class="field">${htmlMessage("namedFontSize", label)}<select class="${key}-size" aria-label="${htmlMessage("namedFontSize", label)}"><option value="auto">${htmlMessage("useOverallFontSize")}</option>${[14,18,22,26,32,40,48].map(size => `<option value="${size}">${size}px</option>`).join("")}</select></label>
+              <label class="field">${htmlMessage("font", label)}<select class="${key}-family" aria-label="${htmlMessage("font", label)}"><option value="sans-serif">${htmlMessage("sansSerif")}</option><option value="serif">${htmlMessage("serif")}</option><option value="monospace">${htmlMessage("monospace")}</option></select></label>
+              <label class="field">${htmlMessage("fontWeight", label)}<select class="${key}-weight" aria-label="${htmlMessage("fontWeight", label)}"><option value="400">${htmlMessage("regular")}</option><option value="600">${htmlMessage("semibold")}</option><option value="700">${htmlMessage("bold")}</option></select></label>
+            </div>`).join("")}
+            <p class="help">${htmlMessage("longSubtitlesAdvanceWithPlaybackWithUpTo")}</p>
+          </details>
+          <label class="check"><input class="automatic" type="checkbox">${htmlMessage("enableAutomaticallyOnThisSite")}</label>
+          <button class="layout-open panel-action" type="button">${uiIconMarkup("cursor-move")} ${htmlMessage("adjustSubtitleLayout")}</button>
+          <p class="status" role="status"></p><button class="retry" type="button" hidden>${htmlMessage("retrySubtitles")}</button>
+          <details><summary>${htmlMessage("moreOptions")}</summary>
+            <label class="field">${htmlMessage("subtitleBackground")}<select class="background" aria-label="${htmlMessage("subtitleBackground")}"><option value="soft">${htmlMessage("translucent")}</option><option value="none">${htmlMessage("transparent")}</option></select></label>
+            <label class="field">${htmlMessage("timeOffsetSeconds")}<input class="offset" type="number" min="-30" max="30" step="0.5" value="0" aria-label="${htmlMessage("subtitleTimeOffset")}"></label>
+            <div class="panel-actions">
+              <button class="import panel-action" type="button">${htmlMessage("importSrtVtt")}</button>
+              <button class="export panel-action" type="button" aria-describedby="subtitle-export-status">${htmlMessage("exportTranslatedSubtitlesSrt")}</button>
+            </div>
+            <input class="file" type="file" accept=".srt,.vtt" hidden>
+            <p class="help" id="subtitle-export-status" role="status" hidden></p>
+            <p class="help">${htmlMessage("onlySubtitleTextIsTranslatedNoAudioIs")}</p>
+          </details>
         </div>
-        <label class="check"><input class="original" type="checkbox" checked>${htmlMessage("showOriginal")}</label>
-        <details><summary>${htmlMessage("subtitleAppearance")}</summary>
-          <label class="field">${htmlMessage("order")}<select class="order" aria-label="${htmlMessage("originalAndTranslationOrder")}"><option value="above">${htmlMessage("originalOnTop")}</option><option value="below">${htmlMessage("translationOnTop")}</option></select></label>
-          <label class="field">${htmlMessage("subtitleDisplayMode")}<select class="display-mode" aria-label="${htmlMessage("subtitleDisplayMode")}"><option value="chinese">${htmlMessage("subtitleChineseLayout")}</option><option value="western">${htmlMessage("subtitleWesternLayout")}</option></select></label>
-          <p class="help">${htmlMessage("subtitleLayoutHelp")}</p>
-          ${[ ["source", t("original")], ["translation", t("translation")] ].map(([key, label]) => `<div class="row">
-            <label class="field">${htmlMessage("namedFontSize", label)}<select class="${key}-size" aria-label="${htmlMessage("namedFontSize", label)}"><option value="auto">${htmlMessage("useOverallFontSize")}</option>${[14,18,22,26,32,40,48].map(size => `<option value="${size}">${size}px</option>`).join("")}</select></label>
-            <label class="field">${htmlMessage("font", label)}<select class="${key}-family" aria-label="${htmlMessage("font", label)}"><option value="sans-serif">${htmlMessage("sansSerif")}</option><option value="serif">${htmlMessage("serif")}</option><option value="monospace">${htmlMessage("monospace")}</option></select></label>
-            <label class="field">${htmlMessage("fontWeight", label)}<select class="${key}-weight" aria-label="${htmlMessage("fontWeight", label)}"><option value="400">${htmlMessage("regular")}</option><option value="600">${htmlMessage("semibold")}</option><option value="700">${htmlMessage("bold")}</option></select></label>
-          </div>`).join("")}
-          <p class="help">${htmlMessage("longSubtitlesAdvanceWithPlaybackWithUpTo")}</p>
-        </details>
-        <label class="check"><input class="automatic" type="checkbox">${htmlMessage("enableAutomaticallyOnThisSite")}</label>
-        <button class="layout-open panel-action" type="button">${uiIconMarkup("cursor-move")} ${htmlMessage("adjustSubtitleLayout")}</button>
-        <p class="status" role="status"></p><button class="retry" type="button" hidden>${htmlMessage("retrySubtitles")}</button>
-        <details><summary>${htmlMessage("moreOptions")}</summary>
-          <label class="field">${htmlMessage("subtitleBackground")}<select class="background" aria-label="${htmlMessage("subtitleBackground")}"><option value="soft">${htmlMessage("translucent")}</option><option value="none">${htmlMessage("transparent")}</option></select></label>
-          <label class="field">${htmlMessage("timeOffsetSeconds")}<input class="offset" type="number" min="-30" max="30" step="0.5" value="0" aria-label="${htmlMessage("subtitleTimeOffset")}"></label>
-          <button class="import panel-action" type="button">${htmlMessage("importSrtVtt")}</button><input class="file" type="file" accept=".srt,.vtt" hidden>
-          <p class="help">${htmlMessage("onlySubtitleTextIsTranslatedNoAudioIs")}</p>
-        </details>
       </section><div class="notice" role="status" hidden></div><div class="notice frame-status" role="status" hidden></div>`);
     const query = <T extends Element>(selector: string) => this.root.querySelector<T>(selector)!;
     this.panel = query(".panel"); this.toggle = query(".toggle"); this.toolbar = query(".toolbar"); this.settingsButton = query(".settings"); this.caption = query(".captions");
+    if (typeof ResizeObserver !== "undefined") this.panelResize = new ResizeObserver(() => this.positionPanel());
+    else for (const section of this.panel.querySelectorAll("details")) this.on(section, "toggle", () => this.positionPanel());
+    const viewport = window.visualViewport;
+    if (viewport) {
+      this.on(viewport, "resize", () => this.positionPanel());
+      this.on(viewport, "scroll", () => this.positionPanel());
+    }
     this.mark = query(".mark");
     this.frameButton = query(".frame"); this.frameLayer = query(".frame-layer"); this.frameStatus = query(".frame-status");
     this.controlsHost.id = `${this.id}-toolbar`; this.controlsHost.dataset.wupageVideoToolbar = this.id;
     this.controlsHost.setAttribute("data-docked", ""); this.controlsHost.setAttribute("translate", "no");
     setHtmlContent(this.controlsRoot, `<style>${styles}</style>`);
     this.source = query(".source span"); this.translation = query(".translation span"); this.status = query(".status"); this.notice = query(".notice"); this.retry = query(".retry");
+    this.exportButton = query(".export"); this.exportStatus = query("#subtitle-export-status");
     this.presentation = new SubtitlePresentation(this.host, this.caption);
     this.layoutEditor = new VideoLayoutEditor(this.host, this.caption, actions.layout, () => {
       this.setControls(true); this.settingsButton.focus();
@@ -198,6 +221,7 @@ export class VideoView {
     const automatic = query<HTMLInputElement>(".automatic"); this.on(automatic, "change", () => actions.preferences({ enabledSites: automatic.checked ? [label] : [] }));
     const file = query<HTMLInputElement>(".file"); this.on(query(".import"), "click", () => file.click());
     this.on(file, "change", () => { if (file.files?.[0]) actions.import(file.files[0]); file.value = ""; });
+    this.on(this.exportButton, "click", () => actions.exportSubtitles());
     const offset = query<HTMLInputElement>(".offset"); this.on(offset, "change", () => {
       const value = Number(offset.value);
       if (Number.isFinite(value)) { offset.value = String(Math.max(-30, Math.min(30, value))); actions.offset(Number(offset.value)); }
@@ -331,9 +355,11 @@ export class VideoView {
     if (open) {
       this.layoutEditor.cancel();
       this.panel.hidden = false;
-      this.positionPanel();
       try { this.panel.showPopover?.(); } catch { /* Fallback works in older embedded viewers. */ }
+      this.positionPanel();
+      this.panelResize?.observe(this.panel);
     } else {
+      this.panelResize?.disconnect();
       try { this.panel.hidePopover?.(); } catch { /* The panel may be outside the top layer after navigation. */ }
       this.panel.hidden = true;
     }
@@ -342,12 +368,24 @@ export class VideoView {
   }
 
   positionPanel(): void {
+    if (this.panel.hidden) return;
+    const viewport = visibleViewport();
+    const margin = 12, gap = 8;
+    const setPixels = (property: string, value: number) => {
+      const pixels = `${value}px`;
+      if (this.panel.style.getPropertyValue(property) !== pixels) this.panel.style.setProperty(property, pixels);
+    };
+    setPixels("--wp-panel-max-width", Math.max(0, viewport.width - 2 * margin));
+    setPixels("--wp-panel-max-height", Math.max(0, viewport.height - 2 * margin));
+    const { width, height } = this.panel.getBoundingClientRect();
     const button = this.toggle.getBoundingClientRect();
-    const width = Math.min(304, innerWidth - 24);
-    const height = Math.min(this.panel.scrollHeight || 430, innerHeight - 24);
-    const top = this.controlsHost.isConnected ? button.top - height - 8 : button.bottom + 8;
-    this.panel.style.setProperty("--wp-panel-left", `${Math.max(12, Math.min(innerWidth - width - 12, button.right - width))}px`);
-    this.panel.style.setProperty("--wp-panel-top", `${Math.max(12, Math.min(innerHeight - height - 12, top))}px`);
+    const above = button.top - height - gap, below = button.bottom + gap;
+    const [preferred, alternate] = this.controlsHost.isConnected ? [above, below] : [below, above];
+    const minTop = viewport.top + margin, maxTop = viewport.bottom - height - margin;
+    const fits = (top: number) => top >= minTop && top <= maxTop;
+    const top = fits(preferred) || !fits(alternate) ? preferred : alternate;
+    setPixels("--wp-panel-left", Math.max(viewport.left + margin, Math.min(button.right - width, viewport.right - width - margin)));
+    setPixels("--wp-panel-top", Math.max(minTop, Math.min(top, maxTop)));
   }
 
   setState(enabled: boolean, phase: "idle" | "loading" | "active" | "waiting" | "error", message: string): void {
@@ -429,6 +467,24 @@ export class VideoView {
   private updateMark(): void {
     this.setText(this.mark, this.hasTranslation && this.host.hasAttribute("data-enabled") ? (this.showOriginal ? t("bilingualSubtitleBadge") : t("singleSubtitleBadge")) : t("translateBadge"));
     this.caption.setAttribute("aria-label", this.showOriginal ? t("bilingualSubtitles") : t("translatedSubtitles"));
+  }
+
+  setExportStatus(message: string, running = false): void {
+    this.setText(this.exportButton, t(running ? "cancelSubtitleExport" : "exportTranslatedSubtitlesSrt"));
+    this.exportStatus.hidden = !message;
+    this.setText(this.exportStatus, message);
+  }
+
+  downloadSubtitles(text: string, fileName: string): void {
+    const url = URL.createObjectURL(new Blob([text], { type: "application/x-subrip;charset=utf-8" }));
+    const anchor = document.createElement("a");
+    anchor.href = url; anchor.download = fileName; anchor.hidden = true;
+    this.root.append(anchor);
+    try { anchor.click(); }
+    finally {
+      anchor.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
   }
 
   tell(message: string): void {

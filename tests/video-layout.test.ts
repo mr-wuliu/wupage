@@ -19,7 +19,8 @@ const pointer = (target: HTMLElement, type: string, x: number, y: number, id = 1
 };
 
 beforeEach(() => {
-  actions = { toggle: vi.fn(), frame: vi.fn(), retry: vi.fn(), source: vi.fn(), settings: vi.fn(), preferences: vi.fn(), layout: vi.fn(async () => {}), import: vi.fn(), offset: vi.fn() };
+  actions = { toggle: vi.fn(), frame: vi.fn(), retry: vi.fn(), source: vi.fn(), settings: vi.fn(),
+    preferences: vi.fn(), layout: vi.fn(async () => {}), import: vi.fn(), exportSubtitles: vi.fn(), offset: vi.fn() };
   view = new VideoView(actions, "fixture"); document.body.append(view.host);
   view.host.style.setProperty("--wp-layer-width", "640px"); view.host.style.setProperty("--wp-layer-height", "360px");
   vi.spyOn(view.host, "getBoundingClientRect").mockReturnValue(new DOMRect(100, 50, 640, 360));
