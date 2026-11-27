@@ -22,6 +22,7 @@ import {
   isScientificCitation, isScientificMathImage, legacyScientificProseBlock, prepareLegacyScientificParagraphs
 } from "./legacy-scientific";
 import { videoPlatform } from "../video/platforms";
+import { X_VIDEO_CONTROL_SELECTOR } from "../video/x-player";
 import { clearTranslationTypography, linkTranslationTypography } from "./translation-typography";
 import { isNonProseElement, isTextTranslationOptedOut, isTranslationOptedOut, NON_PROSE_SELECTOR } from "./content-policy";
 import { componentShadowRoot, composedContains, composedParent, projectedSlot, queryTranslationElements,
@@ -111,7 +112,7 @@ const STABLE_SOURCE_CLASS = "wupage-stable-source";
 // Playback labels share compact-control markup with ordinary navigation, but
 // adding bilingual text to these fixed-size rows can cover neighboring buttons.
 const VIDEO_CONTROL_SELECTOR = [
-  "video", "audio", "[data-testid='videoPlayer']", "[data-testid='videoComponent']",
+  "video", "audio", X_VIDEO_CONTROL_SELECTOR,
   ".ytp-chrome-bottom", ".ytp-chrome-top", ".vjs-control-bar", ".plyr__controls", ".jw-controlbar"
 ].join(",");
 const SKIP_TAGS = new Set([
