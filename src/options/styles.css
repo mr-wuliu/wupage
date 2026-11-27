@@ -279,6 +279,29 @@ section {
   font-size: 16px;
 }
 
+.provider-endpoints {
+  margin: 0;
+  font-size: 13px;
+}
+
+.provider-endpoints dt {
+  margin-bottom: 4px;
+  color: var(--wp-muted, #526068);
+}
+
+.provider-endpoints dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.doubao-setup > .provider-endpoints {
+  margin-bottom: 14px;
+}
+
+#translationApiFields > .provider-endpoints {
+  margin-top: 14px;
+}
+
 .doubao-actions {
   display: flex;
   flex-wrap: wrap;

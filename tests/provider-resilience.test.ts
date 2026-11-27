@@ -26,6 +26,18 @@ function stalledBody(status = 200) {
 }
 
 describe("translation transport recovery", () => {
+  it("distinguishes withheld LLM site access from other network failures", async () => {
+    const contains = vi.fn().mockResolvedValueOnce(false).mockResolvedValueOnce(true);
+    vi.stubGlobal("chrome", { permissions: { contains } });
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("Failed to fetch")));
+
+    await expect(llm().translateBatch(request)).rejects.toMatchObject({
+      errorCode: "permission-required", message: expect.stringContaining("https://example.test")
+    });
+    expect(contains).toHaveBeenCalledWith({ origins: ["https://example.test:443/*"] });
+    await expect(llm().translateBatch(request)).rejects.toMatchObject({ errorCode: "service-unavailable" });
+  });
+
   it("cancels HTML responses and pauses a misconfigured endpoint instead of requesting every paragraph", async () => {
     const cancel = vi.fn();
     vi.stubGlobal("fetch", vi.fn(async () => new Response(new ReadableStream<Uint8Array>({

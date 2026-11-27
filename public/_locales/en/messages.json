@@ -112,6 +112,9 @@
   "tooManyConcurrentProviderConnections": {
     "message": "Too many concurrent API connections. Try again later."
   },
+  "translationApiEndpoint": {
+    "message": "API endpoint"
+  },
   "deepLEndpointLabel": {
     "message": "API endpoint (optional)"
   },
@@ -4489,7 +4492,7 @@
     "message": "Doubao temporarily rejected the request. Check its website, then retry the translation or connection check."
   },
   "doubaoSiteAccessIsMissingCheckTheExtension": {
-    "message": "Doubao site access is missing. Check the extension permissions in your browser."
+    "message": "Doubao needs access to www.doubao.com. Run the connection check to grant access, or add the site in your browser's extension settings."
   },
   "cannotReachDoubaoCheckYourConnectionThenRetry": {
     "message": "Cannot reach Doubao. Check your connection, then retry the translation or connection check."
@@ -5289,6 +5292,17 @@
   },
   "serviceUnreachable": {
     "message": "Cannot connect to the translation service. Check your connection and provider endpoint, then retry."
+  },
+  "providerSiteAccessRequired": {
+    "message": "WuPage needs access to $ARG1$. In WuPage Settings → Translation Service, select the service and run its connection test, or add the site to WuPage's allowed sites in the browser.",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "providerSiteAccessTestHint": {
+    "message": "If browser site access is restricted, WuPage will request access to this service's site when you run the test."
   },
   "requestTimeout": {
     "message": "Translation request timed out after $ARG1$ seconds.",

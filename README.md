@@ -121,6 +121,8 @@ Windows、macOS 上的普通 Chrome 限制安装商店外的 CRX，可从 Chrome
 
 在「设置 → 翻译服务」配置并保存，在弹窗中选择实际使用的服务。
 
+Chrome / Edge 若将 WuPage 限制在特定网站运行，请保留待译网站的访问权限，并在「设置 → 翻译服务」为所选 AI 服务点击「测试服务」。豆包请点击「重新检测」。测试会为该服务单独申请站点权限，例如豆包的 `www.doubao.com` 或 DeepSeek 的 `api.deepseek.com`。也可以在浏览器的扩展详情中直接添加服务域名。
+
 | 服务 | 使用条件 |
 | --- | --- |
 | Microsoft、Google、腾讯、Yandex、火山 | 预置无需密钥的免费服务，也可切换为自备凭据的 API 模式 |

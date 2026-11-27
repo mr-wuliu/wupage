@@ -67,6 +67,9 @@ describe("Doubao provider controls", () => {
     expect(source.disabled).toBe(false);
     expect(source.querySelector('option[value="auto"]')?.textContent).toBe("自动检测");
     expect(document.querySelectorAll("#providerForm [data-field]")).toHaveLength(1);
+    expect(Array.from(document.querySelectorAll("[data-role='provider-endpoints'] code"), address => address.textContent)).toEqual([
+      "https://www.doubao.com/samantha/plugin/stream_article_translate", "https://www.doubao.com/alice/user/launch"
+    ]);
     expect(document.querySelector("#providerPerformance .provider-performance")).toBeNull();
     expect(query<HTMLElement>("#providerPerformance").textContent).toContain("1200");
     expect(query<HTMLElement>("#providerUsage").textContent).toContain("豆包（实验性）");
@@ -119,6 +122,22 @@ describe("Doubao provider controls", () => {
     expect(document.querySelector("[data-role='doubao-status']")).toBeNull();
     expect(query<HTMLButtonElement>("#test").disabled).toBe(false);
     expect(stored.sourceLang).toBe("en");
+  });
+
+  it("requests the Doubao site before checking the connection", async () => {
+    const grant = vi.fn().mockResolvedValueOnce(false).mockResolvedValueOnce(true);
+    Object.assign(chrome, { permissions: { request: grant } });
+    await launch("options");
+    const button = query<HTMLButtonElement>("[data-action='check-doubao']");
+    const checkStatus = query<HTMLElement>("[data-role='doubao-status']");
+
+    button.click();
+    expect(grant).toHaveBeenCalledWith({ origins: ["https://www.doubao.com:443/*"] });
+    await vi.waitFor(() => expect(checkStatus.dataset.state).toBe("permission-required"));
+    expect(requests("CHECK_DOUBAO")).toHaveLength(0);
+
+    button.click();
+    await vi.waitFor(() => expect(requests("CHECK_DOUBAO")).toHaveLength(1));
   });
 
   it("does not let an old status read overwrite a successful explicit probe", async () => {

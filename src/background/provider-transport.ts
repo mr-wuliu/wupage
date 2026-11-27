@@ -3,6 +3,7 @@ import { anySignal } from "../shared/abort";
 import type { ProviderConfig } from "../shared/types";
 import { usesOllamaCompatibility, withOllamaCompatibility } from "./ollama-compatibility";
 import { ProviderError } from "../shared/errors";
+import { requireProviderSiteAccess } from "../shared/provider-site-access";
 
 export const API_TRANSLATION_TIMEOUT_MS = 45_000;
 
@@ -35,6 +36,8 @@ export async function fetchWithTemperatureFallback(url: string, init: RequestIni
 
 async function fetchWithLlmRetry(url: string, init: RequestInit, config?: ProviderConfig): Promise<Response> {
   if (config?.type === "openai-compatible" && usesOllamaCompatibility(config)) {
+    await requireProviderSiteAccess(url);
+    init.signal?.throwIfAborted();
     return withOllamaCompatibility(url, () => fetchLlmWithRetry(url, init));
   }
   return fetchLlmWithRetry(url, init);
@@ -44,7 +47,7 @@ async function fetchLlmWithRetry(url: string, init: RequestInit): Promise<Respon
   const deadline = Date.now() + LLM_TRANSLATION_TIMEOUT_MS;
   for (let attempt = 0; attempt < 4; attempt += 1) {
     init.signal?.throwIfAborted();
-    const response = await fetchWithTimeout(url, init, Math.max(1, deadline - Date.now()));
+    const response = await fetchWithTimeout(url, init, Math.max(1, deadline - Date.now()), true);
     if (response.status !== 429 && response.status !== 503) return response;
     if (attempt === 3) return response;
     const retryDelay = readRetryDelay(response, attempt);
@@ -60,7 +63,8 @@ async function fetchLlmWithRetry(url: string, init: RequestInit): Promise<Respon
 export async function fetchWithTimeout(
   url: string,
   init: RequestInit,
-  timeoutMs: number
+  timeoutMs: number,
+  checkSiteAccess = false
 ): Promise<Response> {
   // fetch resolves at headers. Keep both signals alive through json()/text(),
   // otherwise a stalled body occupies the provider/global queue forever.
@@ -73,6 +77,7 @@ export async function fetchWithTimeout(
       throw new ProviderError(t("requestTimeout", Math.round(timeoutMs / 1000)), "service-unavailable");
     }
     if (!signal.aborted && error instanceof TypeError) {
+      if (checkSiteAccess) await requireProviderSiteAccess(url);
       throw new ProviderError(t("serviceUnreachable"), "service-unavailable");
     }
     throw error;

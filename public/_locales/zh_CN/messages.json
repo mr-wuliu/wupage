@@ -112,6 +112,9 @@
   "tooManyConcurrentProviderConnections": {
     "message": "同时连接的 API 服务过多，请稍后重试。"
   },
+  "translationApiEndpoint": {
+    "message": "API 端点"
+  },
   "deepLEndpointLabel": {
     "message": "接口地址（可选）"
   },
@@ -4489,7 +4492,7 @@
     "message": "豆包暂时拒绝请求。请检查豆包网页状态，再重试翻译或重新检测。"
   },
   "doubaoSiteAccessIsMissingCheckTheExtension": {
-    "message": "缺少豆包网站访问权限。请检查浏览器的扩展权限。"
+    "message": "豆包需要访问 www.doubao.com。请点击「重新检测」授权，或在浏览器的扩展设置中添加该网站。"
   },
   "cannotReachDoubaoCheckYourConnectionThenRetry": {
     "message": "无法连接豆包，请检查网络后重试翻译，或重新检测连接。"
@@ -5289,6 +5292,17 @@
   },
   "serviceUnreachable": {
     "message": "无法连接翻译服务，请检查网络与服务地址后重试。"
+  },
+  "providerSiteAccessRequired": {
+    "message": "WuPage 需要访问 $ARG1$。请在「设置 → 翻译服务」选择该服务并运行测试，或在浏览器的扩展设置中将该站点加入允许列表。",
+    "placeholders": {
+      "arg1": {
+        "content": "$1"
+      }
+    }
+  },
+  "providerSiteAccessTestHint": {
+    "message": "如果浏览器限制了扩展的站点访问，WuPage 会在运行测试时申请此服务的站点权限。"
   },
   "requestTimeout": {
     "message": "翻译请求超过 $ARG1$ 秒，已超时。",

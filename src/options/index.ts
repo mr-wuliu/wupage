@@ -4,8 +4,9 @@ import { normalizeFrameTranslation } from "../shared/frame-session";
 import { SOURCE_LANGUAGES, TARGET_LANGUAGES } from "../shared/languages";
 import { TRANSLATION_DISPLAY_MODES } from "../shared/display-modes";
 import { sendRuntimeMessage } from "../shared/messaging";
-import type { DoubaoStatus, ExtensionSettings, ProviderConfig, TranslationApiOptions } from "../shared/types";
+import type { DoubaoStatus, DualServiceProviderConfig, ExtensionSettings, ProviderConfig, TranslationApiOptions } from "../shared/types";
 import { supportsServiceMode, translationApiOptions } from "../shared/translation-service";
+import { TRANSLATION_ENDPOINTS } from "../shared/provider-endpoints";
 import "./styles.css";
 import { setImageTranslationToggle } from "../shared/ocr-control";
 import { setupOcrSettings } from "./ocr-service";
@@ -26,8 +27,10 @@ import "../shared/appearance.css";
 import { normalizeSelectionTranslation, type DictionaryProvider, type SelectionTriggerStyle } from "../shared/dictionary";
 import { RequestTemplateError, supportsRequestTemplate, validateRequestTemplate } from "../shared/request-template";
 import { readRequestTemplate, setupProviderTabs } from "./provider-advanced";
-import { isDoubaoBrowserSupported } from "../shared/doubao";
+import { DOUBAO_LAUNCH_ENDPOINT, DOUBAO_ORIGIN, DOUBAO_TRANSLATE_ENDPOINT, isDoubaoBrowserSupported } from "../shared/doubao";
 import { formatDoubaoStatus, isDoubaoProviderUnavailable, syncDoubaoTargetControls } from "../shared/doubao-ui";
+import { requestProviderSiteAccess } from "../shared/provider-site-access";
+import { ProviderError } from "../shared/errors";
 import { renderUiIcons, uiIconMarkup } from "../shared/ui-icons";
 import { setupSettingsBackupControls } from "./settings-backup";
 import { setupSettingsResetControls } from "./reset-settings";
@@ -373,6 +376,29 @@ function renderProviderMenuRow(provider: ProviderConfig): string {
   `;
 }
 
+const FREE_TRANSLATION_ENDPOINTS: Record<DualServiceProviderConfig["type"], readonly string[]> = {
+  "microsoft-web-translate": [TRANSLATION_ENDPOINTS.microsoftWeb],
+  "google-web-translate": [TRANSLATION_ENDPOINTS.googleWebHtml, TRANSLATION_ENDPOINTS.googleWebDictionary],
+  "tencent-transmart": [TRANSLATION_ENDPOINTS.tencentWeb],
+  "yandex-web-translate": [TRANSLATION_ENDPOINTS.yandexWeb],
+  "volcengine-web-translate": [TRANSLATION_ENDPOINTS.volcengineWeb],
+  mymemory: [TRANSLATION_ENDPOINTS.myMemoryWeb]
+};
+
+const FIXED_API_ENDPOINTS: Partial<Record<DualServiceProviderConfig["type"], string>> = {
+  "google-web-translate": TRANSLATION_ENDPOINTS.googleCloud,
+  "yandex-web-translate": TRANSLATION_ENDPOINTS.yandexCloud,
+  "volcengine-web-translate": TRANSLATION_ENDPOINTS.volcengineCloud,
+  mymemory: TRANSLATION_ENDPOINTS.myMemoryApi
+};
+
+function renderProviderEndpoints(...endpoints: string[]): string {
+  return `<dl class="provider-endpoints" data-role="provider-endpoints">
+    <dt>${htmlMessage("translationApiEndpoint")}</dt>
+    ${endpoints.map(endpoint => `<dd><code>${escapeHtml(endpoint)}</code></dd>`).join("")}
+  </dl>`;
+}
+
 function renderProviderForm(rebuildPerformance = true): void {
   invalidateProviderTest();
   const version = ++providerFormVersion;
@@ -389,6 +415,7 @@ function renderProviderForm(rebuildPerformance = true): void {
         <h3>${htmlMessage("doubaoExperimental")}</h3>
         <p>${htmlMessage("signInToDoubaoInThisBrowserTo")}</p>
         <p>${htmlMessage("translationSendsYourSourceTextToDoubaoThe")}</p>
+        ${renderProviderEndpoints(DOUBAO_TRANSLATE_ENDPOINT, DOUBAO_LAUNCH_ENDPOINT)}
         <div class="doubao-actions">
           <button type="button" data-action="open-doubao">${htmlMessage("openDoubaoAndSignIn")}</button>
           <button id="test" type="button" data-action="check-doubao">${htmlMessage("checkAgain")}</button>
@@ -397,7 +424,7 @@ function renderProviderForm(rebuildPerformance = true): void {
         <p class="hint">${htmlMessage("ifYourSessionExpiresSignInAgainAnd")}</p>
       </div>`);
     providerForm.querySelector<HTMLButtonElement>("[data-action='open-doubao']")?.addEventListener("click", () => {
-      void chrome.tabs.create({ url: "https://www.doubao.com/" }).catch((error: unknown) => setStatus(error instanceof Error ? error.message : String(error)));
+      void chrome.tabs.create({ url: `${DOUBAO_ORIGIN}/` }).catch((error: unknown) => setStatus(error instanceof Error ? error.message : String(error)));
     });
     if (!isDoubaoBrowserSupported()) doubaoStatus = { state: "unsupported-browser" };
     renderDoubaoStatus();
@@ -418,6 +445,7 @@ function renderProviderForm(rebuildPerformance = true): void {
   }
   if (supportsServiceMode(provider)) {
     const api = translationApiOptions(provider);
+    const fixedApiEndpoint = FIXED_API_ENDPOINTS[provider.type];
     const fields = provider.type === "microsoft-web-translate"
       ? [["endpoint", "Endpoint", "url"], ["apiKey", "API Key", "password"], ["region", t("azureRegionOptional"), "text"]]
       : provider.type === "tencent-transmart"
@@ -433,18 +461,23 @@ function renderProviderForm(rebuildPerformance = true): void {
     setProviderFormMarkup(provider, `
       <div class="grid">
         <label>${htmlMessage("displayName")} <input data-field="label" type="text" value="${escapeAttr(provider.label)}" /></label>
-        <label>${htmlMessage("serviceMode")} <select data-field="serviceMode" aria-controls="translationApiFields">
+        <label>${htmlMessage("serviceMode")} <select data-field="serviceMode" aria-controls="translationFreeEndpoints translationApiFields">
           <option value="free" ${provider.serviceMode !== "api" ? "selected" : ""}>${htmlMessage("freeServiceDefault")}</option>
           <option value="api" ${provider.serviceMode === "api" ? "selected" : ""}>${htmlMessage("apiServiceOwnCredentials")}</option>
         </select></label>
       </div>
+      <div id="translationFreeEndpoints" ${provider.serviceMode === "api" ? "hidden" : ""}>
+        ${renderProviderEndpoints(...FREE_TRANSLATION_ENDPOINTS[provider.type])}
+      </div>
       <div id="translationApiFields" ${provider.serviceMode !== "api" ? "hidden" : ""}>
         <p class="hint">${htmlMessage("yourProviderDeterminesQuotaAndPricingSwitchingBack", apiLabel)}</p>
         <div class="grid">${fields.map(([name, label, type]) => `<label>${label}<input data-api-field="${name}" type="${type}" value="${escapeAttr(api[name as keyof TranslationApiOptions] ?? "")}" autocomplete="off" /></label>`).join("")}</div>
+        ${fixedApiEndpoint ? renderProviderEndpoints(fixedApiEndpoint) : ""}
       </div>
     `);
     providerForm.querySelector<HTMLSelectElement>("[data-field='serviceMode']")!.addEventListener("change", event => {
       const useApi = (event.target as HTMLSelectElement).value === "api";
+      providerForm.querySelector<HTMLElement>("#translationFreeEndpoints")!.hidden = useApi;
       providerForm.querySelector<HTMLElement>("#translationApiFields")!.hidden = !useApi;
     });
     return;
@@ -481,6 +514,7 @@ function renderProviderForm(rebuildPerformance = true): void {
         <label>${htmlMessage("displayName")} <input data-field="label" type="text" value="${escapeAttr(provider.label)}" /></label>
         <label>API key <input data-field="apiKey" type="password" value="${escapeAttr(provider.apiKey)}" /></label>
       </div>
+      ${renderProviderEndpoints(TRANSLATION_ENDPOINTS.googleCloud)}
     `);
     return;
   }
@@ -596,9 +630,14 @@ function checkDoubao(): Promise<void> {
   if ((doubaoStatus.retryAt ?? 0) > Date.now()) return Promise.resolve();
   doubaoStatusRevision += 1;
   doubaoStatus = { state: "checking" };
-  doubaoCheck = sendRuntimeMessage<DoubaoStatus>({ type: "CHECK_DOUBAO" })
+  const check = () => sendRuntimeMessage<DoubaoStatus>({ type: "CHECK_DOUBAO" });
+  const permission = requestProviderSiteAccess(DOUBAO_ORIGIN);
+  doubaoCheck = (permission ? permission.then(check) : check())
     .then((result) => { doubaoStatus = result; })
-    .catch(() => { doubaoStatus = { state: "network-error", checkedAt: Date.now() }; })
+    .catch((error: unknown) => {
+      const state = error instanceof ProviderError && error.errorCode === "permission-required" ? "permission-required" : "network-error";
+      doubaoStatus = { state, checkedAt: Date.now() };
+    })
     .finally(() => {
       doubaoCheck = undefined;
       renderDoubaoStatus();
@@ -620,6 +659,12 @@ function setProviderFormMarkup(provider: ProviderConfig, markup: string): void {
   setupProviderTabs(providerForm, provider);
   if (!providerForm.querySelector("#test")) {
     providerForm.insertAdjacentHTML("beforeend", `<div class="provider-test-action">${renderTestButton()}</div>`);
+  }
+  if (location.protocol !== "moz-extension:" && (supportsRequestTemplate(provider)
+    || (provider.type === "doubao-web" && isDoubaoBrowserSupported()))) {
+    providerForm.insertAdjacentHTML("beforeend", `<p id="providerSiteAccessHint" class="hint">${htmlMessage("providerSiteAccessTestHint")}</p>`);
+    providerForm.querySelectorAll("#test, [data-action='test-provider']").forEach(button =>
+      button.setAttribute("aria-describedby", "providerSiteAccessHint"));
   }
   providerForm.insertAdjacentHTML("beforeend", '<p data-role="provider-test-status" class="hint" role="status" hidden></p>');
   const usage = document.createElement("aside"); usage.id = "providerUsage";
@@ -986,7 +1031,10 @@ async function testProvider(): Promise<void> {
   };
   try {
     settings = readSettingsFromForm();
+    const provider = getEditingProvider();
     report(t("testing"));
+    if (supportsRequestTemplate(provider)) await requestProviderSiteAccess(provider.baseURL);
+    if (!isCurrent()) return;
     await persistSettings(false);
     if (!isCurrent()) return;
     const result = await sendRuntimeMessage<{ translation: string }>({
