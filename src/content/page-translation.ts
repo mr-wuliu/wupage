@@ -26,6 +26,7 @@ import { composedParent, isExtensionUi, mutationElement, onTranslationRoot, tran
 import { configureElementRules, observedTranslationAttributes } from "./element-exclusions";
 import { elementRuleIdentity } from "../shared/element-exclusions";
 import { glossaryIdentity } from "../shared/glossary";
+import { isPortWatchCountdownValue } from "./content-policy";
 
 const VIEWPORT_MARGIN_RATIO = 0.75;
 const MIN_VIEWPORT_MARGIN = 240;
@@ -606,6 +607,7 @@ function handleDynamicContent(session: TranslationSession, mutations: MutationRe
     if (isTranslationMutation(mutation)) continue;
     const target = mutationElement(mutation.target);
     if (!target || isExtensionOwned(target)) continue;
+    if (mutation.type !== "attributes" && isPortWatchCountdownValue(target)) continue;
     if (mutation.type === "characterData") {
       session.dynamicRoots.add(target);
       if (suspendedSession === session) session.changedRoots.add(target);

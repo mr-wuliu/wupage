@@ -104,10 +104,10 @@ try {
   await page.waitForSelector("#wupage-floating-ball", { state: "attached" });
   const original = await page.locator("main").innerHTML();
   const originalText = await page.locator("main").textContent();
-  const message = request => worker.evaluate(async ({ url, request }) => {
+  const message = (request, address = url) => worker.evaluate(async ({ url, request }) => {
     const [tab] = await chrome.tabs.query({ url });
     return chrome.tabs.sendMessage(tab.id, request);
-  }, { url, request });
+  }, { url: address, request });
   const result = await message({ type: "TRANSLATE_PAGE" });
   assert.equal(result.ok, true, JSON.stringify(result));
   assert.equal(result.data.failed, 0);
@@ -383,11 +383,60 @@ try {
   assert.equal(await page.locator("main").textContent(), "Current message.译文：Current message.");
   await message({ type: "CLEAR_TRANSLATION" });
   assert.equal(await page.locator("main").textContent(), "Current message.");
+
+  const countdownUrl = "https://portwatch-vi.xyz/";
+  await context.route(countdownUrl, route => route.fulfill({ contentType: "text/html", body: `<!doctype html>
+    <meta charset="utf-8"><title>Countdown regression</title><main>
+    <aside id="countdown" aria-live="polite" style="width: 240px">
+      <p id="cd-title">Executable release</p>
+      <div id="cd-digits" style="display: flex; font-variant-numeric: tabular-nums">
+        <div><span id="cd-d">04</span><small>days</small></div>
+        <div><span id="cd-h">02</span><small>hours</small></div>
+        <div><span id="cd-m">13</span><small>min</small></div>
+        <div><span id="cd-s">35</span><small>sec</small></div>
+      </div>
+      <p id="cd-status">Time since release. Projects can now try to boot the real thing.</p>
+      <p id="cd-foot">See the release notes for more details.</p>
+    </aside><article><p id="news-text">A newly published report.</p></article></main>` }));
+  await page.goto(countdownUrl);
+  await page.waitForSelector("#wupage-floating-ball", { state: "attached" });
+  const countdownStatus = "Time since release. Projects can now try to boot the real thing.";
+  const countdownRequests = calls.length;
+  const countdownResult = await message({ type: "TRANSLATE_PAGE" }, countdownUrl);
+  assert.equal(countdownResult.ok, true, JSON.stringify(countdownResult));
+  assert.equal(countdownResult.data.failed, 0);
+  for (const mode of ["bilingual", "bilingual-accent", "replace"]) {
+    await control.evaluate(async mode => {
+      const { data: settings } = await chrome.runtime.sendMessage({ type: "GET_SETTINGS" });
+      await chrome.runtime.sendMessage({ type: "SAVE_SETTINGS", settings: { ...settings, translationDisplayMode: mode } });
+    }, mode);
+    await page.waitForSelector(`#news-text .wupage-translation[data-wupage-display-mode="${mode}"]`);
+    assert.equal(await page.locator('#cd-title[data-wupage-translated], #cd-foot[data-wupage-translated]').count(), 2);
+    const countdownHeight = () => page.locator("#countdown").evaluate(node => node.getBoundingClientRect().height);
+    const height = await countdownHeight();
+    for (const second of ["36", "37", "38"]) {
+      await page.evaluate(({ status, second }) => {
+        const element = id => document.getElementById(id);
+        for (const id of ["cd-d", "cd-h", "cd-m"]) element(id).textContent = element(id).textContent;
+        element("cd-s").textContent = second;
+        element("cd-status").textContent = status;
+      }, { status: countdownStatus, second });
+      await page.waitForTimeout(250);
+      assert.equal(await page.locator("#cd-s").textContent(), second);
+      assert.equal(await page.locator("#cd-status").textContent(), countdownStatus);
+      assert.equal(await countdownHeight(), height, `${mode} countdown must keep its height between ticks`);
+    }
+  }
+  assert.equal(calls.slice(countdownRequests).flatMap(call => call.texts).includes(countdownStatus), false);
+  await page.locator("#news-text").evaluate(node => { node.textContent = "A different report is now available."; });
+  await page.waitForFunction(() => document.querySelector("#news-text .wupage-translation")?.textContent === "译文：A different report is now available.");
+  await message({ type: "CLEAR_TRANSLATION" }, countdownUrl);
+  assert.equal(await page.locator("#cd-status").textContent(), countdownStatus);
   assert.deepEqual(errors, []);
   const report = { browser: context.browser().version(), modes: modeReports, lists: listReports, comments: commentReports, colors: colorReports, placeholderRecovery: true, paragraphTranslation: true,
-    hiddenAndDraftTextExcluded: true, sourceRestored: true, staleResponseDiscarded: true, errors };
+    hiddenAndDraftTextExcluded: true, sourceRestored: true, staleResponseDiscarded: true, countdownStable: true, errors };
   await fs.writeFile(path.join(output, "report.json"), JSON.stringify(report, null, 2));
-  console.log("PASS: built MV3 extension; 6 viewport/mode combinations, 6 list layouts, 8 comment layouts, inherited nowrap, 30 rendered color cases, protected text, drafts, Ctrl-click, source restoration and stale responses");
+  console.log("PASS: built MV3 extension; 6 viewport/mode combinations, 6 list layouts, 8 comment layouts, inherited nowrap, 30 rendered color cases, protected text, drafts, Ctrl-click, source restoration, stale responses and stable countdowns");
 } finally {
   releaseSlow?.();
   await context?.close();
