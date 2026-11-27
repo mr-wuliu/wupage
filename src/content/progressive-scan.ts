@@ -1,5 +1,6 @@
 import { mutationElement, discoverShadowRoots, onTranslationRoot, translationRoots } from "./dom-roots";
 import { observedTranslationAttributes } from "./element-exclusions";
+import { isPortWatchCountdownValue } from "./content-policy";
 import type { ProgressiveScanOptions, TextSegment } from "./text-segments";
 
 interface ScanDependencies {
@@ -87,6 +88,7 @@ export async function scanTextRootsProgressive(
     for (const record of records) {
       const element = mutationElement(record.target);
       if (!element?.isConnected) continue;
+      if (record.type !== "attributes" && isPortWatchCountdownValue(element)) continue;
       addCoveredScanRoot(touched, element);
       if (touched.size > SCAN_MUTATION_ROOT_LIMIT) { touched.clear(); touched.add(document.body); }
     }

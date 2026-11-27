@@ -31,8 +31,15 @@ export function isTextTranslationOptedOut(element: Element, forceRoot = forcedTe
   return forceRoot ? isElementExcluded(element) : isTranslationOptedOut(element);
 }
 
+export function isPortWatchCountdownValue(element: Element): boolean {
+  // The timer rewrites these elements with textContent every second, even
+  // when the status text hasn't changed. Keep its live output page-owned.
+  return element.ownerDocument.location?.hostname === "portwatch-vi.xyz"
+    && Boolean(element.closest("#countdown :is(#cd-d, #cd-h, #cd-m, #cd-s, #cd-status)"));
+}
+
 export function isNonProseElement(element: Element): boolean {
-  if (element.namespaceURI !== HTML_NAMESPACE) return true;
+  if (element.namespaceURI !== HTML_NAMESPACE || isPortWatchCountdownValue(element)) return true;
   for (let current: Element | null = element; current; ) {
     if (current.closest(NON_PROSE_SELECTOR)) return true;
     const root = current.getRootNode();
