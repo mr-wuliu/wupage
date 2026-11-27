@@ -49,6 +49,27 @@ describe("options provider model and test state", () => {
     await vi.waitFor(() => expect(query<HTMLElement>("#providerForm").dataset.providerId).toBe(id));
   }
 
+  it("requests only the configured DeepSeek site before testing and handles a denied grant", async () => {
+    const grant = vi.fn().mockResolvedValueOnce(false).mockResolvedValueOnce(true);
+    Object.assign(chrome, { permissions: { request: grant } });
+    await mount();
+    query<HTMLInputElement>("[data-field='baseURL']").value = "https://api.example.test:8443/v1";
+    query<HTMLInputElement>("[data-field='apiKey']").value = "test-key";
+    const button = query<HTMLButtonElement>("#test");
+    const testStatus = query<HTMLElement>("[data-role='provider-test-status']");
+
+    button.click();
+    expect(grant).toHaveBeenCalledWith({ origins: ["https://api.example.test:8443/*"] });
+    await vi.waitFor(() => expect(testStatus.textContent).toContain("需要访问 https://api.example.test:8443"));
+    expect(testService).not.toHaveBeenCalled();
+
+    button.click();
+    await vi.waitFor(() => expect(testStatus.textContent).toBe("测试通过：你好"));
+    expect(testService).toHaveBeenCalledExactlyOnceWith("deepseek");
+    expect(stored.providers.find(entry => entry.id === "deepseek"))
+      .toMatchObject({ baseURL: "https://api.example.test:8443/v1" });
+  });
+
   it("saves and restores DeepL and Index-Translate configuration without mixing their fields", async () => {
     await mount();
     await selectProvider("deepl");
@@ -361,20 +382,40 @@ describe("options provider model and test state", () => {
     }
   );
 
-  it.each(["microsoft-web-translate", "google-web-translate", "tencent-transmart", "yandex-web-translate", "volcengine-web-translate", "mymemory"])(
-    "switches %s between free and API without losing credentials or refreshing the form", async id => {
+  it.each([
+    ["microsoft-web-translate", ["https://edge.microsoft.com/translate/translatetext"], undefined],
+    ["google-web-translate", ["https://translate-pa.googleapis.com/v1/translateHtml", "https://clients5.google.com/translate_a/t"],
+      "https://translation.googleapis.com/language/translate/v2"],
+    ["tencent-transmart", ["https://transmart.qq.com/api/imt"], undefined],
+    ["yandex-web-translate", ["https://translate.yandex.net/api/v1/tr.json/translate"], "https://translate.api.cloud.yandex.net/translate/v2/translate"],
+    ["volcengine-web-translate", ["https://translate.volcengine.com/crx/translate/v1"],
+      "https://translate.volcengineapi.com/?Action=TranslateText&Version=2020-06-01"],
+    ["mymemory", ["https://api.mymemory.translated.net/get"], "https://translated-mymemory---translation-memory.p.rapidapi.com/api/get"]
+  ] as const)(
+    "switches %s between free and API without losing credentials or refreshing the form", async (id, freeEndpoints, apiEndpoint) => {
       stored.activeProviderId = id;
       await mount();
       const mode = query<HTMLSelectElement>("[data-field='serviceMode']");
       const label = query<HTMLInputElement>("[data-field='label']");
+      const free = query<HTMLElement>("#translationFreeEndpoints");
       expect(mode.value).toBe("free");
+      expect(free.hidden).toBe(false);
+      expect(Array.from(free.querySelectorAll("code"), address => address.textContent)).toEqual(freeEndpoints);
       expect(query<HTMLElement>("#translationApiFields").hidden).toBe(true);
       mode.value = "api"; mode.dispatchEvent(new Event("change", { bubbles: true }));
       expect(query<HTMLElement>("#translationApiFields").hidden).toBe(false);
+      expect(free.hidden).toBe(true);
+      const displayedEndpoint = document.querySelector("#translationApiFields [data-role='provider-endpoints'] code");
+      if (apiEndpoint) expect(displayedEndpoint?.textContent).toBe(apiEndpoint);
+      else {
+        expect(displayedEndpoint).toBeNull();
+        expect(query<HTMLInputElement>("#translationApiFields [data-api-field='endpoint']").value).toMatch(/^https:\/\//);
+      }
       const key = query<HTMLInputElement>(id === "volcengine-web-translate" ? "[data-api-field='secretAccessKey']" : "[data-api-field='apiKey']");
       key.value = "example-user-key";
       mode.value = "free"; mode.dispatchEvent(new Event("change", { bubbles: true }));
       expect(query<HTMLElement>("#translationApiFields").hidden).toBe(true);
+      expect(free.hidden).toBe(false);
       expect(query<HTMLInputElement>("[data-field='label']")).toBe(label);
       mode.value = "api"; mode.dispatchEvent(new Event("change", { bubbles: true }));
       expect(key.value).toBe("example-user-key");
@@ -383,6 +424,7 @@ describe("options provider model and test state", () => {
         [id === "volcengine-web-translate" ? "secretAccessKey" : "apiKey"]: "example-user-key"
       } }));
       await selectProvider("deepseek");
+      expect(document.querySelector("[data-role='provider-endpoints']")).toBeNull();
       await selectProvider(id);
       expect(query<HTMLSelectElement>("[data-field='serviceMode']").value).toBe("api");
       query<HTMLSelectElement>("[data-field='serviceMode']").value = "free";

@@ -1,8 +1,9 @@
 import { t } from "../shared/i18n";
 import { ProviderError } from "../shared/errors";
+import { DOUBAO_LAUNCH_ENDPOINT, DOUBAO_TRANSLATE_ENDPOINT } from "../shared/doubao";
+import { requireProviderSiteAccess } from "../shared/provider-site-access";
 
-export const DOUBAO_LAUNCH_ENDPOINT = "https://www.doubao.com/alice/user/launch";
-export const DOUBAO_TRANSLATE_ENDPOINT = "https://www.doubao.com/samantha/plugin/stream_article_translate";
+export { DOUBAO_LAUNCH_ENDPOINT, DOUBAO_TRANSLATE_ENDPOINT } from "../shared/doubao";
 const COMPATIBILITY_ORIGIN = "chrome-extension://dbjibobgilijgolhjdcbdebjhejelffo";
 const FIRST_RULE_ID = 110_000;
 const LAST_RULE_ID = 110_015;
@@ -54,6 +55,7 @@ async function acquire(endpoint: string, signal?: AbortSignal): Promise<void> {
   if (typeof chrome === "undefined" || !chrome.runtime?.getURL || !chrome.declarativeNetRequest) {
     throw permissionError();
   }
+  await requireProviderSiteAccess(endpoint);
   await initializeDoubaoCompatibility();
   await serialize(async () => {
     checkSignal(signal);

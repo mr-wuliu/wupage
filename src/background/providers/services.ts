@@ -1,6 +1,7 @@
 import { t } from "../../shared/i18n";
 import type { DualServiceProviderConfig, GoogleCloudTranslationConfig, GoogleWebTranslateConfig, MicrosoftTranslatorConfig, MicrosoftWebTranslateConfig, ProviderConfig, TranslateBatchRequest, TranslatorProvider, ValidationResult } from "../../shared/types";
 import { chatCompletionsEndpoint } from "../ollama-compatibility";
+import { TRANSLATION_ENDPOINTS } from "../../shared/provider-endpoints";
 import { TranslationResponseError } from "../translation-response";
 import { translationApiOptions } from "../../shared/translation-service";
 import { signVolcengineTranslation } from "../volcengine-signing";
@@ -71,7 +72,7 @@ export class MicrosoftWebTranslateProvider implements TranslatorProvider {
 
   async translateBatch(request: TranslateBatchRequest, signal?: AbortSignal): Promise<string[]> {
     if (!request.texts.length) return [];
-    const endpoint = new URL("https://edge.microsoft.com/translate/translatetext");
+    const endpoint = new URL(TRANSLATION_ENDPOINTS.microsoftWeb);
     endpoint.searchParams.set("from", request.sourceLang && request.sourceLang !== "auto"
       ? normalizeMicrosoftLang(request.sourceLang) : "");
     endpoint.searchParams.set("to", normalizeMicrosoftLang(request.targetLang));
@@ -192,7 +193,7 @@ export class CloudTranslationProvider implements TranslatorProvider {
       const source = request.sourceLang && request.sourceLang !== "auto" ? normalizePublicLanguage(request.sourceLang) : undefined;
       if (this.config.type === "yandex-web-translate") {
         const payload = await this.request<{ translations?: Array<{ text?: unknown }> }>(
-          "https://translate.api.cloud.yandex.net/translate/v2/translate",
+          TRANSLATION_ENDPOINTS.yandexCloud,
           { "Content-Type": "application/json", Authorization: `Api-Key ${api.apiKey}` },
           { texts, targetLanguageCode: normalizePublicLanguage(request.targetLang), format: "PLAIN_TEXT",
             ...(source ? { sourceLanguageCode: source } : {}), ...(api.folderId ? { folderId: api.folderId } : {}) }, signal);
@@ -203,7 +204,7 @@ export class CloudTranslationProvider implements TranslatorProvider {
         const headers = await signVolcengineTranslation(JSON.stringify(body), api.accessKeyId!, api.secretAccessKey!, api.region || "cn-north-1");
         const payload = await this.request<{ TranslationList?: Array<{ Translation?: unknown }>;
           ResponseMetadata?: { Error?: { Code?: string; Message?: string } } }>(
-          "https://translate.volcengineapi.com/?Action=TranslateText&Version=2020-06-01", headers, body, signal);
+          TRANSLATION_ENDPOINTS.volcengineCloud, headers, body, signal);
         if (payload.ResponseMetadata?.Error) throw new Error(t("volcengineApiRequestFailed", payload.ResponseMetadata.Error.Code || t("unknownError")));
         result.push(...this.checkTranslations(payload.TranslationList?.map(entry => entry.Translation), texts.length));
       }
@@ -252,7 +253,7 @@ export class PublicTranslationProvider implements TranslatorProvider {
     if (this.config.type === "tencent-transmart") {
       transmartClientId ??= `browser-chrome-120.0.0-Windows-${crypto.randomUUID()}-${Date.now()}`;
       const payload = await this.requestJson<{ header?: { ret_code?: string }; auto_translation?: unknown }>(
-        "https://transmart.qq.com/api/imt", {
+        TRANSLATION_ENDPOINTS.tencentWeb, {
           method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             header: { fn: "auto_translation", client_key: transmartClientId },
@@ -268,7 +269,7 @@ export class PublicTranslationProvider implements TranslatorProvider {
     return mapWithConcurrency(request.texts, 1, async text => {
       signal?.throwIfAborted();
       if (this.config.type === "yandex-web-translate") {
-        const url = new URL("https://translate.yandex.net/api/v1/tr.json/translate");
+        const url = new URL(TRANSLATION_ENDPOINTS.yandexWeb);
         url.search = new URLSearchParams({ id: `${crypto.randomUUID().replace(/-/g, "")}-0-0`, srv: "android",
           target_lang: to, text, ...(from !== "auto" ? { source_lang: from } : {}) }).toString();
         const payload = await this.requestJson<{ code?: number; text?: unknown }>(url.toString(), { method: "POST" }, signal);
@@ -276,7 +277,7 @@ export class PublicTranslationProvider implements TranslatorProvider {
         return validatePublicTranslations(payload.text, 1)[0];
       }
       const payload = await this.requestJson<{ translation?: unknown; base_resp?: { status_code?: number } }>(
-        "https://translate.volcengine.com/crx/translate/v1", {
+        TRANSLATION_ENDPOINTS.volcengineWeb, {
           method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ source_language: normalizeVolcengineLang(from), target_language: normalizeVolcengineLang(to), text })
         }, signal
@@ -321,11 +322,10 @@ export class PublicTranslationProvider implements TranslatorProvider {
         const leading = piece.match(/^\s*/u)![0];
         const trailing = piece.match(/\s*$/u)![0];
         const useApi = this.config.serviceMode === "api";
-        const host = "translated-mymemory---translation-memory.p.rapidapi.com";
-        const url = new URL(useApi ? `https://${host}/api/get` : "https://api.mymemory.translated.net/get");
+        const url = new URL(useApi ? TRANSLATION_ENDPOINTS.myMemoryApi : TRANSLATION_ENDPOINTS.myMemoryWeb);
         url.search = new URLSearchParams({ q: piece.trim(), langpair }).toString();
         const headers: Record<string, string> = useApi
-          ? { "X-RapidAPI-Key": this.config.api?.apiKey ?? "", "X-RapidAPI-Host": host } : {};
+          ? { "X-RapidAPI-Key": this.config.api?.apiKey ?? "", "X-RapidAPI-Host": url.host } : {};
         const payload = await this.requestJson<{ responseStatus?: number | string; quotaFinished?: boolean; responseDetails?: string;
           responseData?: { translatedText?: unknown } }>(url.toString(), { method: "GET", headers, redirect: "error" }, signal);
         if (payload?.quotaFinished === true || Number(payload?.responseStatus) === 429
@@ -466,7 +466,7 @@ export class GoogleCloudTranslationProvider implements TranslatorProvider {
     const validation = this.validateConfig();
     if (!validation.ok) throw new Error(validation.message);
 
-    const endpoint = new URL("https://translation.googleapis.com/language/translate/v2");
+    const endpoint = new URL(TRANSLATION_ENDPOINTS.googleCloud);
     endpoint.searchParams.set("key", this.config.apiKey);
 
     const body: Record<string, string | string[]> = {

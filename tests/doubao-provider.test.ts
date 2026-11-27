@@ -96,6 +96,18 @@ afterEach(() => {
 });
 
 describe("Doubao web provider", () => {
+  it("reports a withheld Doubao site before making a credentialed request", async () => {
+    const contains = vi.fn(async () => false);
+    Object.assign(chrome, { permissions: { contains } });
+
+    expect(await outcome()).toMatchObject({
+      errorCode: "permission-required", message: expect.stringContaining("https://www.doubao.com")
+    });
+    expect(contains).toHaveBeenCalledWith({ origins: ["https://www.doubao.com:443/*"] });
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(rules).toEqual([]);
+  });
+
   it("uses browser credentials with fixed endpoints and a native ordered article array", async () => {
     fetchMock.mockResolvedValueOnce(launch()).mockResolvedValueOnce(sse([
       { index: 1, res: "世界" }, { index: 0, res: "你好" }

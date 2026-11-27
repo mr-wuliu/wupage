@@ -1,12 +1,11 @@
 import { t } from "../shared/i18n";
 import { anySignal } from "../shared/abort";
 import { ProviderError } from "../shared/errors";
+import { TRANSLATION_ENDPOINTS } from "../shared/provider-endpoints";
 import { fetchWithTimeout, httpResponseError, readJsonResponse, readResponseText } from "./provider-transport";
 import { googleHtmlSource, parseGoogleHtml } from "./google-context";
 import { splitTranslationText } from "./text-segmentation";
 
-const HTML_ENDPOINT = "https://translate-pa.googleapis.com/v1/translateHtml";
-const DICTIONARY_ENDPOINT = "https://clients5.google.com/translate_a/t";
 const ELEMENT_SCRIPT = "https://translate.googleapis.com/translate_a/element.js?cb=googleTranslateElementInit";
 const KEY_TTL_MS = 20 * 60_000;
 const ROUTE_TTL_MS = 60_000;
@@ -68,7 +67,7 @@ async function translateHtml(texts: string[], source: string, target: string, co
   active(signal);
   let response: Response;
   try {
-    response = await checkedFetch(HTML_ENDPOINT, { method: "POST", signal,
+    response = await checkedFetch(TRANSLATION_ENDPOINTS.googleWebHtml, { method: "POST", signal,
       headers: { "Content-Type": "application/json+protobuf", "X-goog-api-key": auth },
       body: JSON.stringify([[googleHtmlSource(texts, context), source, target], "te"]) });
   } catch (error) {
@@ -90,7 +89,7 @@ async function translateDictionary(texts: string[], source: string, target: stri
   const jobs = pieces.flatMap((parts, index) => parts.flatMap((text, part) => text.trim() ? [{ text: text.trim(), index, part }] : []));
   for (let start = 0; start < jobs.length;) {
     active(signal);
-    const url = new URL(DICTIONARY_ENDPOINT);
+    const url = new URL(TRANSLATION_ENDPOINTS.googleWebDictionary);
     for (const [name, value] of Object.entries({ client: "dict-chrome-ex", sl: source, tl: target })) url.searchParams.set(name, value);
     let end = start;
     while (end < jobs.length && end - start < 32) {
