@@ -18,6 +18,7 @@ import { MAX_SUBTITLE_CUES, MAX_SUBTITLE_FILE_BYTES, nativeSubtitleCues, parseSu
   SubtitleTranslator, translateSubtitleTrack, waitForNativeSubtitleTrack, type SubtitleCue } from "../video/subtitles";
 import { LiveSubtitleTranslator } from "../video/live-subtitles";
 import { playerControlDock, playerControlObstacles, playerControlScope, playerControlsVisible, playerContains, type PlayerControlDock } from "../video/player-controls";
+import { hasXFullscreenControl, isXVideoHost, xPlayerScope } from "../video/x-player";
 
 interface ExportTrack {
   cues: SubtitleCue[];
@@ -81,9 +82,13 @@ export class PlayerSubtitleController {
   private nativeDock?: PlayerControlDock;
   private controlsScanned = false;
   private controlsObserver?: MutationObserver;
+  private readonly xPlayer: boolean;
+  private readonly controlsScope: HTMLElement;
 
   constructor(readonly video: HTMLVideoElement, readonly container: HTMLElement, readonly platform?: VideoPlatform,
     private autoStart = true, floatingControls?: { hidden: boolean; dismiss: () => void }) {
+    this.xPlayer = isXVideoHost();
+    this.controlsScope = (this.xPlayer ? xPlayerScope(video) : playerControlScope(video, container, platform)) ?? container;
     this.view = new VideoView({
       toggle: () => { if (this.enabled) this.stop(); else void this.start(); },
       dismiss: floatingControls?.dismiss,
@@ -138,7 +143,7 @@ export class PlayerSubtitleController {
       if (records.some(record => !(record.target instanceof Element) || !record.target.closest('[id^="wupage-"]'))) this.mountControls(true);
     });
     this.controlsObserver = controls;
-    controls.observe(playerControlScope(video, container, platform), this.controlsObservation);
+    controls.observe(this.controlsScope, this.controlsObservation);
     this.cleanups.push(() => controls.disconnect());
     this.on(container, "transitionend", () => this.mountControls(), true);
     this.on(container, "animationend", () => this.mountControls(), true);
@@ -678,10 +683,15 @@ export class PlayerSubtitleController {
     if (this.view.panelOpen) this.view.positionPanel();
   }
 
-  private readonly controlsObservation: MutationObserverInit = { childList: true, subtree: true, attributes: true, attributeFilter: ["class", "style", "hidden", "inert", "aria-hidden"] };
+  private readonly controlsObservation: MutationObserverInit = { childList: true, subtree: true, attributes: true, attributeFilter: ["class", "style", "hidden", "inert", "aria-hidden", "data-testid"] };
 
   private mountControls(refresh = false): void {
     const fullscreen = document.fullscreenElement;
+    if (this.xPlayer) {
+      // X's compact native control row cannot reserve space for an extra toolbar.
+      this.view.setFloatingControlsSuppressed(!!fullscreen || hasXFullscreenControl(this.controlsScope));
+      return;
+    }
     if (refresh || !this.controlsScanned || (this.nativeDock && !this.nativeDock.container.isConnected)) {
       this.nativeDock = playerControlDock(this.video, this.container, this.platform, root => this.controlsObserver?.observe(root, this.controlsObservation));
       this.controlsScanned = true;

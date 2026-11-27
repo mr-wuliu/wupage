@@ -43,6 +43,7 @@ import { hasTouchInput, TOUCH_INPUT_QUERY, visibleViewport } from "../shared/tou
 import { startTouchParagraph } from "./touch-paragraph";
 import { showTouchHint } from "./touch-hint";
 import { DEFAULT_APPEARANCE, normalizeAppearance } from "../shared/appearance";
+import { hasXFullscreenControl, isXVideoHost } from "../video/x-player";
 
 const FLOATING_ID = "wupage-floating-ball";
 const FLOATING_HITBOX_ID = "wupage-floating-hitbox";
@@ -91,6 +92,7 @@ let unsubscribeParagraphMode: (() => void) | undefined;
 let floatingBallEnabled = true;
 let hiddenOnPage = false;
 let excludedOnSite = false;
+let xPlayerFullscreen = false;
 let currentSite: string | undefined;
 let shortcutEnabled = normalizeShortcutEnabled(undefined);
 let localShortcuts = normalizeLocalShortcuts(undefined);
@@ -108,7 +110,7 @@ const expandedDebugTaskIds = new Set<number>();
 
 export function initFloatingBall(): void {
   if (document.getElementById(FLOATING_ID)) return;
-  hiddenOnPage = excludedOnSite = false;
+  hiddenOnPage = excludedOnSite = xPlayerFullscreen = false;
   currentSite = currentWebsitePattern(window.location.href);
   cancelMenuOpen();
   cancelMenuClose();
@@ -208,6 +210,26 @@ export function initFloatingBall(): void {
   window.visualViewport?.addEventListener("scroll", positionVisibleMenu);
   window.addEventListener("scroll", updateHighlight, { passive: true });
   document.addEventListener("fullscreenchange", applyFloatingBallVisibility);
+  let xFullscreenFrame: number | undefined;
+  const updateXFullscreen = () => {
+    const fullscreen = hasXFullscreenControl(document);
+    if (fullscreen === xPlayerFullscreen) return;
+    xPlayerFullscreen = fullscreen;
+    applyFloatingBallVisibility();
+  };
+  const xFullscreenObserver = isXVideoHost() ? new MutationObserver(() => {
+    if (xFullscreenFrame !== undefined) return;
+    xFullscreenFrame = window.requestAnimationFrame(() => {
+      xFullscreenFrame = undefined;
+      updateXFullscreen();
+    });
+  }) : undefined;
+  if (xFullscreenObserver) {
+    updateXFullscreen();
+    xFullscreenObserver.observe(document.documentElement, {
+      subtree: true, childList: true, attributes: true, attributeFilter: ["data-testid", "hidden", "class", "style"]
+    });
+  }
   document.addEventListener("click", closeMenuOnOutsideClick, true);
   document.addEventListener("keydown", (event) => {
     if (!shortcutEnabled["dismiss-overlays"] || !matchesLocalShortcut(event, localShortcuts["dismiss-overlays"])) return;
@@ -225,7 +247,11 @@ export function initFloatingBall(): void {
     cancelMenuClose();
     window.visualViewport?.removeEventListener("resize", positionVisibleMenu);
     window.visualViewport?.removeEventListener("scroll", positionVisibleMenu);
-    if (!event.persisted) ballSize?.disconnect();
+    if (!event.persisted) {
+      ballSize?.disconnect();
+      xFullscreenObserver?.disconnect();
+      if (xFullscreenFrame !== undefined) window.cancelAnimationFrame(xFullscreenFrame);
+    }
   });
 }
 
@@ -1428,7 +1454,7 @@ async function syncFloatingBallFromSettings(): Promise<void> {
 }
 
 function canShowFloatingBall(): boolean {
-  return floatingBallEnabled && !hiddenOnPage && !excludedOnSite && !document.fullscreenElement;
+  return floatingBallEnabled && !hiddenOnPage && !excludedOnSite && !document.fullscreenElement && !xPlayerFullscreen;
 }
 
 function applyFloatingBallVisibility(): void {

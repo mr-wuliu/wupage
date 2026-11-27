@@ -20,7 +20,7 @@ const server = createServer(async (request, response) => {
   response.setHeader('Content-Type', 'application/json');
   response.end(JSON.stringify({ translations: texts.map(text => {
     const markers = [...text.matchAll(/⟪WUPAGESEGMENT\d+⟫/gu)];
-    const translated = '这是一段用于检查竖屏视频布局的中文译文。';
+    const translated = text === 'Portrait subtitle.' ? '竖屏字幕译文。' : '这是一段用于检查竖屏视频布局的中文译文。';
     return markers.length ? markers.map(marker => marker[0] + '\n' + translated).join('\n') : translated;
   }) }));
 });
@@ -35,19 +35,26 @@ const fixture = `<!doctype html><html lang="en"><meta charset="utf-8">
     video{display:block;width:100%;aspect-ratio:9/16;object-fit:contain}
     .controls{position:absolute;bottom:8px;left:8px;right:8px;display:flex;justify-content:space-between;gap:2px;align-items:center}
     .controls button{flex:0 0 40px;min-height:32px;padding:4px 0;border:0;border-radius:4px;background:#243138;color:white;font:10px/1.2 system-ui}
-    .player:fullscreen,:fullscreen .player{position:fixed;inset:0;width:100vw;height:100vh;max-width:none}
-    .player:fullscreen video,:fullscreen .player video{height:100%;aspect-ratio:auto}
+    .player:fullscreen,:fullscreen .player,.player.expanded{position:fixed;inset:0;width:100vw;height:100vh;max-width:none}
+    .player:fullscreen video,:fullscreen .player video,.expanded video{height:100vh;aspect-ratio:auto}
   </style><main><article><p data-testid="tweetText">Watch this portrait video.</p>
-    <div data-testid="videoComponent"><div data-testid="videoPlayer" class="player">
-      <video autoplay muted playsinline></video><div class="controls">
+    <div data-testid="app-player-container" class="player">
+      <div data-testid="videoPlayer"><video autoplay muted playsinline></video></div><div class="controls">
         <button data-control="play"><span>Play</span></button><button data-control="mute"><span>Mute</span></button>
         <button data-control="speed"><span>Speed</span></button><button data-control="quality"><span>Quality</span></button>
-        <button data-control="fullscreen"><span>Expand</span></button>
+        <button data-control="fullscreen" data-testid="videoPlayerFullScreenButton"><span>Expand</span></button>
       </div>
-    </div></div>
+    </div>
   </article></main><script>
-    document.querySelector('.player').style.setProperty('--player-width',new URL(location.href).searchParams.get('width')+'px');
+    const player=document.querySelector('.player');
+    player.style.setProperty('--player-width',new URL(location.href).searchParams.get('width')+'px');
     window.clicked=[];document.querySelectorAll('[data-control]').forEach(button=>button.onclick=()=>window.clicked.push(button.dataset.control));
+    window.expandPlayer=expanded=>{
+      player.classList.toggle('expanded',expanded);
+      const button=document.querySelector('[data-control="fullscreen"]');
+      button.dataset.testid=expanded?'videoPlayerExitFullScreenButton':'videoPlayerFullScreenButton';
+      button.querySelector('span').textContent=expanded?'Exit full screen':'Expand';
+    };
     const canvas=document.createElement('canvas');canvas.width=180;canvas.height=320;
     const context=canvas.getContext('2d');context.fillStyle='#173b3c';context.fillRect(0,0,180,320);
     context.fillStyle='#a9ead3';context.font='16px system-ui';context.fillText('Portrait video',30,130);
@@ -89,7 +96,7 @@ try {
       assert.equal(result.ok, true, JSON.stringify(result));
       await page.locator('[data-testid="tweetText"] + .wupage-translation, [data-testid="tweetText"] .wupage-translation').waitFor();
       assert.deepEqual(await controls.evaluate(element => ({ html: element.innerHTML, width: element.clientWidth, height: element.clientHeight })), baseline);
-      assert.equal(await page.locator('[data-testid="videoComponent"] .wupage-translation').count(), 0);
+      assert.equal(await page.locator('.player .wupage-translation').count(), 0);
       const boxes = await controls.locator('button').evaluateAll(buttons => buttons.map(button => {
         const rect = button.getBoundingClientRect(); return { left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom };
       }));
@@ -99,24 +106,50 @@ try {
       await page.screenshot({ path: path.join(output, width + '-' + mode + '.png') });
       checks.push(width + 'px / ' + mode + ': controls unchanged, separated and clickable');
       if (width === 390 && mode === 'replace') {
-        for (const selector of ['.player', 'html', 'body', 'video']) {
+        await page.locator('video').evaluate(video => {
+          const track = video.addTextTrack('subtitles', 'English', 'en');
+          track.addCue(new VTTCue(0, 600, 'Portrait subtitle.'));
+          track.mode = 'showing';
+        });
+        const view = page.locator('[data-wupage-video]');
+        const toggle = view.locator('.toggle');
+        await toggle.hover({ force: true });
+        await toggle.click();
+        const subtitles = view.locator('.captions .translation').filter({ hasText: '竖屏字幕译文。' });
+        await subtitles.waitFor();
+        for (const selector of ['.player', 'html', 'body', 'video', 'expanded']) {
+          // Open both overlays programmatically so entering fullscreen, rather
+          // than an earlier pointerdown outside them, is what closes them.
+          await view.locator('.settings').evaluate(button => button.click());
+          await view.locator('.panel').waitFor();
           await ball.hover(); await page.locator('#wupage-floating-menu').waitFor();
-          await page.evaluate(selector => document.querySelector(selector).requestFullscreen(), selector);
-          await page.waitForFunction(() => !!document.fullscreenElement && document.querySelector('#wupage-floating-hitbox').hidden);
+          await page.evaluate(selector => selector === 'expanded' ? window.expandPlayer(true) : document.querySelector(selector).requestFullscreen(), selector);
+          await page.waitForFunction(() => document.querySelector('#wupage-floating-hitbox').hidden);
           assert.equal(await page.locator('#wupage-floating-menu').isVisible(), false);
-          if (selector !== 'video') await page.locator('[data-control="speed"]').click();
+          await view.locator('.toolbar').waitFor({ state: 'hidden' });
+          assert.equal(await view.locator('.panel').isVisible(), false);
+          if (selector === 'video') {
+            await page.waitForFunction(() => [...document.querySelector('video').textTracks].some(track =>
+              track.mode === 'showing' && [...track.cues ?? []].some(cue => cue.text.includes('竖屏字幕译文。'))));
+          } else {
+            await subtitles.waitFor();
+            await page.locator('[data-control="speed"]').click();
+          }
           await page.screenshot({ path: path.join(output, 'fullscreen-' + selector.replace('.', '') + '.png') });
-          await page.evaluate(() => document.exitFullscreen());
+          await page.evaluate(selector => selector === 'expanded' ? window.expandPlayer(false) : document.exitFullscreen(), selector);
           await ball.waitFor({ state: 'visible' });
+          await toggle.hover({ force: true });
+          assert.equal(await view.locator('.toolbar').evaluate(toolbar => getComputedStyle(toolbar).pointerEvents), 'auto');
           assert.equal(await page.locator('#wupage-floating-menu').isVisible(), false);
-          checks.push(selector + ' fullscreen: floating ball/menu hidden, restored on exit');
+          checks.push(selector + ' fullscreen: overlays closed, captions continued, controls restored on exit');
         }
       }
       await page.close(); page = undefined;
     }
   }
   assert.ok(requests.length > 0);
-  assert.ok(requests.every(text => text.includes('Watch this portrait video.') && !/\b(?:Play|Mute|Speed|Quality|Expand)\b/u.test(text)), JSON.stringify(requests));
+  assert.ok(requests.some(text => text.includes('Portrait subtitle.')));
+  assert.ok(requests.every(text => /Watch this portrait video\.|Portrait subtitle\./u.test(text) && !/\b(?:Play|Mute|Speed|Quality|Expand|Exit full screen)\b/u.test(text)), JSON.stringify(requests));
   assert.deepEqual(errors, []);
   const report = { passed: true, environment: 'local X-shaped portrait fixture; no production X page', identity, checks, requests, errors };
   await fs.writeFile(path.join(output, 'report.json'), JSON.stringify(report, null, 2)); console.log(JSON.stringify(report));

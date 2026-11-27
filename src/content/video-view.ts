@@ -115,6 +115,7 @@ export class VideoView {
   private hasTranslation = false;
   private showOriginal = true;
   private floatingControlsHidden = false;
+  private floatingControlsSuppressed = false;
   private controlOffset = 0;
   private cleanups: Array<() => void> = [];
 
@@ -238,15 +239,20 @@ export class VideoView {
     target.addEventListener(type, callback, capture); this.cleanups.push(() => target.removeEventListener(type, callback, capture));
   }
 
-  get hasFloatingControls(): boolean { return !this.floatingControlsHidden && this.toolbar.parentNode === this.root; }
+  get hasFloatingControls(): boolean { return !this.toolbar.hidden && this.toolbar.parentNode === this.root; }
 
   setFloatingControlsHidden(hidden: boolean): void {
     this.floatingControlsHidden = hidden;
     this.updateToolbarVisibility();
   }
 
+  setFloatingControlsSuppressed(suppressed: boolean): void {
+    this.floatingControlsSuppressed = suppressed;
+    this.updateToolbarVisibility();
+  }
+
   private updateToolbarVisibility(): void {
-    const hidden = this.floatingControlsHidden && this.toolbar.parentNode === this.root;
+    const hidden = (this.floatingControlsHidden || this.floatingControlsSuppressed) && this.toolbar.parentNode === this.root;
     if (this.toolbar.hidden === hidden) return;
     this.toolbar.hidden = hidden;
     if (hidden) {
