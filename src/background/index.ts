@@ -2,7 +2,7 @@ import { initializeInterfaceLanguage, t, watchInterfaceLanguage } from "../share
 import { getSettings, saveSettings } from "../shared/settings";
 import { DEFAULT_SETTINGS } from "../shared/defaults";
 import { mergeSettingsChanges } from "../shared/settings-changes";
-import { importSettingsBackup } from "./settings-backup";
+import { importSettingsBackup, restoreSyncedSettings } from "./settings-backup";
 import { clearStatistics, getStatistics, initStatistics, statisticsPageKey } from "./statistics";
 import type { RuntimeRequest, RuntimeResponse } from "../shared/types";
 import { createProvider } from "./providers";
@@ -169,6 +169,11 @@ async function handleMessage(request: RuntimeRequest, sender: chrome.runtime.Mes
     }
     case "IMPORT_SETTINGS":
       return importSettingsBackup(request.backup);
+    case "RESTORE_SYNC_SETTINGS":
+      if (sender.id !== chrome.runtime.id || sender.url?.split(/[?#]/u)[0] !== chrome.runtime.getURL("options.html")) {
+        throw new Error(t("settingsSyncOptionsOnly"));
+      }
+      return restoreSyncedSettings(request.backup);
     case "RESET_SETTINGS":
       return saveSettings(structuredClone(DEFAULT_SETTINGS), "browser");
     case "SAVE_SETTINGS":

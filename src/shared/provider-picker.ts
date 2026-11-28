@@ -39,7 +39,10 @@ export function enhanceProviderSelect(select: HTMLSelectElement, providers: Prov
   const render = (): void => {
     close();
     const types = JSON.parse(select.dataset.providerTypes!) as Record<string, ProviderConfig["type"]>;
-    const markup = (option: HTMLOptionElement): string => providerIconMarkup(types[option.value] ? { type: types[option.value] } : undefined);
+    const markup = (option: HTMLOptionElement): string => {
+      if (!option.value) return "";
+      return providerIconMarkup(types[option.value] ? { type: types[option.value] } : undefined);
+    };
     const selected = select.selectedOptions[0];
     trigger.setAttribute("aria-label", t("selectedServiceLabel", selected?.textContent ?? t("noneSelected")));
     trigger.title = selected?.textContent ?? t("chooseTranslationService");
@@ -85,11 +88,18 @@ export function enhanceProviderSelect(select: HTMLSelectElement, providers: Prov
     const above = rect.top - 8;
     const upwards = below < 180 && above > below;
     const maxHeight = Math.max(80, Math.min(280, upwards ? above : below));
+    const left = Math.max(8, Math.min(rect.left, window.innerWidth - rect.width - 8));
     for (const [key, value] of Object.entries({
-      left: `${Math.max(8, Math.min(rect.left, window.innerWidth - rect.width - 8))}px`, width: `${rect.width}px`,
+      left: `${left}px`, width: `${rect.width}px`,
       top: upwards ? "auto" : `${rect.bottom + 4}px`, bottom: upwards ? `${window.innerHeight - rect.top + 4}px` : "auto",
       "max-height": `${maxHeight}px`
     })) list.style.setProperty(key, value, "important");
+    const menu = list.getBoundingClientRect();
+    // A fixed popover's origin can be inset by a reserved scrollbar gutter.
+    const offset = menu.left - left;
+    if (menu.width && Math.abs(offset) > 0.5) {
+      list.style.setProperty("left", `${left - offset}px`, "important");
+    }
     trigger.setAttribute("aria-expanded", "true");
     openPicker = { root, close };
     const selected = choices().find((button) => button.getAttribute("aria-selected") === "true") ?? choices()[0];

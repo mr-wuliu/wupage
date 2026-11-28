@@ -256,8 +256,9 @@ describe("Doubao settings migration", () => {
     expect(normalizeSettings(normalized)).toEqual(normalized);
   });
 
-  it("updates the previous built-in label without overwriting custom names", () => {
-    const previousLabel = "豆包（网页登录，实验）";
+  it.each([
+    "豆包（网页登录，实验）", "豆包（实验性）", "Doubao (experimental)"
+  ])("updates the built-in Doubao label %s without overwriting custom names", (previousLabel) => {
     const result = normalizeSettings({
       activeProviderId: "doubao-web",
       providers: [
@@ -266,7 +267,7 @@ describe("Doubao settings migration", () => {
       ]
     });
     expect(result.providers.find((provider) => provider.id === "doubao-web"))
-      .toMatchObject({ label: "豆包（实验性）", enabled: false });
+      .toMatchObject({ label: "豆包", enabled: false });
     expect(result.providers.find((provider) => provider.id === "my-doubao")?.label).toBe(previousLabel);
     const renamed = normalizeSettings({
       providers: [{ type: "doubao-web", id: "doubao-web", label: "我的豆包" }]

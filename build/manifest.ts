@@ -5,7 +5,7 @@ interface ManifestV3 {
   permissions: string[];
   content_security_policy: { extension_pages: string; sandbox?: string };
   browser_specific_settings?: {
-    gecko: { id: string; strict_min_version: string; data_collection_permissions: { required: string[] } };
+    gecko: { id: string; strict_min_version: string; data_collection_permissions: { required: string[]; optional?: string[] } };
   };
   [key: string]: unknown;
 }
@@ -24,7 +24,10 @@ export function browserManifest(manifest: ManifestV3, firefox: boolean): Manifes
       id: "wupage@mr-wuliu.github.io",
       // Firefox 154 introduced the isolated sandbox used by the OCR runtime.
       strict_min_version: "154.0",
-      data_collection_permissions: { required: ["websiteContent", "authenticationInfo"] }
+      data_collection_permissions: {
+        required: ["websiteContent", "authenticationInfo"],
+        optional: ["technicalAndInteraction"]
+      }
     }
   };
   if (result.content_security_policy.sandbox) {

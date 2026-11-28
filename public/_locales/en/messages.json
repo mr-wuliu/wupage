@@ -1053,8 +1053,8 @@
   "readyToTranslate": {
     "message": "Ready to translate"
   },
-  "doubaoExperimentalCurrentlyRequiresAChromiumBrowser": {
-    "message": "Doubao (experimental) currently requires a Chromium browser."
+  "doubaoRequiresChromium": {
+    "message": "Doubao requires a Chromium browser."
   },
   "doubaoDoesNotSupportThisTargetLanguageChoose": {
     "message": "Doubao does not support this target language. Choose a language from the list."
@@ -2941,9 +2941,6 @@
       }
     }
   },
-  "doubaoExperimental": {
-    "message": "Doubao (experimental)"
-  },
   "signInToDoubaoInThisBrowserTo": {
     "message": "Sign in to Doubao in this browser to translate without an API key. Choose Check again if the connection fails."
   },
@@ -4473,11 +4470,8 @@
   "showTheTranslationBelowTheOriginalInA": {
     "message": "Show the translation below the original in a different color"
   },
-  "doubaoExperimentalCurrentlyRequiresAChromiumBrowserChoose": {
-    "message": "Doubao (experimental) currently requires a Chromium browser. Choose another service."
-  },
-  "doubaoExperimentalSignInToDoubaoInThis": {
-    "message": "Doubao (experimental): sign in to Doubao in this browser to translate. Source text is sent to Doubao. If the connection fails, check it in settings."
+  "doubaoRequiresChromiumChooseService": {
+    "message": "Doubao requires a Chromium browser. Choose another service."
   },
   "notCheckedYetSignInToDoubaoIn": {
     "message": "Not checked yet. Sign in to Doubao in this browser to translate, or choose Check again to test the connection."
@@ -5814,12 +5808,8 @@
   "inputTemplateSelectService": {
     "message": "Choose a service"
   },
-  "inputTemplateDisabledService": {
-    "message": "$SERVICE$ (disabled)",
-    "placeholders": { "service": { "content": "$1" } }
-  },
-  "inputTemplateMissingService": {
-    "message": "Unavailable service"
+  "inputTemplateEnableService": {
+    "message": "Enable a service that supports this processing mode in Translation Services."
   },
   "keepInputLanguage": {
     "message": "Keep original language"
@@ -5832,5 +5822,133 @@
   },
   "configureInputTemplate": {
     "message": "Configure template"
+  },
+  "settingsBackupLocalTitle": {
+    "message": "Local file"
+  },
+  "settingsSyncBrowserTitle": {
+    "message": "Browser sync"
+  },
+  "settingsSyncBrowserHelp": {
+    "message": "Sign in to the same account in the same browser and enable extension sync. Upload your preferences, wait for the browser to sync, then restore them on the other device."
+  },
+  "settingsSyncDavTitle": {
+    "message": "WebDAV"
+  },
+  "settingsSyncDavHelp": {
+    "message": "Use the same existing WebDAV folder across browsers. Enter the folder address and any credentials the server requires. Connection details are used only while this page is open."
+  },
+  "settingsSyncDavFolder": {
+    "message": "WebDAV folder address"
+  },
+  "settingsSyncDavUser": {
+    "message": "Username"
+  },
+  "settingsSyncDavPassword": {
+    "message": "Password or app password"
+  },
+  "settingsSyncUpload": {
+    "message": "Upload preferences"
+  },
+  "settingsSyncRestore": {
+    "message": "Restore preferences"
+  },
+  "settingsSyncReading": {
+    "message": "Reading preferences…"
+  },
+  "settingsSyncSummary": {
+    "message": "WuPage $VERSION$ · Backup created $DATE$",
+    "placeholders": { "version": { "content": "$1" }, "date": { "content": "$2" } }
+  },
+  "settingsSyncRestoreTitle": {
+    "message": "Restore preferences"
+  },
+  "settingsSyncRestoreWarning": {
+    "message": "This replaces saved preferences such as languages, appearance, site rules, and glossaries and discards unsaved edits. Translation services, API keys, OCR configuration, and input translation templates stay on this device."
+  },
+  "settingsSyncConfirmRestore": {
+    "message": "Confirm restore"
+  },
+  "settingsSyncDavUploadTitle": {
+    "message": "Upload preferences to WebDAV"
+  },
+  "settingsSyncBrowserUploadTitle": {
+    "message": "Upload preferences to browser sync"
+  },
+  "settingsSyncUploadScope": {
+    "message": "The backup contains saved preferences such as languages, appearance, site rules, and glossaries. Site rules and glossaries can contain personal information. Translation services, API keys, OCR configuration, and input translation templates stay on this device."
+  },
+  "settingsSyncDavCreate": {
+    "message": "This creates a preference backup in the selected folder."
+  },
+  "settingsSyncDavOverwrite": {
+    "message": "This replaces the current preference backup at this address."
+  },
+  "settingsSyncBrowserOverwrite": {
+    "message": "This replaces the previous browser preference backup, if one exists."
+  },
+  "settingsSyncConfirmUpload": {
+    "message": "Confirm upload"
+  },
+  "settingsSyncDavPublished": {
+    "message": "Preferences uploaded to WebDAV."
+  },
+  "settingsSyncBrowserPublished": {
+    "message": "Preferences saved to browser sync storage. The browser controls when they reach other devices."
+  },
+  "settingsSyncRestored": {
+    "message": "Preferences restored and saved."
+  },
+  "settingsSyncInvalidBackup": {
+    "message": "This is not a valid WuPage preference backup."
+  },
+  "settingsSyncBrowserTooLarge": {
+    "message": "These preferences exceed the browser sync limit. Use WebDAV or a local backup."
+  },
+  "settingsSyncBrowserWriteFailed": {
+    "message": "Could not save to browser sync storage. Check your browser sync settings and try again, or use WebDAV."
+  },
+  "settingsSyncBrowserReadFailed": {
+    "message": "Browser sync storage is unavailable. Check whether your browser supports extension sync."
+  },
+  "settingsSyncBrowserEmpty": {
+    "message": "No preferences have arrived in browser sync. Upload from the source device and wait for the browser to sync."
+  },
+  "settingsSyncBrowserIncomplete": {
+    "message": "The browser backup is incomplete or damaged. Wait for sync and try again, or upload it again from the source device."
+  },
+  "settingsSyncDavInvalidUrl": {
+    "message": "Enter an HTTPS WebDAV folder address without credentials, query parameters, or a fragment. HTTP is allowed only on this device (localhost)."
+  },
+  "settingsSyncDavInvalidLogin": {
+    "message": "Enter a username without a colon when using a WebDAV password."
+  },
+  "settingsSyncDavConnectionFailed": {
+    "message": "Could not connect to WebDAV. Check the address, site access, HTTPS certificate, and whether the server redirects the request."
+  },
+  "settingsSyncDavMissingEtag": {
+    "message": "The server did not provide a strong ETag for the existing backup. Use a server that supports conditional updates or choose another folder."
+  },
+  "settingsSyncDavUnauthorized": {
+    "message": "WebDAV denied access. Check the username, app password, or folder permissions."
+  },
+  "settingsSyncDavEmpty": {
+    "message": "No preference backup was found at this WebDAV address."
+  },
+  "settingsSyncDavFolderMissing": {
+    "message": "The WebDAV folder does not exist or cannot accept this file. Check the directory address."
+  },
+  "settingsSyncDavConflict": {
+    "message": "The WebDAV backup changed after the preview. Close this dialog and choose Upload preferences again to review the current destination."
+  },
+  "settingsSyncDavHttpError": {
+    "message": "WebDAV returned HTTP $STATUS$.",
+    "placeholders": { "status": { "content": "$1" } }
+  },
+  "settingsSyncConsentDenied": {
+    "message": "Allow sharing extension settings in Firefox to upload this backup."
+  },
+  "settingsSyncOptionsOnly": {
+    "message": "Restore synced preferences from the WuPage settings page."
   }
 }

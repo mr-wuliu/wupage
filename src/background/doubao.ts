@@ -484,7 +484,7 @@ async function translateTexts(request: TranslateBatchRequest, signal: AbortSigna
   taskGeneration(signal);
   if (!request.texts.length) return [];
   if (!isDoubaoBrowserSupported()) {
-    throw new ProviderError(t("doubaoExperimentalCurrentlyRequiresAChromiumBrowser"), "unsupported-browser");
+    throw new ProviderError(t("doubaoRequiresChromium"), "unsupported-browser");
   }
   const target = Object.prototype.hasOwnProperty.call(DOUBAO_TARGET_LANGUAGES, request.targetLang)
     ? DOUBAO_TARGET_LANGUAGES[request.targetLang] : undefined;
@@ -530,7 +530,7 @@ export class DoubaoProvider implements TranslatorProvider {
   validateConfig(): ValidationResult {
     return isDoubaoBrowserSupported()
       ? { ok: true }
-      : { ok: false, message: t("doubaoExperimentalCurrentlyRequiresAChromiumBrowser") };
+      : { ok: false, message: t("doubaoRequiresChromium") };
   }
   async translateBatch(request: TranslateBatchRequest, signal?: AbortSignal): Promise<string[]> {
     try {
@@ -547,7 +547,7 @@ export class DoubaoProvider implements TranslatorProvider {
 
 export function getDoubaoStatus(): DoubaoStatus {
   if (!isDoubaoBrowserSupported()) {
-    return { state: "unsupported-browser", message: t("doubaoExperimentalCurrentlyRequiresAChromiumBrowser") };
+    return { state: "unsupported-browser", message: t("doubaoRequiresChromium") };
   }
   return { ...status };
 }

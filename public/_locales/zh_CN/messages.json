@@ -1053,8 +1053,8 @@
   "readyToTranslate": {
     "message": "可以翻译"
   },
-  "doubaoExperimentalCurrentlyRequiresAChromiumBrowser": {
-    "message": "豆包（实验性）目前仅支持 Chromium 浏览器，Firefox 尚未支持。"
+  "doubaoRequiresChromium": {
+    "message": "豆包目前仅支持 Chromium 浏览器，Firefox 尚未支持。"
   },
   "doubaoDoesNotSupportThisTargetLanguageChoose": {
     "message": "豆包暂不支持所选目标语言，请选择列表中的语言。"
@@ -2941,9 +2941,6 @@
       }
     }
   },
-  "doubaoExperimental": {
-    "message": "豆包（实验性）"
-  },
   "signInToDoubaoInThisBrowserTo": {
     "message": "无需 API Key。在当前浏览器打开豆包并登录，即可开始翻译。连接异常时可点击“重新检测”。"
   },
@@ -4473,11 +4470,8 @@
   "showTheTranslationBelowTheOriginalInA": {
     "message": "译文显示在原文下方，并用不同颜色区分"
   },
-  "doubaoExperimentalCurrentlyRequiresAChromiumBrowserChoose": {
-    "message": "豆包（实验性）目前仅支持 Chromium 浏览器，Firefox 尚未支持。请手动选择其他服务。"
-  },
-  "doubaoExperimentalSignInToDoubaoInThis": {
-    "message": "豆包（实验性）：在同一浏览器登录豆包后可直接翻译；连接异常时可到设置中重新检测。待译文本会发送到豆包。"
+  "doubaoRequiresChromiumChooseService": {
+    "message": "豆包目前仅支持 Chromium 浏览器，Firefox 尚未支持。请选择其他服务。"
   },
   "notCheckedYetSignInToDoubaoIn": {
     "message": "尚未验证。在同一浏览器登录豆包后可直接翻译，也可点击重新检测检查连接。"
@@ -5814,12 +5808,8 @@
   "inputTemplateSelectService": {
     "message": "选择服务"
   },
-  "inputTemplateDisabledService": {
-    "message": "$SERVICE$（已停用）",
-    "placeholders": { "service": { "content": "$1" } }
-  },
-  "inputTemplateMissingService": {
-    "message": "服务不可用"
+  "inputTemplateEnableService": {
+    "message": "请先在「翻译服务」启用支持此处理方式的服务。"
   },
   "keepInputLanguage": {
     "message": "保持原语言"
@@ -5832,5 +5822,133 @@
   },
   "configureInputTemplate": {
     "message": "配置模板"
+  },
+  "settingsBackupLocalTitle": {
+    "message": "本地文件"
+  },
+  "settingsSyncBrowserTitle": {
+    "message": "浏览器同步"
+  },
+  "settingsSyncBrowserHelp": {
+    "message": "在同一浏览器中登录同一账号并开启扩展同步。手动上传偏好后，等浏览器同步，再到另一台设备恢复。"
+  },
+  "settingsSyncDavTitle": {
+    "message": "WebDAV"
+  },
+  "settingsSyncDavHelp": {
+    "message": "使用同一 WebDAV 目录在不同浏览器间迁移偏好。请填写已存在的目录和服务器要求的凭据。连接信息仅在本页打开期间使用。"
+  },
+  "settingsSyncDavFolder": {
+    "message": "WebDAV 目录地址"
+  },
+  "settingsSyncDavUser": {
+    "message": "用户名"
+  },
+  "settingsSyncDavPassword": {
+    "message": "密码或应用密码"
+  },
+  "settingsSyncUpload": {
+    "message": "上传偏好"
+  },
+  "settingsSyncRestore": {
+    "message": "恢复偏好"
+  },
+  "settingsSyncReading": {
+    "message": "正在读取偏好…"
+  },
+  "settingsSyncSummary": {
+    "message": "WuPage $VERSION$ · 备份时间 $DATE$",
+    "placeholders": { "version": { "content": "$1" }, "date": { "content": "$2" } }
+  },
+  "settingsSyncRestoreTitle": {
+    "message": "恢复偏好"
+  },
+  "settingsSyncRestoreWarning": {
+    "message": "这会替换已保存的语言、外观、网站规则、术语库等偏好，并丢弃未保存的修改。本机的翻译服务、API 密钥、OCR 配置和输入翻译模板会保留。"
+  },
+  "settingsSyncConfirmRestore": {
+    "message": "确认恢复"
+  },
+  "settingsSyncDavUploadTitle": {
+    "message": "上传偏好到 WebDAV"
+  },
+  "settingsSyncBrowserUploadTitle": {
+    "message": "上传偏好到浏览器同步"
+  },
+  "settingsSyncUploadScope": {
+    "message": "备份包含已保存的语言、外观、网站规则和术语库等偏好。网站规则和术语库可能含有个人信息。翻译服务、API 密钥、OCR 配置和输入翻译模板保留在本机。"
+  },
+  "settingsSyncDavCreate": {
+    "message": "将在此目录新建偏好备份。"
+  },
+  "settingsSyncDavOverwrite": {
+    "message": "将覆盖此地址现有的偏好备份。"
+  },
+  "settingsSyncBrowserOverwrite": {
+    "message": "如果浏览器已有偏好备份，这次上传会将其替换。"
+  },
+  "settingsSyncConfirmUpload": {
+    "message": "确认上传"
+  },
+  "settingsSyncDavPublished": {
+    "message": "偏好已上传到 WebDAV。"
+  },
+  "settingsSyncBrowserPublished": {
+    "message": "偏好已写入浏览器同步存储。到达其他设备的时间由浏览器决定。"
+  },
+  "settingsSyncRestored": {
+    "message": "偏好已恢复并保存。"
+  },
+  "settingsSyncInvalidBackup": {
+    "message": "这不是有效的 WuPage 偏好备份。"
+  },
+  "settingsSyncBrowserTooLarge": {
+    "message": "偏好超过浏览器同步容量。请使用 WebDAV 或本地备份。"
+  },
+  "settingsSyncBrowserWriteFailed": {
+    "message": "无法写入浏览器同步存储。请检查浏览器同步设置后重试，或使用 WebDAV。"
+  },
+  "settingsSyncBrowserReadFailed": {
+    "message": "浏览器同步存储不可用。请检查当前浏览器是否支持扩展同步。"
+  },
+  "settingsSyncBrowserEmpty": {
+    "message": "浏览器尚未收到偏好备份。请从源设备上传，并等待浏览器同步完成。"
+  },
+  "settingsSyncBrowserIncomplete": {
+    "message": "浏览器备份不完整或已损坏。请等待同步后重试，或从源设备重新上传。"
+  },
+  "settingsSyncDavInvalidUrl": {
+    "message": "请输入 HTTPS WebDAV 目录地址，不要在地址内填写凭据、查询参数或片段。仅本机（localhost）允许使用 HTTP。"
+  },
+  "settingsSyncDavInvalidLogin": {
+    "message": "使用 WebDAV 密码时，请填写不含冒号的用户名。"
+  },
+  "settingsSyncDavConnectionFailed": {
+    "message": "无法连接 WebDAV。请检查地址、扩展的站点访问权限、HTTPS 证书及服务器是否重定向请求。"
+  },
+  "settingsSyncDavMissingEtag": {
+    "message": "服务器未为现有备份提供强 ETag。请使用支持条件更新的服务器，或选择另一个目录。"
+  },
+  "settingsSyncDavUnauthorized": {
+    "message": "WebDAV 拒绝访问。请检查用户名、应用密码或目录权限。"
+  },
+  "settingsSyncDavEmpty": {
+    "message": "此 WebDAV 地址没有找到偏好备份。"
+  },
+  "settingsSyncDavFolderMissing": {
+    "message": "WebDAV 目录不存在或无法写入此文件。请检查目录地址。"
+  },
+  "settingsSyncDavConflict": {
+    "message": "WebDAV 备份在预览后已变化。请关闭此窗口，重新选择「上传偏好」并确认。"
+  },
+  "settingsSyncDavHttpError": {
+    "message": "WebDAV 返回 HTTP $STATUS$。",
+    "placeholders": { "status": { "content": "$1" } }
+  },
+  "settingsSyncConsentDenied": {
+    "message": "请在 Firefox 中允许共享扩展设置后再上传备份。"
+  },
+  "settingsSyncOptionsOnly": {
+    "message": "请在 WuPage 设置页面恢复同步的偏好。"
   }
 }

@@ -17,7 +17,7 @@ export async function translateParagraph(target: Element, action: "toggle" | "tr
   if (!target.isConnected) throw new Error(t("theParagraphHasChangedSelectItAgain"));
   if (action === "restore" || (action === "toggle" && hasTranslationsIn(target))) {
     pending.delete(target);
-    clearTranslationsIn(target);
+    clearTranslationsIn(target, { keepOriginal: true });
     return;
   }
   if (pending.has(target) || hasTranslationsIn(target)) return;

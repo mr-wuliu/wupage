@@ -412,7 +412,7 @@ function renderProviderForm(rebuildPerformance = true): void {
     setProviderFormMarkup(provider, `
       <div class="grid"><label>${htmlMessage("displayName")} <input data-field="label" type="text" value="${escapeAttr(provider.label)}" /></label></div>
       <div class="doubao-setup">
-        <h3>${htmlMessage("doubaoExperimental")}</h3>
+        <h3>${htmlMessage("doubao")}</h3>
         <p>${htmlMessage("signInToDoubaoInThisBrowserTo")}</p>
         <p>${htmlMessage("translationSendsYourSourceTextToDoubaoThe")}</p>
         ${renderProviderEndpoints(DOUBAO_TRANSLATE_ENDPOINT, DOUBAO_LAUNCH_ENDPOINT)}

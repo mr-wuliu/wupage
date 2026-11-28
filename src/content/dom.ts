@@ -283,6 +283,8 @@ let protectedTokensById = new Map<string, ProtectedToken[]>();
 let sourceTextById = new Map<string, string>();
 const renderedById = new Map<string, HTMLElement | Text>();
 const translatedTextById = new Map<string, string>();
+const segmentsShowingOriginal = new Set<string>();
+let restoredParagraphText: WeakMap<Element, string> | undefined;
 const stableReplacementsById = new Map<string, StableReplacement>();
 const inlinePlans = new Map<string, InlineTranslationPlan>();
 let inlinePlansByBlock = new WeakMap<Element, { id: string; plan: InlineTranslationPlan }>();
@@ -444,6 +446,8 @@ export function collectParagraphTextSegments(
   element: Element,
   translateCodeComments = true
 ): TextSegment[] {
+  const restored = findRestoredParagraph(element);
+  if (restored) restoredParagraphText?.delete(restored);
   trackedNodes = trackedNodes.filter((tracked) => !element.contains(tracked.node));
   trackedGroups = trackedGroups.filter((group) => !group.nodes.some((tracked) => element.contains(tracked.node)));
   trackedAttributes = trackedAttributes.filter((tracked) =>
@@ -484,7 +488,10 @@ function scanTrackedTextRoots(
       || tiktokCommentBody(element) === element
       || isDivProseBlock(element) || (element.matches("span") && isUnmarkedProseBlock(element))
       || new TextFlowSnapshot().isWhole(element),
-    collect: (root, directTextOnly) => collectTextSegmentsFromRoot(root, translateCodeComments, directTextOnly),
+    collect: (root, directTextOnly) => {
+      const segments = collectTextSegmentsFromRoot(root, translateCodeComments, directTextOnly);
+      return restoredParagraphText ? segments.filter(({ element }) => !findRestoredParagraph(element)) : segments;
+    },
     clearHiddenCandidates: clearHiddenScanCandidates,
     invalidate: invalidateStaleSegments,
     uncover: takeUncoveredScanRoots
@@ -610,6 +617,7 @@ export function invalidateStaleSegments(changedRoots: Element[] = []): string[] 
     sourceTextById.delete(id);
     deferredBlockTexts.delete(id);
     translatedTextById.delete(id);
+    segmentsShowingOriginal.delete(id);
   }
   trackedNodes = trackedNodes.filter((node) => !stale.has(node.id));
   trackedGroups = trackedGroups.filter((group) => !stale.has(group.id));
@@ -815,7 +823,7 @@ export function findTranslatableParagraph(start: Element | null, anchor?: Node):
   return block && !shouldSkipElement(block) ? block : fallback;
 }
 
-export function clearTranslationsIn(element: Element): void {
+export function clearTranslationsIn(element: Element, { keepOriginal = false } = {}): void {
   // Image translations follow their picture, so they can sit outside the root
   // being cleared (including when the root is the img itself).
   for (const tracked of trackedImageTexts) {
@@ -838,6 +846,26 @@ export function clearTranslationsIn(element: Element): void {
     node.removeAttribute(TRANSLATED_ATTR);
   });
   element.removeAttribute(TRANSLATED_ATTR);
+  if (keepOriginal) {
+    // The progressive scanner skips tracked source nodes. Keep their bindings
+    // so a rescan or a late result cannot undo an explicit restore.
+    const affected = new Set([
+      ...trackedNodes.filter(tracked => composedContains(element, tracked.node)).map(tracked => tracked.id),
+      ...trackedGroups.filter(group => group.nodes.some(tracked => composedContains(element, tracked.node))).map(group => group.id),
+      ...trackedAttributes.filter(tracked => composedContains(element, tracked.element)).map(tracked => tracked.id),
+      ...trackedImageTexts.filter(tracked => composedContains(element, tracked.image)).map(tracked => tracked.id)
+    ]);
+    for (const id of affected) {
+      segmentsShowingOriginal.add(id);
+      removeRenderedTranslation(id);
+      removePendingForId(id);
+    }
+    // Sites can replace text nodes without changing the paragraph. Carry the
+    // original view over to the new bindings until the source itself changes.
+    const source = normalizeText(element.textContent ?? "");
+    if (source) (restoredParagraphText ??= new WeakMap()).set(element, source);
+    return;
+  }
   trackedNodes = trackedNodes.filter((tracked) => !element.contains(tracked.node));
   trackedGroups = trackedGroups.filter((group) => !group.nodes.some((tracked) => element.contains(tracked.node)));
   trackedAttributes = trackedAttributes.filter((tracked) =>
@@ -847,6 +875,17 @@ export function clearTranslationsIn(element: Element): void {
     tracked.image !== element && !element.contains(tracked.image)
   );
   pruneTranslationResults();
+}
+
+function findRestoredParagraph(element: Element): Element | undefined {
+  const restored = restoredParagraphText;
+  if (!restored) return;
+  for (let ancestor: Element | null = element; ancestor; ancestor = composedParent(ancestor)) {
+    const source = restored.get(ancestor);
+    if (source === undefined) continue;
+    if (normalizeText(ancestor.textContent ?? "") === source) return ancestor;
+    restored.delete(ancestor);
+  }
 }
 
 export function hasTranslationsIn(element: Element): boolean {
@@ -1013,9 +1052,10 @@ export function renderTranslations(
     removePendingForId(id);
     return [];
   });
-  const translationById = new Map(translations.map((entry) => [entry.id, entry.text]));
+  const translationById = new Map<string, string>();
   for (const { id, text } of translations) {
     if (sourceTextById.has(id)) translatedTextById.set(id, text);
+    if (!segmentsShowingOriginal.has(id)) translationById.set(id, text);
   }
 
   for (const group of trackedGroups) {
@@ -1137,7 +1177,7 @@ export function renderTranslations(
     insertImageTextTranslation(tracked, element);
     renderedById.set(tracked.id, element);
   }
-  return translations.filter(({ id, text }) => renderedById.has(id) || isSameTranslation(id, text)
+  return translations.filter(({ id, text }) => segmentsShowingOriginal.has(id) || renderedById.has(id) || isSameTranslation(id, text)
     || trackedAttributes.some(attribute => attribute.id === id && attribute.translatedValue !== undefined)).map(({ id }) => id);
 }
 
@@ -1176,7 +1216,8 @@ export function setTranslationDisplayMode(displayMode: TranslationDisplayMode): 
 
 export function renderTranslationPlaceholders(segments: TextSegment[]): void {
   injectContentStyles();
-  const pendingIds = new Set(segments.map((segment) => segment.id));
+  const pendingIds = new Set<string>();
+  for (const { id } of segments) if (!segmentsShowingOriginal.has(id)) pendingIds.add(id);
 
   for (const group of trackedGroups) {
     if (!pendingIds.has(group.id)) continue;
@@ -1249,7 +1290,6 @@ export function hideTranslations(): void {
     for (const element of elements) { element.removeAttribute(TRANSLATED_ATTR); element.removeAttribute(TARGET_ATTR); }
   }
   renderedById.clear();
-  for (const tracked of trackedAttributes) tracked.translatedValue = undefined;
 }
 
 export function restoreTranslations(displayMode: TranslationDisplayMode): void {
@@ -1276,6 +1316,8 @@ function clearNodeTracking(): void {
   sourceTextById = new Map();
   renderedById.clear();
   translatedTextById.clear();
+  segmentsShowingOriginal.clear();
+  restoredParagraphText = undefined;
 }
 
 function pruneTranslationResults(): void {
@@ -1284,6 +1326,7 @@ function pruneTranslationResults(): void {
     for (const id of map.keys()) if (!ids.has(id)) map.delete(id);
   }
   for (const id of preparedIds) if (!ids.has(id)) preparedIds.delete(id);
+  for (const id of segmentsShowingOriginal) if (!ids.has(id)) segmentsShowingOriginal.delete(id);
 }
 
 function collectImageTextSegments(
@@ -1437,6 +1480,7 @@ function restoreTrackedAttributesIn(root: Element): void {
     ) {
       tracked.element.setAttribute(tracked.name, tracked.sourceValue);
     }
+    tracked.translatedValue = undefined;
   }
 }
 

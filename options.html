@@ -536,12 +536,47 @@
               <h2 id="backupSettingsTitle" data-i18n="backupAndRestore">备份与恢复</h2>
               <p data-i18n="backUpSavedSettingsOrRestoreThemIn">备份已保存的设置，或在其他浏览器恢复配置。</p>
             </div>
-            <p class="hint" data-i18n="exportsOmitCredentialsByDefaultSelectIncludeCredentials">默认导出不包含密钥。导出时可主动勾选「包含密钥」，保存未加密的完整备份，请妥善保管。</p>
-            <div class="backup-actions">
-              <button id="exportSettings" type="button" data-i18n="exportSettings">导出设置</button>
-              <button id="importSettings" type="button" class="secondary" data-i18n="importSettings">导入设置</button>
-              <input id="settingsBackupFile" type="file" accept=".toml,application/toml" aria-label="选择 TOML 设置备份" hidden  data-i18n-aria-label="selectATomlSettingsBackup"/>
-            </div>
+            <section class="backup-method" aria-labelledby="settingsBackupLocalTitle">
+              <h3 id="settingsBackupLocalTitle" data-i18n="settingsBackupLocalTitle">本地文件</h3>
+              <p class="hint" data-i18n="exportsOmitCredentialsByDefaultSelectIncludeCredentials">默认导出不包含密钥。导出时可主动勾选「包含密钥」，保存未加密的完整备份，请妥善保管。</p>
+              <div class="backup-actions">
+                <button id="exportSettings" type="button" data-i18n="exportSettings">导出设置</button>
+                <button id="importSettings" type="button" class="secondary" data-i18n="importSettings">导入设置</button>
+                <input id="settingsBackupFile" type="file" accept=".toml,application/toml" aria-label="选择 TOML 设置备份" hidden data-i18n-aria-label="selectATomlSettingsBackup"/>
+              </div>
+            </section>
+            <section class="backup-method" aria-labelledby="settingsSyncBrowserTitle">
+              <h3 id="settingsSyncBrowserTitle" data-i18n="settingsSyncBrowserTitle">浏览器同步</h3>
+              <p class="hint" data-i18n="settingsSyncBrowserHelp">在同一浏览器中登录同一账号并开启扩展同步。手动上传偏好后，等浏览器同步，再到另一台设备恢复。</p>
+              <div class="backup-actions">
+                <button id="publishBrowserSettings" type="button" class="secondary" data-i18n="settingsSyncUpload">上传偏好</button>
+                <button id="restoreBrowserSettings" type="button" class="secondary" data-i18n="settingsSyncRestore">恢复偏好</button>
+              </div>
+              <p id="browserSettingsSyncStatus" class="hint backup-method-status" role="status"></p>
+            </section>
+            <section class="backup-method" aria-labelledby="settingsSyncDavTitle">
+              <h3 id="settingsSyncDavTitle" data-i18n="settingsSyncDavTitle">WebDAV</h3>
+              <p id="settingsSyncDavHelp" class="hint" data-i18n="settingsSyncDavHelp">使用同一 WebDAV 目录在不同浏览器间迁移偏好。请填写已存在的目录和服务器要求的凭据。连接信息仅在本页打开期间使用。</p>
+              <div class="backup-dav-fields" aria-describedby="settingsSyncDavHelp">
+                <label>
+                  <span data-i18n="settingsSyncDavFolder">WebDAV 目录地址</span>
+                  <input id="settingsSyncDavFolder" type="url" autocomplete="off" spellcheck="false" placeholder="https://example.com/dav/" />
+                </label>
+                <label>
+                  <span data-i18n="settingsSyncDavUser">用户名</span>
+                  <input id="settingsSyncDavUser" type="text" autocomplete="off" spellcheck="false" />
+                </label>
+                <label>
+                  <span data-i18n="settingsSyncDavPassword">密码或应用密码</span>
+                  <input id="settingsSyncDavPassword" type="password" autocomplete="off" />
+                </label>
+              </div>
+              <div class="backup-actions">
+                <button id="publishDavSettings" type="button" class="secondary" data-i18n="settingsSyncUpload">上传偏好</button>
+                <button id="restoreDavSettings" type="button" class="secondary" data-i18n="settingsSyncRestore">恢复偏好</button>
+              </div>
+              <p id="webDavSettingsSyncStatus" class="hint backup-method-status" role="status"></p>
+            </section>
           </section>
         </div>
 
@@ -567,6 +602,7 @@
     <dialog id="settingsBackupDialog" class="provider-dialog backup-dialog" aria-labelledby="settingsBackupDialogTitle" aria-describedby="settingsBackupWarning">
       <h2 id="settingsBackupDialogTitle"></h2>
       <p id="settingsBackupSummary" class="field-description"></p>
+      <p id="settingsBackupDestination" class="field-description" hidden></p>
       <label id="settingsBackupKeysField" class="backup-key-choice" hidden>
         <input id="settingsBackupIncludeKeys" type="checkbox" autocomplete="off" />
         <span data-i18n="includeCredentialsUnencryptedFullBackup">包含密钥（未加密，仅用于完整备份）</span>

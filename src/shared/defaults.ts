@@ -53,7 +53,7 @@ export const DEFAULT_SETTINGS: ExtensionSettings = {
     {
       type: "doubao-web",
       id: "doubao-web",
-      get label() { return t("doubaoExperimental"); },
+      get label() { return t("doubao"); },
       enabled: true,
       performanceMode: "custom",
       chunkSize: 1200,

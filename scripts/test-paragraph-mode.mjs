@@ -128,6 +128,41 @@ try {
     await menuToggle.click();
     await page.waitForFunction(() => !document.documentElement.classList.contains('wupage-paragraph-mode'));
     checks.push('popup and floating menu expose independent paragraph buttons and preserve mode when changing display style');
+
+    await mode.selectOption('bilingual');
+    await control.waitForFunction(async () => (await chrome.runtime.sendMessage({ type: 'GET_SETTINGS' })).data.translationDisplayMode === 'bilingual');
+    await popup.locator('#pageToggle').click();
+    await toggle.click();
+    for (const [frame, prefix] of [[page, 'Main'], [child, 'Embedded']]) {
+      await frame.waitForFunction(() => document.documentElement.classList.contains('wupage-paragraph-mode'));
+      const paragraph = frame.locator('#paragraph');
+      const translation = paragraph.locator('.wupage-translation:not(.wupage-translation-pending)');
+      await translation.waitFor();
+      const requestsForParagraph = () => calls.flatMap(text => {
+        const parts = text.split(/^⟪WUPAGESEGMENT\d+⟫\n/gmu);
+        // A restored paragraph may still appear in context for new content.
+        return parts.length > 1 ? parts.slice(1) : parts;
+      }).filter(text => text.startsWith(`${prefix} paragraph:`)).length;
+      const beforeRestore = requestsForParagraph();
+      await paragraph.click({ modifiers: ['Control'] });
+      await translation.waitFor({ state: 'detached' });
+      await frame.evaluate(() => {
+        const restored = document.querySelector('#paragraph');
+        if (restored) restored.replaceChildren(document.createTextNode(restored.textContent));
+        const newParagraph = document.createElement('p');
+        newParagraph.id = 'late';
+        newParagraph.textContent = 'This newly loaded paragraph should still be translated automatically.';
+        document.querySelector('main').append(newParagraph);
+        window.dispatchEvent(new Event('resize'));
+      });
+      await frame.locator('#late .wupage-translation:not(.wupage-translation-pending)').waitFor();
+      assert.equal(await translation.count(), 0);
+      assert.equal(requestsForParagraph(), beforeRestore, `${prefix}: already restored paragraph should not be sent again`);
+      assert.ok((await paragraph.textContent()).startsWith(`${prefix} paragraph:`));
+      await paragraph.click({ modifiers: ['Control'] });
+      await translation.waitFor();
+    }
+    checks.push('full-page rescans keep restored paragraphs in the source language until explicitly translated again');
   }
   await fs.writeFile(path.join(output, 'report.json'), JSON.stringify({ ...identity, checks, calls }, null, 2));
   console.log(JSON.stringify({ ...identity, checks, output }, null, 2));

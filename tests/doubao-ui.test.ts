@@ -72,8 +72,9 @@ describe("Doubao provider controls", () => {
     ]);
     expect(document.querySelector("#providerPerformance .provider-performance")).toBeNull();
     expect(query<HTMLElement>("#providerPerformance").textContent).toContain("1200");
-    expect(query<HTMLElement>("#providerUsage").textContent).toContain("豆包（实验性）");
-    expect(query<HTMLElement>("#providerForm h3").textContent).toBe("豆包（实验性）");
+    expect(query<HTMLElement>("#providerUsage h3").textContent).toBe("额度与限制 · 豆包");
+    expect(query<HTMLElement>("#providerForm h3").textContent).toBe("豆包");
+    expect(query<HTMLElement>(".doubao-setup").textContent).toContain("翻译会将待译文本发送到豆包");
     expect(createTab).not.toHaveBeenCalled();
     expect(requests("CHECK_DOUBAO")).toHaveLength(0);
     query<HTMLButtonElement>("#save").click();
@@ -181,6 +182,13 @@ describe("Doubao provider controls", () => {
     expect(target.selectedOptions[0]?.textContent).toBe("繁中");
     expect(target.selectedOptions[0]?.disabled).toBe(true);
     expect(target.title).toContain("豆包暂不支持");
+  });
+
+  it.each(["popup", "pdf"] as const)("lists Doubao without a standing notice in the %s", async (surface) => {
+    stored.targetLang = "zh-CN";
+    await launch(surface);
+    expect(query<HTMLSelectElement>("#provider").selectedOptions[0]?.textContent).toBe("豆包");
+    expect(document.querySelector("#localProviderNotice, #doubaoProviderNotice")).toBeNull();
   });
 
   it.each(["popup", "pdf"] as const)("saves ordinary source language choices across Doubao selections in the %s", async (surface) => {
