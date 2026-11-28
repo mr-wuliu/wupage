@@ -853,6 +853,12 @@
   "dropAFileHereOrChooseOneFrom": {
     "message": "拖放文件到这里，或从电脑中选择"
   },
+  "releaseToOpenPdf": {
+    "message": "松开鼠标以打开 PDF"
+  },
+  "pdfDropWaitForExport": {
+    "message": "请等待当前文档导出完成，再拖入另一个 PDF。"
+  },
   "filesAreProcessedInThisBrowser": {
     "message": "文件仅在当前浏览器中处理"
   },

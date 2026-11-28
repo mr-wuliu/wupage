@@ -127,6 +127,7 @@ const downloadButton = query<HTMLButtonElement>("#downloadDocument");
 const chooseFileButton = query<HTMLButtonElement>("#chooseFile");
 const fileInput = query<HTMLInputElement>("#fileInput");
 const dropZone = query<HTMLElement>("#dropZone");
+const dropOverlay = query<HTMLElement>("#pdfDropOverlay");
 const urlForm = query<HTMLFormElement>("#urlForm");
 const pdfUrlInput = query<HTMLInputElement>("#pdfUrl");
 const welcomeView = query<HTMLElement>("#welcomeView");
@@ -205,22 +206,7 @@ function bindEvents(): void {
     const file = fileInput.files?.[0];
     if (file) void openLocalPdf(file);
   });
-  dropZone.addEventListener("dragover", (event) => {
-    event.preventDefault();
-    dropZone.classList.add("is-dragging");
-  });
-  dropZone.addEventListener("dragleave", () => dropZone.classList.remove("is-dragging"));
-  dropZone.addEventListener("drop", (event) => {
-    event.preventDefault();
-    dropZone.classList.remove("is-dragging");
-    const file = event.dataTransfer?.files[0];
-    if (!file) return;
-    if (!isPdfFile(file)) {
-      showStatus(t("chooseAPdfFile"), "error");
-      return;
-    }
-    void openLocalPdf(file);
-  });
+  bindDocumentDrops();
   urlForm.addEventListener("submit", (event) => {
     event.preventDefault();
     const value = pdfUrlInput.value.trim();
@@ -255,6 +241,58 @@ function bindEvents(): void {
   }, { once: true });
 }
 
+function bindDocumentDrops(): void {
+  let dragDepth = 0;
+  const events = new window.AbortController();
+  const options = { signal: events.signal };
+  const exporting = () => downloadButton.classList.contains("is-loading");
+  const reset = () => {
+    dragDepth = 0;
+    dropOverlay.hidden = true;
+  };
+  const acceptFileDrag = (event: DragEvent): boolean => {
+    const transfer = event.dataTransfer;
+    // File objects are only available after drop. Text and link drags keep
+    // their browser behavior, including inside the translation editor.
+    if (!transfer?.types.includes("Files")) return false;
+    event.preventDefault();
+    const busy = exporting();
+    transfer.dropEffect = busy ? "none" : "copy";
+    dropOverlay.hidden = busy;
+    return true;
+  };
+
+  window.addEventListener("dragenter", (event) => {
+    if (acceptFileDrag(event)) dragDepth += 1;
+  }, options);
+  window.addEventListener("dragover", acceptFileDrag, options);
+  window.addEventListener("dragleave", () => {
+    // Entering a child fires dragenter before the parent's dragleave.
+    if (dragDepth > 0) dragDepth -= 1;
+    if (!dragDepth) reset();
+  }, options);
+  window.addEventListener("dragend", reset, options);
+  window.addEventListener("pagehide", (event) => {
+    reset();
+    if (!event.persisted) events.abort();
+  }, options);
+  window.addEventListener("drop", (event) => {
+    const transfer = event.dataTransfer;
+    const file = transfer?.files[0];
+    if (!file && !transfer?.types.includes("Files")) return;
+    event.preventDefault();
+    reset();
+    if (exporting()) {
+      showStatus(t("pdfDropWaitForExport"), "info");
+    } else if (file) {
+      // An already open reader treats the drop as a fresh translation request.
+      void openLocalPdf(file, readerView.hidden ? undefined : true);
+    } else {
+      showStatus(t("chooseAPdfFile"), "error");
+    }
+  }, options);
+}
+
 function onReaderSettingsChange(): void {
   if (downloadButton.classList.contains("is-loading")) return;
   for (const page of pageStates) page.translationRetryButton.hidden = true;
@@ -273,14 +311,14 @@ function onReaderSettingsChange(): void {
   void saveReaderSettings();
 }
 
-async function openLocalPdf(file: File): Promise<void> {
+async function openLocalPdf(file: File, autoTranslate = pendingSource?.autoTranslate
+  ?? getPdfLaunchOptions(window.location.href).autoTranslate): Promise<void> {
   if (!isPdfFile(file)) {
     showStatus(t("chooseAPdfFile"), "error");
     return;
   }
   const operation = beginOpen();
   try {
-    const autoTranslate = pendingSource?.autoTranslate ?? getPdfLaunchOptions(window.location.href).autoTranslate;
     const data = await file.arrayBuffer();
     assertCurrentOpen(operation);
     await loadPdf(data, file.name, autoTranslate, operation);

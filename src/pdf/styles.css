@@ -382,11 +382,32 @@ button:disabled {
   transition: border-color 160ms ease, background 160ms ease, transform 160ms ease;
 }
 
-.drop-zone:hover,
-.drop-zone.is-dragging {
+.drop-zone:hover {
   border-color: #4f9c83;
   background: #f2faf5;
   transform: translateY(-2px);
+}
+
+.pdf-drop-overlay {
+  position: fixed;
+  z-index: 55;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  pointer-events: none;
+  background: #18242188;
+  border: 3px dashed #a4d8c3;
+}
+
+.pdf-drop-overlay p {
+  margin: 0;
+  padding: 16px 24px;
+  border-radius: 10px;
+  background: #f2faf5;
+  color: #234b3e;
+  font-weight: 700;
+  text-align: center;
 }
 
 .pdf-glyph {
