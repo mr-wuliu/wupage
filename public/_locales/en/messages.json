@@ -853,6 +853,12 @@
   "dropAFileHereOrChooseOneFrom": {
     "message": "Drop a file here or choose one from your computer"
   },
+  "releaseToOpenPdf": {
+    "message": "Drop to open the PDF"
+  },
+  "pdfDropWaitForExport": {
+    "message": "Wait for the current export to finish before dropping another PDF."
+  },
   "filesAreProcessedInThisBrowser": {
     "message": "Files are processed in this browser"
   },

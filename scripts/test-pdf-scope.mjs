@@ -233,7 +233,24 @@ try {
     await reader.waitForTimeout(300);
     assert.equal(calls.length, 6, `${source}: automatic translation respects the nearby range`);
   }
-  await reader.locator("#fileInput").setInputFiles({ name: "second.pdf", mimeType: "application/pdf", buffer: pdfBytes });
+  const secondFile = path.join(output, "second.pdf");
+  await fs.writeFile(secondFile, pdfBytes);
+  const firstPage = await reader.locator(".page-row .original-panel").first().boundingBox();
+  assert.ok(firstPage, "The translated document is still open when the next file is dropped");
+  const drag = await context.newCDPSession(reader);
+  const dragPayload = {
+    x: firstPage.x + 40, y: firstPage.y + 40,
+    data: { items: [], files: [secondFile], dragOperationsMask: 1 }
+  };
+  try {
+    await drag.send("Input.dispatchDragEvent", { type: "dragEnter", ...dragPayload });
+    await drag.send("Input.dispatchDragEvent", { type: "dragOver", ...dragPayload });
+    await reader.locator("#pdfDropOverlay").waitFor({ state: "visible" });
+    await drag.send("Input.dispatchDragEvent", { type: "drop", ...dragPayload });
+    await reader.locator("#pdfDropOverlay").waitFor({ state: "hidden" });
+  } finally {
+    await drag.detach();
+  }
   await waitIdle(12);
   assert.equal(await reader.locator("#documentName").textContent(), "second.pdf");
   assert.deepEqual(calls.slice(6).sort((a, b) => a - b), [1, 2, 3, 4, 5, 6]);
@@ -242,7 +259,7 @@ try {
   const report = { samplePages: 40, defaultPages: 11, afterOverlap: 16, afterJump: 26,
     afterCurrentOnly: 28, afterFullExport: 40, afterUnlimited: 40, activeJumpCalls,
     fullExportPages: 40, directExportPages: 40, preservedEdit: true, repeatedExportReused: true,
-    automaticSources, automaticPages: 6, replacementDocumentAutoTranslated: true };
+    automaticSources, automaticPages: 6, replacementDropAutoTranslated: true };
   await fs.writeFile(path.join(output, "report.json"), JSON.stringify(report, null, 2));
   console.log(JSON.stringify(report));
 } finally {

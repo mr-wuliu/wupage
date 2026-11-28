@@ -82,6 +82,13 @@ describe("PDF source opening", () => {
     document.querySelector("#urlForm")!.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
   }
 
+  function drag(target: EventTarget, type: string, types: string[], files: File[] = []): DragEvent {
+    const event = new Event(type, { bubbles: true, cancelable: true }) as DragEvent;
+    Object.defineProperty(event, "dataTransfer", { value: { types, files, dropEffect: "none" } });
+    target.dispatchEvent(event);
+    return event;
+  }
+
   it("does not let an older download replace the document opened afterward", async () => {
     let finish!: (response: Response) => void;
     let oldSignal: AbortSignal | undefined;
@@ -526,14 +533,58 @@ describe("PDF source opening", () => {
       Object.defineProperty(input, "files", { value: [file] });
       input.dispatchEvent(new Event("change", { bubbles: true }));
     } else {
-      const event = new Event("drop", { bubbles: true, cancelable: true });
-      Object.defineProperty(event, "dataTransfer", { value: { files: [file] } });
-      document.querySelector("#dropZone")!.dispatchEvent(event);
+      drag(document.querySelector("#dropZone")!, "drop", ["Files"], [file]);
     }
     await vi.waitFor(() => expect(translated()).toBe(true));
     expect(sendMessage.mock.calls.filter(([request]) => request.type === "TRANSLATE_BATCH")).toHaveLength(1);
     expect(window.scrollTo).toHaveBeenCalledWith({ top: 0, behavior: "instant" });
     expect(fetchPdf).not.toHaveBeenCalled();
+  });
+
+  it("opens and translates a PDF dropped over an already translated document in the same tab", async () => {
+    await launch("https://example.com/first.pdf", false);
+    const translate = document.querySelector<HTMLButtonElement>("#translateDocument")!;
+    await vi.waitFor(() => expect(translate.disabled).toBe(false));
+    translate.click();
+    await vi.waitFor(() => expect(document.querySelector("#statusToast")?.textContent).toContain("翻译完成"));
+
+    const file = new File(["%PDF-test"], "second.PDF");
+    Object.defineProperty(file, "arrayBuffer", { value: async () => new TextEncoder().encode("%PDF-test").buffer });
+    const translatedPage = document.querySelector(".translation-text-layer")!;
+    expect(drag(translatedPage, "drop", ["Files"], [file]).defaultPrevented).toBe(true);
+    await vi.waitFor(() => expect(document.querySelector("#documentName")?.textContent).toBe("second.PDF"));
+    await vi.waitFor(() => expect(sendMessage.mock.calls.filter(([request]) => request.type === "TRANSLATE_BATCH")).toHaveLength(2));
+    expect(fetchPdf).toHaveBeenCalledOnce();
+    expect(chrome.tabs.create).not.toHaveBeenCalled();
+  });
+
+  it("keeps the reader open on unsupported drops and does not intercept text or links", async () => {
+    await launch("https://example.com/first.pdf", false);
+    const panel = document.querySelector("#readerView")!;
+    await vi.waitFor(() => expect(panel.querySelector(".page-row")).not.toBeNull());
+    const page = panel.querySelector(".page-row")!;
+    const overlay = document.querySelector<HTMLElement>("#pdfDropOverlay")!;
+    for (const type of ["text/plain", "text/uri-list"]) {
+      expect(drag(page, "dragover", [type]).defaultPrevented).toBe(false);
+      expect(drag(page, "drop", [type]).defaultPrevented).toBe(false);
+      expect(overlay.hidden).toBe(true);
+    }
+
+    drag(panel, "dragenter", ["Files"]);
+    drag(page, "dragenter", ["Files"]);
+    drag(panel, "dragleave", ["Files"]);
+    expect(drag(page, "dragover", ["Files"]).dataTransfer?.dropEffect).toBe("copy");
+    expect(overlay.hidden).toBe(false);
+    drag(page, "dragleave", ["Files"]);
+    expect(overlay.hidden).toBe(true);
+
+    drag(page, "dragenter", ["Files"]);
+    const invalid = new File(["image"], "cover.png", { type: "image/png" });
+    expect(drag(page, "drop", ["Files"], [invalid]).defaultPrevented).toBe(true);
+    expect(overlay.hidden).toBe(true);
+    expect(document.querySelector("#statusToast")?.textContent).toBe("请选择 PDF 文件。");
+    expect(document.querySelector("#documentName")?.textContent).toBe("first.pdf");
+    expect(getDocument).toHaveBeenCalledOnce();
   });
 
   it("automatically translates a URL without an explicit translation flag", async () => {
