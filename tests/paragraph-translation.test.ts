@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DEFAULT_SETTINGS } from "../src/shared/defaults";
-import { findTranslatableParagraph } from "../src/content/dom";
-import { clearPageTranslation, setPageTranslationDisplayMode } from "../src/content/page-translation";
+import { findTranslatableParagraph, hasTranslationsIn } from "../src/content/dom";
+import { clearPageTranslation, hidePageTranslation, setPageTranslationDisplayMode, startPageTranslation } from "../src/content/page-translation";
 import { translateParagraph } from "../src/content/paragraph-translation";
 import { sendRuntimeRequest } from "../src/content/runtime";
 import { structuredTranslation, withoutMarkup } from "./helpers/structured-translation";
@@ -30,6 +30,66 @@ const requests = () => vi.mocked(sendRuntimeRequest).mock.calls.map(([request]) 
 const targetAt = (selector: string) => findTranslatableParagraph(document.querySelector(selector))!;
 
 describe("paragraph translation clicks", () => {
+  it.each(["replace", "bilingual", "bilingual-accent"] as const)(
+    "keeps a restored paragraph in source view during %s page translation", async translationDisplayMode => {
+      document.body.innerHTML = '<main><p id="paragraph">Read <em id="first">this complete guide</em> before continuing.</p><p id="other">This paragraph stays translated.</p></main>';
+      const paragraph = document.querySelector("#paragraph")!;
+      const other = document.querySelector("#other")!;
+      const source = paragraph.textContent;
+      const originalMarkup = paragraph.innerHTML;
+      const options = { ...structuredClone(DEFAULT_SETTINGS), translationDisplayMode };
+      await startPageTranslation(options);
+      expect(hasTranslationsIn(paragraph)).toBe(true);
+      expect(hasTranslationsIn(other)).toBe(true);
+
+      await translateParagraph(targetAt("#first"));
+      expect(paragraph.textContent).toBe(source);
+      // A framework can rebuild a paragraph's text nodes without changing its source.
+      paragraph.innerHTML = originalMarkup;
+      const inserted = document.createElement("p");
+      inserted.textContent = "This new paragraph still gets translated.";
+      other.after(inserted);
+      window.dispatchEvent(new Event("resize"));
+      await vi.waitFor(() => expect(hasTranslationsIn(inserted)).toBe(true));
+      await new Promise(resolve => setTimeout(resolve, 240));
+      expect(hasTranslationsIn(paragraph)).toBe(false);
+      expect(paragraph.textContent).toBe(source);
+      expect(hasTranslationsIn(other)).toBe(true);
+      expect(requests().flatMap(request => request.texts).map(withoutMarkup).filter(text => text === source)).toHaveLength(1);
+
+      setPageTranslationDisplayMode(translationDisplayMode === "replace" ? "bilingual" : "replace");
+      expect(hasTranslationsIn(paragraph)).toBe(false);
+      await hidePageTranslation();
+      await startPageTranslation(options);
+      expect(hasTranslationsIn(paragraph)).toBe(false);
+      expect(hasTranslationsIn(other)).toBe(true);
+
+      await translateParagraph(targetAt("#first"));
+      expect(hasTranslationsIn(paragraph)).toBe(true);
+    }
+  );
+
+  it("does not display an in-flight page result after restoring its paragraph", async () => {
+    document.body.innerHTML = '<main><p id="paragraph">Source paragraph waiting for a translation.</p><p id="other">Another paragraph still wants a translation.</p></main>';
+    const paragraph = document.querySelector("#paragraph")!;
+    const other = document.querySelector("#other")!;
+    const normal = vi.mocked(sendRuntimeRequest).getMockImplementation()!;
+    let finish!: (response: { translations: string[]; cached: number }) => void;
+    vi.mocked(sendRuntimeRequest).mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+    const page = startPageTranslation(structuredClone(DEFAULT_SETTINGS));
+    await vi.waitFor(() => expect(hasTranslationsIn(paragraph)).toBe(true));
+    await translateParagraph(targetAt("#paragraph"));
+    expect(hasTranslationsIn(paragraph)).toBe(false);
+    finish({ translations: requests()[0].texts.map(text => structuredTranslation(text, "这是完整段落的译文。")), cached: 0 });
+    expect(await page).toMatchObject({ failed: 0 });
+    expect(hasTranslationsIn(paragraph)).toBe(false);
+    expect(hasTranslationsIn(other)).toBe(true);
+
+    vi.mocked(sendRuntimeRequest).mockImplementation(normal);
+    paragraph.textContent = "Different content in a reused paragraph.";
+    await vi.waitFor(() => expect(paragraph.querySelector(".wupage-translation")?.textContent).toBe("这是完整段落的译文。"));
+  });
+
   it.each(["bilingual", "bilingual-accent", "replace"] as const)("renders the first %s result after the hover highlight moves away", async mode => {
     setPageTranslationDisplayMode(mode);
     document.body.innerHTML = '<main><p id="paragraph" data-wupage-paragraph-active="true">Read <em>this complete guide</em> before continuing.</p></main>';
