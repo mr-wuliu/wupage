@@ -55,7 +55,7 @@ function officialHost(address: string, domains: string[]): boolean {
 
 export function getProviderUsage(provider: ProviderConfig): ProviderUsage {
   const unknown = t("notPublishedByTheProvider");
-  if (provider.type === "doubao-web") return { service: t("doubaoExperimental"), quota: t("dependsOnTheQuotaAvailableFromDoubao"),
+  if (provider.type === "doubao-web") return { service: t("doubao"), quota: t("dependsOnTheQuotaAvailableFromDoubao"),
     request: unknown, rate: unknown, concurrency: unknown,
     sources: [source(t("doubao"), "https://www.doubao.com/")] };
   if (supportsServiceMode(provider)) {

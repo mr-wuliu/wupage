@@ -24,9 +24,9 @@ export function syncDoubaoTargetControls(
 export function doubaoProviderNotice(settings: ExtensionSettings): string | undefined {
   const provider = settings.providers.find((entry) => entry.id === settings.activeProviderId);
   if (provider?.type !== "doubao-web") return undefined;
-  if (isDoubaoProviderUnavailable(provider)) return t("doubaoExperimentalCurrentlyRequiresAChromiumBrowserChoose");
+  if (isDoubaoProviderUnavailable(provider)) return t("doubaoRequiresChromiumChooseService");
   if (!Object.hasOwn(DOUBAO_TARGET_LANGUAGES, settings.targetLang)) return t("doubaoSupportedLanguages");
-  return t("doubaoExperimentalSignInToDoubaoInThis");
+  return undefined;
 }
 
 const STATUS_LABELS: Record<DoubaoStatus["state"], string> = {

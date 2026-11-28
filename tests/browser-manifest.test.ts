@@ -17,7 +17,8 @@ describe("browser package boundaries", () => {
     expect(firefox.content_security_policy.sandbox).toContain("moz-extension:");
     expect(firefox.content_security_policy.sandbox).not.toContain("chrome-extension:");
     expect(firefox.browser_specific_settings?.gecko).toMatchObject({
-      strict_min_version: "154.0", data_collection_permissions: { required: ["websiteContent", "authenticationInfo"] }
+      strict_min_version: "154.0",
+      data_collection_permissions: { required: ["websiteContent", "authenticationInfo"], optional: ["technicalAndInteraction"] }
     });
     expect(firefox.version).toBe(manifest.version);
     expect(firefox).not.toHaveProperty("key");

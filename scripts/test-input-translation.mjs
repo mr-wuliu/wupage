@@ -160,7 +160,8 @@ try {
   await open('draft', 'above\n'.repeat(9) + 'end');
   await browser.evaluate("const draft=document.querySelector('#draft');draft.scrollTop=draft.scrollHeight;");
   await waitFor('return document.querySelector("#draft").scrollTop > 80;');
-  await delay(40);
+  await waitFor('return ' + menu + '.querySelector(".popup").getBoundingClientRect().top'
+    + ' < document.querySelector("#draft").getBoundingClientRect().bottom - 30;');
   const scrolled = await menuGeometry('draft');
   assert.ok(scrolled.popup.top < scrolled.field.bottom - 30, 'menu uses the scrolled textarea caret rather than its bottom edge');
   await browser.evaluate("document.querySelector('#draft').scrollTop -= 12;");
@@ -229,10 +230,36 @@ try {
   await browser.press('Enter');
   await waitFor("return document.querySelector('iframe').contentDocument.querySelector('#embedded').value === 'Translated 嵌入';");
 
+  const seededPicker = await browser.api(`const {data:settings}=await chrome.runtime.sendMessage({type:'GET_SETTINGS'});
+    settings.providers.find(provider=>provider.id==='microsoft-web-translate').enabled=false;
+    settings.providers.find(provider=>provider.id==='deepseek').enabled=false;
+    settings.inputTranslation.templates[0].providerId='microsoft-web-translate';
+    return chrome.runtime.sendMessage({type:'SAVE_SETTINGS',settings});`);
+  assert.equal(seededPicker.ok, true);
   await browser.navigate(options);
   await waitFor('return document.querySelectorAll("#inputTemplates article").length === 2;');
   await waitFor('const toggle = document.querySelector("#inputTranslationEnabled");'
     + 'return toggle.checked && toggle.parentElement.getAnimations({ subtree: true }).length === 0;');
+  const services = await browser.evaluate(`
+    const picker = id => document.querySelector('[data-template-id="' + id + '"] .wupage-provider-picker');
+    const choices = id => [...picker(id).querySelectorAll('.wupage-provider-choice')].filter(option => option.dataset.value).map(option => option.dataset.value);
+    const trigger = id => picker(id).querySelector('.wupage-provider-trigger');
+    const style = element => {
+      const { borderTopColor, borderTopWidth, backgroundColor, fontWeight, minHeight } = getComputedStyle(element);
+      return [borderTopColor, borderTopWidth, backgroundColor, fontWeight, minHeight];
+    };
+    return { machine: choices('english'), ai: choices('meow'), missingBinding: trigger('english').textContent.trim(),
+      aiIcon: trigger('meow').querySelector('[data-provider-icon]')?.dataset.providerIcon,
+      inputStyle: style(trigger('english')), serviceStyle: style(document.querySelector('#providerTrigger')) };`);
+  assert.equal(services.machine.includes('microsoft-web-translate'), false);
+  assert.equal(services.machine.includes('google-web-translate'), true);
+  assert.equal(services.machine.includes('openai-compatible'), false);
+  assert.equal(services.ai.includes('deepseek'), false);
+  assert.equal(services.ai.includes('openai-compatible'), true);
+  assert.equal(services.ai.includes('google-web-translate'), false);
+  assert.equal(services.missingBinding, '选择服务');
+  assert.equal(services.aiIcon, 'openai');
+  assert.deepEqual(services.inputStyle, services.serviceStyle);
   for (const width of [1400, 320, 390]) {
     await browser.resize(width, width === 1400 ? 1000 : 760);
     const layout = await browser.evaluate(`
@@ -254,7 +281,25 @@ try {
           width + 'px toolbar fits below the name field');
       }
     }
-    if (width !== 320) await browser.capture(width === 1400 ? 'input-settings-desktop.png' : 'input-settings.png');
+    if (width !== 320) {
+      await browser.capture(width === 1400 ? 'input-settings-desktop.png' : 'input-settings.png');
+      const triggerSelector = '[data-template-id="english"] .wupage-provider-trigger';
+      await browser.evaluate(`document.querySelector(${JSON.stringify(triggerSelector)}).scrollIntoView({ block: 'center' });`);
+      await delay(40);
+      const picker = await browser.evaluate(`
+        const trigger = document.querySelector(${JSON.stringify(triggerSelector)});
+        trigger.click();
+        const menu = document.getElementById(trigger.getAttribute('aria-controls'));
+        const box = menu.getBoundingClientRect();
+        const triggerBox = trigger.getBoundingClientRect();
+        return { open: !menu.hidden, fits: box.width > 0 && box.left >= 0 && box.right <= innerWidth
+          && box.top >= 0 && box.bottom <= innerHeight,
+          aligned: Math.abs(box.left - triggerBox.left) < 1 && Math.abs(box.right - triggerBox.right) < 1 };`);
+      assert.deepEqual(picker, { open: true, fits: true, aligned: true }, width + 'px service menu aligns with its trigger');
+      await delay(160);
+      await browser.capture(width === 1400 ? 'input-services-desktop.png' : 'input-services.png');
+      await browser.press('Escape');
+    }
   }
   await browser.evaluate(`const meow=document.querySelector('[data-template-id="meow"]');
     meow.querySelector('.input-template-up').click();meow.querySelector('input[type=text]').value='猫语';
@@ -263,6 +308,16 @@ try {
   await waitFor("return document.querySelector('#status').textContent === '已保存。';");
   const stored = await browser.api("return (await chrome.runtime.sendMessage({type:'GET_SETTINGS'})).data.inputTranslation;");
   assert.deepEqual(stored.templates.map(entry => [entry.id, entry.label, entry.enabled]), [['meow', '猫语', true], ['english', '', false]]);
+  assert.equal(stored.templates.find(entry => entry.id === 'english').providerId, 'microsoft-web-translate');
+  await browser.evaluate(`const picker = document.querySelector('[data-template-id="english"] .wupage-provider-picker');
+    picker.querySelector('.wupage-provider-trigger').click();`);
+  assert.equal(await browser.evaluate('return document.querySelector(\'[data-template-id="english"] .wupage-provider-list\').hidden;'), false);
+  await browser.evaluate(`const picker = document.querySelector('[data-template-id="english"] .wupage-provider-picker');
+    picker.querySelector('[data-value="google-web-translate"]').click();
+    document.querySelector('#save').click();`);
+  await waitFor("return document.querySelector('#status').textContent === '已保存。';");
+  const rebound = await browser.api("return (await chrome.runtime.sendMessage({type:'GET_SETTINGS'})).data.inputTranslation.templates.find(entry=>entry.id==='english').providerId;");
+  assert.equal(rebound, 'google-web-translate');
   await browser.api("const {data:settings}=await chrome.runtime.sendMessage({type:'GET_SETTINGS'});"
     + "Object.assign(settings.appearance,{mode:'dark',darkSchemeId:'midnight'});"
     + "return chrome.runtime.sendMessage({type:'SAVE_SETTINGS',settings});");
@@ -298,6 +353,7 @@ try {
     'caret anchors in single-line and wrapped or scrolled controls, native editable ranges and viewport-edge placement',
     'borderless template buttons use the active light or dark palette and appear in its settings preview',
     'simple contenteditable, embedded input, native undo, stale response and sensitive fields',
+    'template pickers use the service UI and compatibly retain, hide, and replace unavailable bindings',
     'Escape, aligned desktop and narrow settings, persisted template order, visibility and unconfigured template guidance'
   ] }, null, 2) + '\n');
 } finally {

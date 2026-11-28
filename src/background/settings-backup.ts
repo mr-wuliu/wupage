@@ -1,4 +1,4 @@
-import { parseSettingsBackup, type SettingsImportResult } from "../shared/settings-backup";
+import { parseSettingsBackup, parseSettingsSyncBackup, type SettingsImportResult } from "../shared/settings-backup";
 import { saveSettings } from "../shared/settings";
 import { ocrRevision } from "./ocr-service";
 
@@ -14,4 +14,9 @@ export async function importSettingsBackup(text: string): Promise<SettingsImport
     return next;
   });
   return { settings, imageTranslationDisabled };
+}
+
+export function restoreSyncedSettings(text: string) {
+  const backup = parseSettingsSyncBackup(text);
+  return saveSettings(latest => ({ ...latest, ...backup.settings }));
 }

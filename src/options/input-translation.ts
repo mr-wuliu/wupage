@@ -1,3 +1,4 @@
+import { isDoubaoProviderUnavailable } from "../shared/doubao-ui";
 import { t } from "../shared/i18n";
 import {
   inputTemplateAcceptsProvider, inputTemplateLabel, inputTemplateProvider, KEEP_INPUT_LANGUAGE,
@@ -5,6 +6,7 @@ import {
   type InputTranslationSettings, type InputTranslationTemplate
 } from "../shared/input-translation";
 import { TARGET_LANGUAGES } from "../shared/languages";
+import { enhanceProviderSelect } from "../shared/provider-picker";
 import { randomId } from "../shared/random-id";
 import type { ProviderConfig } from "../shared/types";
 import { uiIconMarkup, type UiIconName } from "../shared/ui-icons";
@@ -57,6 +59,13 @@ export function setupInputTranslationControls(root: HTMLElement) {
     mode.add(option("ai", t("inputAiTranslation")));
     mode.value = template.mode;
     const provider = document.createElement("select");
+    provider.setAttribute("aria-label", t("translationService"));
+    const providerField = document.createElement("div");
+    providerField.className = "provider-field";
+    const providerLabel = document.createElement("span");
+    providerLabel.className = "field-label";
+    providerLabel.textContent = t("translationService");
+    providerField.append(providerLabel, provider);
     const target = document.createElement("select");
     const prompt = document.createElement("textarea");
     prompt.rows = 3;
@@ -65,32 +74,42 @@ export function setupInputTranslationControls(root: HTMLElement) {
     const promptField = label(t("inputTemplatePrompt"), prompt);
     const serviceHint = document.createElement("p");
     serviceHint.className = "hint";
-    serviceHint.textContent = t("inputTemplateChooseService");
-    fields.append(label(t("inputTemplateMode"), mode), label(t("translationService"), provider), label(t("targetLanguage"), target));
+    fields.append(label(t("inputTemplateMode"), mode), providerField, label(t("targetLanguage"), target));
     row.append(heading, fields, serviceHint, promptField);
 
+    // Keep a temporarily unavailable binding until the user chooses a service
+    // or changes the template's processing mode.
+    let providerId = template.providerId;
     const read = (): InputTranslationTemplate => ({
       id: template.id, label: name.value, enabled: visible.checked, mode: mode.value === "ai" ? "ai" : "machine",
-      providerId: provider.value, targetLang: target.value, prompt: prompt.value
+      providerId, targetLang: target.value, prompt: prompt.value
     });
-    const syncAvailability = () => { serviceHint.hidden = !!inputTemplateProvider(read(), providers); };
-    const populate = (providerId: string, targetLang: string) => {
+    const syncAvailability = () => { serviceHint.hidden = Boolean(provider.value && inputTemplateProvider(read(), providers)); };
+    const populate = (targetLang: string) => {
       const current = read();
       const isAi = current.mode === "ai";
-      const matches = providers.filter(entry => inputTemplateAcceptsProvider(current, entry));
-      provider.replaceChildren(option("", t("inputTemplateSelectService")), ...matches.map(entry =>
-        option(entry.id, entry.enabled === false ? t("inputTemplateDisabledService", entry.label) : entry.label)));
-      if (providerId && !matches.some(entry => entry.id === providerId)) provider.add(option(providerId, t("inputTemplateMissingService")));
-      provider.value = providerId;
+      const matches = providers.filter(entry => entry.enabled !== false
+        && inputTemplateAcceptsProvider(current, entry) && !isDoubaoProviderUnavailable(entry));
+      provider.replaceChildren(option("", t("inputTemplateSelectService")), ...matches.map(entry => option(entry.id, entry.label)));
+      provider.value = matches.some(entry => entry.id === providerId) ? providerId : "";
+      provider.disabled = matches.length === 0;
+      enhanceProviderSelect(provider, matches);
+      serviceHint.textContent = t(provider.disabled ? "inputTemplateEnableService" : "inputTemplateChooseService");
       target.replaceChildren(...(isAi ? [option(KEEP_INPUT_LANGUAGE, t("keepInputLanguage"))] : []),
         ...TARGET_LANGUAGES.map(lang => option(lang.code, lang.label)));
       target.value = [...target.options].some(entry => entry.value === targetLang) ? targetLang : "en";
       promptField.hidden = !isAi;
       syncAvailability();
     };
-    populate(template.providerId, template.targetLang);
-    mode.addEventListener("change", () => populate("", target.value));
-    provider.addEventListener("change", syncAvailability);
+    populate(template.targetLang);
+    mode.addEventListener("change", () => {
+      providerId = "";
+      populate(target.value);
+    });
+    provider.addEventListener("change", () => {
+      providerId = provider.value;
+      syncAvailability();
+    });
     up.addEventListener("click", () => move(row, -1, up, name));
     down.addEventListener("click", () => move(row, 1, down, name));
     remove.addEventListener("click", () => {

@@ -173,8 +173,9 @@ function normalizeProvider(
     return {
       type: "doubao-web",
       id: provider.id,
-      label: provider.id === "doubao-web" && ["豆包（网页登录，实验）", "豆包（实验性）", "Doubao (experimental)"].includes(provider.label)
-        ? t("doubaoExperimental") : provider.label,
+      label: provider.id === "doubao-web"
+        && ["豆包", "Doubao", "豆包（网页登录，实验）", "豆包（实验性）", "Doubao (experimental)"].includes(provider.label)
+        ? t("doubao") : provider.label,
       enabled: provider.enabled !== false,
       performanceMode: "custom",
       chunkSize: 1200,

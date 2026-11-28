@@ -14,6 +14,17 @@ import { shareableSettings, withoutSettingsKeys } from "./settings-backup-creden
 export const SETTINGS_BACKUP_MAX_BYTES = 5 * 1024 * 1024;
 export const SETTINGS_BACKUP_KIND = "wupage-settings-backup";
 export const SETTINGS_BACKUP_MIME = "application/toml";
+const SETTINGS_SYNC_KIND = "wupage-preferences-backup";
+const SYNC_PREFERENCES = [
+  "targetLang", "sourceLang", "translationDisplayMode", "appearance", "chunkSize", "concurrency",
+  "cacheEnabled", "floatingBallEnabled", "floatingBallExcludedSites", "videoFloatingExcludedSites",
+  "contextMenuTranslationEnabled", "imageTranslationContextMenuEnabled", "imageTranslationFloatingEnabled",
+  "translateCodeComments", "pdfTranslationPageRadius", "selectionTranslation", "frameTranslation",
+  "videoTranslation", "autoTranslation", "elementExclusions", "elementInclusions",
+  "elementExclusionDefaultsVersion", "glossaryGroups", "shortcuts", "localShortcuts", "shortcutEnabled"
+] as const satisfies readonly (keyof ExtensionSettings)[];
+type SyncPreferences = Pick<ExtensionSettings, (typeof SYNC_PREFERENCES)[number]>;
+
 export interface SettingsBackup {
   kind: typeof SETTINGS_BACKUP_KIND;
   version: 1;
@@ -21,6 +32,13 @@ export interface SettingsBackup {
   extensionVersion: string;
   createdAt: string;
   settings: ExtensionSettings;
+}
+export interface SettingsSyncBackup {
+  kind: typeof SETTINGS_SYNC_KIND;
+  version: 1;
+  extensionVersion: string;
+  createdAt: string;
+  settings: SyncPreferences;
 }
 export interface SettingsImportResult {
   settings: ExtensionSettings;
@@ -41,18 +59,57 @@ export function createSettingsBackup(settings: ExtensionSettings, extensionVersi
 }
 
 export function serializeSettingsBackup(backup: SettingsBackup): string {
+  return serializeBackup(backup, `# ${t("backupFileTitle")}\n`
+    + `# ${t(backup.includesKeys ? "backupFileIncludesCredentials" : "backupFileOmitsCredentials")}\n`
+    + `# ${t("backupFilePdfScope")}\n\n`);
+}
+
+export function createSettingsSyncBackup(settings: ExtensionSettings, extensionVersion: string, now = new Date()): SettingsSyncBackup {
+  const preferences = pickSyncPreferences(settings);
+  return {
+    kind: SETTINGS_SYNC_KIND, version: 1, extensionVersion, createdAt: now.toISOString(),
+    settings: pickSyncPreferences(readSettings({ ...DEFAULT_SETTINGS, ...preferences }, false))
+  };
+}
+
+export function serializeSettingsSyncBackup(backup: SettingsSyncBackup): string {
+  return serializeBackup({ ...backup, settings: pickSyncPreferences(backup.settings) }, "");
+}
+
+export function parseSettingsSyncBackup(text: string): SettingsSyncBackup {
+  const { document, settings, extensionVersion, createdAt } = readBackupDocument(text, SETTINGS_SYNC_KIND);
+  if (Object.keys(document).some(key => !["kind", "version", "extensionVersion", "createdAt", "settings"].includes(key))
+    || Object.keys(settings).some(key => !SYNC_PREFERENCES.some(preference => preference === key))) {
+    invalid("settings");
+  }
+  const preferences = Object.fromEntries(SYNC_PREFERENCES.map(key => [key, settings[key]]));
+  const normalized = readSettings({ ...DEFAULT_SETTINGS, ...preferences }, true);
+  return { kind: SETTINGS_SYNC_KIND, version: 1, extensionVersion, createdAt, settings: pickSyncPreferences(normalized) };
+}
+
+function pickSyncPreferences(settings: SyncPreferences): SyncPreferences {
+  return Object.fromEntries(SYNC_PREFERENCES.map(key => [key, settings[key]])) as SyncPreferences;
+}
+
+function serializeBackup(backup: SettingsBackup | SettingsSyncBackup, prefix: string): string {
   // TOML has no null. Keep the internal null meaning explicit on disk.
   const document = { ...backup, settings: { ...backup.settings,
     pdfTranslationPageRadius: backup.settings.pdfTranslationPageRadius ?? "all" } };
-  const text = `# ${t("backupFileTitle")}\n`
-    + `# ${t(backup.includesKeys ? "backupFileIncludesCredentials" : "backupFileOmitsCredentials")}\n`
-    + `# ${t("backupFilePdfScope")}\n\n`
-    + formatMultilineStrings(stringifyToml(document));
+  const text = prefix + formatMultilineStrings(stringifyToml(document));
   checkSize(text);
   return text;
 }
 
 export function parseSettingsBackup(text: string): SettingsBackup {
+  const { document, settings: input, extensionVersion, createdAt } = readBackupDocument(text, SETTINGS_BACKUP_KIND);
+  const { includesKeys } = document;
+  if (typeof includesKeys !== "boolean") invalid("includesKeys");
+  const settings = readSettings(input, true);
+  if (!includesKeys && !sameValue(settings, withoutSettingsKeys(settings))) invalid("settings.credentials");
+  return { kind: SETTINGS_BACKUP_KIND, version: 1, includesKeys, extensionVersion, createdAt, settings };
+}
+
+function readBackupDocument(text: string, kind: typeof SETTINGS_BACKUP_KIND | typeof SETTINGS_SYNC_KIND) {
   checkSize(text);
   let value: unknown;
   try { value = parseToml(text.replace(/^\uFEFF/u, ""), { unsafeKeyBehaviour: "throw", maxDepth: 24 }); }
@@ -62,19 +119,18 @@ export function parseSettingsBackup(text: string): SettingsBackup {
     throw new Error(t("couldNotReadBackupChooseAValidToml", position));
   }
   checkTree(value);
-  if (!isRecord(value) || value.kind !== SETTINGS_BACKUP_KIND) throw new Error(t("thisIsNotAWupageSettingsBackup"));
+  if (!isRecord(value) || value.kind !== kind) {
+    throw new Error(t(kind === SETTINGS_BACKUP_KIND ? "thisIsNotAWupageSettingsBackup" : "settingsSyncInvalidBackup"));
+  }
   if (value.version !== 1) throw new Error(t("unsupportedBackupFormatVersionUseAVersionOf"));
-  if (typeof value.includesKeys !== "boolean") invalid("includesKeys");
-  if (typeof value.createdAt !== "string" || !/^\d{4}-\d{2}-\d{2}T/u.test(value.createdAt)
-    || !Number.isFinite(Date.parse(value.createdAt)) || typeof value.extensionVersion !== "string"
-    || !/^\d+\.\d+\.\d+(?:[.\-+][\w.\-]+)?$/u.test(value.extensionVersion)) invalid(t("backupInformation"));
+  const { createdAt, extensionVersion } = value;
+  if (typeof createdAt !== "string" || !/^\d{4}-\d{2}-\d{2}T/u.test(createdAt)
+    || !Number.isFinite(Date.parse(createdAt)) || typeof extensionVersion !== "string"
+    || !/^\d+\.\d+\.\d+(?:[.\-+][\w.\-]+)?$/u.test(extensionVersion)) invalid(t("backupInformation"));
   if (!isRecord(value.settings)) invalid("settings");
-  const settings = readSettings({ ...value.settings,
-    pdfTranslationPageRadius: value.settings.pdfTranslationPageRadius === "all" ? null : value.settings.pdfTranslationPageRadius }, true);
-  const includesKeys = value.includesKeys;
-  if (!includesKeys && !sameValue(settings, withoutSettingsKeys(settings))) invalid("settings.credentials");
-  return { kind: SETTINGS_BACKUP_KIND, version: value.version, includesKeys, extensionVersion: value.extensionVersion,
-    createdAt: value.createdAt, settings };
+  const settings: Record<string, unknown> = { ...value.settings };
+  if (settings.pdfTranslationPageRadius === "all") settings.pdfTranslationPageRadius = null;
+  return { document: value, createdAt, extensionVersion, settings };
 }
 
 /** Keep the library's escaping, expanding only escaped newlines into TOML
